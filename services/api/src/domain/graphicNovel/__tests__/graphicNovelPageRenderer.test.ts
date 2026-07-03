@@ -3,15 +3,12 @@ import sharp from 'sharp';
 import { GRAPHIC_NOVEL_PAGE_SIZE, planGraphicNovelLayouts } from '../layoutPlanner';
 import { buildGraphicNovelPageTextOverlay } from '../textOverlay';
 import {
-  buildGraphicNovelPageEditInstructions,
-  buildGraphicNovelPageSystemInstruction,
-  detectGraphicNovelTemplateColorResidue,
-  editGraphicNovelPage,
-  overlayGraphicNovelTemplate,
-  renderGraphicNovelPageTemplate,
+  buildGraphicNovelPageFreeLayoutInstructions,
+  buildGraphicNovelPageFreeLayoutSystemInstruction,
+  buildGraphicNovelPageValidationRepairInstructions,
+  overlayGraphicNovelBubblesOnly,
 } from '../pageRenderer';
 import type { PlannedGraphicNovelPage } from '../types';
-import type { GeneratedImage } from '../../../providers/base/IImageProvider';
 
 function visual(primaryRead: string, characterName = 'Mira') {
   return {
@@ -68,31 +65,6 @@ function samplePage(): PlannedGraphicNovelPage {
   })[0];
 }
 
-async function paintRect(
-  source: Buffer,
-  rect: { x: number; y: number; width: number; height: number },
-  fill = '#ff0000'
-): Promise<Buffer> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rect.width}" height="${rect.height}">
-    <rect width="100%" height="100%" fill="${fill}"/>
-  </svg>`;
-  return sharp(source)
-    .composite([{ input: Buffer.from(svg), left: rect.x, top: rect.y }])
-    .png()
-    .toBuffer();
-}
-
-function generated(imageData: Buffer, id: string): GeneratedImage {
-  return {
-    imageData,
-    mimeType: 'image/png',
-    width: GRAPHIC_NOVEL_PAGE_SIZE.width,
-    height: GRAPHIC_NOVEL_PAGE_SIZE.height,
-    format: 'png',
-    providerInteractionId: id,
-  };
-}
-
 async function pixelAt(buffer: Buffer, x: number, y: number): Promise<[number, number, number, number]> {
   const raw = await sharp(buffer)
     .resize(GRAPHIC_NOVEL_PAGE_SIZE.width, GRAPHIC_NOVEL_PAGE_SIZE.height, { fit: 'fill' })
@@ -120,6 +92,31 @@ function testHtmlTextOverlayCoordinates(): void {
   assert.deepEqual(overlay.items[0].rect, firstBubble.rect);
   assert.match(overlay.items[0].cssPercent.left, /%$/);
   assert.match(overlay.items[0].cssPercent.top, /%$/);
+  assert.equal(overlay.textStyle, undefined);
+}
+
+function testHtmlTextOverlayIncludesBubbleTextStyle(): void {
+  const page = {
+    ...samplePage(),
+    bubbleTextSizing: {
+      fontSizePx: 26,
+      lineHeightPx: 30,
+      paddingXPx: 18,
+      paddingYPx: 8,
+      targetPageWidthPx: 992,
+      targetPageHeightPx: 1323,
+    },
+  };
+  const overlay = buildGraphicNovelPageTextOverlay(page);
+
+  assert.deepEqual(overlay.textStyle, {
+    fontSizePx: 26,
+    lineHeightPx: 30,
+    paddingXPx: 18,
+    paddingYPx: 8,
+    targetPageWidthPx: 992,
+    targetPageHeightPx: 1323,
+  });
 }
 
 function testHtmlTextOverlaySeparatesRawArtifactText(): void {
@@ -135,7 +132,7 @@ function testHtmlTextOverlaySeparatesRawArtifactText(): void {
   assert.equal(overlay.plainText.includes('{Star Key}'), false);
 }
 
-function testEditInstructionsIncludeReferencesAndPostArtBubblePlacement(): void {
+function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
   const page = samplePage();
   page.outfits = [{
     id: 'o_mira_swimwear',
@@ -148,55 +145,34 @@ function testEditInstructionsIncludeReferencesAndPostArtBubblePlacement(): void 
       composition.characters[0].outfitId = 'o_mira_swimwear';
     }
   }
-  const systemInstruction = buildGraphicNovelPageSystemInstruction({
+
+  const systemInstruction = buildGraphicNovelPageFreeLayoutSystemInstruction({
     style: 'warm_3d',
-    slotCount: page.panels.length,
+    panelCount: page.panels.length,
     ageGroup: '6-8',
   });
-  const prompt = buildGraphicNovelPageEditInstructions(page, new Map(), [
+  const prompt = buildGraphicNovelPageFreeLayoutInstructions(page, new Map(), [
     {
       base64Data: 'abc',
       mimeType: 'image/png',
       characterName: 'Mira',
       referenceKind: 'character',
-      instructionText: 'Image 1: IDENTITY SOURCE Subject A for "Mira". Character sheet. Use as the locked source of truth for face/head design, exact hairstyle or fur/body structure, age/species read, body proportions, silhouette, stable palette, and distinctive marks.',
+      instructionText: 'Image 1: IDENTITY SOURCE Subject A for "Mira". Character sheet.',
     },
   ]);
 
-  assert.match(prompt, /REFERENCE IMAGES TO FOLLOW/);
+  assert.match(systemInstruction, /Generate a new page from scratch with exactly 2 comic panels/);
+  assert.match(systemInstruction, /No preset layout guide image is attached/);
+  assert.match(prompt, /Create a single comic page with exactly 2 panels/);
+  assert.match(prompt, /Choose the panel layout yourself/);
   assert.match(prompt, /Image 1: Character reference for "Mira"\. Character sheet\./);
-  assert.doesNotMatch(prompt, /PAGE STRUCTURE/);
-  assert.doesNotMatch(prompt, /Exactly 2 color-coded slots/);
-  assert.doesNotMatch(prompt, /The only valid color-coded slots are/);
-  assert.match(prompt, /sky-blue slot:\n- Slot color: sky-blue\.\n- Slot position: x=/);
-  assert.match(prompt, /- Slot size: width=/);
-  assert.match(prompt, /peach slot:\n- Slot color: peach\.\n- Slot position: x=/);
-  assert.match(prompt, /Characters in slot/);
+  assert.match(prompt, /Characters in panel/);
   assert.match(prompt, /Mira: position left_foreground/);
   assert.match(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
-  assert.doesNotMatch(prompt, /Environment id:/);
-  assert.doesNotMatch(prompt, /Character staging/);
-  assert.doesNotMatch(prompt, /If Character staging mentions/);
-  assert.doesNotMatch(prompt, /Use as the locked source of truth/);
-  assert.doesNotMatch(prompt, /locked visual ground truth/);
-  assert.doesNotMatch(prompt, /Never borrow a character design/);
-  assert.doesNotMatch(prompt, /Fill this color-coded slot/);
-  assert.doesNotMatch(prompt, /\b(?:Do not|Never|do not|never)\b/);
-  assert.doesNotMatch(systemInstruction, /\b(?:Do not|Never|do not|never)\b/);
-  assert.match(systemInstruction, /high-quality modern 3D animated film render/);
-  assert.match(systemInstruction, /rounded appealing character forms/);
-  assert.doesNotMatch(systemInstruction, /Style: warm_3d/);
-  assert.match(systemInstruction, /exactly 2 color-coded slots/);
-  assert.match(systemInstruction, /Each ART TO ADD slot section maps one guide color to one scene/);
-  assert.match(systemInstruction, /Each slot contains one single visual moment/);
-  assert.match(systemInstruction, /Each slot uses exactly the characters listed under Characters in slot/);
-  assert.match(systemInstruction, /full-bleed illustration to the inside edge/);
-  assert.match(systemInstruction, /Character identity reference images are locked visual ground truth/);
-  assert.match(systemInstruction, /Outfit instructions are wardrobe-only/);
-  assert.doesNotMatch(prompt, /numbered/i);
-  assert.doesNotMatch(prompt, /bubble/i);
-  assert.doesNotMatch(prompt, /comic/i);
-  assert.doesNotMatch(prompt, /graphic[- ]novel/i);
+  assert.doesNotMatch(prompt, /color-coded/i);
+  assert.doesNotMatch(prompt, /\bslot\b/i);
+  assert.doesNotMatch(prompt, /PAGE TEMPLATE/i);
+  assert.doesNotMatch(prompt, /Fill this/);
 }
 
 function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
@@ -208,7 +184,7 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
       description: 'A long reusable playroom description with shelves, rugs, lamps, and window placement.',
     }],
   ]);
-  const prompt = buildGraphicNovelPageEditInstructions(page, environments, [
+  const prompt = buildGraphicNovelPageFreeLayoutInstructions(page, environments, [
     {
       base64Data: 'env',
       mimeType: 'image/png',
@@ -218,12 +194,11 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
     },
   ]);
 
-  assert.doesNotMatch(prompt, /ENVIRONMENT TO REUSE/);
   assert.match(prompt, /- Environment: Playroom; use Image 1 environment reference\./);
   assert.doesNotMatch(prompt, /long reusable playroom description/);
 }
 
-async function testOverlayPreservesPanelArtAndMasksGutters(): Promise<void> {
+async function testBubbleOnlyOverlayPreservesArtAndDrawsBubble(): Promise<void> {
   const page = samplePage();
   const redBase = await sharp({
     create: {
@@ -235,150 +210,55 @@ async function testOverlayPreservesPanelArtAndMasksGutters(): Promise<void> {
   })
     .png()
     .toBuffer();
-  const finalImage = await overlayGraphicNovelTemplate(redBase, page);
-  const panel = page.panels[0].templatePanel.rect;
-  const insidePanel = await pixelAt(
+
+  const finalImage = await overlayGraphicNovelBubblesOnly(redBase, page);
+  const bubble = page.panels[0].bubbles[0].rect;
+  const bubbleCenter = await pixelAt(
     finalImage,
-    Math.round((panel.x + panel.width * 0.5) * GRAPHIC_NOVEL_PAGE_SIZE.width),
-    Math.round((panel.y + panel.height * 0.75) * GRAPHIC_NOVEL_PAGE_SIZE.height)
+    Math.round((bubble.x + bubble.width * 0.5) * GRAPHIC_NOVEL_PAGE_SIZE.width),
+    Math.round((bubble.y + bubble.height * 0.5) * GRAPHIC_NOVEL_PAGE_SIZE.height)
   );
-  const gutter = await pixelAt(finalImage, 4, 4);
+  const untouchedCorner = await pixelAt(finalImage, 8, 8);
 
-  assert.ok(insidePanel[0] > 220 && insidePanel[1] < 80 && insidePanel[2] < 80, 'panel art should remain visible');
-  assert.ok(gutter[0] > 230 && gutter[1] > 220 && gutter[2] > 190, 'gutters should be restored over spilled art');
+  assert.ok(bubbleCenter[1] > 180 && bubbleCenter[2] > 180, 'bubble fill should be composited over art');
+  assert.ok(untouchedCorner[0] > 220 && untouchedCorner[1] < 80 && untouchedCorner[2] < 80, 'art outside bubbles should remain unchanged');
 }
 
-async function testTemplateColorResidueDetector(): Promise<void> {
+function testRepairInstructionsUsePanelBoundsWithoutPresetSlots(): void {
   const page = samplePage();
-  const template = await renderGraphicNovelPageTemplate(page);
-  const templateCheck = await detectGraphicNovelTemplateColorResidue(template, page);
-  assert.equal(templateCheck.hasResidue, true);
-  assert.ok(templateCheck.matchedPixels > templateCheck.thresholdPixels);
-
-  const redBase = await sharp({
-    create: {
-      width: GRAPHIC_NOVEL_PAGE_SIZE.width,
-      height: GRAPHIC_NOVEL_PAGE_SIZE.height,
-      channels: 4,
-      background: '#ff0000',
-    },
-  })
-    .png()
-    .toBuffer();
-  const finalImage = await overlayGraphicNovelTemplate(redBase, page);
-  const finalCheck = await detectGraphicNovelTemplateColorResidue(finalImage, page);
-  assert.equal(finalCheck.hasResidue, false);
-}
-
-async function testEditAcceptsFirstImageWithoutProtectedRetry(): Promise<void> {
-  const page = samplePage();
-  const template = await renderGraphicNovelPageTemplate(page);
-  const invalidEdit = await paintRect(template, {
-    x: 0,
-    y: 0,
-    width: GRAPHIC_NOVEL_PAGE_SIZE.width,
-    height: 220,
-  });
-  const editInstructions: string[] = [];
-  const systemInstructions: string[] = [];
-  const operations: Array<string | undefined> = [];
-  const referenceCounts: number[] = [];
-  const attemptImages: number[] = [];
-  let calls = 0;
-  const imageDomain = {
-    async editImageWithInstructions(request: {
-      editInstructions: string;
-      systemInstruction?: string;
-      operation?: string;
-      referenceImages?: unknown[];
-    }): Promise<GeneratedImage> {
-      calls += 1;
-      editInstructions.push(request.editInstructions);
-      systemInstructions.push(request.systemInstruction || '');
-      operations.push(request.operation);
-      referenceCounts.push(request.referenceImages?.length || 0);
-      return generated(invalidEdit, `edit-${calls}`);
-    },
-  };
-
-  const result = await editGraphicNovelPage({
-    imageDomain: imageDomain as any,
+  const prompt = buildGraphicNovelPageValidationRepairInstructions({
     page,
-    templateBuffer: template,
-    style: 'soft_watercolor',
-    referenceImages: [
-      {
-        base64Data: 'abc',
-        mimeType: 'image/png',
-        characterName: 'Mira',
-        referenceKind: 'character',
-        instructionText: 'Image 1: Character reference for "Mira". Character sheet.',
-      },
-    ],
-    onAttemptImage: ({ attempt }) => {
-      attemptImages.push(attempt);
+    score: 72,
+    validation: {
+      characterCount: 1,
+      expectedCharacterCount: 1,
+      characters: [],
+      hasUnexpectedCharacters: false,
+      hasTextOrLetters: false,
+      hasRenderingArtifacts: false,
+      hasArtworkOutsidePanelBounds: true,
+      hasArtworkOverSpeechBubbles: false,
+      hasExtraPanelStructure: false,
+      layoutFeedback: 'art spills outside panel 1',
+      overallFeedback: 'repair panel bounds',
     },
   });
 
-  assert.equal(calls, 1);
-  assert.deepEqual(referenceCounts, [1]);
-  assert.deepEqual(attemptImages, [1]);
-  assert.deepEqual(operations, ['graphic_novel_page_edit']);
-  assert.match(systemInstructions[0], /ART STYLE:/);
-  assert.match(systemInstructions[0], /exactly 2 color-coded slots/);
-  assert.match(systemInstructions[0], /Each ART TO ADD slot section maps one guide color to one scene/);
-  assert.doesNotMatch(editInstructions[0], /ART STYLE:/);
-  assert.doesNotMatch(editInstructions[0], /exactly 2 color-coded slots/);
-  assert.doesNotMatch(editInstructions[0], /Each ART TO ADD slot section maps one guide color to one scene/);
-  assert.doesNotMatch(editInstructions[0], /STRICT RETRY/);
-  assert.equal(result.generationParams.editAttempts, 1);
-  assert.equal(result.generationParams.protectedTemplateValidationSkipped, true);
-  assert.equal(result.generationParams.validationPassed, null);
-  assert.equal(result.generationParams.fallbackOverlayRequired, false);
-  assert.equal(result.generationParams.deterministicOverlayApplied, false);
-}
-
-async function testEditDoesNotFallbackAfterProtectedDrift(): Promise<void> {
-  const page = samplePage();
-  const template = await renderGraphicNovelPageTemplate(page);
-  const invalidEdit = await paintRect(template, {
-    x: 0,
-    y: 0,
-    width: GRAPHIC_NOVEL_PAGE_SIZE.width,
-    height: 220,
-  });
-  let calls = 0;
-  const imageDomain = {
-    async editImageWithInstructions(): Promise<GeneratedImage> {
-      calls += 1;
-      return generated(invalidEdit, `bad-edit-${calls}`);
-    },
-  };
-
-  const result = await editGraphicNovelPage({
-    imageDomain: imageDomain as any,
-    page,
-    templateBuffer: template,
-    style: 'soft_watercolor',
-  });
-
-  assert.equal(calls, 1);
-  assert.equal(result.generationParams.editAttempts, 1);
-  assert.equal(result.generationParams.protectedTemplateValidationSkipped, true);
-  assert.equal(result.generationParams.validationPassed, null);
-  assert.equal(result.generationParams.fallbackOverlayRequired, false);
-  assert.equal(result.generationParams.deterministicOverlayApplied, false);
+  assert.match(prompt, /Panel 1 bounds: x=/);
+  assert.match(prompt, /artwork outside panel bounds: yes/);
+  assert.doesNotMatch(prompt, /color-coded/i);
+  assert.doesNotMatch(prompt, /\bslot\b/i);
+  assert.doesNotMatch(prompt, /guide color/i);
 }
 
 async function main(): Promise<void> {
   testHtmlTextOverlayCoordinates();
+  testHtmlTextOverlayIncludesBubbleTextStyle();
   testHtmlTextOverlaySeparatesRawArtifactText();
-  testEditInstructionsIncludeReferencesAndPostArtBubblePlacement();
+  testFreeLayoutInstructionsUseReferencesWithoutPresetSlots();
   testEnvironmentReferenceSuppressesEnvironmentDescription();
-  await testOverlayPreservesPanelArtAndMasksGutters();
-  await testTemplateColorResidueDetector();
-  await testEditAcceptsFirstImageWithoutProtectedRetry();
-  await testEditDoesNotFallbackAfterProtectedDrift();
+  await testBubbleOnlyOverlayPreservesArtAndDrawsBubble();
+  testRepairInstructionsUsePanelBoundsWithoutPresetSlots();
   console.log('graphicNovelPageRenderer tests passed');
 }
 

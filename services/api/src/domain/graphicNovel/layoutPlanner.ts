@@ -1,8 +1,8 @@
-import { GRAPHIC_NOVEL_PAGE_TEMPLATES, getTemplatesForAge } from './pageTemplates';
 import { measureGraphicNovelBubbleTextBox } from './bubbleTextSizing';
 import type { CameraCharacterComposition } from '../../services/types';
 import type {
   BubbleGeometry,
+  GraphicNovelBubbleTextSizing,
   GraphicNovelLine,
   GraphicNovelPageScript,
   GraphicNovelPageTemplate,
@@ -18,6 +18,9 @@ const BUBBLE_PADDING = 0.018;
 const BUBBLE_GAP = 0.012;
 const DEFAULT_SPEECH_TARGET_Y = 0.42;
 const BUBBLE_OVERLAP_EPSILON = 0.000001;
+const FREE_LAYOUT_MARGIN_X = 0.035;
+const FREE_LAYOUT_MARGIN_Y = 0.035;
+const FREE_LAYOUT_GUTTER_Y = 0.018;
 
 type BubbleLineForLayout = { kind: BubbleGeometry['kind']; speaker?: string; text: string };
 type RandomSource = () => number;
@@ -27,11 +30,6 @@ interface BubblePlacementCandidate {
   label: string;
   rect: Rect;
   bias: number;
-}
-
-interface ScoredTemplateCandidate {
-  template: GraphicNovelPageTemplate;
-  score: number;
 }
 
 interface ScoredBubblePlacement {
@@ -44,38 +42,31 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function randomIndex(length: number, randomSource: RandomSource): number {
-  return Math.floor(clamp(randomSource(), 0, 0.999999) * length);
-}
+function freeLayoutTemplate(panelCount: number): GraphicNovelPageTemplate {
+  const count = Math.max(1, panelCount);
+  const availableHeight = 1 - FREE_LAYOUT_MARGIN_Y * 2 - FREE_LAYOUT_GUTTER_Y * (count - 1);
+  const panelHeight = availableHeight / count;
+  const panels = Array.from({ length: count }, (_, index) => ({
+    id: `free_layout_panel_${index + 1}`,
+    rect: {
+      x: FREE_LAYOUT_MARGIN_X,
+      y: FREE_LAYOUT_MARGIN_Y + index * (panelHeight + FREE_LAYOUT_GUTTER_Y),
+      width: 1 - FREE_LAYOUT_MARGIN_X * 2,
+      height: panelHeight,
+    },
+  }));
 
-function shuffle<T>(items: T[], randomSource: RandomSource): T[] {
-  const shuffled = [...items];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = randomIndex(index + 1, randomSource);
-    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-  }
-  return shuffled;
-}
-
-function shuffleEqualScoreGroups(
-  candidates: ScoredTemplateCandidate[],
-  randomSource: RandomSource
-): ScoredTemplateCandidate[] {
-  const sorted = [...candidates].sort((a, b) => b.score - a.score);
-  const result: ScoredTemplateCandidate[] = [];
-  let index = 0;
-
-  while (index < sorted.length) {
-    const score = sorted[index].score;
-    const group: ScoredTemplateCandidate[] = [];
-    while (index < sorted.length && sorted[index].score === score) {
-      group.push(sorted[index]);
-      index += 1;
-    }
-    result.push(...shuffle(group, randomSource));
-  }
-
-  return result;
+  return {
+    id: `free_layout_${count}`,
+    aspectRatio: '3:4',
+    pageSize: GRAPHIC_NOVEL_PAGE_SIZE,
+    templateFamily: 'free_layout',
+    panelCount: count,
+    panels,
+    readingOrder: panels.map((panel) => panel.id),
+    allowedAgeGroups: ['0-1', '1y', '2-3', '4-5', '6-8', '9-12'],
+    bestUseCases: ['opening', 'setup', 'conversation', 'action', 'reveal', 'reflection', 'resolution'],
+  };
 }
 
 function lineText(line: GraphicNovelLine): string {
@@ -488,7 +479,11 @@ function selectBubblePlacement(params: {
   return scored.find((candidate) => candidate.overlapWithPlaced <= BUBBLE_OVERLAP_EPSILON) ?? scored[0];
 }
 
-function buildBubbleGeometry(panel: GraphicNovelPanelScript, panelRect: Rect): BubbleGeometry[] {
+function buildBubbleGeometry(
+  panel: GraphicNovelPanelScript,
+  panelRect: Rect,
+  textSizing?: GraphicNovelBubbleTextSizing
+): BubbleGeometry[] {
   const lines: BubbleLineForLayout[] = [];
   for (const line of panel.dialogue || []) {
     lines.push({ kind: 'speech', speaker: line.speaker, text: lineText(line) });
@@ -509,6 +504,7 @@ function buildBubbleGeometry(panel: GraphicNovelPanelScript, panelRect: Rect): B
       text: line.text,
       kind: line.kind,
       panelRect,
+      textSizing,
     });
     const placement = findSpeakerPlacement(panel, panelRect, line.speaker, padding);
     const scoredPlacement = selectBubblePlacement({
@@ -538,57 +534,10 @@ function buildBubbleGeometry(panel: GraphicNovelPanelScript, panelRect: Rect): B
   });
 }
 
-function textLoad(panel: GraphicNovelPanelScript): number {
-  const dialogue = (panel.dialogue || []).reduce((sum, line) => sum + line.text.length, 0);
-  const thoughts = (panel.thoughts || []).reduce((sum, line) => sum + line.text.length, 0);
-  return dialogue + thoughts + (panel.caption?.length || 0);
-}
-
-function selectTemplate(
-  ageGroup: string,
-  page: GraphicNovelPageScript,
-  randomSource: RandomSource,
-  options: {
-    templates?: GraphicNovelPageTemplate[];
-    minPanelCount?: number;
-  } = {}
-): GraphicNovelPageTemplate[] {
-  const templatePool = options.templates ?? GRAPHIC_NOVEL_PAGE_TEMPLATES;
-  const ageTemplatePool = options.templates
-    ? templatePool.filter((template) =>
-        template.allowedAgeGroups.includes((ageGroup || '4-5') as any)
-      )
-    : getTemplatesForAge(ageGroup);
-  const eligible = ageTemplatePool.length > 0 ? ageTemplatePool : templatePool;
-  const requiredPanelCount = Math.max(options.minPanelCount ?? MIN_PANEL_COUNT, page.panels.length);
-  const pageTextLoad = page.panels.reduce((sum, panel) => sum + textLoad(panel), 0);
-  const ageCandidates = eligible.filter((template) => template.panelCount === requiredPanelCount);
-  const fallbackCandidates = templatePool.filter((template) =>
-    template.panelCount === requiredPanelCount
-  );
-  const candidates = ageCandidates.length > 0 ? ageCandidates : fallbackCandidates;
-
-  const scored = candidates
-    .map((template) => {
-      let score = 0;
-      if (template.bestUseCases.includes(page.pageRole)) score += 5;
-      if (ageGroup === '6-8') {
-        if (template.panelCount >= 4) score += 4;
-        if (template.panelCount === 5) score += 1;
-        if (template.panelCount === 3) score -= 3;
-        if (template.panelCount <= 2) score -= 10;
-      }
-      if (pageTextLoad < 80 && template.panelCount <= 3) score += 2;
-      return { template, score };
-    });
-
-  return shuffleEqualScoreGroups(scored, randomSource)
-    .map((item) => item.template);
-}
-
 function planPanelsForTemplate(
   panels: GraphicNovelPanelScript[],
-  template: GraphicNovelPageTemplate
+  template: GraphicNovelPageTemplate,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): PlannedGraphicNovelPage['panels'] {
   if (panels.length !== template.panelCount) {
     throw new Error(
@@ -598,7 +547,7 @@ function planPanelsForTemplate(
 
   return panels.map((panel, index) => {
     const templatePanel = template.panels[index];
-    const bubbles = buildBubbleGeometry(panel, templatePanel.rect);
+    const bubbles = buildBubbleGeometry(panel, templatePanel.rect, textSizing);
     return {
       script: panel,
       templatePanel,
@@ -732,71 +681,24 @@ export function planGraphicNovelLayouts(params: {
   pages: GraphicNovelPageScript[];
   outfits?: PlannedGraphicNovelPage['outfits'];
   preservePanelCount?: boolean;
-  preferredTemplateId?: string;
-  templates?: GraphicNovelPageTemplate[];
-  minPanelCount?: number;
   randomSource?: RandomSource;
+  bubbleTextSizing?: GraphicNovelBubbleTextSizing;
 }): PlannedGraphicNovelPage[] {
-  const randomSource = params.randomSource ?? Math.random;
   return params.pages.map((page) => {
     const panels = params.preservePanelCount
       ? page.panels
       : ensureMinimumPanels(page, params.ageGroup);
-    const pageForTemplate = { ...page, panels };
-    const templatePool = params.templates ?? GRAPHIC_NOVEL_PAGE_TEMPLATES;
-    let candidates = selectTemplate(params.ageGroup, pageForTemplate, randomSource, {
-      templates: params.templates,
-      minPanelCount: params.minPanelCount,
-    });
-
-    if (params.preferredTemplateId) {
-      const preferred = templatePool.find((template) =>
-        template.id === params.preferredTemplateId
-      );
-      if (!preferred) {
-        throw new Error(`Graphic novel template ${params.preferredTemplateId} does not exist`);
-      }
-      if (preferred.panelCount !== panels.length) {
-        throw new Error(
-          `Graphic novel template ${preferred.id} has ${preferred.panelCount} panels, but script has ${panels.length} panels`
-        );
-      }
-      candidates = [preferred];
-    }
-
-    if (candidates.length === 0) {
-      throw new Error(
-        `No graphic novel template with exactly ${panels.length} panels for age group ${params.ageGroup}`
-      );
-    }
-
-    const plannedCandidates = candidates.map((template) => {
-      const plannedPanels = planPanelsForTemplate(panels, template);
-      return {
-        template,
-        plannedPanels,
-        fit: scoreBubbleFit(plannedPanels),
-      };
-    });
-    const selected = plannedCandidates.find((candidate) => candidate.fit.overflowCount === 0);
-    const fallbackCandidates = selected
-      ? []
-      : plannedCandidates.filter((candidate) =>
-        candidate.fit.overflowCount === Math.min(...plannedCandidates.map((item) => item.fit.overflowCount))
-      );
-    const fallbackSelected = fallbackCandidates.length > 0
-      ? shuffle(fallbackCandidates, randomSource)[0]
-      : undefined;
-    const finalSelected = selected ?? fallbackSelected;
-    const template = finalSelected?.template ?? candidates[0];
+    const template = freeLayoutTemplate(panels.length);
+    const plannedPanels = planPanelsForTemplate(panels, template, params.bubbleTextSizing);
 
     return {
       pageNumber: page.pageNumber,
       pageRole: page.pageRole,
       template,
       pageSize: template.pageSize ?? GRAPHIC_NOVEL_PAGE_SIZE,
+      bubbleTextSizing: params.bubbleTextSizing,
       outfits: params.outfits,
-      panels: finalSelected?.plannedPanels ?? planPanelsForTemplate(panels, template),
+      panels: plannedPanels,
     };
   });
 }

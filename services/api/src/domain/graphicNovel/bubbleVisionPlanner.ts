@@ -8,6 +8,7 @@ import type { JsonSchema } from '../../providers/base/JsonSchema';
 import { crossScriptIdentityKey, normalizeCharacterName } from '../../utils/characterNormalization';
 import type {
   BubbleGeometry,
+  GraphicNovelBubbleTextSizing,
   PlannedGraphicNovelPage,
   PlannedGraphicNovelPanel,
   Rect,
@@ -42,6 +43,11 @@ export interface GraphicNovelBubbleVisionCharacter {
 export interface GraphicNovelBubbleVisionPanel {
   panelIndex: number;
   panelId?: string;
+  plannedPanelIndex?: number;
+  plannedPanelId?: string;
+  matchConfidence?: number;
+  matchReason?: string;
+  panelBounds?: Rect;
   detectedCharacters: GraphicNovelBubbleVisionCharacter[];
   occupiedZones?: VisionOccupiedZone[];
   emptyZones?: VisionEmptyZone[];
@@ -60,6 +66,8 @@ export interface GraphicNovelBubbleVisionLayoutResult {
     bubblesWithVisionTargets: number;
     bubblesWithVisionEmptyZones: number;
     bubblesWithVisionOccupiedZones: number;
+    panelsWithDetectedBounds: number;
+    coordinateSpace: AnalysisCoordinateSpace;
     extraVisionPanelCount: number;
     hasExtraVisionPanelStructure: boolean;
   };
@@ -69,6 +77,7 @@ const MIN_EMPTY_ZONE_CONFIDENCE = 0.15;
 const OVERLAP_EPSILON = 0.000001;
 const IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX = 100;
 const IDEAL_BUBBLE_DISTANCE_TOLERANCE_PX = 24;
+const MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX = 150;
 type PageSize = { width: number; height: number };
 
 interface BubbleCandidate {
@@ -78,9 +87,18 @@ interface BubbleCandidate {
   sourceZone?: Rect;
 }
 
+interface ScoredBubbleCandidate extends BubbleCandidate {
+  overlapWithPlaced: number;
+  weightedAvoidOverlapRatio: number;
+  distanceFromTargetPx?: number;
+  score: number;
+}
+
 interface AvoidRect extends Rect {
   weight: number;
 }
+
+export type AnalysisCoordinateSpace = 'panel' | 'page';
 
 export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
   type: 'object',
@@ -104,9 +122,44 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
             type: 'string',
             description: 'Optional planned panel id if visible in prompt context.',
           },
+          plannedPanelIndex: {
+            type: 'integer',
+            nullable: true,
+            minimum: 1,
+            description: '1-based planned panel number that best matches this physical panel. Multiple physical panels may map to the same planned panel if the model split one planned beat.',
+          },
+          plannedPanelId: {
+            type: 'string',
+            nullable: true,
+            description: 'Planned panel id that best matches this physical panel, when clear from the prompt context.',
+          },
+          matchConfidence: {
+            type: 'number',
+            nullable: true,
+            minimum: 0,
+            maximum: 1,
+            description: 'Confidence that this physical panel matches plannedPanelIndex/plannedPanelId.',
+          },
+          matchReason: {
+            type: 'string',
+            nullable: true,
+            description: 'Short reason for the planned panel match, based on expected characters and visual read.',
+          },
+          panelBounds: {
+            type: 'object',
+            nullable: true,
+            description: 'Actual visible panel rectangle in page-relative 0..1 coordinates. Required when analyzing a full free-layout page.',
+            required: ['x', 'y', 'width', 'height'],
+            properties: {
+              x: { type: 'number', minimum: 0, maximum: 1 },
+              y: { type: 'number', minimum: 0, maximum: 1 },
+              width: { type: 'number', minimum: 0, maximum: 1 },
+              height: { type: 'number', minimum: 0, maximum: 1 },
+            },
+          },
           detectedCharacters: {
             type: 'array',
-            description: 'Visible named characters in this panel, with face/head/mouth points in panel-relative 0..1 coordinates.',
+            description: 'Visible named characters in this panel, with face/head/mouth points in 0..1 coordinates. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -147,7 +200,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           },
           occupiedZones: {
             type: 'array',
-            description: 'Actual visible occupied/no-cover zones: character bodies, faces, hands, important props, and main action. Coordinates are panel-relative 0..1.',
+            description: 'Actual visible occupied/no-cover zones: character bodies, faces, hands, important props, and main action. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -169,7 +222,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           },
           emptyZones: {
             type: 'array',
-            description: 'Optional actual visually empty/simple-background zones suitable for server-rendered rounded speech bubbles. Coordinates are panel-relative 0..1. Use [] if unsure.',
+            description: 'Optional actual visually empty/simple-background zones suitable for server-rendered rounded speech bubbles. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates. Use [] if unsure.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -332,7 +385,11 @@ function panelPlannedCharacters(panel: PlannedGraphicNovelPanel): Array<{
   return composition.characters;
 }
 
-function plannedPanelBrief(page: PlannedGraphicNovelPage): string {
+function plannedPanelBrief(
+  page: PlannedGraphicNovelPage,
+  options: { includeTemplateRects?: boolean } = {}
+): string {
+  const includeTemplateRects = options.includeTemplateRects !== false;
   return page.panels
     .map((panel, index) => {
       const rect = panel.templatePanel.rect;
@@ -349,7 +406,9 @@ function plannedPanelBrief(page: PlannedGraphicNovelPage): string {
         .join('\n');
 
       return [
-        `Panel ${index + 1} (${panel.script.panelId}): rect page-normalized x=${rect.x.toFixed(4)}, y=${rect.y.toFixed(4)}, width=${rect.width.toFixed(4)}, height=${rect.height.toFixed(4)}`,
+        includeTemplateRects
+          ? `Panel ${index + 1} (${panel.script.panelId}): planned fallback rect page-normalized x=${rect.x.toFixed(4)}, y=${rect.y.toFixed(4)}, width=${rect.width.toFixed(4)}, height=${rect.height.toFixed(4)}`
+          : `Panel ${index + 1} (${panel.script.panelId})`,
         `  Expected characters: ${characters}`,
         `  Visual read: ${panel.script.visual.primaryRead}`,
         `  Bubble texts to place later:`,
@@ -382,19 +441,41 @@ function plannedSinglePanelBrief(page: PlannedGraphicNovelPage, panelIndex: numb
   ].join('\n');
 }
 
-function buildBubbleVisionPrompt(page: PlannedGraphicNovelPage): string {
+function buildBubbleVisionPrompt(
+  page: PlannedGraphicNovelPage,
+  options: { detectPanelBounds?: boolean } = {}
+): string {
+  const detectPanelBounds = options.detectPanelBounds === true;
+  const panelBoundsInstructions = detectPanelBounds
+    ? [
+        '- The page may use a model-chosen free layout. Do not assume any old preset rectangles or planned panel count.',
+        '- Return one item for every actual visible physical panel and set panelBounds: the visible panel rectangle in full-page coordinates from 0 to 1.',
+        '- For each physical panel, set plannedPanelIndex and plannedPanelId to the planned panel it best represents.',
+        '- If the artwork split one planned panel into two or more physical panels, return each physical panel separately and give all of them the same plannedPanelIndex/plannedPanelId.',
+        '- Match physical panels to planned panels using expected characters, visual read, dialogue speakers, and visible action. Reading order is only a tie-breaker.',
+        '- For free-layout full-page analysis, return ALL coordinates in full-page coordinates from 0 to 1: panelBounds, character face/head/mouth points, occupiedZones, and emptyZones.',
+        '- Do not return panel-relative coordinates in this mode.',
+      ].join('\n')
+    : [
+        '- For every panel, return panelBounds if the actual visible panel rectangle is clear.',
+        '- If the artwork follows the planned fallback map, the planned rects below can guide panel identity, but pixels remain source of truth.',
+      ].join('\n');
+
   return `Analyze this finished art-only graphic novel page for server-rendered bubble placement.
 
 The image already has the panel artwork. It intentionally does NOT include speech bubbles or text.
 Your job is to visually identify:
+0. actual visible panel rectangles in reading order;
 1. actual visible face/head/mouth points for the named characters in each panel;
 2. actual occupied/no-cover zones: character bodies, faces, hands, important props, and the main action;
 3. optional empty/simple-background zones if they are obvious.
 
-Return panel-relative coordinates from 0 to 1 inside each panel. Do not use planned bubble positions as truth; infer from the pixels in the image.
+Return coordinates from 0 to 1 as instructed below. Do not use planned bubble positions as truth; infer from the pixels in the image.
 
 Rules:
-- Analyze all ${page.panels.length} panels in reading order.
+- Analyze the visible physical panels in reading order.
+${panelBoundsInstructions}
+- If the image contains more physical panels than planned, still return every physical panel. Use plannedPanelIndex/plannedPanelId to show which planned beat each physical panel belongs to.
 - For every visible speaking character, provide the best mouthCenter if visible; otherwise faceCenter; otherwise headCenter.
 - If a mouth is not visible, estimate the point on the lower face/head where a tail should point.
 - Report occupiedZones first. These are rectangles the deterministic layout algorithm should avoid covering.
@@ -405,7 +486,7 @@ Rules:
 - Empty zones are secondary. Do not invent empty zones if the panel is visually busy.
 
 Planned page context:
-${plannedPanelBrief(page)}`;
+${plannedPanelBrief(page, { includeTemplateRects: !detectPanelBounds })}`;
 }
 
 function buildSinglePanelBubbleVisionPrompt(page: PlannedGraphicNovelPage, panelIndex: number): string {
@@ -466,6 +547,18 @@ function pageRect(panelRelative: Rect, panelRect: Rect): Rect {
   };
 }
 
+function pageRelativeRect(rect: Rect, panelRect: Rect): Rect | undefined {
+  const x = clamp01(rect.x);
+  const y = clamp01(rect.y);
+  const width = clamp(Number.isFinite(rect.width) ? rect.width : 0, 0, 1 - x);
+  const height = clamp(Number.isFinite(rect.height) ? rect.height : 0, 0, 1 - y);
+  const pageRectValue = { x, y, width, height };
+  const area = Math.max(rectArea(pageRectValue), OVERLAP_EPSILON);
+  const overlap = overlapArea(pageRectValue, panelRect);
+  if (overlap / area < 0.2) return undefined;
+  return clampRectToPanel(pageRectValue, panelRect);
+}
+
 function clampRectToPanel(rect: Rect, panelRect: Rect): Rect {
   const padding = Math.min(0.008, panelRect.width * 0.04, panelRect.height * 0.04);
   const width = Math.min(rect.width, panelRect.width - padding * 2);
@@ -480,6 +573,39 @@ function clampRectToPanel(rect: Rect, panelRect: Rect): Rect {
     width,
     height,
   };
+}
+
+function analysisPointToPage(
+  point: VisionPoint | undefined,
+  panelRect: Rect,
+  coordinateSpace: AnalysisCoordinateSpace
+): VisionPoint | undefined {
+  if (!point) return undefined;
+  if (coordinateSpace === 'panel') return pagePoint(point, panelRect);
+  const pagePointValue = {
+    x: clamp01(point.x),
+    y: clamp01(point.y),
+  };
+  const margin = Math.min(0.025, panelRect.width * 0.08, panelRect.height * 0.08);
+  if (
+    pagePointValue.x < panelRect.x - margin ||
+    pagePointValue.x > rectRight(panelRect) + margin ||
+    pagePointValue.y < panelRect.y - margin ||
+    pagePointValue.y > rectBottom(panelRect) + margin
+  ) {
+    return undefined;
+  }
+  return pagePointValue;
+}
+
+function analysisRectToPage(
+  rect: Rect,
+  panelRect: Rect,
+  coordinateSpace: AnalysisCoordinateSpace
+): Rect | undefined {
+  return coordinateSpace === 'page'
+    ? pageRelativeRect(rect, panelRect)
+    : pageRect(rect, panelRect);
 }
 
 function distanceFromRectToPoint(rect: Rect, point: VisionPoint): number {
@@ -550,15 +676,226 @@ function findPanelAnalysis(
   panelIndex: number
 ): GraphicNovelBubbleVisionPanel | undefined {
   return analysis.panels.find((candidate) =>
-    candidate.panelIndex === panelIndex + 1 || candidate.panelId === panel.script.panelId
+    candidate.plannedPanelIndex === panelIndex + 1 ||
+    candidate.plannedPanelId === panel.script.panelId ||
+    candidate.panelIndex === panelIndex + 1 ||
+    candidate.panelId === panel.script.panelId
   );
+}
+
+function panelAnalysisKey(
+  panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
+  fallbackPanelIndex: number
+): string {
+  if (!panelAnalysis) return `planned:${fallbackPanelIndex + 1}`;
+  return panelAnalysis.panelId
+    ? `vision-id:${panelAnalysis.panelId}`
+    : `vision-index:${panelAnalysis.panelIndex}`;
+}
+
+function plannedCharacterOverlapScore(
+  panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
+  panel: PlannedGraphicNovelPanel,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+): number {
+  if (!panelAnalysis?.detectedCharacters?.length) return 0;
+  const plannedNames = panelCharacterNames(panel);
+  if (plannedNames.length === 0) return 0;
+  let score = 0;
+  for (const detected of panelAnalysis.detectedCharacters) {
+    if (plannedNames.some((plannedName) => characterNamesMatch(detected.name, plannedName, page))) {
+      score += 18 * clamp(detected.confidence ?? 0.7, 0.2, 1);
+    }
+  }
+  return score;
+}
+
+function panelAnalysisSpeakerTarget(
+  panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
+  speaker: string | undefined,
+  plannedPanel: PlannedGraphicNovelPanel,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+): VisionPoint | undefined {
+  if (!speaker || !panelAnalysis?.detectedCharacters?.length) return undefined;
+  const character = panelAnalysis.detectedCharacters.find((candidate) =>
+    characterNamesMatch(candidate.name, speaker, page)
+  );
+  const target = character?.mouthCenter ?? character?.faceCenter ?? character?.headCenter;
+  if (!target) return undefined;
+  const panelRect = sanitizePanelBounds(panelAnalysis.panelBounds, plannedPanel.templatePanel.rect);
+  return analysisPointToPage(target, panelRect, 'page');
+}
+
+function scorePanelAnalysisForBubble(params: {
+  panelAnalysis: GraphicNovelBubbleVisionPanel;
+  plannedPanel: PlannedGraphicNovelPanel;
+  plannedPanelIndex: number;
+  bubble: BubbleGeometry;
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>;
+  coordinateSpace: AnalysisCoordinateSpace;
+}): number {
+  const {
+    panelAnalysis,
+    plannedPanel,
+    plannedPanelIndex,
+    bubble,
+    page,
+    coordinateSpace,
+  } = params;
+  let score = 0;
+  if (panelAnalysis.plannedPanelIndex === plannedPanelIndex + 1) score += 95;
+  if (panelAnalysis.plannedPanelId && panelAnalysis.plannedPanelId === plannedPanel.script.panelId) {
+    score += 95;
+  }
+  if (panelAnalysis.panelIndex === plannedPanelIndex + 1) score += 12;
+  if (panelAnalysis.panelId === plannedPanel.script.panelId) score += 18;
+  score += plannedCharacterOverlapScore(panelAnalysis, plannedPanel, page);
+  if (panelAnalysis.matchConfidence != null) {
+    score += clamp(panelAnalysis.matchConfidence, 0, 1) * 18;
+  }
+  if (bubble.kind !== 'caption' && bubble.speaker) {
+    const hasUsableSpeakerTarget = coordinateSpace === 'page'
+      ? !!panelAnalysisSpeakerTarget(panelAnalysis, bubble.speaker, plannedPanel, page)
+      : panelAnalysis.detectedCharacters.some((character) =>
+          characterNamesMatch(character.name, bubble.speaker, page)
+        );
+    score += hasUsableSpeakerTarget ? 140 : -45;
+  }
+  score -= Math.abs(panelAnalysis.panelIndex - (plannedPanelIndex + 1)) * 2;
+  return score;
+}
+
+function findPanelAnalysisForBubble(
+  analysis: GraphicNovelBubbleVisionAnalysis,
+  plannedPanel: PlannedGraphicNovelPanel,
+  plannedPanelIndex: number,
+  bubble: BubbleGeometry,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>,
+  coordinateSpace: AnalysisCoordinateSpace
+): GraphicNovelBubbleVisionPanel | undefined {
+  if (analysis.panels.length === 0) return undefined;
+  const scored = analysis.panels
+    .map((panelAnalysis) => ({
+      panelAnalysis,
+      score: scorePanelAnalysisForBubble({
+        panelAnalysis,
+        plannedPanel,
+        plannedPanelIndex,
+        bubble,
+        page,
+        coordinateSpace,
+      }),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (best && best.score > 0) return best.panelAnalysis;
+  return findPanelAnalysis(analysis, plannedPanel, plannedPanelIndex);
+}
+
+function sanitizePanelBounds(bounds: Rect | undefined, fallback: Rect): Rect {
+  if (!bounds) return fallback;
+  const x = clamp01(bounds.x);
+  const y = clamp01(bounds.y);
+  const width = clamp(Number.isFinite(bounds.width) ? bounds.width : 0, 0, 1 - x);
+  const height = clamp(Number.isFinite(bounds.height) ? bounds.height : 0, 0, 1 - y);
+  if (width < 0.08 || height < 0.08) return fallback;
+  return { x, y, width, height };
+}
+
+function sanitizeDetectedPanelBounds(bounds: Rect | undefined): Rect | undefined {
+  if (!bounds) return undefined;
+  const x = clamp01(bounds.x);
+  const y = clamp01(bounds.y);
+  const width = clamp(Number.isFinite(bounds.width) ? bounds.width : 0, 0, 1 - x);
+  const height = clamp(Number.isFinite(bounds.height) ? bounds.height : 0, 0, 1 - y);
+  if (width < 0.08 || height < 0.08) return undefined;
+  return { x, y, width, height };
+}
+
+function horizontalOverlap(a: Rect, b: Rect): number {
+  return Math.max(0, Math.min(rectRight(a), rectRight(b)) - Math.max(a.x, b.x));
+}
+
+function normalizedDetectedPanelBounds(
+  analysis: GraphicNovelBubbleVisionAnalysis
+): Map<GraphicNovelBubbleVisionPanel, Rect> {
+  const entries = analysis.panels
+    .map((panelAnalysis) => {
+      const rect = sanitizeDetectedPanelBounds(panelAnalysis.panelBounds);
+      return rect ? { panelAnalysis, rect } : null;
+    })
+    .filter((entry): entry is { panelAnalysis: GraphicNovelBubbleVisionPanel; rect: Rect } => !!entry);
+  const normalized = new Map<GraphicNovelBubbleVisionPanel, Rect>();
+
+  for (const entry of entries) {
+    const rect = { ...entry.rect };
+    for (const other of entries) {
+      if (other === entry) continue;
+      const overlapX = horizontalOverlap(rect, other.rect);
+      const sameColumnRatio = overlapX / Math.max(Math.min(rect.width, other.rect.width), OVERLAP_EPSILON);
+      const otherStartsLowerInside =
+        other.rect.y > rect.y + rect.height * 0.25 &&
+        other.rect.y < rectBottom(rect) - 0.04;
+      const otherMostlyInsideBottom = rectBottom(other.rect) <= rectBottom(rect) + 0.018;
+      const otherIsLaterPanel = other.panelAnalysis.panelIndex > entry.panelAnalysis.panelIndex;
+      if (
+        sameColumnRatio >= 0.7 &&
+        otherIsLaterPanel &&
+        otherStartsLowerInside &&
+        otherMostlyInsideBottom
+      ) {
+        const gap = Math.min(0.012, rect.height * 0.04, other.rect.height * 0.04);
+        const trimmedHeight = other.rect.y - gap - rect.y;
+        if (trimmedHeight >= 0.08) {
+          rect.height = Math.min(rect.height, trimmedHeight);
+        }
+      }
+    }
+    normalized.set(entry.panelAnalysis, rect);
+  }
+
+  return normalized;
+}
+
+function resolvedPanelForPlacement(
+  panel: PlannedGraphicNovelPanel,
+  panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
+  useDetectedPanelBounds: boolean,
+  detectedPanelBounds?: Rect
+): { panel: PlannedGraphicNovelPanel; panelBoundsUsed: boolean } {
+  if (!useDetectedPanelBounds) {
+    return { panel, panelBoundsUsed: false };
+  }
+  const rect = detectedPanelBounds ?? sanitizePanelBounds(panelAnalysis?.panelBounds, panel.templatePanel.rect);
+  const panelBoundsUsed =
+    rect.x !== panel.templatePanel.rect.x ||
+    rect.y !== panel.templatePanel.rect.y ||
+    rect.width !== panel.templatePanel.rect.width ||
+    rect.height !== panel.templatePanel.rect.height;
+
+  if (!panelBoundsUsed) {
+    return { panel, panelBoundsUsed: false };
+  }
+
+  return {
+    panel: {
+      ...panel,
+      templatePanel: {
+        ...panel.templatePanel,
+        rect,
+      },
+    },
+    panelBoundsUsed: true,
+  };
 }
 
 function findCharacterTarget(
   panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
   bubble: BubbleGeometry,
   panel: PlannedGraphicNovelPanel,
-  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>,
+  coordinateSpace: AnalysisCoordinateSpace
 ): { point?: VisionPoint; hasVisionTarget: boolean } {
   if (!panelAnalysis || bubble.kind === 'caption') {
     return { hasVisionTarget: false };
@@ -573,9 +910,10 @@ function findCharacterTarget(
   }
 
   const target = character?.mouthCenter ?? character?.faceCenter ?? character?.headCenter;
-  if (target) {
+  const pageTarget = analysisPointToPage(target, panel.templatePanel.rect, coordinateSpace);
+  if (pageTarget) {
     return {
-      point: pagePoint(target, panel.templatePanel.rect),
+      point: pageTarget,
       hasVisionTarget: true,
     };
   }
@@ -595,10 +933,15 @@ function findPlannedCharacter(
   );
 }
 
-function emptyZonesForPanel(panelAnalysis: GraphicNovelBubbleVisionPanel | undefined, panelRect: Rect): Rect[] {
+function emptyZonesForPanel(
+  panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
+  panelRect: Rect,
+  coordinateSpace: AnalysisCoordinateSpace
+): Rect[] {
   const zones = (panelAnalysis?.emptyZones || [])
     .filter((zone) => (zone.confidence ?? 0) >= MIN_EMPTY_ZONE_CONFIDENCE)
-    .map((zone) => pageRect(zone, panelRect))
+    .map((zone) => analysisRectToPage(zone, panelRect, coordinateSpace))
+    .filter((zone): zone is Rect => !!zone)
     .filter((zone) => zone.width > 0.02 && zone.height > 0.02);
 
   if (zones.length > 0) {
@@ -637,16 +980,63 @@ function occupiedZoneWeight(zone: VisionOccupiedZone): number {
   return baseWeight * confidence;
 }
 
+function speakerOwnZoneWeight(
+  zone: VisionOccupiedZone,
+  bubble: BubbleGeometry | undefined,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>,
+  relaxOwnSpeakerBody: boolean
+): number {
+  const baseWeight = occupiedZoneWeight(zone);
+  if (
+    !relaxOwnSpeakerBody ||
+    !bubble?.speaker ||
+    !zoneMatchesSpeaker(zone, bubble.speaker, page)
+  ) {
+    return baseWeight;
+  }
+
+  const kind = zone.kind || 'other';
+  if (kind === 'face') return Math.max(baseWeight, 1.35);
+  if (kind === 'character') return baseWeight * 0.22;
+  return baseWeight * 0.45;
+}
+
+function zoneMatchesSpeaker(
+  zone: VisionOccupiedZone,
+  speaker: string,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+): boolean {
+  if (zone.label && characterNamesMatch(zone.label, speaker, page)) return true;
+
+  const description = normalizeName(zone.description);
+  if (!description) return false;
+  const descriptionText = ` ${description} `;
+  for (const key of aliasKeysForName(speaker, page)) {
+    if (key.length >= 3 && descriptionText.includes(` ${key} `)) return true;
+  }
+  return false;
+}
+
 function occupiedAvoidRectsForPanel(
   panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
-  panelRect: Rect
+  panelRect: Rect,
+  coordinateSpace: AnalysisCoordinateSpace,
+  bubble: BubbleGeometry | undefined,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>,
+  relaxOwnSpeakerBody: boolean
 ): AvoidRect[] {
   return (panelAnalysis?.occupiedZones || [])
     .filter((zone) => (zone.confidence ?? 0) >= MIN_EMPTY_ZONE_CONFIDENCE)
-    .map((zone) => ({
-      ...pageRect(zone, panelRect),
-      weight: occupiedZoneWeight(zone),
-    }))
+    .map((zone) => {
+      const rect = analysisRectToPage(zone, panelRect, coordinateSpace);
+      return rect
+        ? {
+            ...rect,
+            weight: speakerOwnZoneWeight(zone, bubble, page, relaxOwnSpeakerBody),
+          }
+        : null;
+    })
+    .filter((zone): zone is AvoidRect => !!zone)
     .filter((zone) => zone.width > 0.015 && zone.height > 0.015);
 }
 
@@ -667,13 +1057,26 @@ function countExtraVisionPanels(
 function characterAvoidRects(
   panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
   panel: PlannedGraphicNovelPanel,
-  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>,
+  coordinateSpace: AnalysisCoordinateSpace,
+  bubble?: BubbleGeometry
 ): AvoidRect[] {
   const panelRect = panel.templatePanel.rect;
-  const occupiedAvoidRects = occupiedAvoidRectsForPanel(panelAnalysis, panelRect);
+  const relaxOwnSpeakerBody =
+    !!bubble?.speaker &&
+    (panelAnalysis?.detectedCharacters?.length ?? 0) > 1;
+  const occupiedAvoidRects = occupiedAvoidRectsForPanel(
+    panelAnalysis,
+    panelRect,
+    coordinateSpace,
+    bubble,
+    page,
+    relaxOwnSpeakerBody
+  );
   const characterRects = (panelAnalysis?.detectedCharacters || []).flatMap((character) => {
+    const isBubbleSpeaker = !!bubble?.speaker && characterNamesMatch(character.name, bubble.speaker, page);
     const points = [character.mouthCenter, character.faceCenter, character.headCenter]
-      .map((point) => pagePoint(point, panelRect))
+      .map((point) => analysisPointToPage(point, panelRect, coordinateSpace))
       .filter((point): point is VisionPoint => !!point);
     const pointRects = points.map((point) => ({
       ...clampRectToPanel({
@@ -682,7 +1085,7 @@ function characterAvoidRects(
         width: panelRect.width * 0.16,
         height: panelRect.height * 0.18,
       }, panelRect),
-      weight: 1,
+      weight: isBubbleSpeaker ? 1.2 : 1,
     }));
 
     const plannedCharacter = findPlannedCharacter(panel, character.name, page);
@@ -693,9 +1096,13 @@ function characterAvoidRects(
       character.headCenter,
       character.faceCenter,
       character.mouthCenter,
-    ].map((point) => pagePoint(point, panelRect)).filter((point): point is VisionPoint => !!point);
+    ].map((point) => analysisPointToPage(point, panelRect, coordinateSpace)).filter((point): point is VisionPoint => !!point);
 
-    const headPoint = pagePoint(character.headCenter ?? character.faceCenter ?? character.mouthCenter, panelRect);
+    const headPoint = analysisPointToPage(
+      character.headCenter ?? character.faceCenter ?? character.mouthCenter,
+      panelRect,
+      coordinateSpace
+    );
     if (!headPoint && !plannedAnchor) {
       return pointRects;
     }
@@ -727,7 +1134,8 @@ function characterAvoidRects(
         height: Math.max(panelRect.height * 0.18, maxY - minY + topPadding + bottomPadding),
       }, panelRect),
       weight: (closeOrForeground ? 0.55 : flyingOrUpper ? 0.4 : 0.35) *
-        (occupiedAvoidRects.length > 0 ? 0.65 : 1),
+        (occupiedAvoidRects.length > 0 ? 0.65 : 1) *
+        (isBubbleSpeaker && relaxOwnSpeakerBody ? 0.28 : 1),
     };
 
     return [...pointRects, bodyRect];
@@ -740,7 +1148,8 @@ function candidateNearTarget(
   target: VisionPoint,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate[] {
   const gapX = Math.min(
     IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX / pageSize.width,
@@ -754,6 +1163,7 @@ function candidateNearTarget(
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
+    textSizing,
   });
   const width = measured.width;
   const height = measured.height;
@@ -777,12 +1187,14 @@ function candidateTargetRingAtSpeakerDistance(
   target: VisionPoint,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate[] {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
+    textSizing,
   });
   const widthPx = measured.width * pageSize.width;
   const heightPx = measured.height * pageSize.height;
@@ -823,13 +1235,15 @@ function candidateInsideZone(
   zone: Rect,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  target?: VisionPoint
+  target?: VisionPoint,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
     zoneRect: zone,
+    textSizing,
   });
   const width = measured.width;
   const height = measured.height;
@@ -855,12 +1269,14 @@ function candidateAroundZone(
   zone: Rect,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  target?: VisionPoint
+  target?: VisionPoint,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate[] {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
+    textSizing,
   });
   const width = measured.width;
   const height = measured.height;
@@ -904,7 +1320,8 @@ function candidateTowardEmptyZoneAtSpeakerDistance(
   bubble: BubbleGeometry,
   panelRect: Rect,
   target?: VisionPoint,
-  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate[] {
   if (!target) return [];
 
@@ -912,6 +1329,7 @@ function candidateTowardEmptyZoneAtSpeakerDistance(
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
+    textSizing,
   });
   const widthPx = measured.width * pageSize.width;
   const heightPx = measured.height * pageSize.height;
@@ -964,13 +1382,15 @@ function candidateRectsInsideZone(
   bubble: BubbleGeometry,
   panelRect: Rect,
   target?: VisionPoint,
-  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  textSizing?: GraphicNovelBubbleTextSizing
 ): BubbleCandidate[] {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
     zoneRect: zone,
+    textSizing,
   });
   const width = measured.width;
   const height = measured.height;
@@ -990,9 +1410,16 @@ function candidateRectsInsideZone(
   ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
 
   return uniqueCandidates([
-    candidateInsideZone(zone, bubble, panelRect, target),
-    ...candidateTowardEmptyZoneAtSpeakerDistance(zone, bubble, panelRect, target, pageSize),
-    ...candidateAroundZone(zone, bubble, panelRect, target),
+    candidateInsideZone(zone, bubble, panelRect, target, textSizing),
+    ...candidateTowardEmptyZoneAtSpeakerDistance(
+      zone,
+      bubble,
+      panelRect,
+      target,
+      pageSize,
+      textSizing
+    ),
+    ...candidateAroundZone(zone, bubble, panelRect, target, textSizing),
     ...xs.flatMap((x) => ys.map((y) =>
       ({
         rect: clampRectToPanel({
@@ -1021,6 +1448,7 @@ function scoreCandidate(params: {
   overflow: boolean;
   sourceZone?: Rect;
   pageSize?: PageSize;
+  preferSpeakerDistanceLimit?: boolean;
 }): number {
   const {
     rect,
@@ -1034,6 +1462,7 @@ function scoreCandidate(params: {
     overflow,
     sourceZone,
     pageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+    preferSpeakerDistanceLimit = false,
   } = params;
   const bubbleArea = Math.max(rectArea(rect), OVERLAP_EPSILON);
   const panelDiagonal = Math.max(Math.hypot(panelRect.width, panelRect.height), OVERLAP_EPSILON);
@@ -1124,6 +1553,9 @@ function scoreCandidate(params: {
     } else {
       const excessPx = distanceDeltaPx - IDEAL_BUBBLE_DISTANCE_TOLERANCE_PX;
       score += excessPx * (distancePx < IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX ? 12 : 9);
+      if (preferSpeakerDistanceLimit && distancePx > MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX) {
+        score += 4800 + (distancePx - MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX) * 44;
+      }
       if (distancePx > IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX * 1.8) {
         score += (distancePx - IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX * 1.8) * 12;
       }
@@ -1132,6 +1564,20 @@ function scoreCandidate(params: {
       score += 600;
     }
     const center = rectCenter(rect);
+    if (panelRect.width >= 0.7) {
+      const panelCenterX = panelRect.x + panelRect.width / 2;
+      const sideMargin = panelRect.width * 0.08;
+      const speakerClearlyLeft = target.x < panelCenterX - sideMargin;
+      const speakerClearlyRight = target.x > panelCenterX + sideMargin;
+      const bubbleClearlyRight = center.x > panelCenterX + sideMargin;
+      const bubbleClearlyLeft = center.x < panelCenterX - sideMargin;
+      if ((speakerClearlyLeft && bubbleClearlyRight) || (speakerClearlyRight && bubbleClearlyLeft)) {
+        score += 760 + Math.abs(center.x - target.x) * pageSize.width * 1.1;
+      }
+      if (preferSpeakerDistanceLimit && speakerClearlyRight && rect.y > target.y + panelRect.height * 0.03) {
+        score += 980;
+      }
+    }
     const coversTargetColumn = target.x >= rect.x && target.x <= rectRight(rect);
     const sitsOnBodySide = rect.y > target.y - panelRect.height * 0.03;
     if (coversTargetColumn && sitsOnBodySide) {
@@ -1158,6 +1604,14 @@ function overlapWithPlaced(rect: Rect, placed: BubbleGeometry[]): number {
   return placed.reduce((sum, placedBubble) => sum + overlapArea(rect, placedBubble.rect), 0);
 }
 
+function weightedAvoidOverlapRatio(rect: Rect, avoidRects: AvoidRect[]): number {
+  const area = Math.max(rectArea(rect), OVERLAP_EPSILON);
+  const weightedOverlap = avoidRects.reduce((sum, avoidRect) =>
+    sum + overlapArea(rect, avoidRect) * avoidRect.weight,
+  0);
+  return weightedOverlap / area;
+}
+
 function placeBubble(params: {
   bubble: BubbleGeometry;
   panel: PlannedGraphicNovelPanel;
@@ -1166,6 +1620,8 @@ function placeBubble(params: {
   emptyZones: Rect[];
   avoidRects: AvoidRect[];
   pageSize?: PageSize;
+  textSizing?: GraphicNovelBubbleTextSizing;
+  preferSpeakerDistanceLimit?: boolean;
 }): BubbleGeometry {
   const {
     bubble,
@@ -1175,25 +1631,31 @@ function placeBubble(params: {
     emptyZones,
     avoidRects,
     pageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+    textSizing,
+    preferSpeakerDistanceLimit = false,
   } = params;
   const panelRect = panel.templatePanel.rect;
   const zoneCandidates = emptyZones.flatMap((zone) =>
-    candidateRectsInsideZone(zone, bubble, panelRect, target, pageSize)
+    candidateRectsInsideZone(zone, bubble, panelRect, target, pageSize, textSizing)
   );
   const candidates = [
     ...(target
-      ? candidateTargetRingAtSpeakerDistance(target, bubble, panelRect, pageSize)
+      ? candidateTargetRingAtSpeakerDistance(target, bubble, panelRect, pageSize, textSizing)
       : []),
     ...zoneCandidates,
     ...(target
-      ? candidateNearTarget(target, bubble, panelRect, pageSize)
+      ? candidateNearTarget(target, bubble, panelRect, pageSize, textSizing)
       : []),
   ];
 
-  const scored = candidates
+  const scored: ScoredBubbleCandidate[] = candidates
     .map((candidate) => ({
       ...candidate,
       overlapWithPlaced: overlapWithPlaced(candidate.rect, placed),
+      weightedAvoidOverlapRatio: weightedAvoidOverlapRatio(candidate.rect, avoidRects),
+      distanceFromTargetPx: target
+        ? distancePxFromRectToPoint(candidate.rect, target, pageSize)
+        : undefined,
       score: scoreCandidate({
         rect: candidate.rect,
         bubble,
@@ -1206,12 +1668,27 @@ function placeBubble(params: {
         overflow: candidate.overflow,
         sourceZone: candidate.sourceZone,
         pageSize,
+        preferSpeakerDistanceLimit,
       }),
     }))
     .sort((a, b) => a.score - b.score);
-  const selected = scored.find((candidate) =>
-    candidate.overlapWithPlaced <= OVERLAP_EPSILON && !candidate.overflow
+
+  const nearTargetCandidates = target && preferSpeakerDistanceLimit
+    ? scored.filter((candidate) =>
+        (candidate.distanceFromTargetPx ?? Infinity) <= MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX
+      )
+    : scored;
+
+  const selected = nearTargetCandidates.find((candidate) =>
+    candidate.overlapWithPlaced <= OVERLAP_EPSILON &&
+      !candidate.overflow &&
+      candidate.weightedAvoidOverlapRatio <= 0.35
   ) ??
+    scored.find((candidate) =>
+      candidate.overlapWithPlaced <= OVERLAP_EPSILON && !candidate.overflow
+    ) ??
+    nearTargetCandidates.find((candidate) => !candidate.overflow) ??
+    nearTargetCandidates.find((candidate) => candidate.overlapWithPlaced <= OVERLAP_EPSILON) ??
     scored.find((candidate) => !candidate.overflow) ??
     scored.find((candidate) => candidate.overlapWithPlaced <= OVERLAP_EPSILON) ??
     scored[0];
@@ -1219,56 +1696,108 @@ function placeBubble(params: {
   return {
     ...bubble,
     rect: selected?.rect ?? bubble.rect,
-    overflow: bubble.overflow || selected?.overflow || (selected?.overlapWithPlaced ?? 0) > OVERLAP_EPSILON || false,
+    overflow: (selected?.overflow ?? bubble.overflow) ||
+      (selected?.overlapWithPlaced ?? 0) > OVERLAP_EPSILON ||
+      false,
     tailTo: bubble.kind === 'caption' ? undefined : target ?? bubble.tailTo,
   };
 }
 
 export function applyGraphicNovelBubbleVisionLayout(
   page: PlannedGraphicNovelPage,
-  analysis: GraphicNovelBubbleVisionAnalysis
+  analysis: GraphicNovelBubbleVisionAnalysis,
+  options: { useDetectedPanelBounds?: boolean } = {}
 ): GraphicNovelBubbleVisionLayoutResult {
   const pageSize = pageSizeForGraphicNovelPage(page);
+  const coordinateSpace: AnalysisCoordinateSpace =
+    options.useDetectedPanelBounds === true ? 'page' : 'panel';
   let bubblesPlaced = 0;
   let bubblesWithVisionTargets = 0;
   let bubblesWithVisionEmptyZones = 0;
   let bubblesWithVisionOccupiedZones = 0;
+  let panelsWithDetectedBounds = 0;
   const extraVisionPanelCount = countExtraVisionPanels(page, analysis);
+  const placedByPanelKey = new Map<string, BubbleGeometry[]>();
+  const detectedPanelBounds = options.useDetectedPanelBounds === true
+    ? normalizedDetectedPanelBounds(analysis)
+    : new Map<GraphicNovelBubbleVisionPanel, Rect>();
 
   const plannedPage: PlannedGraphicNovelPage = {
     ...page,
     panels: page.panels.map((panel, panelIndex) => {
       const panelAnalysis = findPanelAnalysis(analysis, panel, panelIndex);
-      const hasOccupiedZones = !!panelAnalysis?.occupiedZones?.length;
-      const visionEmptyZones = emptyZonesForPanel(panelAnalysis, panel.templatePanel.rect);
-      const occupiedPlacementZones = hasOccupiedZones
-        ? [fullPanelZone(panel.templatePanel.rect)]
-        : visionEmptyZones;
-      const avoidRects = characterAvoidRects(panelAnalysis, panel, page);
-      const placed: BubbleGeometry[] = [];
+      const resolved = resolvedPanelForPlacement(
+        panel,
+        panelAnalysis,
+        options.useDetectedPanelBounds === true,
+        panelAnalysis ? detectedPanelBounds.get(panelAnalysis) : undefined
+      );
+      const placementPanel = resolved.panel;
+      if (resolved.panelBoundsUsed) panelsWithDetectedBounds += 1;
       const bubbles = panel.bubbles.map((bubble) => {
-        const targetResult = findCharacterTarget(panelAnalysis, bubble, panel, page);
+        const bubblePanelAnalysis = options.useDetectedPanelBounds === true
+          ? findPanelAnalysisForBubble(analysis, panel, panelIndex, bubble, page, coordinateSpace)
+          : panelAnalysis;
+        const bubbleResolved = resolvedPanelForPlacement(
+          panel,
+          bubblePanelAnalysis,
+          options.useDetectedPanelBounds === true,
+          bubblePanelAnalysis ? detectedPanelBounds.get(bubblePanelAnalysis) : undefined
+        );
+        const bubblePlacementPanel = bubbleResolved.panel;
+        const hasOccupiedZones = !!bubblePanelAnalysis?.occupiedZones?.length;
+        const visionEmptyZones = emptyZonesForPanel(
+          bubblePanelAnalysis,
+          bubblePlacementPanel.templatePanel.rect,
+          coordinateSpace
+        );
+        const occupiedPlacementZones = hasOccupiedZones
+          ? [fullPanelZone(bubblePlacementPanel.templatePanel.rect)]
+          : visionEmptyZones;
+        const avoidRects = characterAvoidRects(
+          bubblePanelAnalysis,
+          bubblePlacementPanel,
+          page,
+          coordinateSpace,
+          bubble
+        );
+        const placedKey = options.useDetectedPanelBounds === true
+          ? panelAnalysisKey(bubblePanelAnalysis, panelIndex)
+          : `planned:${panelIndex + 1}`;
+        const placed = placedByPanelKey.get(placedKey) ?? [];
+        const targetResult = findCharacterTarget(
+          bubblePanelAnalysis,
+          bubble,
+          bubblePlacementPanel,
+          page,
+          coordinateSpace
+        );
         const placementTarget = targetResult.point ?? bubble.tailTo;
         const placementZones = bubble.kind === 'caption' ? visionEmptyZones : occupiedPlacementZones;
+        const preferSpeakerDistanceLimit =
+          bubble.kind !== 'caption' && !!placementTarget;
         const placedBubble = placeBubble({
           bubble,
-          panel,
+          panel: bubblePlacementPanel,
           target: placementTarget,
           placed,
           emptyZones: placementZones,
           avoidRects,
           pageSize,
+          textSizing: page.bubbleTextSizing,
+          preferSpeakerDistanceLimit,
         });
         placed.push(placedBubble);
+        placedByPanelKey.set(placedKey, placed);
         bubblesPlaced += 1;
         if (targetResult.hasVisionTarget) bubblesWithVisionTargets += 1;
-        if (panelAnalysis?.emptyZones?.length) bubblesWithVisionEmptyZones += 1;
-        if (panelAnalysis?.occupiedZones?.length) bubblesWithVisionOccupiedZones += 1;
+        if (bubblePanelAnalysis?.emptyZones?.length) bubblesWithVisionEmptyZones += 1;
+        if (bubblePanelAnalysis?.occupiedZones?.length) bubblesWithVisionOccupiedZones += 1;
         return placedBubble;
       });
 
       return {
-        ...panel,
+        ...placementPanel,
         bubbles,
       };
     }),
@@ -1282,6 +1811,8 @@ export function applyGraphicNovelBubbleVisionLayout(
       bubblesWithVisionTargets,
       bubblesWithVisionEmptyZones,
       bubblesWithVisionOccupiedZones,
+      panelsWithDetectedBounds,
+      coordinateSpace,
       extraVisionPanelCount,
       hasExtraVisionPanelStructure: extraVisionPanelCount > 0,
     },
@@ -1293,6 +1824,7 @@ export async function analyzeGraphicNovelBubbleVision(params: {
   page: PlannedGraphicNovelPage;
   imageData: Buffer;
   mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  detectPanelBounds?: boolean;
   onUsage?: (usage: UsageMetadata) => void;
 }): Promise<GraphicNovelBubbleVisionAnalysis> {
   return params.textProvider.generateStructured<GraphicNovelBubbleVisionAnalysis>({
@@ -1305,14 +1837,21 @@ export async function analyzeGraphicNovelBubbleVision(params: {
       'You are a precise comic page vision layout analyzer.',
       'Return only structured JSON matching the schema.',
       'Use the image pixels as source of truth for character face/head/mouth positions and occupied no-cover zones.',
+      params.detectPanelBounds
+        ? 'Detect the actual panel rectangles from the finished page; do not rely on preset rectangles. Return panelBounds and all visual coordinates in full-page 0..1 coordinates.'
+        : 'If panel rectangles are visible, report them; otherwise keep analysis panel-relative.',
       'Do not invent speech bubble coordinates; only describe visual evidence for a deterministic server planner.',
     ].join(' '),
-    prompt: buildBubbleVisionPrompt(params.page),
+    prompt: buildBubbleVisionPrompt(params.page, {
+      detectPanelBounds: params.detectPanelBounds,
+    }),
     schema: GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA,
     imageData: [{
       mimeType: params.mimeType,
       data: params.imageData.toString('base64'),
-      instructionText: 'Finished art-only graphic novel page image. Analyze visible characters, occupied no-cover zones, and optional empty zones inside the panels.',
+      instructionText: params.detectPanelBounds
+        ? 'Finished free-layout art-only graphic novel page image. Detect actual panel rectangles, visible characters, occupied no-cover zones, and optional empty zones.'
+        : 'Finished art-only graphic novel page image. Analyze visible characters, occupied no-cover zones, and optional empty zones inside the panels.',
     }],
   });
 }

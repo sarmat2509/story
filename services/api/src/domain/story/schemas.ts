@@ -298,12 +298,7 @@ export function buildImageValidationSchema(
       hasExtraPanelStructure: {
         type: 'boolean',
         description:
-          'Graphic-novel layout check. True if the generated image visually contains more panels/scenes than the planned template: extra panel borders, fake gutters, split-screen dividers, inset panels, or a single planned panel split into multiple distinct locations/camera shots/story beats.',
-      },
-      hasTemplateColorResidue: {
-        type: 'boolean',
-        description:
-          'Graphic-novel template check. True if any visible color-coded guide-template fill remains in the final artwork, such as sky-blue, peach, mint, lavender, yellow, or pink template patches, strips, bands, or unpainted rectangular areas along panel edges or behind the illustration.',
+          'Graphic-novel layout check. True if the generated image visually contains more panels/scenes than expected: extra panel borders, fake gutters, split-screen dividers, inset panels, or a single planned panel split into multiple distinct locations/camera shots/story beats.',
       },
       layoutFeedback: {
         type: 'string',
@@ -317,7 +312,6 @@ export function buildImageValidationSchema(
       'hasArtworkOutsidePanelBounds',
       ...(includeBubbleChecks ? ['hasArtworkOverSpeechBubbles'] : []),
       'hasExtraPanelStructure',
-      'hasTemplateColorResidue',
       'layoutFeedback',
     ],
   };

@@ -176,7 +176,6 @@ interface RegenerateGraphicNovelPageImageJob extends LegacyBaseJob {
   type: 'regenerate_graphic_novel_page_image';
   storyId: string;
   pageNumber: number;
-  preferredTemplateId?: string;
   style?: string;
 }
 
@@ -220,7 +219,6 @@ interface RegenerateGraphicNovelPageImageInput {
   type: 'regenerate_graphic_novel_page_image';
   storyId: string;
   pageNumber: number;
-  preferredTemplateId?: string;
   style?: string;
 }
 
@@ -1277,7 +1275,6 @@ async function processRegenerateGraphicNovelPageImageLegacy(
     {
       storyId: job.storyId,
       pageNumber: job.pageNumber,
-      preferredTemplateId: job.preferredTemplateId,
     },
     'Regenerating graphic novel page image (legacy)'
   );
@@ -1285,7 +1282,6 @@ async function processRegenerateGraphicNovelPageImageLegacy(
   await regenerateGraphicNovelPageImage({
     storyId: job.storyId,
     pageNumber: job.pageNumber,
-    preferredTemplateId: job.preferredTemplateId,
     style: job.style,
   });
 }

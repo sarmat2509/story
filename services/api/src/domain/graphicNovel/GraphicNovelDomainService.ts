@@ -9,6 +9,7 @@ import {
 } from '../../prompts/text';
 import type { ContinuationPromptContext } from '../../prompts/helpers';
 import type {
+  GraphicNovelBubbleTextSizing,
   GraphicNovelPageRole,
   GraphicNovelPanelVisual,
   GraphicNovelPanelScript,
@@ -472,11 +473,16 @@ export class GraphicNovelDomainService {
     return normalized;
   }
 
-  planLayouts(params: { spec: StorySpec; script: GraphicNovelScript }) {
+  planLayouts(params: {
+    spec: StorySpec;
+    script: GraphicNovelScript;
+    bubbleTextSizing?: GraphicNovelBubbleTextSizing;
+  }) {
     return planGraphicNovelLayouts({
       ageGroup: params.spec.ageGroup,
       pages: params.script.pages,
       outfits: params.script.outfits,
+      bubbleTextSizing: params.bubbleTextSizing,
     });
   }
 }

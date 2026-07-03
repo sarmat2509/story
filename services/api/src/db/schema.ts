@@ -1664,7 +1664,6 @@ export const graphicNovelPages = pgTable(
       .references(() => stories.id, { onDelete: 'cascade' })
       .notNull(),
     pageNumber: integer('page_number').notNull(),
-    templateId: varchar('template_id', { length: 20 }).notNull(),
     pageRole: varchar('page_role', { length: 40 }).notNull(),
     layoutJson: jsonb('layout_json').notNull(),
     bubbleLayoutJson: jsonb('bubble_layout_json').notNull().default({}),

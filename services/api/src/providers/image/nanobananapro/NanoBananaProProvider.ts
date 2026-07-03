@@ -125,7 +125,7 @@ export class NanoBananaProProvider implements IImageProvider {
       const parts: any[] = await this.buildReferenceParts(request.referenceImages);
 
       const originalImageInstruction = request.operation === 'graphic_novel_page_edit'
-        ? 'PAGE TEMPLATE TO FILL: this image is a color-coded layout template with fixed slot frames and gutters. Treat it as the exact page geometry to preserve and fill with final art.'
+        ? 'SOURCE COMIC PAGE TO EDIT: preserve the existing page aspect, visible panel count, panel borders, gutters, and composition while applying the requested corrections.'
         : 'FAILED SCENE ILLUSTRATION TO REPAIR: use this image for composition, pose intent, background, lighting, and art style continuity only. ' +
           'Do not use it as the source of truth for any character face, hairstyle, body identity, or outfit detail that the edit instructions identify as wrong.';
 

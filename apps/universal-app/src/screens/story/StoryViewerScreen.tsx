@@ -37,6 +37,7 @@ import {
   useGraphicNovel,
   useGraphicNovelGenerationStatus,
   type GraphicNovelPageApi,
+  type GraphicNovelTextOverlay,
   type GraphicNovelTextOverlayItem,
 } from '@/api/stories';
 import { useCollectedArtifacts, useCollectStoryArtifact } from '@/api/artifacts';
@@ -198,7 +199,50 @@ const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 20;
 const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 23;
 const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 14;
 const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y = 6;
+const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT / GRAPHIC_NOVEL_BUBBLE_FONT_SIZE;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X / GRAPHIC_NOVEL_BUBBLE_FONT_SIZE;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y / GRAPHIC_NOVEL_BUBBLE_FONT_SIZE;
 const GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH = 1536;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH = 992;
+
+type GraphicNovelBubbleTextStyle = NonNullable<GraphicNovelTextOverlay['textStyle']>;
+type ResolvedGraphicNovelBubbleTextStyle = GraphicNovelBubbleTextStyle & {
+  targetPageWidthPx: number;
+  targetPageHeightPx: number;
+};
+
+const finitePositiveNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const resolveGraphicNovelBubbleTextStyle = (
+  textStyle: GraphicNovelTextOverlay['textStyle'] | null | undefined,
+  fallbackFontSizePx: number
+): ResolvedGraphicNovelBubbleTextStyle => {
+  const fontSizePx = finitePositiveNumber(textStyle?.fontSizePx)
+    ? textStyle.fontSizePx
+    : fallbackFontSizePx;
+  return {
+    fontSizePx,
+    lineHeightPx: finitePositiveNumber(textStyle?.lineHeightPx)
+      ? textStyle.lineHeightPx
+      : Math.max(fontSizePx + 1, Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT_RATIO)),
+    paddingXPx: finitePositiveNumber(textStyle?.paddingXPx)
+      ? textStyle.paddingXPx
+      : Math.max(8, Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_RATIO)),
+    paddingYPx: finitePositiveNumber(textStyle?.paddingYPx)
+      ? textStyle.paddingYPx
+      : Math.max(4, Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_RATIO)),
+    targetPageWidthPx: finitePositiveNumber(textStyle?.targetPageWidthPx)
+      ? textStyle.targetPageWidthPx
+      : GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH,
+    targetPageHeightPx: finitePositiveNumber(textStyle?.targetPageHeightPx)
+      ? textStyle.targetPageHeightPx
+      : Math.round(GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH * 4 / 3),
+  };
+};
 
 const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
 const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
@@ -2430,10 +2474,16 @@ export default function StoryViewerScreen() {
     return itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText);
   };
 
-  const renderGraphicNovelTextItem = (item: GraphicNovelTextOverlayItem, pageScale: number) => {
+  const renderGraphicNovelTextItem = (
+    item: GraphicNovelTextOverlayItem,
+    pageWidth: number,
+    textStyle?: GraphicNovelTextOverlay['textStyle'] | null
+  ) => {
     const rawText = removeAudioTags(item.rawText || item.text || item.audioText || '');
     const text = stripArtifactMarkers(removeAudioTags(item.text || item.audioText || rawText));
     if (!text.trim()) return null;
+    const bubbleTextStyle = resolveGraphicNovelBubbleTextStyle(textStyle, proseTextSizePx);
+    const textScale = pageWidth / bubbleTextStyle.targetPageWidthPx;
 
     const sceneIndex = findGraphicNovelSceneIndex(item.pageNumber);
     const highlightedText = renderAlignedTextContent(text, sceneIndex);
@@ -2455,8 +2505,8 @@ export default function StoryViewerScreen() {
           styles.graphicNovelTextBox,
           rectStyle as any,
           {
-            paddingHorizontal: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X * pageScale,
-            paddingVertical: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y * pageScale,
+            paddingHorizontal: bubbleTextStyle.paddingXPx * textScale,
+            paddingVertical: bubbleTextStyle.paddingYPx * textScale,
           },
         ]}
         accessibilityLabel={item.ariaLabel}
@@ -2466,8 +2516,8 @@ export default function StoryViewerScreen() {
           style={[
             styles.graphicNovelBubbleText,
             {
-              fontSize: GRAPHIC_NOVEL_BUBBLE_FONT_SIZE * pageScale,
-              lineHeight: GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT * pageScale,
+              fontSize: bubbleTextStyle.fontSizePx * textScale,
+              lineHeight: bubbleTextStyle.lineHeightPx * textScale,
             },
             isActive && styles.graphicNovelBubbleTextActive,
           ]}
@@ -2547,7 +2597,6 @@ export default function StoryViewerScreen() {
     const isActivePage =
       effectiveHighlightEnabled && activeGraphicNovelPageNumber === page.pageNumber;
     const pageWidth = graphicNovelPageWidths[page.pageNumber] || graphicNovelCanonicalWidth(page);
-    const pageScale = pageWidth / graphicNovelCanonicalWidth(page);
 
     return (
       <View
@@ -2569,7 +2618,9 @@ export default function StoryViewerScreen() {
                 resizeMode="contain"
               />
               {renderGraphicNovelPanelAnchors(page)}
-              {page.textOverlay?.items?.map((item) => renderGraphicNovelTextItem(item, pageScale))}
+              {page.textOverlay?.items?.map((item) =>
+                renderGraphicNovelTextItem(item, pageWidth, page.textOverlay?.textStyle)
+              )}
             </>
           ) : (
             <View style={styles.graphicNovelPagePlaceholder}>

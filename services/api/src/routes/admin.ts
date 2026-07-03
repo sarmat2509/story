@@ -147,7 +147,6 @@ const AdminRegenerateSceneImageBodySchema = z.object({
 }).strict();
 
 const AdminRegenerateGraphicNovelPageImageBodySchema = z.object({
-  preferredTemplateId: z.string().trim().min(1).max(20).optional(),
   style: z.string().trim().min(1).max(400).optional(),
 }).strict();
 
@@ -1438,7 +1437,6 @@ router.post('/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image'
       type: 'regenerate_graphic_novel_page_image',
       storyId: parsedParams.data.storyId,
       pageNumber: parsedParams.data.pageNumber,
-      preferredTemplateId: parsedBody.data.preferredTemplateId,
       style: parsedBody.data.style,
     });
 
@@ -1446,7 +1444,6 @@ router.post('/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image'
       adminUserId: req.user?.id,
       storyId: parsedParams.data.storyId,
       pageNumber: parsedParams.data.pageNumber,
-      preferredTemplateId: parsedBody.data.preferredTemplateId,
       jobId,
     }, 'Admin graphic novel page image regeneration started');
 

@@ -82,7 +82,7 @@ export interface GraphicNovelPageTemplate {
   id: string;
   aspectRatio: '3:4' | '2:1';
   pageSize?: { width: number; height: number };
-  templateFamily?: 'graphic_novel_page' | 'mixed_story_strip';
+  templateFamily?: 'free_layout';
   panelCount: number;
   panels: GraphicNovelPanelTemplate[];
   readingOrder: string[];
@@ -127,11 +127,21 @@ export interface GraphicNovelTextOverlayItem {
   ariaLabel: string;
 }
 
+export interface GraphicNovelBubbleTextSizing {
+  fontSizePx: number;
+  lineHeightPx: number;
+  paddingXPx: number;
+  paddingYPx: number;
+  targetPageWidthPx: number;
+  targetPageHeightPx: number;
+}
+
 export interface GraphicNovelPageTextOverlay {
   mode: 'html_overlay';
   coordinateSpace: 'normalized_0_1';
   pageNumber: number;
   pageSize: { width: number; height: number };
+  textStyle?: GraphicNovelBubbleTextSizing;
   items: GraphicNovelTextOverlayItem[];
   rawPlainText: string;
   plainText: string;
@@ -148,6 +158,7 @@ export interface PlannedGraphicNovelPage {
   pageRole: GraphicNovelPageRole;
   template: GraphicNovelPageTemplate;
   pageSize?: { width: number; height: number };
+  bubbleTextSizing?: GraphicNovelBubbleTextSizing;
   outfits?: StoryOutfitRow[];
   characterAliases?: Record<string, string[]>;
   panels: PlannedGraphicNovelPanel[];

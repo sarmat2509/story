@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { measureGraphicNovelBubbleTextBox } from '../bubbleTextSizing';
+import {
+  GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX,
+  graphicNovelBubbleTextSizingFromStoryTextSize,
+  measureGraphicNovelBubbleTextBox,
+} from '../bubbleTextSizing';
 import type { Rect } from '../types';
 
 const FIRST_PAGE_WIDE_PANEL: Rect = {
@@ -47,6 +51,26 @@ function testCaptionGetsReadableWidth(): void {
   );
 }
 
+function testThreeLineCaptionDoesNotOverflow(): void {
+  const measured = measureGraphicNovelBubbleTextBox({
+    kind: 'caption',
+    panelRect: {
+      x: 0.02,
+      y: 0.02,
+      width: 0.96,
+      height: 0.33,
+    },
+    text: 'Глибоко в джунглях Емілія та її друзі шукали стародавнє місто.',
+  });
+
+  assert.equal(measured.overflow, false);
+  assert.equal(measured.lineCount, 3);
+  assert.ok(
+    measured.height > 0.055,
+    `three-line caption should reserve enough text height; got ${measured.height.toFixed(3)}`
+  );
+}
+
 function testShortSpeechStaysCompact(): void {
   const measured = measureGraphicNovelBubbleTextBox({
     kind: 'speech',
@@ -56,15 +80,49 @@ function testShortSpeechStaysCompact(): void {
 
   assert.equal(measured.overflow, false);
   assert.ok(
-    measured.width < 0.08,
-    `short speech bubble should remain compact; got ${measured.width.toFixed(3)}`
+    measured.width * GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX < 120,
+    `short speech bubble should remain compact; got ${Math.round(measured.width * GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX)}px`
+  );
+}
+
+function testStoryTextSizeChangesBubbleMeasurement(): void {
+  const text = 'Сьогодні на небі так спокійно. Усі кораблі летять за розкладом.';
+  const narrowPanel: Rect = {
+    x: 0.1,
+    y: 0.1,
+    width: 0.26,
+    height: 0.32,
+  };
+  const defaultMeasured = measureGraphicNovelBubbleTextBox({
+    kind: 'speech',
+    panelRect: narrowPanel,
+    text,
+  });
+  const largeTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(26);
+  const largeMeasured = measureGraphicNovelBubbleTextBox({
+    kind: 'speech',
+    panelRect: narrowPanel,
+    text,
+    textSizing: largeTextSizing,
+  });
+
+  assert.equal(largeMeasured.fontSizePx, 26);
+  assert.ok(
+    largeMeasured.height > defaultMeasured.height,
+    `larger story text size should reserve taller bubbles; default=${defaultMeasured.height.toFixed(3)} large=${largeMeasured.height.toFixed(3)}`
+  );
+  assert.ok(
+    largeMeasured.maxCharsPerLine < defaultMeasured.maxCharsPerLine,
+    `larger story text size should reduce chars per line; default=${defaultMeasured.maxCharsPerLine} large=${largeMeasured.maxCharsPerLine}`
   );
 }
 
 export async function runGraphicNovelBubbleTextSizingTests(): Promise<void> {
   testLongUkrainianSpeechGetsReadableWidth();
   testCaptionGetsReadableWidth();
+  testThreeLineCaptionDoesNotOverflow();
   testShortSpeechStaysCompact();
+  testStoryTextSizeChangesBubbleMeasurement();
 }
 
 if (require.main === module) {

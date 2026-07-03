@@ -63,6 +63,7 @@ export type ReferenceImageDataEntry = {
   charactersPresent?: string[];
   sceneId?: number;
   referenceEnvironmentId?: string;
+  storagePath?: string;
 };
 
 /**

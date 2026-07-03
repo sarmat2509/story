@@ -46,6 +46,14 @@ export interface GraphicNovelTextOverlay {
   coordinateSpace: 'normalized_0_1';
   pageNumber: number;
   pageSize: { width: number; height: number };
+  textStyle?: {
+    fontSizePx: number;
+    lineHeightPx: number;
+    paddingXPx: number;
+    paddingYPx: number;
+    targetPageWidthPx?: number;
+    targetPageHeightPx?: number;
+  };
   items: GraphicNovelTextOverlayItem[];
   rawPlainText?: string;
   plainText?: string;
@@ -57,7 +65,6 @@ export interface GraphicNovelPageApi {
   status: 'pending' | 'planned' | 'generating' | 'completed' | 'failed' | string;
   imageUrl?: string | null;
   imageAssetId?: string | null;
-  templateId?: string | null;
   layoutJson?: any;
   bubbleLayoutJson?: any;
   textOverlay?: GraphicNovelTextOverlay | null;

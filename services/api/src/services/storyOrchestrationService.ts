@@ -4122,16 +4122,6 @@ export function computeValidationScore(
   if (validation.hasArtworkOutsidePanelBounds) score -= p.artifactsPenalty;
   if (validation.hasArtworkOverSpeechBubbles) score -= p.artifactsPenalty;
   if (validation.hasExtraPanelStructure) score -= p.artifactsPenalty;
-  if (validation.hasTemplateColorResidue) {
-    score -= p.artifactsPenalty;
-    const maxPanelResidueRatio = Math.max(
-      0,
-      ...(validation.templateColorResidueDetails?.panels ?? []).map((panel) => panel.ratio)
-    );
-    if (maxPanelResidueRatio > 0) {
-      score -= Math.min(30, Math.max(10, Math.round(maxPanelResidueRatio * 650)));
-    }
-  }
   return Math.max(0, Math.min(100, Math.round(score * 10) / 10));
 }
 

@@ -22,36 +22,6 @@ const SPEECH_TAIL_MOUTH_CLEARANCE_PX = 64;
 const SPEECH_TAIL_MAX_LINE_PX = 145;
 const SPEECH_TAIL_BASE_MAX_HALF_WIDTH_PX = 34;
 const SPEECH_TAIL_BASE_MIN_HALF_WIDTH_PX = 14;
-const PANEL_GUIDE_COLORS = [
-  { name: 'sky-blue', frameFill: '#d8ecff', artFill: '#c5e1ff' },
-  { name: 'peach', frameFill: '#ffe1d1', artFill: '#ffd1bd' },
-  { name: 'mint-green', frameFill: '#d9f4df', artFill: '#c7ebcf' },
-  { name: 'lavender', frameFill: '#e8ddff', artFill: '#dacaff' },
-  { name: 'butter-yellow', frameFill: '#fff3bf', artFill: '#ffe89a' },
-  { name: 'rose-pink', frameFill: '#ffdce8', artFill: '#ffc7d8' },
-];
-const TEMPLATE_COLOR_MAX_CHANNEL_DELTA = 14;
-const TEMPLATE_COLOR_RESIDUE_MIN_PIXELS = 500;
-const TEMPLATE_COLOR_RESIDUE_MIN_PANEL_RATIO = 0.002;
-const TEMPLATE_COLOR_RESIDUE_EDGE_IGNORE_PX = 14;
-const TEMPLATE_COLOR_RESIDUE_BUBBLE_IGNORE_PX = 8;
-
-export interface GraphicNovelTemplateColorResiduePanelCheck {
-  panelIndex: number;
-  panelId: string;
-  guideColor: string;
-  matchedPixels: number;
-  panelPixels: number;
-  ratio: number;
-}
-
-export interface GraphicNovelTemplateColorResidueCheck {
-  hasResidue: boolean;
-  matchedPixels: number;
-  thresholdPixels: number;
-  thresholdPanelRatio: number;
-  panels: GraphicNovelTemplateColorResiduePanelCheck[];
-}
 
 type PageSize = { width: number; height: number };
 
@@ -59,50 +29,9 @@ function px(rect: Rect, pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE): Rect {
   return normalizeRect(rect, pageSize);
 }
 
-function rectSvg(rect: Rect, attrs: string, pageSize?: PageSize): string {
-  const r = px(rect, pageSize);
-  return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" ${attrs}/>`;
-}
-
-function panelGuideColor(index: number): (typeof PANEL_GUIDE_COLORS)[number] {
-  return PANEL_GUIDE_COLORS[index % PANEL_GUIDE_COLORS.length];
-}
-
 function pageEditAspectRatio(page: PlannedGraphicNovelPage): '16:9' | '3:4' {
   const pageSize = pageSizeForGraphicNovelPage(page);
   return pageSize.width >= pageSize.height ? '16:9' : '3:4';
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const normalized = hex.replace(/^#/, '');
-  return [
-    Number.parseInt(normalized.slice(0, 2), 16),
-    Number.parseInt(normalized.slice(2, 4), 16),
-    Number.parseInt(normalized.slice(4, 6), 16),
-  ];
-}
-
-function colorMatchesGuideColor(
-  r: number,
-  g: number,
-  b: number,
-  guideColors: Array<[number, number, number]>
-): boolean {
-  return guideColors.some(
-    ([gr, gg, gb]) =>
-      Math.abs(r - gr) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA &&
-      Math.abs(g - gg) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA &&
-      Math.abs(b - gb) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA
-  );
-}
-
-function pointInsideRectWithMargin(x: number, y: number, rect: Rect, margin: number): boolean {
-  return (
-    x >= rect.x - margin &&
-    x <= rect.x + rect.width + margin &&
-    y >= rect.y - margin &&
-    y <= rect.y + rect.height + margin
-  );
 }
 
 function roundedBubblePath(r: Rect, radius: number): string {
@@ -640,149 +569,19 @@ function bubbleSvg(page: PlannedGraphicNovelPage): string {
   return bubbleNodes.join('\n');
 }
 
-function frameSvg(page: PlannedGraphicNovelPage, includeArtPlaceholders: boolean): string {
-  const pageSize = pageSizeForGraphicNovelPage(page);
-  const panels = page.panels
-    .map((panel, index) => {
-      const color = panelGuideColor(index);
-      const fill = includeArtPlaceholders ? color.artFill : color.frameFill;
-      return rectSvg(
-        panel.templatePanel.rect,
-        `fill="${fill}" stroke="#111" stroke-width="8"`,
-        pageSize
-      );
-    })
-    .join('\n');
-  return panels;
-}
-
-function panelFrameOnlySvg(page: PlannedGraphicNovelPage): string {
-  const pageSize = pageSizeForGraphicNovelPage(page);
-  return page.panels
-    .map((panel) =>
-      rectSvg(panel.templatePanel.rect, 'fill="none" stroke="#111" stroke-width="8"', pageSize)
-    )
-    .join('\n');
-}
-
-function buildSvg(page: PlannedGraphicNovelPage, includeArtPlaceholders: boolean): string {
+function buildBubbleOnlyOverlaySvg(page: PlannedGraphicNovelPage): string {
   const pageSize = pageSizeForGraphicNovelPage(page);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
-  <rect width="100%" height="100%" fill="#fffaf0"/>
-  ${frameSvg(page, includeArtPlaceholders)}
-</svg>`;
-}
-
-function buildOverlaySvg(page: PlannedGraphicNovelPage): string {
-  const pageSize = pageSizeForGraphicNovelPage(page);
-  const pagePath = `M 0 0 H ${pageSize.width} V ${pageSize.height} H 0 Z`;
-  const panelHoles = page.panels
-    .map((panel) => {
-      const r = px(panel.templatePanel.rect, pageSize);
-      return `M ${r.x} ${r.y} H ${r.x + r.width} V ${r.y + r.height} H ${r.x} Z`;
-    })
-    .join(' ');
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
-  <path d="${pagePath} ${panelHoles}" fill="#fffaf0" fill-rule="evenodd"/>
-  ${panelFrameOnlySvg(page)}
   ${bubbleSvg(page)}
 </svg>`;
 }
 
-export async function renderGraphicNovelPageTemplate(
-  page: PlannedGraphicNovelPage
-): Promise<Buffer> {
-  return sharp(Buffer.from(buildSvg(page, true)))
-    .png()
-    .toBuffer();
-}
-
-export async function detectGraphicNovelTemplateColorResidue(
-  imageData: Buffer,
-  page: PlannedGraphicNovelPage
-): Promise<GraphicNovelTemplateColorResidueCheck> {
-  const pageSize = pageSizeForGraphicNovelPage(page);
-  const { data, info } = await sharp(imageData)
-    .resize(pageSize.width, pageSize.height, { fit: 'fill' })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const channels = info.channels;
-
-  const panels = page.panels.map((panel, index) => {
-    const color = panelGuideColor(index);
-    const guideColors = [hexToRgb(color.artFill), hexToRgb(color.frameFill)];
-    const rect = px(panel.templatePanel.rect, pageSize);
-    const edgeInset = Math.min(
-      TEMPLATE_COLOR_RESIDUE_EDGE_IGNORE_PX,
-      Math.max(0, Math.floor(Math.min(rect.width, rect.height) * 0.08))
-    );
-    const bubbleRects = panel.bubbles.map((bubble) => px(bubble.rect, pageSize));
-    const x0 = clamp(Math.floor(rect.x + edgeInset), 0, info.width - 1);
-    const y0 = clamp(Math.floor(rect.y + edgeInset), 0, info.height - 1);
-    const x1 = clamp(Math.ceil(rect.x + rect.width - edgeInset), x0 + 1, info.width);
-    const y1 = clamp(Math.ceil(rect.y + rect.height - edgeInset), y0 + 1, info.height);
-    let matchedPixels = 0;
-    let panelPixels = 0;
-
-    for (let y = y0; y < y1; y += 1) {
-      for (let x = x0; x < x1; x += 1) {
-        if (
-          bubbleRects.some((bubbleRect) =>
-            pointInsideRectWithMargin(x, y, bubbleRect, TEMPLATE_COLOR_RESIDUE_BUBBLE_IGNORE_PX)
-          )
-        ) {
-          continue;
-        }
-        const pixelIndex = (y * info.width + x) * channels;
-        const alpha = channels >= 4 ? data[pixelIndex + 3] : 255;
-        if (alpha < 16) continue;
-        panelPixels += 1;
-        if (
-          colorMatchesGuideColor(
-            data[pixelIndex],
-            data[pixelIndex + 1],
-            data[pixelIndex + 2],
-            guideColors
-          )
-        ) {
-          matchedPixels += 1;
-        }
-      }
-    }
-
-    const ratio = panelPixels > 0 ? matchedPixels / panelPixels : 0;
-    return {
-      panelIndex: index + 1,
-      panelId: panel.templatePanel.id,
-      guideColor: color.name,
-      matchedPixels,
-      panelPixels,
-      ratio: Math.round(ratio * 10000) / 10000,
-    };
-  });
-
-  const matchedPixels = panels.reduce((sum, panel) => sum + panel.matchedPixels, 0);
-  return {
-    hasResidue: panels.some(
-      (panel) =>
-        panel.matchedPixels >= TEMPLATE_COLOR_RESIDUE_MIN_PIXELS &&
-        panel.ratio >= TEMPLATE_COLOR_RESIDUE_MIN_PANEL_RATIO
-    ),
-    matchedPixels,
-    thresholdPixels: TEMPLATE_COLOR_RESIDUE_MIN_PIXELS,
-    thresholdPanelRatio: TEMPLATE_COLOR_RESIDUE_MIN_PANEL_RATIO,
-    panels,
-  };
-}
-
-export async function overlayGraphicNovelTemplate(
+export async function overlayGraphicNovelBubblesOnly(
   baseImage: Buffer,
   page: PlannedGraphicNovelPage
 ): Promise<Buffer> {
   const pageSize = pageSizeForGraphicNovelPage(page);
-  const overlay = await sharp(Buffer.from(buildOverlaySvg(page)))
+  const overlay = await sharp(Buffer.from(buildBubbleOnlyOverlaySvg(page)))
     .png()
     .toBuffer();
 
@@ -884,9 +683,7 @@ function panelGeometryLine(
 ): string {
   const r = px(panel.templatePanel.rect);
   return [
-    `- Slot color: ${panelGuideColor(index).name}.`,
-    `- Slot position: x=${r.x}; y=${r.y}.`,
-    `- Slot size: width=${r.width}; height=${r.height}.`,
+    `- Panel ${index + 1} bounds: x=${r.x}; y=${r.y}; width=${r.width}; height=${r.height}.`,
   ].join('\n');
 }
 
@@ -943,6 +740,7 @@ function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
 
   return referenceImages
     .map((reference, index) => {
+      const source = (reference as { source?: string }).source;
       const fallbackLabel = `Image ${index + 1}: ${reference.referenceKind === 'object' ? 'object/environment' : 'character identity'} reference${reference.characterName ? ` for ${reference.characterName}` : ''}.`;
       if (reference.referenceKind === 'character') {
         const instruction = reference.instructionText || '';
@@ -950,6 +748,9 @@ function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
           ? 'Reference photo'
           : 'Character sheet';
         return `- Image ${index + 1}: Character reference for "${reference.characterName || 'character'}". ${sourceKind}.`;
+      }
+      if (source === 'outfit_plate') {
+        return `- Image ${index + 1}: Outfit reference for "${reference.characterName || 'character'}". Use garments and accessories only; keep identity from the character reference.`;
       }
       if (reference.referenceKind === 'object') {
         return `- Image ${index + 1}: Environment reference for "${reference.characterName || 'location'}". Reusable location structure, background objects, materials, and color continuity.`;
@@ -959,7 +760,78 @@ function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
     .join('\n');
 }
 
-function buildPanelEditBrief(
+export function summarizeGraphicNovelReferenceImages(
+  referenceImages: ReferenceImage[]
+): Array<Record<string, unknown>> {
+  return referenceImages.map((ref, index) => {
+    const meta = ref as ReferenceImage & {
+      source?: string;
+      type?: string;
+      isTurnaround?: boolean;
+      identitySource?: 'turnaround' | 'reference_photo';
+      environmentId?: string;
+      storagePath?: string;
+    };
+
+    return {
+      index: index + 1,
+      characterName: ref.characterName ?? null,
+      referenceKind: ref.referenceKind ?? null,
+      source: meta.source ?? null,
+      type: meta.type ?? null,
+      environmentId: meta.environmentId ?? null,
+      storagePath: meta.storagePath ?? null,
+      url: ref.url ?? null,
+      isTurnaround: ref.referenceKind === 'character' ? meta.isTurnaround === true : null,
+      identitySource:
+        ref.referenceKind === 'character'
+          ? meta.identitySource ?? (meta.isTurnaround ? 'turnaround' : 'reference_photo')
+          : null,
+      hasFileUri: !!ref.fileUri,
+      fileUri: ref.fileUri ?? null,
+      hasBase64Data: !!ref.base64Data,
+      base64Bytes: ref.base64Data ? Buffer.byteLength(ref.base64Data, 'base64') : null,
+      instructionText: ref.instructionText ?? null,
+    };
+  });
+}
+
+export function buildGraphicNovelImageRequestManifest(params: {
+  operation: string;
+  mode: 'generate' | 'edit';
+  prompt: string;
+  systemInstruction?: string;
+  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
+  previousInteractionId?: string | null;
+  referenceImages?: ReferenceImage[];
+}): Record<string, unknown> {
+  const referenceImages = params.referenceImages ?? [];
+  const references = summarizeGraphicNovelReferenceImages(referenceImages);
+  return {
+    version: 1,
+    operation: params.operation,
+    mode: params.mode,
+    savedAt: new Date().toISOString(),
+    aspectRatio: params.aspectRatio ?? null,
+    personGeneration: params.personGeneration ?? null,
+    previousInteractionId: params.previousInteractionId ?? null,
+    prompt: params.prompt,
+    systemInstruction: params.systemInstruction ?? null,
+    promptLength: params.prompt.length,
+    systemInstructionLength: params.systemInstruction?.length ?? 0,
+    referenceCount: references.length,
+    characterReferenceCount: references.filter((ref) => ref.referenceKind === 'character').length,
+    objectReferenceCount: references.filter((ref) => ref.referenceKind === 'object').length,
+    referenceImages: references,
+    fullTextPrompt:
+      `SYSTEM INSTRUCTION:\n${params.systemInstruction ?? ''}\n\n` +
+      `USER PROMPT:\n${params.prompt}\n\n` +
+      `REFERENCE IMAGES:\n${JSON.stringify(references, null, 2)}`,
+  };
+}
+
+function buildPanelFreeLayoutBrief(
   panel: PlannedGraphicNovelPage['panels'][number],
   index: number,
   environments: Map<string, StoryEnvironment>,
@@ -973,14 +845,13 @@ function buildPanelEditBrief(
   const shot = typeof composition === 'string' ? composition : composition.shot;
 
   return [
-    `${panelGuideColor(index).name} slot:`,
-    panelGeometryLine(panel, index),
+    `Panel ${index + 1}:`,
     environmentSlotLine(environment, referenceImages),
     `- Draw: ${sentence(visual.primaryRead)}`,
     `- Scene setting/change: ${sentence(sceneVisual.setting)}`,
     `- Camera: ${shot}.`,
     `- Lighting: ${sentence(sceneVisual.lighting)}`,
-    `- Characters in slot:`,
+    `- Characters in panel:`,
     cameraCharacters(panel, outfitsById),
   ]
     .filter(Boolean)
@@ -1015,9 +886,9 @@ function buildPanelRepairBrief(
     .join('\n');
 }
 
-export function buildGraphicNovelPageSystemInstruction(params: {
+export function buildGraphicNovelPageFreeLayoutSystemInstruction(params: {
   style: string;
-  slotCount: number;
+  panelCount: number;
   ageGroup?: string;
   scenarioCardId?: string;
 }): string {
@@ -1027,25 +898,25 @@ export function buildGraphicNovelPageSystemInstruction(params: {
     params.scenarioCardId
   );
   return [
-    `Children's illustration page. ART STYLE: ${stylePrefix}.`,
-    `You are editing a prepared page template with exactly ${params.slotCount} color-coded slots and fixed gutters.`,
-    'Use the existing slot count, black frames, and gutters as the fixed page structure.',
-    'Each ART TO ADD slot section maps one guide color to one scene.',
-    'Fill each color-coded slot with one continuous full-bleed illustration to the inside edge of its black frame, covering every pixel of the guide color.',
-    'Each slot contains one single visual moment.',
-    'All character bodies, hands, props, and background art stay inside their slot frames.',
-    'Each slot uses exactly the characters listed under Characters in slot.',
-    'When a scene needs more room, crop the illustration at the slot edge so the art still fills the whole slot.',
+    `Children's illustration comic page. ART STYLE: ${stylePrefix}.`,
+    `Generate a new page from scratch with exactly ${params.panelCount} comic panels.`,
+    `Strict panel count: the final page must have exactly ${params.panelCount} visible panel boxes, no more and no fewer.`,
+    'No preset layout guide image is attached. Choose the panel arrangement yourself.',
+    'Use clear panel borders and gutters so the page reads as one finished comic page.',
+    'Each listed Panel N below maps to exactly one physical panel; never split one listed panel into multiple boxes.',
+    'Each panel contains one single visual moment and exactly the characters listed for that panel.',
+    'Keep characters, props, and backgrounds inside their own panel.',
     'Render visual art only; bubbles and readable text are added later by the server.',
+    'Do not add speech bubbles, thought bubbles, captions, labels, UI, watermarks, or readable text.',
     "The final image is a clean children's illustration page.",
     'Character identity reference images are locked visual ground truth for face/head design, hairstyle or fur/body structure, age/species read, body proportions, silhouette, stable palette, and distinctive marks.',
-    'Outfit instructions are wardrobe-only. Apply garments, shoes, and worn accessories to the locked character identity without changing face, hair, body proportions, age read, species design, silhouette, or expression.',
-    'Reference labels use the exact character and environment names that appear in the slot visual instructions.',
+    'Outfit references are wardrobe-only. Apply garments, shoes, and worn accessories to the locked character identity without changing face, hair, body proportions, age read, species design, silhouette, or expression.',
+    'Reference labels use the exact character and environment names that appear in the panel visual instructions.',
     'Environment references define reusable location structure, materials, key objects, and palette continuity.',
   ].join(' ');
 }
 
-export function buildGraphicNovelPageEditInstructions(
+export function buildGraphicNovelPageFreeLayoutInstructions(
   page: PlannedGraphicNovelPage,
   environmentsById: Map<string, StoryEnvironment> = new Map(),
   referenceImages: ReferenceImage[] = []
@@ -1053,17 +924,18 @@ export function buildGraphicNovelPageEditInstructions(
   const outfits = outfitById(page);
   const panelInstructions = page.panels
     .map((panel, index) =>
-      buildPanelEditBrief(panel, index, environmentsById, referenceImages, outfits)
+      buildPanelFreeLayoutBrief(panel, index, environmentsById, referenceImages, outfits)
     )
     .join('\n\n');
 
-  return `Use the attached color-coded page template and reference images.
-Fill the slots according to ART TO ADD.
+return `Create a single comic page with exactly ${page.panels.length} panels.
+Panel count is strict: draw exactly ${page.panels.length} physical panel boxes, no extra panels, no split panels.
+Choose the panel layout yourself. No preset layout guide image is attached.
 
 REFERENCE IMAGES TO FOLLOW:
 ${buildReferenceBrief(referenceImages)}
 
-ART TO ADD:
+PANEL CONTENT:
 ${panelInstructions}`;
 }
 
@@ -1097,7 +969,6 @@ function validationRepairFlagLines(validation: ImageValidationResult): string {
     `- rendering artifacts: ${validation.hasRenderingArtifacts ? 'yes' : 'no'}`,
     `- artwork outside panel bounds: ${validation.hasArtworkOutsidePanelBounds ? 'yes' : 'no'}`,
     `- extra panel/scenes: ${validation.hasExtraPanelStructure ? 'yes' : 'no'}`,
-    `- leftover color template residue: ${validation.hasTemplateColorResidue ? 'yes' : 'no'}`,
   ].join('\n');
 }
 
@@ -1173,7 +1044,6 @@ VALIDATION RESULT:
 - overall feedback: ${params.validation.overallFeedback || 'n/a'}
 - layout feedback: ${params.validation.layoutFeedback || 'n/a'}
 ${validationRepairFlagLines(params.validation)}
-${params.validation.hasTemplateColorResidue ? '- Repair focus: cover every visible color-coded guide-template patch/strip/band with finished illustration while preserving the panel frames and gutters.' : ''}
 
 CHARACTER ISSUES:
 ${validationCharacterRepairLines(params.validation)}
@@ -1184,17 +1054,15 @@ ${panelInstructions}
 Output the corrected art-only page. Preserve panel count, panel geometry, frames, gutters, and correct areas. Do not add speech bubbles, thought bubbles, captions, labels, or readable text.`;
 }
 
-export async function editGraphicNovelPage(params: {
+export async function generateGraphicNovelPageFreeLayout(params: {
   imageDomain: ImageDomainService;
   page: PlannedGraphicNovelPage;
-  templateBuffer: Buffer;
   style: string;
   ageGroup?: string;
   scenarioCardId?: string;
   environmentsById?: Map<string, StoryEnvironment>;
-  environmentReferenceImages?: ReferenceImage[];
   referenceImages?: ReferenceImage[];
-  onUsage?: Parameters<ImageDomainService['editImageWithInstructions']>[0]['onUsage'];
+  onUsage?: Parameters<ImageDomainService['generateImageWithInstructions']>[0]['onUsage'];
   onAttemptImage?: (params: {
     attempt: number;
     imageData: Buffer;
@@ -1205,68 +1073,68 @@ export async function editGraphicNovelPage(params: {
   mimeType: string;
   generationParams: Record<string, unknown>;
 }> {
-  const referenceImages = params.referenceImages ?? params.environmentReferenceImages ?? [];
+  const referenceImages = params.referenceImages ?? [];
   const characterReferenceCount = referenceImages.filter(
     (ref) => ref.referenceKind === 'character'
   ).length;
   const objectReferenceCount = referenceImages.filter(
     (ref) => ref.referenceKind === 'object'
   ).length;
-  const editInstructions = buildGraphicNovelPageEditInstructions(
+  const prompt = buildGraphicNovelPageFreeLayoutInstructions(
     params.page,
     params.environmentsById,
     referenceImages
   );
+  const aspectRatio = pageEditAspectRatio(params.page);
+  const systemInstruction = buildGraphicNovelPageFreeLayoutSystemInstruction({
+    style: params.style,
+    panelCount: params.page.panels.length,
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+  });
 
-  const edited = await params.imageDomain.editImageWithInstructions({
-    originalImage: params.templateBuffer,
-    originalMimeType: 'image/png',
-    editInstructions,
-    aspectRatio: pageEditAspectRatio(params.page),
+  const generated = await params.imageDomain.generateImageWithInstructions({
+    prompt,
+    aspectRatio,
     referenceImages,
     personGeneration: 'allow_all',
-    systemInstruction: buildGraphicNovelPageSystemInstruction({
-      style: params.style,
-      slotCount: params.page.panels.length,
-      ageGroup: params.ageGroup,
-      scenarioCardId: params.scenarioCardId,
-    }),
+    systemInstruction,
     onUsage: params.onUsage,
-    operation: 'graphic_novel_page_edit',
+    operation: 'graphic_novel_page_free_layout_generate',
   });
   await params.onAttemptImage?.({
     attempt: 1,
-    imageData: Buffer.from(edited.imageData),
-    mimeType: 'image/png',
+    imageData: Buffer.from(generated.imageData),
+    mimeType: generated.mimeType || 'image/png',
   });
 
   return {
-    imageData: Buffer.from(edited.imageData),
-    mimeType: 'image/png',
+    imageData: Buffer.from(generated.imageData),
+    mimeType: generated.mimeType || 'image/png',
     generationParams: {
-      mode: 'graphic_novel_page_art_edit',
-      templateId: params.page.template.id,
+      mode: 'graphic_novel_page_free_layout_generate',
+      requestedPanelCount: params.page.panels.length,
+      layoutMode: 'free_layout',
+      planningLayoutId: params.page.template.id,
+      modelChoosesPanelLayout: true,
       textRenderingMode: 'html_overlay',
-      bubbleShapeRenderingMode: 'post_art_vision_svg_speech_single_path_tail_thought_beaded_tail',
-      providerInteractionId: edited.providerInteractionId,
+      providerInteractionId: generated.providerInteractionId,
       referenceCount: referenceImages.length,
       characterReferenceCount,
       objectReferenceCount,
-      environmentReferenceCount: params.environmentReferenceImages?.length || objectReferenceCount,
-      referenceImages: referenceImages.map((ref, index) => ({
-        index: index + 1,
-        characterName: ref.characterName ?? null,
-        referenceKind: ref.referenceKind ?? null,
-        hasFileUri: !!ref.fileUri,
-        hasBase64Data: !!ref.base64Data,
-        instructionText: ref.instructionText ?? null,
-      })),
-      editAttempts: 1,
-      protectedTemplateValidationSkipped: true,
-      validationPassed: null,
-      validation: null,
-      fallbackOverlayRequired: false,
-      deterministicOverlayApplied: false,
+      referenceImages: summarizeGraphicNovelReferenceImages(referenceImages),
+      imageRequestManifest: {
+        ...buildGraphicNovelImageRequestManifest({
+          operation: 'graphic_novel_page_free_layout_generate',
+          mode: 'generate',
+          prompt,
+          systemInstruction,
+          aspectRatio,
+          personGeneration: 'allow_all',
+          referenceImages,
+        }),
+        providerInteractionId: generated.providerInteractionId ?? null,
+      },
     },
   };
 }

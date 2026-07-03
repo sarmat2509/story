@@ -25,10 +25,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import {
-  analyzeGraphicNovelBubbleVisionByPanelCrops,
+  analyzeGraphicNovelBubbleVision,
   applyGraphicNovelBubbleVisionLayout,
   buildGraphicNovelPageTextOverlay,
-  overlayGraphicNovelTemplate,
+  overlayGraphicNovelBubblesOnly,
   type GraphicNovelBubbleVisionAnalysis,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
@@ -105,6 +105,13 @@ function getInteractionOutputImage(interaction: any): { data: Buffer; mimeType: 
 
 function normalizeVisionMimeType(mimeType: string): 'image/png' | 'image/jpeg' | 'image/webp' {
   if (mimeType === 'image/jpeg' || mimeType === 'image/webp') return mimeType;
+  return 'image/png';
+}
+
+function mimeTypeForStoragePath(storagePath: string): string {
+  const lower = storagePath.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
   return 'image/png';
 }
 
@@ -206,16 +213,31 @@ async function main(): Promise<void> {
       typeof generationParams.providerInteractionId === 'string'
         ? generationParams.providerInteractionId
         : undefined;
-    if (!providerInteractionId) {
+    const artOnlyImageStoragePath =
+      typeof generationParams.artOnlyImageStoragePath === 'string'
+        ? generationParams.artOnlyImageStoragePath
+        : undefined;
+    if (!providerInteractionId && !artOnlyImageStoragePath) {
       report.push({ pageNumber: page.pageNumber, skipped: true, reason: 'missing_providerInteractionId' });
       continue;
     }
 
-    const interaction = await ai.interactions.get(providerInteractionId);
-    const raw = getInteractionOutputImage(interaction);
+    const raw = artOnlyImageStoragePath
+      ? {
+          data: await getAssetStorageService().getAssetByPath(artOnlyImageStoragePath),
+          mimeType: mimeTypeForStoragePath(artOnlyImageStoragePath),
+        }
+      : getInteractionOutputImage(await ai.interactions.get(providerInteractionId!));
+    const persistedArtOnlyStoragePath = artOnlyImageStoragePath ?? (await getAssetStorageService().uploadAsset({
+      data: raw.data,
+      mimeType: raw.mimeType,
+      userId: story.userId,
+      storyId,
+      assetType: 'image',
+    })).storagePath;
     await fs.writeFile(path.join(outputDir, `page-${page.pageNumber}-art-only.${raw.mimeType.includes('jpeg') ? 'jpg' : 'png'}`), raw.data);
 
-    let analysis: Awaited<ReturnType<typeof analyzeGraphicNovelBubbleVisionByPanelCrops>> | null = null;
+    let analysis: GraphicNovelBubbleVisionAnalysis | null = null;
     let placedPage = plannedPage;
     let placementSummary = summarizeBubblePlacement(plannedPage);
 
@@ -227,22 +249,27 @@ async function main(): Promise<void> {
         report.push({ pageNumber: page.pageNumber, skipped: true, reason: 'missing_saved_bubble_vision_analysis' });
         continue;
       }
-      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis);
+      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis, {
+        useDetectedPanelBounds: true,
+      });
       placedPage = applied.page;
       placementSummary = applied.placementSummary;
     } else {
-      analysis = await analyzeGraphicNovelBubbleVisionByPanelCrops({
+      analysis = await analyzeGraphicNovelBubbleVision({
         textProvider,
         page: plannedPage,
         imageData: raw.data,
         mimeType: normalizeVisionMimeType(raw.mimeType),
+        detectPanelBounds: true,
         onUsage: (usage) => recordUsage(usage, { userId: story.userId, storyId }),
       });
-      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis);
+      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis, {
+        useDetectedPanelBounds: true,
+      });
       placedPage = applied.page;
       placementSummary = applied.placementSummary;
     }
-    const finalImage = await overlayGraphicNovelTemplate(raw.data, placedPage);
+    const finalImage = await overlayGraphicNovelBubblesOnly(raw.data, placedPage);
     await fs.writeFile(path.join(outputDir, `page-${page.pageNumber}-with-new-bubbles.png`), finalImage);
 
     if (dryRun) {
@@ -278,9 +305,12 @@ async function main(): Promise<void> {
         pageNumber: page.pageNumber,
         providerInteractionId,
         reoverlaySource: 'gemini_interaction_output_image',
+        reoverlayArtOnlySource: artOnlyImageStoragePath ? 'stored_art_only_asset' : 'gemini_interaction_output_image',
+        artOnlyImageStoragePath: persistedArtOnlyStoragePath,
+        artOnlyImageMimeType: raw.mimeType,
         reoverlayAt: new Date().toISOString(),
         bubblePlacement: {
-          mode: 'post_art_vision_panel_crops',
+          mode: 'post_art_vision_full_page',
           ...placementSummary,
         },
         bubbleVisionAnalysis: analysis,
@@ -303,7 +333,7 @@ async function main(): Promise<void> {
       generationParams: {
         ...(generationParams || {}),
         bubblePlacement: {
-          mode: 'post_art_vision_panel_crops',
+          mode: 'post_art_vision_full_page',
           ...placementSummary,
         },
         bubbleVisionAnalysis: analysis,
@@ -312,6 +342,9 @@ async function main(): Promise<void> {
         bubbleOverlayReuseLayout: reuseLayout,
         bubbleShapeRenderingMode: 'post_art_vision_svg_speech_single_path_tail_thought_beaded_tail',
         reoverlaySource: 'gemini_interaction_output_image',
+        reoverlayArtOnlySource: artOnlyImageStoragePath ? 'stored_art_only_asset' : 'gemini_interaction_output_image',
+        artOnlyImageStoragePath: persistedArtOnlyStoragePath,
+        artOnlyImageMimeType: raw.mimeType,
         reoverlayAt: new Date().toISOString(),
         assetId: asset.id,
         storagePath: uploadResult.storagePath,

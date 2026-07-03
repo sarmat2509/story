@@ -1,4 +1,5 @@
 import { pageSizeForGraphicNovelPage } from './layoutPlanner';
+import { normalizeGraphicNovelBubbleTextSizing } from './bubbleTextSizing';
 import type {
   GraphicNovelPageTextOverlay,
   GraphicNovelTextOverlayItem,
@@ -90,11 +91,16 @@ export function buildGraphicNovelPageTextOverlay(
     });
   });
 
+  const textStyle = page.bubbleTextSizing
+    ? normalizeGraphicNovelBubbleTextSizing(page.bubbleTextSizing)
+    : undefined;
+
   return {
     mode: 'html_overlay',
     coordinateSpace: 'normalized_0_1',
     pageNumber: page.pageNumber,
     pageSize: pageSizeForGraphicNovelPage(page),
+    ...(textStyle ? { textStyle } : {}),
     items,
     rawPlainText: items.map((item) => item.rawText).filter(Boolean).join('\n'),
     plainText: items.map((item) => item.audioText).filter(Boolean).join('\n'),

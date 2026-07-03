@@ -42,8 +42,6 @@ const negativeBooleanLabels: Record<string, { ok: string; fail: string }> = {
     ok: 'NO ARTWORK OVER SPEECH BUBBLES',
     fail: 'ARTWORK OVER SPEECH BUBBLES',
   },
-  hasTemplateColorResidue: { ok: 'NO TEMPLATE COLOR RESIDUE', fail: 'TEMPLATE COLOR RESIDUE' },
-  hasResidue: { ok: 'NO TEMPLATE COLOR RESIDUE', fail: 'TEMPLATE COLOR RESIDUE' },
 };
 
 function getBooleanDisplay(
@@ -117,11 +115,6 @@ function omitKeys(value: unknown, keys: string[]): unknown {
   const record = asRecord(value);
   if (!record) return value;
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
-}
-
-function boolText(value: unknown): string {
-  if (typeof value !== 'boolean') return 'n/a';
-  return value ? 'yes' : 'no';
 }
 
 function getToneStyle(tone: Tone) {
@@ -449,7 +442,6 @@ function ValidationVerdict({ result }: { result: Record<string, unknown> | null 
           fieldKey="hasArtworkOverSpeechBubbles"
           value={result.hasArtworkOverSpeechBubbles}
         />
-        <VerdictFlag fieldKey="hasTemplateColorResidue" value={result.hasTemplateColorResidue} />
       </View>
 
       {overallFeedback ? (
@@ -478,7 +470,6 @@ function RequestManifestSummary({ manifest }: { manifest: unknown }) {
         <InfoPill label="Version" value={String(record.version ?? 'n/a')} />
         <InfoPill label="Operation" value={String(record.operation ?? 'n/a')} />
         <InfoPill label="Cache key" value={String(record.cacheKey ?? 'n/a')} />
-        <InfoPill label="Layout checks" value={boolText(record.includeLayoutChecks)} />
         <InfoPill label="References" value={references.length} />
         <InfoPill label="Image order" value={imageOrder.length} />
       </View>
@@ -533,7 +524,11 @@ export default function AdminValidationDetailScreen() {
       ? (item.result as Record<string, unknown>)
       : null;
   const resultCharacters = Array.isArray(resultObject?.characters) ? resultObject.characters : null;
-  const cleanResultJson = omitKeys(item?.result, ['requestManifest']);
+  const cleanResultJson = omitKeys(item?.result, [
+    'requestManifest',
+    'hasTemplateColorResidue',
+    'templateColorResidueDetails',
+  ]);
   const manifestSummary = getManifestSummary(item?.requestManifest);
 
   return (

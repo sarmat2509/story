@@ -426,7 +426,7 @@ async function testMixedWriterRetriesInvalidScript() {
   );
 }
 
-async function testMixedUsesGraphicNovelPageTemplates() {
+async function testMixedUsesFreeLayoutGraphicNovelPages() {
   const sceneCount = 8;
   const comicBlockCount = 3;
   const comicSceneIds = getIllustrationBlockStartSceneIds(sceneCount, comicBlockCount);
@@ -446,7 +446,7 @@ async function testMixedUsesGraphicNovelPageTemplates() {
   assert.strictEqual(plannedPages.length, comicBlockCount);
   for (const page of plannedPages) {
     assert.deepStrictEqual(page.pageSize, GRAPHIC_NOVEL_PAGE_SIZE);
-    assert.notStrictEqual(page.template.templateFamily, 'mixed_story_strip');
+    assert.strictEqual(page.template.templateFamily, 'free_layout');
     assert.ok(page.template.panelCount >= 4, 'age 6-8 mixed comic pages use dense graphic-novel layouts');
   }
 }
@@ -466,7 +466,7 @@ async function main() {
   await testRejectsPlaceholderComicBubble();
   await testComicPanelCountUsesGraphicNovelAgeRules();
   await testMixedWriterRetriesInvalidScript();
-  await testMixedUsesGraphicNovelPageTemplates();
+  await testMixedUsesFreeLayoutGraphicNovelPages();
   await testMixedSkipsOrdinaryImageBatch();
   console.log('mixedStoryDomain tests passed');
 }

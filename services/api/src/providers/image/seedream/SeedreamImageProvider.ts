@@ -108,7 +108,7 @@ export class SeedreamImageProvider implements IImageProvider {
       mimeType: request.originalMimeType,
       instructionText:
         request.operation === 'graphic_novel_page_edit'
-          ? 'Image 1 is the fixed page template to fill. Preserve the page geometry, panels, gutters, and bubble placement.'
+          ? 'Image 1 is the source comic page to edit. Preserve the existing page aspect, visible panel count, panel borders, gutters, and bubble placement.'
           : 'Image 1 is the generated scene that needs repair. Preserve the correct composition and style, but replace wrong character identity or outfit details with the reference images.',
       referenceKind: 'object',
     };

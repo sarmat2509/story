@@ -1,11 +1,23 @@
-import type { BubbleGeometry, Rect } from './types';
+import type { BubbleGeometry, GraphicNovelBubbleTextSizing, Rect } from './types';
 
 const PAGE_WIDTH = 1536;
 const PAGE_HEIGHT = 2048;
+export const GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX = 992;
+export const GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_HEIGHT_PX = Math.round(
+  GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX * PAGE_HEIGHT / PAGE_WIDTH
+);
 export const GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX = 20;
 export const GRAPHIC_NOVEL_BUBBLE_TEXT_LINE_HEIGHT_PX = 23;
 export const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_PX = 14;
 export const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_PX = 6;
+export const GRAPHIC_NOVEL_BUBBLE_TEXT_LINE_HEIGHT_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_TEXT_LINE_HEIGHT_PX / GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
+export const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_PX / GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
+export const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_RATIO =
+  GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_PX / GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
+const MIN_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX = 14;
+const MAX_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX = 32;
 const BUBBLE_OUTLINE_EXTRA_PX = 14;
 const SPEECH_MAX_LINE_CHARS = 24;
 const CAPTION_MAX_LINE_CHARS = 30;
@@ -17,12 +29,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function rectWidthPx(rect: Rect): number {
-  return Math.max(1, rect.width * PAGE_WIDTH);
+function rectWidthPx(rect: Rect, pageWidthPx: number): number {
+  return Math.max(1, rect.width * pageWidthPx);
 }
 
-function rectHeightPx(rect: Rect): number {
-  return Math.max(1, rect.height * PAGE_HEIGHT);
+function rectHeightPx(rect: Rect, pageHeightPx: number): number {
+  return Math.max(1, rect.height * pageHeightPx);
 }
 
 function visualTextUnits(text: string): number {
@@ -84,22 +96,100 @@ export interface GraphicNovelBubbleTextBox {
   maxCharsPerLine: number;
 }
 
+export function normalizeGraphicNovelBubbleTextSizing(
+  value?: Partial<GraphicNovelBubbleTextSizing> | null
+): GraphicNovelBubbleTextSizing {
+  const requestedFontSize = value?.fontSizePx;
+  const fontSizePx = Math.round(clamp(
+    typeof requestedFontSize === 'number' && Number.isFinite(requestedFontSize)
+      ? requestedFontSize
+      : GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX,
+    MIN_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX,
+    MAX_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX
+  ));
+  const defaultLineHeightPx = Math.max(
+    fontSizePx + 1,
+    Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_TEXT_LINE_HEIGHT_RATIO)
+  );
+  const defaultPaddingXPx = Math.max(
+    8,
+    Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_RATIO)
+  );
+  const defaultPaddingYPx = Math.max(
+    4,
+    Math.round(fontSizePx * GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_RATIO)
+  );
+  const targetPageWidthPx = Math.round(clamp(
+    typeof value?.targetPageWidthPx === 'number' && Number.isFinite(value.targetPageWidthPx)
+      ? value.targetPageWidthPx
+      : GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX,
+    320,
+    PAGE_WIDTH
+  ));
+  const targetPageHeightPx = Math.round(clamp(
+    typeof value?.targetPageHeightPx === 'number' && Number.isFinite(value.targetPageHeightPx)
+      ? value.targetPageHeightPx
+      : Math.round(targetPageWidthPx * PAGE_HEIGHT / PAGE_WIDTH),
+    320,
+    PAGE_HEIGHT
+  ));
+
+  return {
+    fontSizePx,
+    lineHeightPx: Math.round(clamp(
+      typeof value?.lineHeightPx === 'number' && Number.isFinite(value.lineHeightPx)
+        ? value.lineHeightPx
+        : defaultLineHeightPx,
+      fontSizePx,
+      fontSizePx * 1.8
+    )),
+    paddingXPx: Math.round(clamp(
+      typeof value?.paddingXPx === 'number' && Number.isFinite(value.paddingXPx)
+        ? value.paddingXPx
+        : defaultPaddingXPx,
+      4,
+      fontSizePx * 1.2
+    )),
+    paddingYPx: Math.round(clamp(
+      typeof value?.paddingYPx === 'number' && Number.isFinite(value.paddingYPx)
+        ? value.paddingYPx
+        : defaultPaddingYPx,
+      2,
+      fontSizePx
+    )),
+    targetPageWidthPx,
+    targetPageHeightPx,
+  };
+}
+
+export function graphicNovelBubbleTextSizingFromStoryTextSize(
+  textSizePx: number | null | undefined
+): GraphicNovelBubbleTextSizing {
+  return normalizeGraphicNovelBubbleTextSizing({
+    fontSizePx: textSizePx ?? GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX,
+  });
+}
+
 export function measureGraphicNovelBubbleTextBox(params: {
   text: string;
   kind?: BubbleGeometry['kind'];
   panelRect: Rect;
   zoneRect?: Rect;
+  textSizing?: Partial<GraphicNovelBubbleTextSizing> | null;
 }): GraphicNovelBubbleTextBox {
   const kind = params.kind || 'speech';
-  const panelWidthPx = rectWidthPx(params.panelRect);
-  const panelHeightPx = rectHeightPx(params.panelRect);
+  const textSizing = normalizeGraphicNovelBubbleTextSizing(params.textSizing);
+  const pageWidthPx = textSizing.targetPageWidthPx;
+  const pageHeightPx = textSizing.targetPageHeightPx;
+  const panelWidthPx = rectWidthPx(params.panelRect, pageWidthPx);
+  const panelHeightPx = rectHeightPx(params.panelRect, pageHeightPx);
   const sizingRect = kind === 'caption' ? params.panelRect : params.zoneRect || params.panelRect;
-  const zoneWidthPx = rectWidthPx(sizingRect);
-  const zoneHeightPx = rectHeightPx(sizingRect);
-  const fontSizePx = GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
-  const lineHeightPx = GRAPHIC_NOVEL_BUBBLE_TEXT_LINE_HEIGHT_PX;
-  const padXPx = GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X_PX;
-  const padYPx = GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_PX;
+  const zoneWidthPx = rectWidthPx(sizingRect, pageWidthPx);
+  const zoneHeightPx = rectHeightPx(sizingRect, pageHeightPx);
+  const fontSizePx = textSizing.fontSizePx;
+  const lineHeightPx = textSizing.lineHeightPx;
+  const padXPx = textSizing.paddingXPx;
+  const padYPx = textSizing.paddingYPx;
   const horizontalChromePx = padXPx * 2 + BUBBLE_OUTLINE_EXTRA_PX;
   const verticalChromePx = padYPx * 2 + BUBBLE_OUTLINE_EXTRA_PX;
   const configuredMaxChars = kind === 'caption' ? CAPTION_MAX_LINE_CHARS : SPEECH_MAX_LINE_CHARS;
@@ -114,7 +204,7 @@ export function measureGraphicNovelBubbleTextBox(params: {
   const maxCharsByZone = Math.floor(maxContentWidthPx / (fontSizePx * 0.56));
   const maxCharsPerLine = Math.floor(clamp(maxCharsByZone, MIN_LINE_CHARS, configuredMaxChars));
   const wrappedLines = wrapTextByCharacterLimit(params.text, maxCharsPerLine);
-  const maxLines = kind === 'caption' ? 2 : 4;
+  const maxLines = kind === 'caption' ? 3 : 4;
   const visibleLines = wrappedLines.slice(0, maxLines);
   const balancedWrapSafetyLines = wrappedLines.length > 1 ? 1 : 0;
   const visualLineCount = Math.min(
@@ -133,7 +223,7 @@ export function measureGraphicNovelBubbleTextBox(params: {
   const targetContentWidthPx = Math.max(widestLinePx, preferredWrappedLinePx);
   const maxHeightPx = Math.max(
     lineHeightPx + verticalChromePx,
-    Math.min(zoneHeightPx * 0.96, panelHeightPx * (kind === 'caption' ? 0.24 : 0.34))
+    Math.min(zoneHeightPx * 0.96, panelHeightPx * (kind === 'caption' ? 0.36 : 0.34))
   );
   const minWidthPx = Math.min(
     maxWidthPx,
@@ -143,8 +233,8 @@ export function measureGraphicNovelBubbleTextBox(params: {
   const requestedHeightPx = visualLineCount * lineHeightPx + verticalChromePx;
 
   return {
-    width: widthPx / PAGE_WIDTH,
-    height: Math.min(requestedHeightPx, maxHeightPx) / PAGE_HEIGHT,
+    width: widthPx / pageWidthPx,
+    height: Math.min(requestedHeightPx, maxHeightPx) / pageHeightPx,
     overflow: wrappedLines.length > maxLines || requestedHeightPx > maxHeightPx,
     lineCount: wrappedLines.length,
     fontSizePx,

@@ -119,7 +119,6 @@ function testLayoutFailuresUseArtifactsPenalty() {
         hasArtworkOutsidePanelBounds: true,
         hasArtworkOverSpeechBubbles: true,
         hasExtraPanelStructure: true,
-        hasTemplateColorResidue: true,
       }
     ),
     {
@@ -129,44 +128,8 @@ function testLayoutFailuresUseArtifactsPenalty() {
   );
   assert.strictEqual(
     score,
-    100 - baseScoring.artifactsPenalty * 4,
-    'Graphic novel layout/template failures should use artifacts penalty'
-  );
-}
-
-function testTemplateColorResidueDetailsAddSeverityPenalty() {
-  const score = computeValidationScore(
-    makeResult(
-      {},
-      {
-        hasTemplateColorResidue: true,
-        templateColorResidueDetails: {
-          hasResidue: true,
-          matchedPixels: 44488,
-          thresholdPixels: 500,
-          thresholdPanelRatio: 0.002,
-          panels: [
-            {
-              panelIndex: 2,
-              panelId: 'p2',
-              guideColor: 'peach',
-              matchedPixels: 16497,
-              panelPixels: 482349,
-              ratio: 0.0342,
-            },
-          ],
-        },
-      }
-    ),
-    {
-      expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
-      scoringOverride: baseScoring,
-    }
-  );
-  assert.strictEqual(
-    score,
-    68,
-    'Visible template residue should fall below graphic-novel repair threshold'
+    100 - baseScoring.artifactsPenalty * 3,
+    'Graphic novel layout failures should use artifacts penalty'
   );
 }
 
@@ -380,7 +343,6 @@ testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();
 testLayoutFailuresUseArtifactsPenalty();
-testTemplateColorResidueDetailsAddSeverityPenalty();
 testHumanWithRefOnlyWhenBothHuman();
 testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
 testLeniencyCoversIdentityBooleansAndSilhouette();

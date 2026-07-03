@@ -1,14 +1,9 @@
 export { GraphicNovelDomainService } from './GraphicNovelDomainService';
-export { GRAPHIC_NOVEL_PAGE_TEMPLATES, getTemplatesForAge } from './pageTemplates';
 export {
   planGraphicNovelLayouts,
   GRAPHIC_NOVEL_PAGE_SIZE,
   pageSizeForGraphicNovelPage,
 } from './layoutPlanner';
-export {
-  MIXED_STORY_STRIP_PAGE_SIZE,
-  MIXED_STORY_STRIP_TEMPLATES,
-} from './mixedStoryStripTemplates';
 export {
   analyzeGraphicNovelBubbleVision,
   analyzeGraphicNovelBubbleVisionByPanelCrops,
@@ -18,20 +13,23 @@ export {
   type GraphicNovelBubbleVisionLayoutResult,
 } from './bubbleVisionPlanner';
 export {
-  buildGraphicNovelPageEditInstructions,
+  buildGraphicNovelPageFreeLayoutInstructions,
+  buildGraphicNovelPageFreeLayoutSystemInstruction,
+  buildGraphicNovelImageRequestManifest,
   buildGraphicNovelPageRepairSystemInstruction,
   buildGraphicNovelPageValidationRepairInstructions,
-  composeGraphicNovelPanelArtPage,
-  detectGraphicNovelTemplateColorResidue,
-  editGraphicNovelPage,
-  overlayGraphicNovelTemplate,
-  renderGraphicNovelPageTemplate,
-  type GraphicNovelTemplateColorResidueCheck,
-  type GraphicNovelPanelArtInput,
+  generateGraphicNovelPageFreeLayout,
+  overlayGraphicNovelBubblesOnly,
+  summarizeGraphicNovelReferenceImages,
 } from './pageRenderer';
+export {
+  graphicNovelBubbleTextSizingFromStoryTextSize,
+  normalizeGraphicNovelBubbleTextSizing,
+} from './bubbleTextSizing';
 export { buildGraphicNovelPageTextOverlay } from './textOverlay';
 export type {
   BubbleGeometry,
+  GraphicNovelBubbleTextSizing,
   GraphicNovelPageTextOverlay,
   GraphicNovelPageScript,
   GraphicNovelPageTemplate,

@@ -1,11 +1,18 @@
 import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
-import { stripCharacterIdFromName } from '@wondertales/shared';
+import {
+  getBaseStoryTextSizePxForAgeGroup,
+  getBaseStoryTextSizePxForAgeYears,
+  getStoryTextSizePx,
+  normalizeStoryTextSizeMultiplier,
+  stripCharacterIdFromName,
+} from '@wondertales/shared';
 import type { CreateStoryRequestInput } from '@wondertales/shared';
 import { config } from '../config';
 import {
   getAssetRepository,
+  getChildProfileRepository,
   getDictionaryRepository,
   getGraphicNovelRepository,
   getSceneRepository,
@@ -50,25 +57,23 @@ import {
   type ReferenceImageDataEntry,
 } from './referenceImageBuckets';
 import {
+  analyzeGraphicNovelBubbleVision,
   analyzeGraphicNovelBubbleVisionByPanelCrops,
   applyGraphicNovelBubbleVisionLayout,
+  buildGraphicNovelImageRequestManifest,
   buildGraphicNovelPageRepairSystemInstruction,
   buildGraphicNovelPageTextOverlay,
   buildGraphicNovelPageValidationRepairInstructions,
-  composeGraphicNovelPanelArtPage,
-  detectGraphicNovelTemplateColorResidue,
-  editGraphicNovelPage,
+  generateGraphicNovelPageFreeLayout,
+  graphicNovelBubbleTextSizingFromStoryTextSize,
   GRAPHIC_NOVEL_PAGE_SIZE,
-  GRAPHIC_NOVEL_PAGE_TEMPLATES,
-  MIXED_STORY_STRIP_TEMPLATES,
-  overlayGraphicNovelTemplate,
+  overlayGraphicNovelBubblesOnly,
   pageSizeForGraphicNovelPage,
   planGraphicNovelLayouts,
-  renderGraphicNovelPageTemplate,
-  type GraphicNovelPanelArtInput,
   type GraphicNovelPanelScript,
   type GraphicNovelScript,
   type GraphicNovelPageTextOverlay,
+  type GraphicNovelBubbleTextSizing,
   type GraphicNovelBubbleVisionAnalysis,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
@@ -162,6 +167,7 @@ type GraphicNovelReferenceImage = ReferenceImage & {
   isTurnaround?: boolean;
   identitySource?: 'turnaround' | 'reference_photo';
   environmentId?: string;
+  storagePath?: string;
 };
 
 type RenderedGraphicNovelPageAssets = {
@@ -176,6 +182,37 @@ type GraphicNovelCoverPanelSelection = {
   panelIndex: number;
   source: GraphicNovelCoverSource;
 };
+
+function annotateGraphicNovelRequestManifest(
+  manifest: unknown,
+  params: {
+    providerRoute?: string;
+    provider?: string;
+    model?: string;
+    providerInteractionId?: string | null;
+  }
+): Record<string, unknown> | null {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return null;
+  return {
+    ...(manifest as Record<string, unknown>),
+    providerRoute: params.providerRoute ?? null,
+    provider: params.provider ?? null,
+    model: params.model ?? null,
+    providerInteractionId:
+      params.providerInteractionId ??
+      ((manifest as Record<string, unknown>).providerInteractionId as string | null | undefined) ??
+      null,
+  };
+}
+
+function compactGraphicNovelRequestManifests(
+  ...manifests: unknown[]
+): Record<string, unknown>[] {
+  return manifests.filter(
+    (manifest): manifest is Record<string, unknown> =>
+      !!manifest && typeof manifest === 'object' && !Array.isArray(manifest)
+  );
+}
 
 function getContinuationDataFromRequest(request: { id: string; intermediateData?: unknown }): {
   intermediateData: Record<string, any>;
@@ -248,6 +285,57 @@ type GraphicNovelRenderedPageValidation = {
   score: number | null;
   attempt: number;
 };
+
+type GraphicNovelReadingTextSettings = {
+  baseTextSizePx: number;
+  textSizeMultiplier: number;
+  textSizePx: number;
+  bubbleTextSizing: GraphicNovelBubbleTextSizing;
+};
+
+function getAgeYearsFromBirthDateForGraphicNovelReadingSettings(
+  birthDate: Date | string | null
+): number | null {
+  if (!birthDate) return null;
+  const birth = birthDate instanceof Date ? birthDate : new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const now = new Date();
+  let ageYears = now.getFullYear() - birth.getFullYear();
+  const birthdayThisYear = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if (birthdayThisYear > now) {
+    ageYears -= 1;
+  }
+  return Math.max(0, ageYears);
+}
+
+async function resolveGraphicNovelReadingTextSettings(params: {
+  ageGroup: string;
+  userId: string;
+  childProfileId?: string | null;
+}): Promise<GraphicNovelReadingTextSettings> {
+  const readingProfile = params.childProfileId
+    ? await getChildProfileRepository().findById(params.childProfileId, params.userId)
+    : null;
+  const readingProfileAgeYears = readingProfile
+    ? getAgeYearsFromBirthDateForGraphicNovelReadingSettings(readingProfile.birthDate)
+    : null;
+  const baseTextSizePx =
+    readingProfileAgeYears !== null
+      ? getBaseStoryTextSizePxForAgeYears(readingProfileAgeYears)
+      : getBaseStoryTextSizePxForAgeGroup(params.ageGroup);
+  const textSizeMultiplier = normalizeStoryTextSizeMultiplier(
+    readingProfile?.storyTextSizeMultiplier
+  );
+  const textSizePx = getStoryTextSizePx(baseTextSizePx, textSizeMultiplier);
+
+  return {
+    baseTextSizePx,
+    textSizeMultiplier,
+    textSizePx,
+    bubbleTextSizing: graphicNovelBubbleTextSizingFromStoryTextSize(textSizePx),
+  };
+}
 
 export function getGraphicNovelStoryCharacterLinks(
   characters: Array<Pick<CharacterData, 'id' | 'type' | 'role'>>
@@ -1061,86 +1149,9 @@ function panelVisualSummary(panel: GraphicNovelPanelScript): string {
   ].join('. ');
 }
 
-function graphicNovelPanelAspectRatio(
-  page: PlannedGraphicNovelPage,
-  panel: PlannedGraphicNovelPage['panels'][number]
-): '1:1' | '16:9' | '9:16' | '4:3' | '3:4' {
-  const pageSize = pageSizeForGraphicNovelPage(page);
-  const ratio =
-    (panel.templatePanel.rect.width * pageSize.width) /
-    Math.max(panel.templatePanel.rect.height * pageSize.height, 0.001);
-  const supported = [
-    { value: '16:9' as const, ratio: 16 / 9 },
-    { value: '4:3' as const, ratio: 4 / 3 },
-    { value: '1:1' as const, ratio: 1 },
-    { value: '3:4' as const, ratio: 3 / 4 },
-    { value: '9:16' as const, ratio: 9 / 16 },
-  ];
-  return supported
-    .map((candidate) => ({
-      ...candidate,
-      distance: Math.abs(Math.log(ratio / candidate.ratio)),
-    }))
-    .sort((a, b) => a.distance - b.distance)[0].value;
-}
-
 function graphicNovelPageEditAspectRatio(page: PlannedGraphicNovelPage): '16:9' | '3:4' {
   const pageSize = pageSizeForGraphicNovelPage(page);
   return pageSize.width >= pageSize.height ? '16:9' : '3:4';
-}
-
-function panelCompositionBrief(panel: GraphicNovelPanelScript): string {
-  const composition = panel.visual.sceneVisual.cameraComposition;
-  if (typeof composition === 'string') return composition;
-  const characterLines = composition.characters.map((character) =>
-    [
-      `${character.name}:`,
-      character.position ? `position=${character.position}` : null,
-      character.description,
-    ]
-      .filter(Boolean)
-      .join(' ')
-  );
-  return [composition.shot, ...characterLines].filter(Boolean).join('\n');
-}
-
-function buildGraphicNovelPanelArtPrompt(params: {
-  page: PlannedGraphicNovelPage;
-  panel: PlannedGraphicNovelPage['panels'][number];
-  panelIndex: number;
-  environmentsById: Map<string, StoryEnvironment>;
-}): string {
-  const visual = params.panel.script.visual;
-  const environment = params.environmentsById.get(visual.environmentId);
-  const sceneVisual = visual.sceneVisual;
-  const characters = panelCharacterNames(params.panel.script);
-
-  return `Create ONE standalone illustration for a single story panel.
-
-This is panel ${params.panelIndex + 1} of page ${params.page.pageNumber}. The output image is this panel's artwork.
-
-FORMAT:
-- One continuous scene.
-- Full-image panel artwork.
-- Visual storytelling only; the server adds frames, bubbles, and readable text later.
-- Important faces, hands, and key props sit comfortably inside the image.
-- Natural simple-background negative space appears near speakers' faces/eyelines where it supports the action.
-- Listed characters for this panel: ${characters.join(', ') || 'none'}.
-- Attached Image N references use exact character and environment names.
-
-PANEL VISUAL SOURCE OF TRUTH:
-- Template id: ${params.page.template.id}
-- Planned panel id: ${params.panel.script.panelId}
-- Environment id: ${visual.environmentId}${environment ? ` (${environment.name})` : ''}
-- Environment description: ${environment?.description || 'Use scene-specific setting.'}
-- Primary read: ${visual.primaryRead}
-- Scene-specific setting/change: ${sceneVisual.setting}
-- Lighting: ${sceneVisual.lighting}
-- Expected characters: ${characters.join(', ') || 'none'}
-- Camera and character blocking:
-${panelCompositionBrief(params.panel.script)}
-
-The final output should look like a polished children's graphic novel panel in the requested style, with pure visual storytelling only.`;
 }
 
 function pageEnvironmentIds(page: PlannedGraphicNovelPage): string[] {
@@ -1305,12 +1316,13 @@ async function buildPageEnvironmentReferenceImages(params: {
 
     references.push({
       base64Data: image.base64,
-      mimeType: image.mimeType,
+      mimeType: image.storagePath ? mimeTypeForStoragePath(image.storagePath) : image.mimeType,
       referenceKind: 'object',
       characterName: environment.name,
       source: 'environment',
       type: 'environment_reference',
       environmentId: environment.id,
+      storagePath: image.storagePath,
       instructionText: `Environment reference for "${environment.name}". Reusable location layout, fixed background objects, materials, and color continuity.`,
     });
   }
@@ -1375,6 +1387,7 @@ async function loadGraphicNovelReferenceImage(params: {
       source: params.ref.source,
       type: params.ref.type,
       isTurnaround: params.ref.isTurnaround,
+      storagePath: params.ref.storagePath,
     };
   } catch (error) {
     logger.warn(
@@ -1444,6 +1457,8 @@ function prepareGraphicNovelPageReferences(params: {
       type: 'environment_reference',
       characterName: ref.characterName,
       referenceKind: 'object' as const,
+      referenceEnvironmentId: ref.environmentId,
+      storagePath: ref.storagePath,
     })),
     ...params.characterReferences.map((ref) => ({
       base64: ref.base64Data || '',
@@ -1454,6 +1469,7 @@ function prepareGraphicNovelPageReferences(params: {
       characterName: ref.characterName,
       referenceKind: 'character' as const,
       isTurnaround: ref.isTurnaround,
+      storagePath: ref.storagePath,
     })),
   ];
 
@@ -1518,26 +1534,22 @@ function buildGraphicNovelPageValidationSceneVisual(
   page: PlannedGraphicNovelPage,
   options?: { includeBubbleChecks?: boolean }
 ): SceneVisual {
-  const panelBoxLines = page.panels.map((panel, index) => {
-    const rect = panel.templatePanel.rect;
-    return `Panel ${index + 1}: x=${rect.x.toFixed(4)}, y=${rect.y.toFixed(4)}, width=${rect.width.toFixed(4)}, height=${rect.height.toFixed(4)}`;
-  });
   const includeBubbleChecks = options?.includeBubbleChecks !== false;
 
   return {
     setting: [
-      `Graphic novel page ${page.pageNumber} using template ${page.template.id}.`,
+      `Graphic novel page ${page.pageNumber} using model-chosen free layout.`,
       `The page must visually contain exactly ${page.panels.length} panels, no more and no fewer.`,
       includeBubbleChecks
         ? 'Validate that each planned panel is one continuous illustration/story moment, artwork stays inside panel boxes, and artwork does not cover reserved/server-rendered bubbles.'
         : 'Validate that each planned panel is one continuous illustration/story moment and artwork stays inside panel boxes.',
-      `Allowed panel boxes: ${panelBoxLines.join(' | ')}`,
+      'No preset layout guide or fixed panel coordinate map is attached; evaluate the visible generated page structure.',
     ].join(' '),
     lighting: 'N/A. This is a layout validation pass for a rendered graphic novel page.',
     cameraComposition: {
       shot: includeBubbleChecks
-        ? `Full page view with exactly ${page.panels.length} planned panel boxes, gutters, and server-rendered speech/thought/caption bubbles. Extra visual panels, fake gutters, inset panels, split-screen dividers, or multiple story beats inside one planned panel are invalid.`
-        : `Full page view with exactly ${page.panels.length} planned panel boxes and gutters. Extra visual panels, fake gutters, inset panels, split-screen dividers, or multiple story beats inside one planned panel are invalid.`,
+        ? `Full page view with exactly ${page.panels.length} visible comic panels, gutters, and server-rendered speech/thought/caption bubbles. Extra visual panels, fake gutters, inset panels, split-screen dividers, or multiple story beats inside one planned panel are invalid.`
+        : `Full page view with exactly ${page.panels.length} visible comic panels and gutters. Extra visual panels, fake gutters, inset panels, split-screen dividers, or multiple story beats inside one planned panel are invalid.`,
       characters: page.panels.map((panel, index) => ({
         name: `Panel ${index + 1}`,
         description: [
@@ -1566,7 +1578,6 @@ function summarizeGraphicNovelLayoutValidation(
     hasArtworkOutsidePanelBounds: validation.hasArtworkOutsidePanelBounds ?? false,
     hasArtworkOverSpeechBubbles: validation.hasArtworkOverSpeechBubbles ?? false,
     hasExtraPanelStructure: validation.hasExtraPanelStructure ?? false,
-    hasTemplateColorResidue: validation.hasTemplateColorResidue ?? false,
     layoutFeedback: validation.layoutFeedback ?? null,
     overallFeedback: validation.overallFeedback,
   };
@@ -1585,7 +1596,6 @@ function summarizeGraphicNovelValidationAttempt(
     hasArtworkOutsidePanelBounds: result.validation.hasArtworkOutsidePanelBounds ?? false,
     hasArtworkOverSpeechBubbles: result.validation.hasArtworkOverSpeechBubbles ?? false,
     hasExtraPanelStructure: result.validation.hasExtraPanelStructure ?? false,
-    hasTemplateColorResidue: result.validation.hasTemplateColorResidue ?? false,
     layoutFeedback: result.validation.layoutFeedback ?? null,
     overallFeedback: result.validation.overallFeedback,
   };
@@ -1646,6 +1656,7 @@ async function applyVisionBubblePlacementForRenderedPage(params: {
   mimeType: string;
   userId: string;
   storyId: string;
+  usePanelCrops?: boolean;
 }): Promise<{
   page: PlannedGraphicNovelPage;
   analysis: GraphicNovelBubbleVisionAnalysis | null;
@@ -1663,19 +1674,31 @@ async function applyVisionBubblePlacementForRenderedPage(params: {
   }
 
   try {
-    const analysis = await analyzeGraphicNovelBubbleVisionByPanelCrops({
-      textProvider: getValidationTextProvider(),
-      page: params.page,
-      imageData: params.imageData,
-      mimeType: normalizeVisionMimeType(params.mimeType),
-      onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+    const usePanelCrops = params.usePanelCrops !== false;
+    const analysis = usePanelCrops
+      ? await analyzeGraphicNovelBubbleVisionByPanelCrops({
+          textProvider: getValidationTextProvider(),
+          page: params.page,
+          imageData: params.imageData,
+          mimeType: normalizeVisionMimeType(params.mimeType),
+          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+        })
+      : await analyzeGraphicNovelBubbleVision({
+          textProvider: getValidationTextProvider(),
+          page: params.page,
+          imageData: params.imageData,
+          mimeType: normalizeVisionMimeType(params.mimeType),
+          detectPanelBounds: true,
+          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+        });
+    const planned = applyGraphicNovelBubbleVisionLayout(params.page, analysis, {
+      useDetectedPanelBounds: !usePanelCrops,
     });
-    const planned = applyGraphicNovelBubbleVisionLayout(params.page, analysis);
     return {
       page: planned.page,
       analysis,
       placementSummary: {
-        mode: 'post_art_vision_panel_crops',
+        mode: usePanelCrops ? 'post_art_vision_panel_crops' : 'post_art_vision_full_page',
         ...planned.placementSummary,
       },
     };
@@ -1705,8 +1728,8 @@ async function validateGraphicNovelRenderedPage(params: {
   userId: string;
   storyId: string;
   attempt?: number;
+  includeLayoutChecks?: boolean;
   includeBubbleChecks?: boolean;
-  templateBuffer?: Buffer;
 }): Promise<GraphicNovelRenderedPageValidation | null> {
   if (!config.image.enableValidation) {
     return null;
@@ -1730,20 +1753,7 @@ async function validateGraphicNovelRenderedPage(params: {
         referenceKind: 'identity' as const,
         identitySource: ref.isTurnaround ? ('turnaround' as const) : ('reference_photo' as const),
       }));
-    const layoutTemplateReferenceImage = params.templateBuffer
-      ? [
-          {
-            characterName: `Graphic novel page ${params.page.pageNumber} layout template`,
-            imageData: params.templateBuffer.toString('base64'),
-            mimeType: 'image/png',
-            referenceKind: 'layout_template' as const,
-          },
-        ]
-      : [];
-    const validationReferenceImages = [
-      ...layoutTemplateReferenceImage,
-      ...(characterValidationReferenceImages ?? []),
-    ];
+    const validationReferenceImages = characterValidationReferenceImages ?? [];
     const validation = await params.imageDomain.validateGeneratedImageSegmented({
       imageData: params.imageData,
       mimeType: params.mimeType,
@@ -1755,43 +1765,10 @@ async function validateGraphicNovelRenderedPage(params: {
         sceneId: params.page.pageNumber,
         attempt: params.attempt ?? 1,
       },
-      includeLayoutChecks: true,
+      includeLayoutChecks: params.includeLayoutChecks !== false,
       includeBubbleChecks: params.includeBubbleChecks,
       onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
     });
-    if (params.templateBuffer) {
-      try {
-        const templateColorResidueCheck = await detectGraphicNovelTemplateColorResidue(
-          params.imageData,
-          params.page
-        );
-        if (templateColorResidueCheck.hasResidue) {
-          validation.hasTemplateColorResidue = true;
-          (
-            validation as ImageValidationResult & {
-              templateColorResidueDetails?: typeof templateColorResidueCheck;
-            }
-          ).templateColorResidueDetails = templateColorResidueCheck;
-          const residueSummary = templateColorResidueCheck.panels
-            .filter((panel) => panel.matchedPixels > 0)
-            .map(
-              (panel) =>
-                `panel ${panel.panelIndex} ${panel.guideColor}: ${panel.matchedPixels} px (${(panel.ratio * 100).toFixed(2)}%)`
-            )
-            .join('; ');
-          validation.layoutFeedback =
-            validation.layoutFeedback && validation.layoutFeedback !== 'ok'
-              ? `${validation.layoutFeedback}; server pixel check found color-template residue: ${residueSummary}`
-              : `server pixel check found color-template residue: ${residueSummary}`;
-          validation.overallFeedback = `${validation.overallFeedback || 'Validation completed.'} Server pixel check found leftover color-template residue.`;
-        }
-      } catch (error) {
-        logger.warn(
-          { err: error, storyId: params.storyId, pageNumber: params.page.pageNumber },
-          'Graphic novel template color residue pixel check failed'
-        );
-      }
-    }
     const validationRefNamesNormalized = new Set(
       (characterValidationReferenceImages || []).map((ref) =>
         stripCharacterIdFromName(ref.characterName).trim().toLowerCase()
@@ -1812,8 +1789,7 @@ async function validateGraphicNovelRenderedPage(params: {
       validation.validationStatus !== 'provider_blocked' &&
       (validation.hasArtworkOutsidePanelBounds ||
         validation.hasArtworkOverSpeechBubbles ||
-        validation.hasExtraPanelStructure ||
-        validation.hasTemplateColorResidue)
+        validation.hasExtraPanelStructure)
     ) {
       logger.warn(
         {
@@ -1824,7 +1800,6 @@ async function validateGraphicNovelRenderedPage(params: {
           hasArtworkOutsidePanelBounds: validation.hasArtworkOutsidePanelBounds,
           hasArtworkOverSpeechBubbles: validation.hasArtworkOverSpeechBubbles,
           hasExtraPanelStructure: validation.hasExtraPanelStructure,
-          hasTemplateColorResidue: validation.hasTemplateColorResidue,
           validationScore: score,
         },
         'Graphic novel layout validation reported issues'
@@ -1882,26 +1857,30 @@ async function repairGraphicNovelArtWithValidationFeedback(params: {
   imageData: Buffer;
   mimeType: string;
   providerInteractionId?: string;
+  requestManifest: Record<string, unknown>;
 }> {
+  const editInstructions = buildGraphicNovelPageValidationRepairInstructions({
+    page: params.page,
+    validation: params.validation,
+    score: params.score,
+    environmentsById: params.environmentsById,
+    referenceImages: params.referenceImages,
+  });
+  const aspectRatio = graphicNovelPageEditAspectRatio(params.page);
+  const systemInstruction = buildGraphicNovelPageRepairSystemInstruction({
+    style: params.style,
+    slotCount: params.page.panels.length,
+    ageGroup: params.ageGroup,
+  });
   const edited = await params.imageDomain.editImageWithInstructions({
     originalImage: params.imageData,
     originalMimeType: params.mimeType,
-    editInstructions: buildGraphicNovelPageValidationRepairInstructions({
-      page: params.page,
-      validation: params.validation,
-      score: params.score,
-      environmentsById: params.environmentsById,
-      referenceImages: params.referenceImages,
-    }),
-    aspectRatio: graphicNovelPageEditAspectRatio(params.page),
+    editInstructions,
+    aspectRatio,
     referenceImages: params.referenceImages,
     personGeneration: 'allow_all',
     previousInteractionId: params.previousInteractionId ?? undefined,
-    systemInstruction: buildGraphicNovelPageRepairSystemInstruction({
-      style: params.style,
-      slotCount: params.page.panels.length,
-      ageGroup: params.ageGroup,
-    }),
+    systemInstruction,
     onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
     operation: 'graphic_novel_page_validation_repair_edit',
   });
@@ -1910,6 +1889,22 @@ async function repairGraphicNovelArtWithValidationFeedback(params: {
     imageData: Buffer.from(edited.imageData),
     mimeType: edited.mimeType || 'image/png',
     providerInteractionId: edited.providerInteractionId,
+    requestManifest: {
+      ...buildGraphicNovelImageRequestManifest({
+        operation: 'graphic_novel_page_validation_repair_edit',
+        mode: 'edit',
+        prompt: editInstructions,
+        systemInstruction,
+        aspectRatio,
+        personGeneration: 'allow_all',
+        previousInteractionId: params.previousInteractionId ?? null,
+        referenceImages: params.referenceImages,
+      }),
+      providerInteractionId: edited.providerInteractionId ?? null,
+      validationScore: params.score,
+      validationFeedback: params.validation.overallFeedback ?? null,
+      validationIssues: summarizeGraphicNovelLayoutValidation(params.validation, params.score),
+    },
   };
 }
 
@@ -2100,6 +2095,11 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       scenarioCardId: spec.scenarioCard?.id,
       generationKind: GRAPHIC_NOVEL_KIND,
     });
+    const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
+      ageGroup: spec.ageGroup,
+      userId: request.userId,
+      childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
+    });
     const { characterManifest, plannedPages } = await withStageTiming(
       {
         storyId,
@@ -2116,6 +2116,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         successMetadata: (result) => ({
           plannedPageCount: result.plannedPages.length,
           characterCount: result.characterManifest.length,
+          textSizePx: readingTextSettings.textSizePx,
         }),
       },
       async () => {
@@ -2124,7 +2125,11 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         );
         const aliases = buildGraphicNovelCharacterAliasMap(manifest);
         const pages = graphicNovelDomain
-          .planLayouts({ spec, script })
+          .planLayouts({
+            spec,
+            script,
+            bubbleTextSizing: readingTextSettings.bubbleTextSizing,
+          })
           .map((page) => ({ ...page, characterAliases: aliases }));
         return { characterManifest: manifest, plannedPages: pages };
       }
@@ -2155,9 +2160,15 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         graphicNovelTextManifestVersion: textManifest.version,
         firstPageReady: false,
         graphicNovelGenerationComplete: false,
+        readingSettings: {
+          baseTextSizePx: readingTextSettings.baseTextSizePx,
+          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+          textSizePx: readingTextSettings.textSizePx,
+        },
+        graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
         imageStyle: (spec as any).imageStyle,
         graphicNovelPageCount: pageCount,
-        graphicNovelTemplateCount: plannedPages.length,
+        graphicNovelPlannedPageCount: plannedPages.length,
         environments: script.environments,
         outfits: script.outfits || [],
         graphicNovelEnvironmentImages,
@@ -2190,11 +2201,18 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       status: 'generating',
       scriptJson: script,
       layoutManifest: {
-        templateCount: GRAPHIC_NOVEL_PAGE_TEMPLATES.length,
+        layoutMode: 'free_layout',
+        modelChoosesPanelLayout: true,
         minimumPanelsPerPage: 2,
         pageSize: { width: 1536, height: 2048 },
         textMode: 'html_overlay',
         textManifestVersion: textManifest.version,
+        readingSettings: {
+          baseTextSizePx: readingTextSettings.baseTextSizePx,
+          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+          textSizePx: readingTextSettings.textSizePx,
+        },
+        bubbleTextSizing: readingTextSettings.bubbleTextSizing,
         characters: characterManifest,
         environments: script.environments.map((environment) => ({
           id: environment.id,
@@ -2217,7 +2235,6 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         projectId: project.id,
         storyId,
         pageNumber: plannedPage.pageNumber,
-        templateId: plannedPage.template.id,
         pageRole: plannedPage.pageRole,
         layoutJson: plannedPage,
         bubbleLayoutJson: {
@@ -2449,6 +2466,11 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       scenarioCardId: spec.scenarioCard?.id,
       generationKind: MIXED_STORY_KIND,
     });
+    const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
+      ageGroup: spec.ageGroup,
+      userId: request.userId,
+      childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
+    });
     const { characterManifest, plannedPages } = await withStageTiming(
       {
         storyId,
@@ -2466,6 +2488,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         successMetadata: (result) => ({
           plannedPageCount: result.plannedPages.length,
           characterCount: result.characterManifest.length,
+          textSizePx: readingTextSettings.textSizePx,
         }),
       },
       async () => {
@@ -2477,6 +2500,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
           ageGroup: spec.ageGroup,
           pages: mixedStoryComicPages(script),
           outfits: script.outfits,
+          bubbleTextSizing: readingTextSettings.bubbleTextSizing,
         }).map((page) => ({ ...page, characterAliases: aliases }));
         return { characterManifest: manifest, plannedPages: pages };
       }
@@ -2516,11 +2540,17 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         firstPageReady: false,
         graphicNovelGenerationComplete: false,
         imageGenerationComplete: true,
+        readingSettings: {
+          baseTextSizePx: readingTextSettings.baseTextSizePx,
+          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+          textSizePx: readingTextSettings.textSizePx,
+        },
+        graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
         sceneIdsWithImages: [],
         imageStyle: (spec as any).imageStyle,
         graphicNovelPageCount: comicBlockCount,
-        graphicNovelTemplateCount: plannedPages.length,
-        graphicNovelTemplateFamily: 'graphic_novel_page',
+        graphicNovelPlannedPageCount: plannedPages.length,
+        graphicNovelLayoutMode: 'free_layout',
         environments: script.environments,
         outfits: script.outfits || [],
         graphicNovelEnvironmentImages,
@@ -2578,13 +2608,19 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       scriptJson: script,
       layoutManifest: {
         storyFormat: MIXED_STORY_KIND,
-        templateCount: GRAPHIC_NOVEL_PAGE_TEMPLATES.length,
+        layoutMode: 'free_layout',
+        modelChoosesPanelLayout: true,
         minimumPanelsPerPage: comicPanelRange.min,
         maximumPanelsPerPage: comicPanelRange.max,
         pageSize: GRAPHIC_NOVEL_PAGE_SIZE,
-        templateFamily: 'graphic_novel_page',
         textMode: 'html_overlay',
         textManifestVersion: textManifest.version,
+        readingSettings: {
+          baseTextSizePx: readingTextSettings.baseTextSizePx,
+          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+          textSizePx: readingTextSettings.textSizePx,
+        },
+        bubbleTextSizing: readingTextSettings.bubbleTextSizing,
         mixedStoryReadingOrder: textManifest.readingOrder,
         characters: characterManifest,
         environments: script.environments.map((environment) => ({
@@ -2614,7 +2650,6 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         projectId: project.id,
         storyId,
         pageNumber: plannedPage.pageNumber,
-        templateId: plannedPage.template.id,
         pageRole: plannedPage.pageRole,
         layoutJson: {
           ...plannedPage,
@@ -2723,87 +2758,6 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
   }
 }
 
-async function generateGraphicNovelPageArtByPanels(params: {
-  imageDomain: ReturnType<typeof getComplexImageDomainService>;
-  page: PlannedGraphicNovelPage;
-  style: string;
-  environmentsById: Map<string, StoryEnvironment>;
-  referenceImages: GraphicNovelReferenceImage[];
-  userId: string;
-  storyId: string;
-}): Promise<{
-  imageData: Buffer;
-  mimeType: string;
-  generationParams: Record<string, unknown>;
-}> {
-  const panelArt: GraphicNovelPanelArtInput[] = [];
-  const panelGeneration: Array<Record<string, unknown>> = [];
-
-  for (const [index, panel] of params.page.panels.entries()) {
-    const aspectRatio = graphicNovelPanelAspectRatio(params.page, panel);
-    const prompt = buildGraphicNovelPanelArtPrompt({
-      page: params.page,
-      panel,
-      panelIndex: index,
-      environmentsById: params.environmentsById,
-    });
-    const generated = await params.imageDomain.generateImageWithInstructions({
-      prompt,
-      aspectRatio,
-      referenceImages: params.referenceImages,
-      personGeneration: 'allow_all',
-      systemInstruction: [
-        `Children's graphic novel single-panel illustration. Style: ${params.style}.`,
-        'Output exactly one continuous illustration for one panel only.',
-        'No page layout, no panel border, no gutters, no split screen, no bubbles, no captions, no text.',
-        'Follow attached Image N reference labels exactly.',
-      ].join(' '),
-      onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
-      operation: 'graphic_novel_panel_art_generate',
-    });
-
-    panelArt.push({
-      panelId: panel.script.panelId,
-      panelIndex: index + 1,
-      imageData: Buffer.from(generated.imageData),
-    });
-    panelGeneration.push({
-      panelId: panel.script.panelId,
-      panelIndex: index + 1,
-      aspectRatio,
-      providerInteractionId: generated.providerInteractionId ?? null,
-      mimeType: generated.mimeType,
-      width: generated.width,
-      height: generated.height,
-      imageSizeBytes: generated.imageData.length,
-    });
-  }
-
-  const pageArt = await composeGraphicNovelPanelArtPage(params.page, panelArt);
-  return {
-    imageData: pageArt,
-    mimeType: 'image/png',
-    generationParams: {
-      mode: 'graphic_novel_panel_art_composite',
-      templateId: params.page.template.id,
-      panelCount: params.page.panels.length,
-      panelGeneration,
-      textRenderingMode: 'html_overlay',
-      bubbleShapeRenderingMode:
-        'post_art_vision_svg_translucent_cloud_outline_rounded_rect_24_short_beaded_tail',
-      referenceCount: params.referenceImages.length,
-      characterReferenceCount: params.referenceImages.filter(
-        (ref) => ref.referenceKind === 'character'
-      ).length,
-      objectReferenceCount: params.referenceImages.filter((ref) => ref.referenceKind === 'object')
-        .length,
-      environmentReferenceCount: params.referenceImages.filter(
-        (ref) => ref.source === 'environment'
-      ).length,
-    },
-  };
-}
-
 async function renderAndStorePage(params: {
   requestId: string;
   storyId: string;
@@ -2818,10 +2772,10 @@ async function renderAndStorePage(params: {
 }): Promise<RenderedGraphicNovelPageAssets> {
   const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
-  const templateBuffer = await renderGraphicNovelPageTemplate(plannedPage);
   const complexImageDomain = getComplexImageDomainService();
   const complexImageProvider = config.image.complexProvider || 'nanobananapro';
   const complexImageModel = config.image.complexModel || 'gemini-3.1-flash-image';
+  const pageSize = pageSizeForGraphicNovelPage(plannedPage);
   const environmentsById = environmentMapForPage(plannedPage, params.environments);
   const environmentReferenceImages = await buildPageEnvironmentReferenceImages({
     storyId: params.storyId,
@@ -2845,12 +2799,22 @@ async function renderAndStorePage(params: {
 
   let rendered = config.image.skipGeneration
     ? {
-        imageData: templateBuffer,
+        imageData: await sharp({
+          create: {
+            width: pageSize.width,
+            height: pageSize.height,
+            channels: 4,
+            background: '#fffaf0',
+          },
+        }).png().toBuffer(),
         mimeType: 'image/png',
         generationParams: {
-          mode: 'graphic_novel_page_template_only',
+          mode: 'graphic_novel_page_free_layout_placeholder_only',
           skippedImageGeneration: true,
-          templateId: plannedPage.template.id,
+          requestedPanelCount: plannedPage.panels.length,
+          layoutMode: 'free_layout',
+          planningLayoutId: plannedPage.template.id,
+          modelChoosesPanelLayout: true,
           textRenderingMode: 'html_overlay',
           bubbleShapeRenderingMode:
             'script_fallback_svg_translucent_cloud_outline_rounded_rect_24_short_beaded_tail',
@@ -2863,24 +2827,35 @@ async function renderAndStorePage(params: {
           environmentReferenceCount: environmentReferenceImages.length,
         },
       }
-    : await editGraphicNovelPage({
-        imageDomain: complexImageDomain,
-        page: plannedPage,
-        templateBuffer,
-        style: params.style,
-        ageGroup: params.ageGroup,
-        environmentsById,
-        referenceImages,
-        onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
-        onAttemptImage: async ({ attempt, imageData }) => {
-          await saveGraphicNovelDebugImage({
-            pageNumber: params.page.pageNumber,
-            label: `edit-attempt-${attempt}`,
-            imageData,
-          });
-        },
-      });
+    : await generateGraphicNovelPageFreeLayout({
+          imageDomain: complexImageDomain,
+          page: plannedPage,
+          style: params.style,
+          ageGroup: params.ageGroup,
+          environmentsById,
+          referenceImages,
+          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+          onAttemptImage: async ({ attempt, imageData }) => {
+            await saveGraphicNovelDebugImage({
+              pageNumber: params.page.pageNumber,
+              label: `free-layout-generate-attempt-${attempt}`,
+              imageData,
+            });
+          },
+        });
   if (!config.image.skipGeneration) {
+    const imageRequestManifest = annotateGraphicNovelRequestManifest(
+      rendered.generationParams.imageRequestManifest,
+      {
+        providerRoute: 'complex',
+        provider: complexImageProvider,
+        model: complexImageModel,
+        providerInteractionId:
+          typeof rendered.generationParams.providerInteractionId === 'string'
+            ? rendered.generationParams.providerInteractionId
+            : null,
+      }
+    );
     rendered = {
       ...rendered,
       generationParams: {
@@ -2891,6 +2866,10 @@ async function renderAndStorePage(params: {
         finalArtProviderRoute: 'complex',
         finalArtProvider: complexImageProvider,
         finalArtModel: complexImageModel,
+        ...(imageRequestManifest && {
+          imageRequestManifest,
+          imageRequestManifests: compactGraphicNovelRequestManifests(imageRequestManifest),
+        }),
       },
     };
   }
@@ -2909,8 +2888,8 @@ async function renderAndStorePage(params: {
     userId: params.userId,
     storyId: params.storyId,
     attempt: 1,
+    includeLayoutChecks: true,
     includeBubbleChecks: false,
-    templateBuffer,
   });
   const artValidationAttempts: Array<{
     result: GraphicNovelRenderedPageValidation;
@@ -2950,7 +2929,6 @@ async function renderAndStorePage(params: {
           threshold: GRAPHIC_NOVEL_ART_REPAIR_THRESHOLD,
           feedback: firstArtValidationResult?.validation.overallFeedback,
           layoutFeedback: firstArtValidationResult?.validation.layoutFeedback,
-          hasTemplateColorResidue: firstArtValidationResult?.validation.hasTemplateColorResidue,
         },
         'Graphic novel art validation failed threshold; editing page art with validator feedback'
       );
@@ -2972,6 +2950,12 @@ async function renderAndStorePage(params: {
             ? rendered.generationParams.providerInteractionId
             : null,
       });
+      const repairRequestManifest = annotateGraphicNovelRequestManifest(repaired.requestManifest, {
+        providerRoute: 'complex',
+        provider: complexImageProvider,
+        model: complexImageModel,
+        providerInteractionId: repaired.providerInteractionId ?? null,
+      });
       await saveGraphicNovelDebugImage({
         pageNumber: params.page.pageNumber,
         label: 'art-repair-edit-attempt-2',
@@ -2987,8 +2971,8 @@ async function renderAndStorePage(params: {
         userId: params.userId,
         storyId: params.storyId,
         attempt: 2,
+        includeLayoutChecks: true,
         includeBubbleChecks: false,
-        templateBuffer,
       });
       if (repairArtValidationResult) {
         artValidationAttempts.push({
@@ -3019,14 +3003,31 @@ async function renderAndStorePage(params: {
             finalArtProviderRoute: 'complex',
             finalArtProvider: complexImageProvider,
             finalArtModel: complexImageModel,
+            ...(repairRequestManifest && {
+              repairRequestManifest,
+              imageRequestManifests: compactGraphicNovelRequestManifests(
+                rendered.generationParams.imageRequestManifest,
+                repairRequestManifest
+              ),
+            }),
           },
         }
       );
+      const selectedGenerationParams: Record<string, unknown> = {
+        ...selected.generationParams,
+      };
+      if (repairRequestManifest) {
+        selectedGenerationParams.repairRequestManifest = repairRequestManifest;
+        selectedGenerationParams.imageRequestManifests = compactGraphicNovelRequestManifests(
+          selectedGenerationParams.imageRequestManifest,
+          repairRequestManifest
+        );
+      }
 
       rendered = {
         imageData: selected.imageData,
         mimeType: selected.mimeType,
-        generationParams: selected.generationParams,
+        generationParams: selectedGenerationParams,
       };
       selectedArtValidationResult = selected.validation;
       validationRepairSummary = {
@@ -3066,10 +3067,19 @@ async function renderAndStorePage(params: {
     mimeType: rendered.mimeType,
     userId: params.userId,
     storyId: params.storyId,
+    usePanelCrops: false,
   });
   const artOnlyImageData = Buffer.from(rendered.imageData);
+  const assetStorage = getAssetStorageService();
+  const artOnlyUploadResult = await assetStorage.uploadAsset({
+    data: artOnlyImageData,
+    mimeType: rendered.mimeType,
+    userId: params.userId,
+    storyId: params.storyId,
+    assetType: 'image',
+  });
   const finalPlannedPage = bubbleVision.page;
-  const finalImage = await overlayGraphicNovelTemplate(artOnlyImageData, finalPlannedPage);
+  const finalImage = await overlayGraphicNovelBubblesOnly(artOnlyImageData, finalPlannedPage);
   const layoutValidation = selectedArtValidationResult?.validation ?? null;
   const layoutValidationScore = selectedArtValidationResult?.score ?? null;
   const layoutValidationAttempt = selectedArtValidationResult?.attempt ?? 1;
@@ -3078,6 +3088,10 @@ async function renderAndStorePage(params: {
     bubblePlacement: bubbleVision.placementSummary,
     bubbleVisionAnalysis: bubbleVision.analysis,
     artValidationRepair: validationRepairSummary,
+    artOnlyImageStoragePath: artOnlyUploadResult.storagePath,
+    artOnlyImageMimeType: rendered.mimeType,
+    artOnlyImageFileSizeBytes: artOnlyUploadResult.fileSizeBytes,
+    finalOverlayMode: 'bubbles_only',
     finalOverlayApplied: true,
     deterministicOverlayApplied: true,
     bubbleShapeRenderingMode:
@@ -3090,7 +3104,6 @@ async function renderAndStorePage(params: {
     }),
   };
 
-  const assetStorage = getAssetStorageService();
   const uploadResult = await assetStorage.uploadAsset({
     data: finalImage,
     mimeType: 'image/png',
@@ -3151,7 +3164,7 @@ async function renderAndStorePage(params: {
       storyId: params.storyId,
       sceneIndex: params.page.pageNumber,
       attempt: layoutValidationAttempt,
-      imageStoragePath: uploadResult.storagePath,
+      imageStoragePath: artOnlyUploadResult.storagePath,
       validationScore: layoutValidationScore,
       visionModel:
         layoutValidation.validationModelUsed ??
@@ -3243,7 +3256,8 @@ async function renderAndStorePage(params: {
     startedAt: pageStartedAt,
     completedAt: new Date(),
     metadata: {
-      templateId: plannedPage.template.id,
+      layoutMode: 'free_layout',
+      planningLayoutId: plannedPage.template.id,
       pageRole: plannedPage.pageRole,
       panelCount: plannedPage.panels.length,
       referenceCount: referenceImages.length,
@@ -3349,13 +3363,10 @@ export function shouldCompleteGraphicNovelRequestAfterPage(params: {
 function replanGraphicNovelPageFromSavedScript(params: {
   savedPage: PlannedGraphicNovelPage;
   ageGroup: string;
-  preferredTemplateId?: string;
   storyFormat?: string;
+  bubbleTextSizing?: GraphicNovelBubbleTextSizing;
 }): PlannedGraphicNovelPage {
   const scenePanels = params.savedPage.panels.map((panel) => panel.script);
-  const usesLegacyMixedStripTemplate =
-    params.storyFormat === MIXED_STORY_KIND &&
-    params.savedPage.template.templateFamily === 'mixed_story_strip';
   const [page] = planGraphicNovelLayouts({
     ageGroup: params.ageGroup,
     pages: [
@@ -3366,9 +3377,7 @@ function replanGraphicNovelPageFromSavedScript(params: {
       },
     ],
     preservePanelCount: true,
-    minPanelCount: usesLegacyMixedStripTemplate ? 1 : undefined,
-    templates: usesLegacyMixedStripTemplate ? MIXED_STORY_STRIP_TEMPLATES : undefined,
-    preferredTemplateId: params.preferredTemplateId,
+    bubbleTextSizing: params.bubbleTextSizing,
   });
 
   if (!page) {
@@ -3380,8 +3389,8 @@ function replanGraphicNovelPageFromSavedScript(params: {
     page.template.panelCount !== scenePanels.length
   ) {
     throw new Error(
-      `Template/panel mismatch after planning page ${params.savedPage.pageNumber}: ` +
-        `template=${page.template.id} slots=${page.template.panelCount}, ` +
+      `Layout/panel mismatch after planning page ${params.savedPage.pageNumber}: ` +
+        `layout=${page.template.id} panels=${page.template.panelCount}, ` +
         `scenes=${scenePanels.length}, plannedPanels=${page.panels.length}`
     );
   }
@@ -3392,7 +3401,6 @@ function replanGraphicNovelPageFromSavedScript(params: {
 export async function regenerateGraphicNovelPageImage(params: {
   storyId: string;
   pageNumber: number;
-  preferredTemplateId?: string;
   style?: string;
 }): Promise<RenderedGraphicNovelPageAssets> {
   const story = await getStoryRepository().findById(params.storyId);
@@ -3429,13 +3437,18 @@ export async function regenerateGraphicNovelPageImage(params: {
   }
 
   const ageGroup = project.ageGroup || story.ageGroup || '6-8';
+  const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
+    ageGroup,
+    userId: story.userId,
+    childProfileId: story.childProfileId ?? story.createdByChildProfileId ?? null,
+  });
   const layoutManifest =
     (project.layoutManifest as { characters?: GraphicNovelCharacterManifest } | null) || {};
   const plannedPageWithoutAliases = replanGraphicNovelPageFromSavedScript({
     savedPage,
     ageGroup,
-    preferredTemplateId: params.preferredTemplateId,
     storyFormat: storyMetadata.storyFormat as string | undefined,
+    bubbleTextSizing: readingTextSettings.bubbleTextSizing,
   });
   const plannedPage: PlannedGraphicNovelPage = {
     ...plannedPageWithoutAliases,
@@ -3449,15 +3462,14 @@ export async function regenerateGraphicNovelPageImage(params: {
     adminRegeneration: true,
     adminRegenerationSource: 'graphic_novel_page_endpoint',
     adminRegeneratedAt: new Date().toISOString(),
-    previousTemplateId: pageRow.templateId,
-    selectedTemplateId: plannedPage.template.id,
-    preferredTemplateId: params.preferredTemplateId ?? null,
+    previousPlanningLayoutId: savedPage.template?.id ?? null,
+    selectedPlanningLayoutId: plannedPage.template.id,
+    graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
   };
 
   await getGraphicNovelRepository().updatePage(pageRow.id, {
     status: 'generating',
     errorMessage: null,
-    templateId: plannedPage.template.id,
     pageRole: plannedPage.pageRole,
     layoutJson: plannedPage,
     generationParams,
@@ -3467,7 +3479,6 @@ export async function regenerateGraphicNovelPageImage(params: {
     ...pageRow,
     status: 'generating',
     errorMessage: null,
-    templateId: plannedPage.template.id,
     pageRole: plannedPage.pageRole,
     layoutJson: plannedPage,
     generationParams,
@@ -3544,7 +3555,7 @@ export async function regenerateGraphicNovelPageImage(params: {
       {
         storyId: params.storyId,
         pageNumber: params.pageNumber,
-        templateId: plannedPage.template.id,
+        planningLayoutId: plannedPage.template.id,
         assetId: renderedAssets.pageAssetId,
       },
       'Admin graphic novel page regeneration completed'
