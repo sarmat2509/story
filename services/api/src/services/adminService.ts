@@ -127,6 +127,75 @@ function normalizeAssetPath(value: unknown): string | null {
   return raw.replace(/^\/api\/v1\/assets\//, '');
 }
 
+function objectOrNull(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function buildAdminImageRequestManifest(
+  generationParams: unknown,
+  imageStoragePath: string | null
+): Record<string, unknown> | null {
+  const params = objectOrNull(generationParams);
+  if (!params) return null;
+
+  const manifestKey = (manifest: Record<string, unknown>) =>
+    [
+      manifest.operation,
+      manifest.mode,
+      manifest.providerInteractionId,
+      manifest.previousInteractionId,
+    ]
+      .map((value) => (value == null ? '' : String(value)))
+      .join('|');
+  const requestManifests = Array.isArray(params.imageRequestManifests)
+    ? params.imageRequestManifests.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item)
+      )
+    : objectOrNull(params.imageRequestManifest)
+      ? [objectOrNull(params.imageRequestManifest)!]
+      : [];
+  const repairRequestManifest = objectOrNull(params.repairRequestManifest);
+  if (
+    repairRequestManifest &&
+    !requestManifests.some((item) => manifestKey(item) === manifestKey(repairRequestManifest))
+  ) {
+    requestManifests.push(repairRequestManifest);
+  }
+
+  const references = Array.isArray(params.referenceImages) ? params.referenceImages : [];
+  if (requestManifests.length === 0 && references.length === 0) return null;
+
+  const artRepair = objectOrNull(params.artValidationRepair);
+  return {
+    version: 1,
+    mode: params.mode ?? null,
+    imageRoute: params.imageRoute ?? null,
+    imageStoragePath,
+    provider:
+      params.finalArtProvider ??
+      params.initialImageProvider ??
+      params.validationRepairProvider ??
+      null,
+    model:
+      params.finalArtModel ??
+      params.initialImageModel ??
+      params.validationRepairModel ??
+      null,
+    providerInteractionId: params.providerInteractionId ?? null,
+    validationRepairProviderInteractionId: params.validationRepairProviderInteractionId ?? null,
+    selectedAttempt: artRepair?.selectedAttempt ?? null,
+    selectedScore: artRepair?.selectedScore ?? null,
+    referenceCount: params.referenceCount ?? references.length,
+    characterReferenceCount: params.characterReferenceCount ?? null,
+    objectReferenceCount: params.objectReferenceCount ?? null,
+    requests: requestManifests,
+    references,
+  };
+}
+
 function adminSceneImageTargetKind(
   storyFormat: string | null,
   scene: AdminStorySceneSource
@@ -931,6 +1000,10 @@ export async function listAdminDirectorScenes(storyId: string) {
         const imageUrl = sceneImage
           ? `/api/v1/assets/${sceneImage.storagePath}`
           : stringOrNull(graphicNovelPage?.imageUrl);
+        const imageRequestManifest = buildAdminImageRequestManifest(
+          sceneImage?.generationParams ?? graphicNovelPage?.generationParams,
+          imageStoragePath
+        );
         return {
           sceneIndex,
           storyText: typeof item.text === 'string' ? item.text : '',
@@ -942,6 +1015,7 @@ export async function listAdminDirectorScenes(storyId: string) {
           hasImage: !!imageUrl,
           imageUrl,
           imageStoragePath,
+          imageRequestManifest,
         };
       }),
     items: items.map((item) => ({

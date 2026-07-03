@@ -169,6 +169,7 @@ export type AdminStorySceneItem = {
   hasImage: boolean;
   imageUrl: string | null;
   imageStoragePath: string | null;
+  imageRequestManifest: unknown | null;
 };
 
 export type AdminStoryValidationItem = {
@@ -812,7 +813,6 @@ export function useAdminRegenerateGraphicNovelPageImage() {
     mutationFn: async (params: {
       storyId: string;
       pageNumber: number;
-      preferredTemplateId?: string;
       style?: string;
     }) => {
       const response = await apiClient.post<{
@@ -824,7 +824,6 @@ export function useAdminRegenerateGraphicNovelPageImage() {
           pageNumber: number;
         };
       }>(`/api/v1/admin/stories/${params.storyId}/graphic-novel-pages/${params.pageNumber}/regenerate-image`, {
-        preferredTemplateId: params.preferredTemplateId,
         style: params.style,
       });
       return response.data.data;

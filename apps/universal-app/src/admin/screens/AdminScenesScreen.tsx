@@ -574,6 +574,145 @@ function renderMapTile(
   );
 }
 
+function recordOrNull(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function arrayOfRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item)
+      )
+    : [];
+}
+
+function compactManifestValue(value: unknown): string {
+  if (value == null || value === '') return 'n/a';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+
+function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  const root = recordOrNull(manifest);
+  if (!root) return null;
+
+  const requests = arrayOfRecords(root.requests);
+  const fallbackReferences = Array.isArray(root.references) ? root.references : [];
+  const rawJson = JSON.stringify(root, null, 2);
+
+  const renderReferenceRows = (references: unknown, keyPrefix: string) => {
+    const refs = Array.isArray(references) ? references : [];
+    if (refs.length === 0) {
+      return <Text style={styles.metaText}>No references recorded.</Text>;
+    }
+
+    return (
+      <View style={styles.imageManifestRefList}>
+        {refs.map((ref, index) => {
+          const row = recordOrNull(ref) ?? {};
+          const name = compactManifestValue(row.characterName ?? row.environmentId ?? row.name);
+          const kind = compactManifestValue(row.referenceKind);
+          const source = compactManifestValue(row.source);
+          const type = compactManifestValue(row.type);
+          const storagePath = compactManifestValue(row.storagePath ?? row.url);
+          const transport = row.fileUri
+            ? 'fileUri'
+            : row.hasBase64Data
+              ? `base64${row.base64Bytes ? ` · ${row.base64Bytes} bytes` : ''}`
+              : 'n/a';
+
+          return (
+            <View key={`${keyPrefix}-ref-${index}`} style={styles.imageManifestRefRow}>
+              <Text style={styles.imageManifestRefTitle}>
+                Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
+              </Text>
+              <Text selectable style={styles.imageManifestRefMeta}>
+                {source}/{type} · {transport}
+              </Text>
+              <Text selectable style={styles.imageManifestRefPath}>
+                {storagePath}
+              </Text>
+              {row.instructionText ? (
+                <Text selectable style={styles.imageManifestInstruction}>
+                  {String(row.instructionText)}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.imageManifestPanel}>
+      <View style={styles.storyTextHeading}>
+        <Ionicons name="git-network-outline" size={16} color={theme.colors.interactive.primary} />
+        <Text style={styles.sceneVisualHeadingText}>IMAGE GENERATOR REQUEST</Text>
+      </View>
+
+      <View style={styles.imageManifestMetaGrid}>
+        <Text style={styles.imageManifestMetaText}>mode: {compactManifestValue(root.mode)}</Text>
+        <Text style={styles.imageManifestMetaText}>
+          provider: {compactManifestValue(root.provider)}
+        </Text>
+        <Text style={styles.imageManifestMetaText}>model: {compactManifestValue(root.model)}</Text>
+        <Text style={styles.imageManifestMetaText}>
+          refs: {compactManifestValue(root.referenceCount)}
+        </Text>
+        <Text style={styles.imageManifestMetaText}>
+          selected attempt: {compactManifestValue(root.selectedAttempt)}
+        </Text>
+        <Text selectable style={styles.imageManifestMetaText}>
+          image: {compactManifestValue(root.imageStoragePath)}
+        </Text>
+      </View>
+
+      {requests.length > 0 ? (
+        <View style={styles.imageManifestRequestList}>
+          {requests.map((request, index) => (
+            <View key={`image-request-${index}`} style={styles.imageManifestRequestCard}>
+              <Text style={styles.imageManifestRequestTitle}>
+                Request {index + 1} · {compactManifestValue(request.operation)} ·{' '}
+                {compactManifestValue(request.mode)}
+              </Text>
+              <Text style={styles.imageManifestMetaText}>
+                model: {compactManifestValue(request.model)} · aspect:{' '}
+                {compactManifestValue(request.aspectRatio)} · prompt chars:{' '}
+                {compactManifestValue(request.promptLength)}
+              </Text>
+              {renderReferenceRows(request.referenceImages, `image-request-${index}`)}
+            </View>
+          ))}
+        </View>
+      ) : (
+        renderReferenceRows(fallbackReferences, 'image-request-fallback')
+      )}
+
+      <TouchableOpacity
+        style={styles.imageManifestToggle}
+        onPress={() => setExpanded((current) => !current)}
+      >
+        <Text style={styles.imageManifestToggleText}>
+          {expanded ? 'Hide raw manifest' : 'Show raw manifest'}
+        </Text>
+      </TouchableOpacity>
+      {expanded ? (
+        <ScrollView style={styles.mapTileRawBox} nestedScrollEnabled>
+          <Text selectable style={styles.audioPre}>
+            {rawJson}
+          </Text>
+        </ScrollView>
+      ) : null}
+    </View>
+  );
+}
+
 type RegenerationJobEntry = {
   jobId: string;
 };
@@ -709,6 +848,7 @@ export default function AdminScenesScreen() {
           hasImage: scene.hasImage,
           imageUrl: scene.imageUrl,
           imageStoragePath: scene.imageStoragePath,
+          imageRequestManifest: scene.imageRequestManifest,
           directorScene,
         };
       }),
@@ -1125,6 +1265,13 @@ export default function AdminScenesScreen() {
                       <Text style={styles.storyTextBody}>{item.storyText || 'n/a'}</Text>
                     </View>
 
+                    {item.imageRequestManifest ? (
+                      <>
+                        <View style={styles.sceneDivider} />
+                        <ImageRequestManifestPanel manifest={item.imageRequestManifest} />
+                      </>
+                    ) : null}
+
                     {item.directorScene ? (
                       <>
                         <View style={styles.sceneDivider} />
@@ -1460,6 +1607,79 @@ const styles = StyleSheet.create({
   },
   validationBlock: {
     gap: 12,
+  },
+  imageManifestPanel: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  imageManifestMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  imageManifestMetaText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  imageManifestRequestList: {
+    gap: 10,
+  },
+  imageManifestRequestCard: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: theme.colors.background.primary,
+  },
+  imageManifestRequestTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  imageManifestRefList: {
+    gap: 8,
+  },
+  imageManifestRefRow: {
+    gap: 3,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.interactive.primary,
+    paddingLeft: 10,
+  },
+  imageManifestRefTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  imageManifestRefMeta: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+  imageManifestRefPath: {
+    fontSize: 12,
+    color: theme.colors.interactive.primary,
+  },
+  imageManifestInstruction: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.text.secondary,
+  },
+  imageManifestToggle: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: theme.colors.interactive.secondary,
+  },
+  imageManifestToggleText: {
+    color: theme.colors.interactive.primary,
+    fontWeight: '700',
+    fontSize: 12,
   },
   validationList: {
     gap: 12,
