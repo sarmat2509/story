@@ -7,9 +7,21 @@ const GEOMETRY_EPSILON = 0.001;
 
 function visual(primaryRead: string, names: string[] = ['Mira']) {
   const slots = [
-    { position: 'left_foreground', anchor: { x: 0.28, y: 0.66 }, speechTarget: { x: 0.28, y: 0.42 } },
-    { position: 'right_foreground', anchor: { x: 0.72, y: 0.66 }, speechTarget: { x: 0.72, y: 0.42 } },
-    { position: 'center_midground', anchor: { x: 0.5, y: 0.58 }, speechTarget: { x: 0.5, y: 0.36 } },
+    {
+      position: 'left_foreground',
+      anchor: { x: 0.28, y: 0.66 },
+      speechTarget: { x: 0.28, y: 0.42 },
+    },
+    {
+      position: 'right_foreground',
+      anchor: { x: 0.72, y: 0.66 },
+      speechTarget: { x: 0.72, y: 0.42 },
+    },
+    {
+      position: 'center_midground',
+      anchor: { x: 0.5, y: 0.58 },
+      speechTarget: { x: 0.5, y: 0.36 },
+    },
   ];
   return {
     environmentId: 'env_test',
@@ -22,9 +34,10 @@ function visual(primaryRead: string, names: string[] = ['Mira']) {
         characters: names.map((name, index) => ({
           name,
           ...(slots[index] ?? slots[2]),
-          description: index === 0
-            ? 'foreground left, readable face, clear hand gesture'
-            : 'foreground right, readable face, looking toward the other character',
+          description:
+            index === 0
+              ? 'foreground left, readable face, clear hand gesture'
+              : 'foreground right, readable face, looking toward the other character',
         })),
       },
     },
@@ -88,9 +101,14 @@ function testDynamicBubblePlacement(): void {
   const leoSpeechTarget = firstPanel.bubbles[1].tailTo!;
   assert.ok(Math.abs((miraSpeechTarget.x - firstPanelRect.x) / firstPanelRect.width - 0.28) < 0.02);
   assert.ok(Math.abs((leoSpeechTarget.x - firstPanelRect.x) / firstPanelRect.width - 0.72) < 0.02);
-  assert.ok(firstPanel.bubbles[0].rect.x < firstPanel.bubbles[1].rect.x, 'speaker bubble side should follow speaker anchor');
   assert.ok(
-    firstPanel.bubbles.some((bubble) => bubble.rect.y > firstPanelRect.y + firstPanelRect.height * 0.55),
+    firstPanel.bubbles[0].rect.x < firstPanel.bubbles[1].rect.x,
+    'speaker bubble side should follow speaker anchor'
+  );
+  assert.ok(
+    firstPanel.bubbles.some(
+      (bubble) => bubble.rect.y > firstPanelRect.y + firstPanelRect.height * 0.55
+    ),
     'multi-bubble panels should use lower/side negative space, not only the top band'
   );
 
@@ -121,42 +139,50 @@ function testBubbleStretchingKeepsText(): void {
   const line = 'I found the clue, but I need one brave friend to help me open the blue gate.';
   const planned = planGraphicNovelLayouts({
     ageGroup: '2-3',
-    pages: [{
-      pageNumber: 1,
-      pageRole: 'conversation',
-      panels: [
-        {
-          panelId: 'p1-1',
-          beatType: 'conversation',
-          visualAction: 'A child points at a sparkling clue.',
-          setting: 'Garden path',
-          charactersPresent: ['Mira'],
-          dialogue: [{ speaker: 'Mira', text: line }],
-          thoughts: [],
-          visual: visual('Mira points at a sparkling clue', ['Mira']),
-          artPrompt: 'A child pointing at a sparkling clue on a garden path.',
-        },
-        {
-          panelId: 'p1-2',
-          beatType: 'reaction',
-          visualAction: 'The friend listens and smiles.',
-          setting: 'Garden path',
-          charactersPresent: ['Leo'],
-          dialogue: [{ speaker: 'Leo', text: 'Short version?' }],
-          thoughts: [],
-          visual: visual('Leo listens and smiles', ['Leo']),
-          artPrompt: 'A child smiling while listening on a garden path.',
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'conversation',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'conversation',
+            visualAction: 'A child points at a sparkling clue.',
+            setting: 'Garden path',
+            charactersPresent: ['Mira'],
+            dialogue: [{ speaker: 'Mira', text: line }],
+            thoughts: [],
+            visual: visual('Mira points at a sparkling clue', ['Mira']),
+            artPrompt: 'A child pointing at a sparkling clue on a garden path.',
+          },
+          {
+            panelId: 'p1-2',
+            beatType: 'reaction',
+            visualAction: 'The friend listens and smiles.',
+            setting: 'Garden path',
+            charactersPresent: ['Leo'],
+            dialogue: [{ speaker: 'Leo', text: 'Short version?' }],
+            thoughts: [],
+            visual: visual('Leo listens and smiles', ['Leo']),
+            artPrompt: 'A child smiling while listening on a garden path.',
+          },
+        ],
+      },
+    ],
   });
 
   const firstBubble = planned[0].panels[0].bubbles[0];
   assert.equal(firstBubble.speaker, 'Mira');
   assert.equal(firstBubble.text, line);
   assert.equal(firstBubble.overflow, false);
-  assert.ok(firstBubble.rect.width > 0.12, 'bubble should remain wide enough for longer text at the agreed frontend font size');
-  assert.ok(firstBubble.rect.height > 0.04, 'bubble should add height for wrapped longer text at the agreed frontend line height');
+  assert.ok(
+    firstBubble.rect.width > 0.12,
+    'bubble should remain wide enough for longer text at the agreed frontend font size'
+  );
+  assert.ok(
+    firstBubble.rect.height > 0.04,
+    'bubble should add height for wrapped longer text at the agreed frontend line height'
+  );
   assert.equal('compressionApplied' in firstBubble, false);
   assert.equal('sourceText' in firstBubble, false);
 }
@@ -164,52 +190,57 @@ function testBubbleStretchingKeepsText(): void {
 function testOpeningForSixToEightUsesAtLeastFourPanels(): void {
   const planned = planGraphicNovelLayouts({
     ageGroup: '6-8',
-    pages: [{
-      pageNumber: 1,
-      pageRole: 'opening',
-      panels: [
-        {
-          panelId: 'p1-1',
-          beatType: 'setup',
-          visualAction: 'Friends enter a room.',
-          setting: 'Old room',
-          charactersPresent: ['Mira'],
-          dialogue: [],
-          thoughts: [],
-          caption: 'A quiet room waits.',
-          visual: visual('Friends enter a room', ['Mira']),
-          artPrompt: 'A child entering an old room.',
-        },
-        {
-          panelId: 'p1-2',
-          beatType: 'conversation',
-          visualAction: 'They spot a clue.',
-          setting: 'Old room',
-          charactersPresent: ['Mira', 'Leo'],
-          dialogue: [
-            { speaker: 'Mira', text: 'Look over there.' },
-            { speaker: 'Leo', text: 'Something is glowing.' },
-          ],
-          thoughts: [],
-          visual: visual('They spot a clue', ['Mira', 'Leo']),
-          artPrompt: 'Two children spotting a clue.',
-        },
-        {
-          panelId: 'p1-3',
-          beatType: 'reaction',
-          visualAction: 'The clue shines.',
-          setting: 'Old room',
-          charactersPresent: ['Mira'],
-          dialogue: [],
-          thoughts: [{ speaker: 'Mira', text: 'This feels important.' }],
-          visual: visual('The clue shines', ['Mira']),
-          artPrompt: 'A glowing clue.',
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'opening',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'setup',
+            visualAction: 'Friends enter a room.',
+            setting: 'Old room',
+            charactersPresent: ['Mira'],
+            dialogue: [],
+            thoughts: [],
+            caption: 'A quiet room waits.',
+            visual: visual('Friends enter a room', ['Mira']),
+            artPrompt: 'A child entering an old room.',
+          },
+          {
+            panelId: 'p1-2',
+            beatType: 'conversation',
+            visualAction: 'They spot a clue.',
+            setting: 'Old room',
+            charactersPresent: ['Mira', 'Leo'],
+            dialogue: [
+              { speaker: 'Mira', text: 'Look over there.' },
+              { speaker: 'Leo', text: 'Something is glowing.' },
+            ],
+            thoughts: [],
+            visual: visual('They spot a clue', ['Mira', 'Leo']),
+            artPrompt: 'Two children spotting a clue.',
+          },
+          {
+            panelId: 'p1-3',
+            beatType: 'reaction',
+            visualAction: 'The clue shines.',
+            setting: 'Old room',
+            charactersPresent: ['Mira'],
+            dialogue: [],
+            thoughts: [{ speaker: 'Mira', text: 'This feels important.' }],
+            visual: visual('The clue shines', ['Mira']),
+            artPrompt: 'A glowing clue.',
+          },
+        ],
+      },
+    ],
   });
 
-  assert.ok(planned[0].panels.length >= 4, '6-8 opening pages should be expanded to at least 4 panels');
+  assert.ok(
+    planned[0].panels.length >= 4,
+    '6-8 opening pages should be expanded to at least 4 panels'
+  );
   assert.equal(planned[0].panels.length, planned[0].template.panelCount);
   assert.equal(planned[0].template.panels.length, planned[0].panels.length);
 }
@@ -217,49 +248,51 @@ function testOpeningForSixToEightUsesAtLeastFourPanels(): void {
 function testFreeLayoutPanelCountMustMatchScriptPanels(): void {
   const planned = planGraphicNovelLayouts({
     ageGroup: '6-8',
-    pages: [{
-      pageNumber: 8,
-      pageRole: 'resolution',
-      panels: [
-        {
-          panelId: 'p8-1',
-          beatType: 'resolution',
-          visualAction: 'Friends admire the bridge.',
-          setting: 'Sunny bridge',
-          charactersPresent: ['Mira', 'Leo'],
-          dialogue: [
-            { speaker: 'Mira', text: 'The bridge is shining.' },
-            { speaker: 'Leo', text: 'It feels like a promise.' },
-          ],
-          thoughts: [],
-          visual: visual('Friends admire the bridge', ['Mira', 'Leo']),
-          artPrompt: 'Two friends admiring a shining bridge.',
-        },
-        {
-          panelId: 'p8-2',
-          beatType: 'reveal',
-          visualAction: 'A friendly helper lifts a key.',
-          setting: 'Sunny bridge',
-          charactersPresent: ['Puff'],
-          dialogue: [{ speaker: 'Puff', text: 'This key opens kind hearts.' }],
-          thoughts: [],
-          visual: visual('A friendly helper lifts a key', ['Puff']),
-          artPrompt: 'A small magical helper lifting a golden key.',
-        },
-        {
-          panelId: 'p8-3',
-          beatType: 'resolution',
-          visualAction: 'Everyone celebrates together.',
-          setting: 'Sunny bridge',
-          charactersPresent: ['Mira', 'Leo', 'Puff'],
-          dialogue: [{ speaker: 'Mira', text: 'Together, we are ready for the next adventure.' }],
-          thoughts: [],
-          caption: 'Together to new adventures!',
-          visual: visual('Everyone celebrates together', ['Mira', 'Leo', 'Puff']),
-          artPrompt: 'Friends and neighbors celebrating together near the bridge.',
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 8,
+        pageRole: 'resolution',
+        panels: [
+          {
+            panelId: 'p8-1',
+            beatType: 'resolution',
+            visualAction: 'Friends admire the bridge.',
+            setting: 'Sunny bridge',
+            charactersPresent: ['Mira', 'Leo'],
+            dialogue: [
+              { speaker: 'Mira', text: 'The bridge is shining.' },
+              { speaker: 'Leo', text: 'It feels like a promise.' },
+            ],
+            thoughts: [],
+            visual: visual('Friends admire the bridge', ['Mira', 'Leo']),
+            artPrompt: 'Two friends admiring a shining bridge.',
+          },
+          {
+            panelId: 'p8-2',
+            beatType: 'reveal',
+            visualAction: 'A friendly helper lifts a key.',
+            setting: 'Sunny bridge',
+            charactersPresent: ['Puff'],
+            dialogue: [{ speaker: 'Puff', text: 'This key opens kind hearts.' }],
+            thoughts: [],
+            visual: visual('A friendly helper lifts a key', ['Puff']),
+            artPrompt: 'A small magical helper lifting a golden key.',
+          },
+          {
+            panelId: 'p8-3',
+            beatType: 'resolution',
+            visualAction: 'Everyone celebrates together.',
+            setting: 'Sunny bridge',
+            charactersPresent: ['Mira', 'Leo', 'Puff'],
+            dialogue: [{ speaker: 'Mira', text: 'Together, we are ready for the next adventure.' }],
+            thoughts: [],
+            caption: 'Together to new adventures!',
+            visual: visual('Everyone celebrates together', ['Mira', 'Leo', 'Puff']),
+            artPrompt: 'Friends and neighbors celebrating together near the bridge.',
+          },
+        ],
+      },
+    ],
   });
 
   assert.equal(planned[0].panels.length, 3);
@@ -392,39 +425,42 @@ function testFreeLayoutSelectionIgnoresRandomSource(): void {
 function testFreeLayoutPromptDoesNotUsePresetTemplateSlots(): void {
   const planned = planGraphicNovelLayouts({
     ageGroup: '4-5',
-    pages: [{
-      pageNumber: 1,
-      pageRole: 'opening',
-      panels: [
-        {
-          panelId: 'p1-1',
-          beatType: 'setup',
-          visualAction: 'A child opens a small box.',
-          setting: 'Bedroom',
-          charactersPresent: ['Nika'],
-          dialogue: [{ speaker: 'Nika', text: 'What is inside?' }],
-          thoughts: [],
-          visual: visual('Nika opens a small box', ['Nika']),
-          artPrompt: 'A child opening a small box in a bedroom.',
-        },
-        {
-          panelId: 'p1-2',
-          beatType: 'response',
-          visualAction: 'A soft glow appears.',
-          setting: 'Bedroom',
-          charactersPresent: ['Nika'],
-          dialogue: [],
-          thoughts: [{ speaker: 'Nika', text: 'It feels friendly.' }],
-          visual: visual('A soft glow appears', ['Nika']),
-          artPrompt: 'A friendly soft glow from a box.',
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'opening',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'setup',
+            visualAction: 'A child opens a small box.',
+            setting: 'Bedroom',
+            charactersPresent: ['Nika'],
+            dialogue: [{ speaker: 'Nika', text: 'What is inside?' }],
+            thoughts: [],
+            visual: visual('Nika opens a small box', ['Nika']),
+            artPrompt: 'A child opening a small box in a bedroom.',
+          },
+          {
+            panelId: 'p1-2',
+            beatType: 'response',
+            visualAction: 'A soft glow appears.',
+            setting: 'Bedroom',
+            charactersPresent: ['Nika'],
+            dialogue: [],
+            thoughts: [{ speaker: 'Nika', text: 'It feels friendly.' }],
+            visual: visual('A soft glow appears', ['Nika']),
+            artPrompt: 'A friendly soft glow from a box.',
+          },
+        ],
+      },
+    ],
   });
 
   const prompt = buildGraphicNovelPageFreeLayoutInstructions(planned[0]);
   assert.match(prompt, /Create a single comic page with exactly 2 panels/);
-  assert.match(prompt, /Choose the panel layout yourself/);
+  assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
+  assert.doesNotMatch(prompt, /No preset layout guide image/);
   assert.doesNotMatch(prompt, /color-coded/);
   assert.doesNotMatch(prompt, /\bslot\b/i);
   assert.doesNotMatch(prompt, /Slot color/);

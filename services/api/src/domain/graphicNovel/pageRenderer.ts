@@ -652,9 +652,17 @@ function outfitById(page: PlannedGraphicNovelPage): Map<string, string> {
   return new Map((page.outfits || []).map((outfit) => [outfit.id, outfit.description]));
 }
 
+function meaningfulOutfitText(value?: string | null): string | null {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/^natural appearance\.?$/i.test(text)) return null;
+  return text;
+}
+
 function cameraCharacters(
   panel: PlannedGraphicNovelPage['panels'][number],
-  outfitsById: Map<string, string> = new Map()
+  outfitsById: Map<string, string> = new Map(),
+  referenceImages: ReferenceImage[] = []
 ): string {
   const composition = panel.script.visual.sceneVisual.cameraComposition;
   if (typeof composition === 'string') return composition;
@@ -662,9 +670,15 @@ function cameraCharacters(
 
   return composition.characters
     .map((character) => {
-      const outfit = character.outfitId
-        ? outfitsById.get(character.outfitId) || `outfit id ${character.outfitId}`
-        : null;
+      const outfitReferenceIndex = findOutfitReferenceIndex(character.name, referenceImages);
+      const outfitDescription = character.outfitId ? outfitsById.get(character.outfitId) : null;
+      const outfit = outfitReferenceIndex
+        ? `from Image ${outfitReferenceIndex}`
+        : character.outfitId
+          ? outfitDescription === undefined
+            ? `outfit id ${character.outfitId}`
+            : meaningfulOutfitText(outfitDescription)
+          : null;
       const staging = [
         character.position ? `position ${character.position}` : null,
         character.description,
@@ -698,6 +712,34 @@ function normalizeReferenceName(value?: string | null): string {
     .toLowerCase();
 }
 
+function isOutfitReference(reference: ReferenceImage): boolean {
+  const meta = reference as { source?: string; type?: string };
+  return meta.source === 'outfit_plate' || meta.type === 'outfit_plate_reference';
+}
+
+function findOutfitReferenceIndex(
+  characterName: string,
+  referenceImages: ReferenceImage[]
+): number | null {
+  const targetName = normalizeReferenceName(characterName);
+  if (!targetName) return null;
+
+  const index = referenceImages.findIndex((reference) => {
+    if (!isOutfitReference(reference)) return false;
+    const referenceName = normalizeReferenceName(reference.characterName);
+    const instructionText = normalizeReferenceName(reference.instructionText);
+    return (
+      (referenceName.length > 0 &&
+        (referenceName === targetName ||
+          referenceName.includes(targetName) ||
+          targetName.includes(referenceName))) ||
+      instructionText.includes(targetName)
+    );
+  });
+
+  return index >= 0 ? index + 1 : null;
+}
+
 function findEnvironmentReferenceIndex(
   environment: StoryEnvironment,
   referenceImages: ReferenceImage[]
@@ -724,13 +766,8 @@ function environmentSlotLine(
 ): string | null {
   if (!environment) return null;
   const referenceIndex = findEnvironmentReferenceIndex(environment, referenceImages);
-  const environmentSource = referenceIndex
-    ? `use Image ${referenceIndex} environment reference`
-    : environment.description;
-  const outfitContext = environment.characterOutfits
-    ? ` Wardrobe/outfit context: ${environment.characterOutfits}`
-    : '';
-  return `- Environment: ${environment.name}; ${environmentSource}.${outfitContext}`;
+  const environmentSource = referenceIndex ? `Image ${referenceIndex}` : environment.description;
+  return `- Environment: ${environment.name}; ${environmentSource}.`;
 }
 
 function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
@@ -743,17 +780,13 @@ function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
       const source = (reference as { source?: string }).source;
       const fallbackLabel = `Image ${index + 1}: ${reference.referenceKind === 'object' ? 'object/environment' : 'character identity'} reference${reference.characterName ? ` for ${reference.characterName}` : ''}.`;
       if (reference.referenceKind === 'character') {
-        const instruction = reference.instructionText || '';
-        const sourceKind = /Reference photo/i.test(instruction)
-          ? 'Reference photo'
-          : 'Character sheet';
-        return `- Image ${index + 1}: Character reference for "${reference.characterName || 'character'}". ${sourceKind}.`;
+        return `- Image ${index + 1}: Character reference: "${reference.characterName || 'character'}".`;
       }
       if (source === 'outfit_plate') {
-        return `- Image ${index + 1}: Outfit reference for "${reference.characterName || 'character'}". Use garments and accessories only; keep identity from the character reference.`;
+        return `- Image ${index + 1}: Outfit reference: "${reference.characterName || 'character'}".`;
       }
       if (reference.referenceKind === 'object') {
-        return `- Image ${index + 1}: Environment reference for "${reference.characterName || 'location'}". Reusable location structure, background objects, materials, and color continuity.`;
+        return `- Image ${index + 1}: Environment reference: "${reference.characterName || 'location'}".`;
       }
       return `- ${reference.instructionText || fallbackLabel}`;
     })
@@ -785,7 +818,7 @@ export function summarizeGraphicNovelReferenceImages(
       isTurnaround: ref.referenceKind === 'character' ? meta.isTurnaround === true : null,
       identitySource:
         ref.referenceKind === 'character'
-          ? meta.identitySource ?? (meta.isTurnaround ? 'turnaround' : 'reference_photo')
+          ? (meta.identitySource ?? (meta.isTurnaround ? 'turnaround' : 'reference_photo'))
           : null,
       hasFileUri: !!ref.fileUri,
       fileUri: ref.fileUri ?? null,
@@ -827,7 +860,7 @@ export function buildGraphicNovelImageRequestManifest(params: {
     fullTextPrompt:
       `SYSTEM INSTRUCTION:\n${params.systemInstruction ?? ''}\n\n` +
       `USER PROMPT:\n${params.prompt}\n\n` +
-      `REFERENCE IMAGES:\n${JSON.stringify(references, null, 2)}`,
+      `REFERENCE IMAGE GUIDE:\n${buildReferenceBrief(referenceImages)}`,
   };
 }
 
@@ -848,11 +881,11 @@ function buildPanelFreeLayoutBrief(
     `Panel ${index + 1}:`,
     environmentSlotLine(environment, referenceImages),
     `- Draw: ${sentence(visual.primaryRead)}`,
-    `- Scene setting/change: ${sentence(sceneVisual.setting)}`,
+    `- Setting: ${sentence(sceneVisual.setting)}`,
     `- Camera: ${shot}.`,
     `- Lighting: ${sentence(sceneVisual.lighting)}`,
-    `- Characters in panel:`,
-    cameraCharacters(panel, outfitsById),
+    `- Characters:`,
+    cameraCharacters(panel, outfitsById, referenceImages),
   ]
     .filter(Boolean)
     .join('\n');
@@ -876,11 +909,11 @@ function buildPanelRepairBrief(
     panelGeometryLine(panel, index),
     environmentSlotLine(environment, referenceImages),
     `- Intended visual: ${sentence(visual.primaryRead)}`,
-    `- Scene setting/change: ${sentence(sceneVisual.setting)}`,
+    `- Setting: ${sentence(sceneVisual.setting)}`,
     `- Camera: ${shot}.`,
     `- Lighting: ${sentence(sceneVisual.lighting)}`,
-    `- Characters in panel:`,
-    cameraCharacters(panel, outfitsById),
+    `- Characters:`,
+    cameraCharacters(panel, outfitsById, referenceImages),
   ]
     .filter(Boolean)
     .join('\n');
@@ -892,34 +925,23 @@ export function buildGraphicNovelPageFreeLayoutSystemInstruction(params: {
   ageGroup?: string;
   scenarioCardId?: string;
 }): string {
-  const stylePrefix = getImageStylePrefix(
-    params.style,
-    params.ageGroup || '6-8',
-    params.scenarioCardId
-  );
+  void params;
   return [
-    `Children's illustration comic page. ART STYLE: ${stylePrefix}.`,
-    `Generate a new page from scratch with exactly ${params.panelCount} comic panels.`,
-    `Strict panel count: the final page must have exactly ${params.panelCount} visible panel boxes, no more and no fewer.`,
-    'No preset layout guide image is attached. Choose the panel arrangement yourself.',
+    "Children's illustration comic page.",
     'Use clear panel borders and gutters so the page reads as one finished comic page.',
-    'Each listed Panel N below maps to exactly one physical panel; never split one listed panel into multiple boxes.',
-    'Each panel contains one single visual moment and exactly the characters listed for that panel.',
-    'Keep characters, props, and backgrounds inside their own panel.',
-    'Render visual art only; bubbles and readable text are added later by the server.',
-    'Do not add speech bubbles, thought bubbles, captions, labels, UI, watermarks, or readable text.',
-    "The final image is a clean children's illustration page.",
-    'Character identity reference images are locked visual ground truth for face/head design, hairstyle or fur/body structure, age/species read, body proportions, silhouette, stable palette, and distinctive marks.',
-    'Outfit references are wardrobe-only. Apply garments, shoes, and worn accessories to the locked character identity without changing face, hair, body proportions, age read, species design, silhouette, or expression.',
-    'Reference labels use the exact character and environment names that appear in the panel visual instructions.',
-    'Environment references define reusable location structure, materials, key objects, and palette continuity.',
+    'No text. No speech bubbles.',
   ].join(' ');
 }
 
 export function buildGraphicNovelPageFreeLayoutInstructions(
   page: PlannedGraphicNovelPage,
   environmentsById: Map<string, StoryEnvironment> = new Map(),
-  referenceImages: ReferenceImage[] = []
+  referenceImages: ReferenceImage[] = [],
+  options: {
+    style?: string;
+    ageGroup?: string;
+    scenarioCardId?: string;
+  } = {}
 ): string {
   const outfits = outfitById(page);
   const panelInstructions = page.panels
@@ -927,10 +949,12 @@ export function buildGraphicNovelPageFreeLayoutInstructions(
       buildPanelFreeLayoutBrief(panel, index, environmentsById, referenceImages, outfits)
     )
     .join('\n\n');
+  const styleLine = options.style
+    ? `ART STYLE:\n${getImageStylePrefix(options.style, options.ageGroup || '6-8', options.scenarioCardId)}\n\n`
+    : '';
 
-return `Create a single comic page with exactly ${page.panels.length} panels.
+  return `${styleLine}Create a single comic page with exactly ${page.panels.length} panels.
 Panel count is strict: draw exactly ${page.panels.length} physical panel boxes, no extra panels, no split panels.
-Choose the panel layout yourself. No preset layout guide image is attached.
 
 REFERENCE IMAGES TO FOLLOW:
 ${buildReferenceBrief(referenceImages)}
@@ -945,20 +969,11 @@ export function buildGraphicNovelPageRepairSystemInstruction(params: {
   ageGroup?: string;
   scenarioCardId?: string;
 }): string {
-  const stylePrefix = getImageStylePrefix(
-    params.style,
-    params.ageGroup || '6-8',
-    params.scenarioCardId
-  );
+  void params;
   return [
-    `Children's illustration page repair. ART STYLE: ${stylePrefix}.`,
-    `Edit the failed art-only page while preserving exactly ${params.slotCount} panel boxes, black frames, gutters, page aspect ratio, and the existing page composition.`,
+    "Children's illustration page repair.",
     'Fix only the validator issues listed in the repair instructions.',
-    'Keep correct characters, backgrounds, lighting, camera angles, panel geometry, and style unchanged.',
-    'Use attached reference images only according to their labels.',
-    'Character identity reference images are locked visual ground truth for face/head design, hairstyle or fur/body structure, age/species read, body proportions, silhouette, stable palette, and distinctive marks.',
-    'Environment references define reusable location structure, materials, key objects, and palette continuity.',
-    'Render visual art only; bubbles and readable text are added later by the server.',
+    'No text. No speech bubbles.',
   ].join(' ');
 }
 
@@ -1083,7 +1098,12 @@ export async function generateGraphicNovelPageFreeLayout(params: {
   const prompt = buildGraphicNovelPageFreeLayoutInstructions(
     params.page,
     params.environmentsById,
-    referenceImages
+    referenceImages,
+    {
+      style: params.style,
+      ageGroup: params.ageGroup,
+      scenarioCardId: params.scenarioCardId,
+    }
   );
   const aspectRatio = pageEditAspectRatio(params.page);
   const systemInstruction = buildGraphicNovelPageFreeLayoutSystemInstruction({

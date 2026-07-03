@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { GRAPHIC_NOVEL_PAGE_SIZE, planGraphicNovelLayouts } from '../layoutPlanner';
 import { buildGraphicNovelPageTextOverlay } from '../textOverlay';
 import {
+  buildGraphicNovelImageRequestManifest,
   buildGraphicNovelPageFreeLayoutInstructions,
   buildGraphicNovelPageFreeLayoutSystemInstruction,
   buildGraphicNovelPageValidationRepairInstructions,
@@ -19,13 +20,15 @@ function visual(primaryRead: string, characterName = 'Mira') {
       lighting: 'warm playroom light',
       cameraComposition: {
         shot: 'medium shot, eye level',
-        characters: [{
-          name: characterName,
-          position: 'left_foreground',
-          anchor: { x: 0.3, y: 0.66 },
-          speechTarget: { x: 0.3, y: 0.42 },
-          description: 'foreground, readable face, clear hand gesture',
-        }],
+        characters: [
+          {
+            name: characterName,
+            position: 'left_foreground',
+            anchor: { x: 0.3, y: 0.66 },
+            speechTarget: { x: 0.3, y: 0.42 },
+            description: 'foreground, readable face, clear hand gesture',
+          },
+        ],
       },
     },
   };
@@ -34,38 +37,44 @@ function visual(primaryRead: string, characterName = 'Mira') {
 function samplePage(): PlannedGraphicNovelPage {
   return planGraphicNovelLayouts({
     ageGroup: '4-5',
-    pages: [{
-      pageNumber: 1,
-      pageRole: 'opening',
-      panels: [
-        {
-          panelId: 'p1-1',
-          beatType: 'setup',
-          visualAction: 'A child finds a glowing button.',
-          setting: 'Playroom',
-          charactersPresent: ['Mira'],
-          dialogue: [{ speaker: 'Mira', text: 'What does this do?' }],
-          thoughts: [],
-          visual: visual('Mira finds a glowing button'),
-          artPrompt: 'A child finding a glowing button in a cozy playroom.',
-        },
-        {
-          panelId: 'p1-2',
-          beatType: 'reaction',
-          visualAction: 'A soft light answers.',
-          setting: 'Playroom',
-          charactersPresent: ['Mira'],
-          dialogue: [],
-          thoughts: [{ speaker: 'Mira', text: 'It feels friendly.' }],
-          visual: visual('A soft light answers'),
-          artPrompt: 'A soft friendly light glowing in a cozy playroom.',
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'opening',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'setup',
+            visualAction: 'A child finds a glowing button.',
+            setting: 'Playroom',
+            charactersPresent: ['Mira'],
+            dialogue: [{ speaker: 'Mira', text: 'What does this do?' }],
+            thoughts: [],
+            visual: visual('Mira finds a glowing button'),
+            artPrompt: 'A child finding a glowing button in a cozy playroom.',
+          },
+          {
+            panelId: 'p1-2',
+            beatType: 'reaction',
+            visualAction: 'A soft light answers.',
+            setting: 'Playroom',
+            charactersPresent: ['Mira'],
+            dialogue: [],
+            thoughts: [{ speaker: 'Mira', text: 'It feels friendly.' }],
+            visual: visual('A soft light answers'),
+            artPrompt: 'A soft friendly light glowing in a cozy playroom.',
+          },
+        ],
+      },
+    ],
   })[0];
 }
 
-async function pixelAt(buffer: Buffer, x: number, y: number): Promise<[number, number, number, number]> {
+async function pixelAt(
+  buffer: Buffer,
+  x: number,
+  y: number
+): Promise<[number, number, number, number]> {
   const raw = await sharp(buffer)
     .resize(GRAPHIC_NOVEL_PAGE_SIZE.width, GRAPHIC_NOVEL_PAGE_SIZE.height, { fit: 'fill' })
     .ensureAlpha()
@@ -134,11 +143,13 @@ function testHtmlTextOverlaySeparatesRawArtifactText(): void {
 
 function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
   const page = samplePage();
-  page.outfits = [{
-    id: 'o_mira_swimwear',
-    characterName: 'Mira',
-    description: 'age-appropriate blue swimwear, bare feet, no jacket',
-  }];
+  page.outfits = [
+    {
+      id: 'o_mira_swimwear',
+      characterName: 'Mira',
+      description: 'age-appropriate blue swimwear, bare feet, no jacket',
+    },
+  ];
   for (const panel of page.panels) {
     const composition = panel.script.visual.sceneVisual.cameraComposition;
     if (typeof composition !== 'string') {
@@ -159,30 +170,71 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
       referenceKind: 'character',
       instructionText: 'Image 1: IDENTITY SOURCE Subject A for "Mira". Character sheet.',
     },
+    {
+      base64Data: 'outfit',
+      mimeType: 'image/png',
+      characterName: 'Mira',
+      referenceKind: 'object',
+      source: 'outfit_plate',
+      type: 'outfit_plate_reference',
+      instructionText: 'Image 2: Outfit reference for "Mira".',
+    } as any,
   ]);
 
-  assert.match(systemInstruction, /Generate a new page from scratch with exactly 2 comic panels/);
-  assert.match(systemInstruction, /No preset layout guide image is attached/);
+  assert.doesNotMatch(systemInstruction, /exactly 2 comic panels/);
+  assert.doesNotMatch(systemInstruction, /No preset layout guide image is attached/);
+  assert.match(systemInstruction, /No text\. No speech bubbles\./);
   assert.match(prompt, /Create a single comic page with exactly 2 panels/);
-  assert.match(prompt, /Choose the panel layout yourself/);
-  assert.match(prompt, /Image 1: Character reference for "Mira"\. Character sheet\./);
-  assert.match(prompt, /Characters in panel/);
+  assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
+  assert.match(prompt, /Image 1: Character reference: "Mira"\./);
+  assert.match(prompt, /Image 2: Outfit reference: "Mira"\./);
+  assert.match(prompt, /Characters:/);
   assert.match(prompt, /Mira: position left_foreground/);
-  assert.match(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
+  assert.match(prompt, /outfit from Image 2/);
+  assert.doesNotMatch(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
   assert.doesNotMatch(prompt, /color-coded/i);
   assert.doesNotMatch(prompt, /\bslot\b/i);
   assert.doesNotMatch(prompt, /PAGE TEMPLATE/i);
   assert.doesNotMatch(prompt, /Fill this/);
 }
 
+function testImageRequestManifestUsesCompactReferenceGuide(): void {
+  const manifest = buildGraphicNovelImageRequestManifest({
+    operation: 'graphic_novel_page_free_layout_generate',
+    mode: 'generate',
+    prompt: 'Create a page.',
+    systemInstruction: 'No text. No speech bubbles.',
+    referenceImages: [
+      {
+        base64Data: 'abc',
+        mimeType: 'image/png',
+        characterName: 'Mira',
+        referenceKind: 'character',
+        source: 'character_reference',
+        storagePath: 'photos/mira.png',
+      } as any,
+    ],
+  });
+
+  const fullTextPrompt = String(manifest.fullTextPrompt || '');
+  assert.match(fullTextPrompt, /REFERENCE IMAGE GUIDE:/);
+  assert.match(fullTextPrompt, /Image 1: Character reference: "Mira"\./);
+  assert.doesNotMatch(fullTextPrompt, /REFERENCE IMAGES:\n\[/);
+  assert.doesNotMatch(fullTextPrompt, /"storagePath"/);
+}
+
 function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
   const page = samplePage();
   const environments = new Map([
-    ['env_playroom', {
-      id: 'env_playroom',
-      name: 'Playroom',
-      description: 'A long reusable playroom description with shelves, rugs, lamps, and window placement.',
-    }],
+    [
+      'env_playroom',
+      {
+        id: 'env_playroom',
+        name: 'Playroom',
+        description:
+          'A long reusable playroom description with shelves, rugs, lamps, and window placement.',
+      },
+    ],
   ]);
   const prompt = buildGraphicNovelPageFreeLayoutInstructions(page, environments, [
     {
@@ -190,11 +242,12 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
       mimeType: 'image/png',
       characterName: 'Playroom',
       referenceKind: 'object',
-      instructionText: 'Image 1: Environment reference for "Playroom". Reusable location structure.',
+      instructionText:
+        'Image 1: Environment reference for "Playroom". Reusable location structure.',
     },
   ]);
 
-  assert.match(prompt, /- Environment: Playroom; use Image 1 environment reference\./);
+  assert.match(prompt, /- Environment: Playroom; Image 1\./);
   assert.doesNotMatch(prompt, /long reusable playroom description/);
 }
 
@@ -220,8 +273,14 @@ async function testBubbleOnlyOverlayPreservesArtAndDrawsBubble(): Promise<void> 
   );
   const untouchedCorner = await pixelAt(finalImage, 8, 8);
 
-  assert.ok(bubbleCenter[1] > 180 && bubbleCenter[2] > 180, 'bubble fill should be composited over art');
-  assert.ok(untouchedCorner[0] > 220 && untouchedCorner[1] < 80 && untouchedCorner[2] < 80, 'art outside bubbles should remain unchanged');
+  assert.ok(
+    bubbleCenter[1] > 180 && bubbleCenter[2] > 180,
+    'bubble fill should be composited over art'
+  );
+  assert.ok(
+    untouchedCorner[0] > 220 && untouchedCorner[1] < 80 && untouchedCorner[2] < 80,
+    'art outside bubbles should remain unchanged'
+  );
 }
 
 function testRepairInstructionsUsePanelBoundsWithoutPresetSlots(): void {
@@ -256,6 +315,7 @@ async function main(): Promise<void> {
   testHtmlTextOverlayIncludesBubbleTextStyle();
   testHtmlTextOverlaySeparatesRawArtifactText();
   testFreeLayoutInstructionsUseReferencesWithoutPresetSlots();
+  testImageRequestManifestUsesCompactReferenceGuide();
   testEnvironmentReferenceSuppressesEnvironmentDescription();
   await testBubbleOnlyOverlayPreservesArtAndDrawsBubble();
   testRepairInstructionsUsePanelBoundsWithoutPresetSlots();
