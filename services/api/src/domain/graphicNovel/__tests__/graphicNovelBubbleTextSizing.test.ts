@@ -120,7 +120,7 @@ function testStoryTextSizeChangesBubbleMeasurement(): void {
 
 function testBubbleFontScaleUsesChildAge(): void {
   assert.equal(graphicNovelBubbleFontScaleForAge({ ageYears: 2 }), 1);
-  assert.equal(graphicNovelBubbleFontScaleForAge({ ageYears: 8 }), 0.85);
+  assert.equal(graphicNovelBubbleFontScaleForAge({ ageYears: 8 }), 0.75);
 
   const eightYearOldTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(20, {
     ageYears: 8,
@@ -129,7 +129,7 @@ function testBubbleFontScaleUsesChildAge(): void {
     ageYears: 2,
   });
 
-  assert.equal(eightYearOldTextSizing.fontSizePx, 17);
+  assert.equal(eightYearOldTextSizing.fontSizePx, 15);
   assert.equal(twoYearOldTextSizing.fontSizePx, 26);
 }
 
@@ -138,7 +138,7 @@ function testBubbleFontScaleFallsBackToAgeGroup(): void {
     ageGroup: '6-8',
   });
 
-  assert.equal(ageGroupTextSizing.fontSizePx, 19);
+  assert.equal(ageGroupTextSizing.fontSizePx, 17);
 }
 
 export async function runGraphicNovelBubbleTextSizingTests(): Promise<void> {
