@@ -25,14 +25,27 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import {
+  getBaseStoryTextSizePxForAgeGroup,
+  getBaseStoryTextSizePxForAgeYears,
+  getStoryTextSizePx,
+  normalizeStoryTextSizeMultiplier,
+} from '@wondertales/shared';
+import {
   analyzeGraphicNovelBubbleVision,
   applyGraphicNovelBubbleVisionLayout,
   buildGraphicNovelPageTextOverlay,
+  graphicNovelBubbleTextSizingFromStoryTextSize,
   overlayGraphicNovelBubblesOnly,
+  type GraphicNovelBubbleTextSizing,
   type GraphicNovelBubbleVisionAnalysis,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
-import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } from '../repositories';
+import {
+  getAssetRepository,
+  getChildProfileRepository,
+  getGraphicNovelRepository,
+  getStoryRepository,
+} from '../repositories';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getValidationTextProvider } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
@@ -168,6 +181,48 @@ function buildCharacterAliasMap(layoutManifest: unknown): Record<string, string[
   return aliasMap;
 }
 
+function getAgeYearsFromBirthDate(birthDate: Date | string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const birth = birthDate instanceof Date ? birthDate : new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const now = new Date();
+  let ageYears = now.getFullYear() - birth.getFullYear();
+  const birthdayThisYear = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if (birthdayThisYear > now) {
+    ageYears -= 1;
+  }
+  return Math.max(0, ageYears);
+}
+
+async function resolveBubbleTextSizingForStory(params: {
+  story: Awaited<ReturnType<ReturnType<typeof getStoryRepository>['findById']>>;
+  ageGroup: string;
+}): Promise<GraphicNovelBubbleTextSizing> {
+  const story = params.story;
+  const childProfileId = story?.childProfileId ?? story?.createdByChildProfileId ?? null;
+  const childProfile =
+    story && childProfileId
+      ? await getChildProfileRepository().findById(childProfileId, story.userId)
+      : null;
+  const ageYears = childProfile
+    ? getAgeYearsFromBirthDate(childProfile.birthDate)
+    : null;
+  const baseTextSizePx =
+    ageYears !== null
+      ? getBaseStoryTextSizePxForAgeYears(ageYears)
+      : getBaseStoryTextSizePxForAgeGroup(params.ageGroup);
+  const textSizePx = getStoryTextSizePx(
+    baseTextSizePx,
+    normalizeStoryTextSizeMultiplier(childProfile?.storyTextSizeMultiplier)
+  );
+
+  return graphicNovelBubbleTextSizingFromStoryTextSize(textSizePx, {
+    ageYears,
+    ageGroup: params.ageGroup,
+  });
+}
+
 async function main(): Promise<void> {
   const storyId = argValue('story-id') || '8d1db0cd-7161-43ce-9654-cd5ce26c5c21';
   const pageNumber = Number(argValue('page'));
@@ -185,6 +240,10 @@ async function main(): Promise<void> {
   if (!story) throw new Error(`Story not found: ${storyId}`);
   const project = await getGraphicNovelRepository().findProjectByStoryId(storyId);
   if (!project) throw new Error(`Graphic novel project not found for story: ${storyId}`);
+  const bubbleTextSizing = await resolveBubbleTextSizingForStory({
+    story,
+    ageGroup: project.ageGroup || story.ageGroup || '6-8',
+  });
 
   const pages = (await getGraphicNovelRepository().findPagesByProjectId(project.id))
     .filter((page) => !Number.isFinite(pageNumber) || page.pageNumber === pageNumber);
@@ -201,6 +260,7 @@ async function main(): Promise<void> {
       ? {
           ...storedPlannedPage,
           characterAliases: storedPlannedPage.characterAliases || characterAliases,
+          bubbleTextSizing,
         }
       : null;
     if (!plannedPage?.panels?.length) {
