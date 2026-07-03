@@ -333,7 +333,10 @@ async function resolveGraphicNovelReadingTextSettings(params: {
     baseTextSizePx,
     textSizeMultiplier,
     textSizePx,
-    bubbleTextSizing: graphicNovelBubbleTextSizingFromStoryTextSize(textSizePx),
+    bubbleTextSizing: graphicNovelBubbleTextSizingFromStoryTextSize(textSizePx, {
+      ageYears: readingProfileAgeYears,
+      ageGroup: params.ageGroup,
+    }),
   };
 }
 

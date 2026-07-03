@@ -18,6 +18,10 @@ export const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_RATIO =
   GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y_PX / GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
 const MIN_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX = 14;
 const MAX_GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX = 32;
+const GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MIN_AGE_YEARS = 2;
+const GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MAX_AGE_YEARS = 8;
+const GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MIN_AGE = 1;
+const GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MAX_AGE = 0.85;
 const BUBBLE_OUTLINE_EXTRA_PX = 14;
 const SPEECH_MAX_LINE_CHARS = 24;
 const CAPTION_MAX_LINE_CHARS = 30;
@@ -27,6 +31,44 @@ const BOLD_CHARACTER_WIDTH_FACTOR = 0.64;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function ageYearsFromAgeGroup(ageGroup: string | null | undefined): number | null {
+  if (!ageGroup) return null;
+  if (ageGroup === '1y') return 1;
+  const numbers = ageGroup.match(/\d+/g)?.map((value) => Number(value)) ?? [];
+  const finite = numbers.filter((value) => Number.isFinite(value));
+  if (finite.length === 0) return null;
+  return Math.max(...finite);
+}
+
+export function graphicNovelBubbleFontScaleForAge(params: {
+  ageYears?: number | null;
+  ageGroup?: string | null;
+}): number {
+  const rawAge =
+    typeof params.ageYears === 'number' && Number.isFinite(params.ageYears)
+      ? params.ageYears
+      : ageYearsFromAgeGroup(params.ageGroup);
+  if (typeof rawAge !== 'number' || !Number.isFinite(rawAge)) {
+    return GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MAX_AGE;
+  }
+
+  const age = clamp(
+    rawAge,
+    GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MIN_AGE_YEARS,
+    GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MAX_AGE_YEARS
+  );
+  const progress =
+    (age - GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MIN_AGE_YEARS) /
+    (GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MAX_AGE_YEARS -
+      GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_MIN_AGE_YEARS);
+  const scale =
+    GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MIN_AGE -
+    progress *
+      (GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MIN_AGE -
+        GRAPHIC_NOVEL_BUBBLE_FONT_SCALE_AT_MAX_AGE);
+  return Math.round(scale * 1000) / 1000;
 }
 
 function rectWidthPx(rect: Rect, pageWidthPx: number): number {
@@ -163,10 +205,13 @@ export function normalizeGraphicNovelBubbleTextSizing(
 }
 
 export function graphicNovelBubbleTextSizingFromStoryTextSize(
-  textSizePx: number | null | undefined
+  textSizePx: number | null | undefined,
+  options: { ageYears?: number | null; ageGroup?: string | null } = {}
 ): GraphicNovelBubbleTextSizing {
+  const fontScale = graphicNovelBubbleFontScaleForAge(options);
+  const sourceTextSizePx = textSizePx ?? GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX;
   return normalizeGraphicNovelBubbleTextSizing({
-    fontSizePx: textSizePx ?? GRAPHIC_NOVEL_BUBBLE_TEXT_FONT_SIZE_PX,
+    fontSizePx: sourceTextSizePx * fontScale,
   });
 }
 

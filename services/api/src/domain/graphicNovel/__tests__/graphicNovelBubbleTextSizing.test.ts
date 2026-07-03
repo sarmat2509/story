@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH_PX,
+  graphicNovelBubbleFontScaleForAge,
   graphicNovelBubbleTextSizingFromStoryTextSize,
   measureGraphicNovelBubbleTextBox,
 } from '../bubbleTextSizing';
@@ -98,7 +99,7 @@ function testStoryTextSizeChangesBubbleMeasurement(): void {
     panelRect: narrowPanel,
     text,
   });
-  const largeTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(26);
+  const largeTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(26, { ageYears: 2 });
   const largeMeasured = measureGraphicNovelBubbleTextBox({
     kind: 'speech',
     panelRect: narrowPanel,
@@ -117,12 +118,37 @@ function testStoryTextSizeChangesBubbleMeasurement(): void {
   );
 }
 
+function testBubbleFontScaleUsesChildAge(): void {
+  assert.equal(graphicNovelBubbleFontScaleForAge({ ageYears: 2 }), 1);
+  assert.equal(graphicNovelBubbleFontScaleForAge({ ageYears: 8 }), 0.85);
+
+  const eightYearOldTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(20, {
+    ageYears: 8,
+  });
+  const twoYearOldTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(26, {
+    ageYears: 2,
+  });
+
+  assert.equal(eightYearOldTextSizing.fontSizePx, 17);
+  assert.equal(twoYearOldTextSizing.fontSizePx, 26);
+}
+
+function testBubbleFontScaleFallsBackToAgeGroup(): void {
+  const ageGroupTextSizing = graphicNovelBubbleTextSizingFromStoryTextSize(22, {
+    ageGroup: '6-8',
+  });
+
+  assert.equal(ageGroupTextSizing.fontSizePx, 19);
+}
+
 export async function runGraphicNovelBubbleTextSizingTests(): Promise<void> {
   testLongUkrainianSpeechGetsReadableWidth();
   testCaptionGetsReadableWidth();
   testThreeLineCaptionDoesNotOverflow();
   testShortSpeechStaysCompact();
   testStoryTextSizeChangesBubbleMeasurement();
+  testBubbleFontScaleUsesChildAge();
+  testBubbleFontScaleFallsBackToAgeGroup();
 }
 
 if (require.main === module) {
