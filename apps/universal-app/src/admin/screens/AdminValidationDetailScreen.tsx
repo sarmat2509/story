@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Platform,
   ScrollView,
+  type ImageStyle,
+  type StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
+  type ViewStyle,
   View,
 } from 'react-native';
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -17,9 +20,11 @@ import {
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
+import { API_BASE_URL } from '@/config/constants';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { storage } from '@/utils/storage';
 
 function toLabel(key: string): string {
   return key
@@ -109,6 +114,15 @@ function jsonPreview(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function formatAdminImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/api/')) {
+    return Platform.OS === 'web' ? url : `${API_BASE_URL.replace(/\/$/, '')}${url}`;
+  }
+  return formatAssetUrl(url) ?? url;
 }
 
 function omitKeys(value: unknown, keys: string[]): unknown {
@@ -211,6 +225,87 @@ function JsonBlock({ value }: { value: unknown }) {
       </Text>
     </ScrollView>
   );
+}
+
+function AuthenticatedAdminImagePreview({
+  url,
+  style,
+  resizeMode,
+}: {
+  url: string | null;
+  style: StyleProp<ImageStyle>;
+  resizeMode: 'cover' | 'contain';
+}) {
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const emptyStyle = style as StyleProp<ViewStyle>;
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    setResolvedUrl(null);
+    setFailed(false);
+
+    if (!url) {
+      return () => undefined;
+    }
+
+    if (Platform.OS !== 'web' || url.startsWith('blob:') || url.startsWith('data:')) {
+      setResolvedUrl(url);
+      return () => undefined;
+    }
+
+    const load = async () => {
+      try {
+        const token = await storage.getAuthToken();
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) {
+          throw new Error(`Image request failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setResolvedUrl(objectUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [url]);
+
+  if (!url || failed) {
+    return (
+      <View style={[emptyStyle, styles.previewImageEmpty]}>
+        <Ionicons name="image-outline" size={28} color={theme.colors.text.secondary} />
+        <Text style={styles.valueText}>Image unavailable</Text>
+      </View>
+    );
+  }
+
+  if (!resolvedUrl) {
+    return (
+      <View style={[emptyStyle, styles.previewImageEmpty]}>
+        <Text style={styles.valueText}>Loading image...</Text>
+      </View>
+    );
+  }
+
+  return <Image source={{ uri: resolvedUrl }} style={style} resizeMode={resizeMode} />;
 }
 
 function parseNumberedSummary(value: string): Array<{ marker: string; text: string }> {
@@ -618,13 +713,15 @@ export default function AdminValidationDetailScreen() {
             title="Image & Record"
             icon="image-outline"
             summary={`${isGraphicPageValidation ? 'Graphic novel page' : 'Story scene'} ${
-              isGraphicPageValidation ? graphicNovelPageNumber ?? item.sceneIndex : item.sceneIndex
+              isGraphicPageValidation
+                ? (graphicNovelPageNumber ?? item.sceneIndex)
+                : item.sceneIndex
             } · score ${formatValidationScore(item.validationScore, item.validationStatus)}`}
           >
             <View style={styles.imageRecordGrid}>
               <View style={styles.imageColumn}>
-                <Image
-                  source={{ uri: formatAssetUrl(item.imageUrl) ?? item.imageUrl }}
+                <AuthenticatedAdminImagePreview
+                  url={formatAdminImageUrl(item.imageUrl)}
                   style={[
                     styles.previewImage,
                     isGraphicPageValidation ? styles.previewImageGraphicNovel : null,
@@ -639,7 +736,7 @@ export default function AdminValidationDetailScreen() {
                     label={isGraphicPageValidation ? 'Page' : 'Scene'}
                     value={
                       isGraphicPageValidation
-                        ? graphicNovelPageNumber ?? item.sceneIndex
+                        ? (graphicNovelPageNumber ?? item.sceneIndex)
                         : item.sceneIndex
                     }
                   />
@@ -882,6 +979,11 @@ const styles = StyleSheet.create({
   },
   previewImageGraphicNovel: {
     aspectRatio: 1,
+  },
+  previewImageEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   sectionStack: {
     gap: 12,

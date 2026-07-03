@@ -117,6 +117,10 @@ function numberOrNull(value: unknown): number | null {
   return null;
 }
 
+function adminImageValidationImageUrl(validationId: string): string {
+  return `/api/v1/admin/image-validations/${validationId}/image`;
+}
+
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
@@ -577,7 +581,7 @@ export async function listAdminImageValidations(params: { limit: number; offset:
       sceneIndex: row.sceneIndex,
       attempt: row.attempt,
       imageStoragePath: row.imageStoragePath,
-      imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
+      imageUrl: adminImageValidationImageUrl(row.id),
       validationScore: resolveAdminValidationScore(row),
       validationStatus: row.validationStatus,
       visionModel: row.visionModel,
@@ -634,7 +638,7 @@ export async function getAdminImageValidation(id: string) {
     mixedStoryScreenOrder: target.mixedStoryScreenOrder,
     attempt: row.attempt,
     imageStoragePath: row.imageStoragePath,
-    imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
+    imageUrl: adminImageValidationImageUrl(row.id),
     validationScore: resolveAdminValidationScore(row),
     validationStatus: row.validationStatus,
     visionModel: row.visionModel,
@@ -1047,7 +1051,7 @@ export async function listAdminDirectorScenes(storyId: string) {
         mixedStoryScreenOrder: target.mixedStoryScreenOrder,
         attempt: row.attempt,
         imageStoragePath: row.imageStoragePath,
-        imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
+        imageUrl: adminImageValidationImageUrl(row.id),
         validationScore: resolveAdminValidationScore(row),
         validationStatus: row.validationStatus,
         visionModel: row.visionModel,

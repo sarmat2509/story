@@ -34,6 +34,8 @@ import {
 } from '../services/dataPrivacyRequestService';
 import { listAdminModerationDecisionEvents } from '../services/moderationDecisionService';
 import { getOpsRuntimeStatus, setOpsRuntimeMode } from '../services/opsRuntimeService';
+import { getImageValidationById } from '../services/imageValidationQueryService';
+import { getAssetStorageService } from '../services/assetStorageService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
 
@@ -227,6 +229,18 @@ async function resolveUploadFilePath(storagePath: string): Promise<string | null
   }
 
   return null;
+}
+
+function getMimeTypeForFile(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
 }
 
 async function resolveMapTileMaskImagePath(maskId: string): Promise<string | null> {
@@ -1093,6 +1107,47 @@ router.get('/image-validations', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list image validations',
+    });
+  }
+});
+
+router.get('/image-validations/:id/image', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = ValidationIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const row = await getImageValidationById(parsedParams.data.id);
+    if (!row) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Validation not found',
+      });
+    }
+
+    let imageData: Buffer;
+    try {
+      imageData = await getAssetStorageService().getAssetByPath(row.imageStoragePath);
+    } catch {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Validation image file not found',
+      });
+    }
+
+    res.setHeader('Content-Type', getMimeTypeForFile(row.imageStoragePath));
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    return res.send(imageData);
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin image validation image failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to load validation image',
     });
   }
 });
