@@ -3,6 +3,7 @@ import { NavigationProp, useNavigation, useRoute } from '@react-navigation/nativ
 import {
   Alert,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -596,6 +597,94 @@ function compactManifestValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function previewableManifestAssetPath(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'n/a') return null;
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return null;
+  return trimmed;
+}
+
+function manifestReferencePreviewUrl(row: Record<string, unknown>): string | null {
+  const rawPath =
+    previewableManifestAssetPath(row.thumbnailPath) ??
+    previewableManifestAssetPath(row.storagePath) ??
+    previewableManifestAssetPath(row.url);
+
+  return rawPath ? formatAssetUrl(rawPath) : null;
+}
+
+function ImageManifestReferenceRow({
+  row,
+  index,
+  keyPrefix,
+}: {
+  row: Record<string, unknown>;
+  index: number;
+  keyPrefix: string;
+}) {
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const name = compactManifestValue(row.characterName ?? row.environmentId ?? row.name);
+  const kind = compactManifestValue(row.referenceKind);
+  const source = compactManifestValue(row.source);
+  const type = compactManifestValue(row.type);
+  const storagePath = compactManifestValue(row.storagePath ?? row.url);
+  const previewUrl = manifestReferencePreviewUrl(row);
+  const transport = row.fileUri
+    ? 'fileUri'
+    : row.hasBase64Data
+      ? `base64${row.base64Bytes ? ` · ${row.base64Bytes} bytes` : ''}`
+      : 'n/a';
+
+  return (
+    <Pressable
+      key={`${keyPrefix}-ref-${index}`}
+      style={[
+        styles.imageManifestRefRow,
+        previewUrl && (hovered || previewVisible) ? styles.imageManifestRefRowActive : null,
+      ]}
+      onHoverIn={() => {
+        setHovered(true);
+        if (previewUrl) setPreviewVisible(true);
+      }}
+      onHoverOut={() => {
+        setHovered(false);
+        setPreviewVisible(false);
+      }}
+      onFocus={() => previewUrl && setPreviewVisible(true)}
+      onBlur={() => setPreviewVisible(false)}
+      onPress={() => previewUrl && setPreviewVisible((current) => !current)}
+    >
+      <Text style={styles.imageManifestRefTitle}>
+        Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
+      </Text>
+      <Text selectable style={styles.imageManifestRefMeta}>
+        {source}/{type} · {transport}
+      </Text>
+      <Text selectable style={styles.imageManifestRefPath}>
+        {storagePath}
+      </Text>
+      {row.instructionText ? (
+        <Text selectable style={styles.imageManifestInstruction}>
+          {String(row.instructionText)}
+        </Text>
+      ) : null}
+      {previewUrl && previewVisible ? (
+        <View style={styles.imageManifestPreviewShell}>
+          <AuthenticatedAdminImagePreview
+            url={previewUrl}
+            style={styles.imageManifestPreviewImage}
+            resizeMode="contain"
+            emptyLabel="Preview unavailable"
+            iconName="image-outline"
+          />
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
   const [expanded, setExpanded] = useState(false);
   const root = recordOrNull(manifest);
@@ -615,34 +704,13 @@ function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
       <View style={styles.imageManifestRefList}>
         {refs.map((ref, index) => {
           const row = recordOrNull(ref) ?? {};
-          const name = compactManifestValue(row.characterName ?? row.environmentId ?? row.name);
-          const kind = compactManifestValue(row.referenceKind);
-          const source = compactManifestValue(row.source);
-          const type = compactManifestValue(row.type);
-          const storagePath = compactManifestValue(row.storagePath ?? row.url);
-          const transport = row.fileUri
-            ? 'fileUri'
-            : row.hasBase64Data
-              ? `base64${row.base64Bytes ? ` · ${row.base64Bytes} bytes` : ''}`
-              : 'n/a';
-
           return (
-            <View key={`${keyPrefix}-ref-${index}`} style={styles.imageManifestRefRow}>
-              <Text style={styles.imageManifestRefTitle}>
-                Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
-              </Text>
-              <Text selectable style={styles.imageManifestRefMeta}>
-                {source}/{type} · {transport}
-              </Text>
-              <Text selectable style={styles.imageManifestRefPath}>
-                {storagePath}
-              </Text>
-              {row.instructionText ? (
-                <Text selectable style={styles.imageManifestInstruction}>
-                  {String(row.instructionText)}
-                </Text>
-              ) : null}
-            </View>
+            <ImageManifestReferenceRow
+              key={`${keyPrefix}-ref-${index}`}
+              row={row}
+              index={index}
+              keyPrefix={keyPrefix}
+            />
           );
         })}
       </View>
@@ -1650,6 +1718,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: theme.colors.interactive.primary,
     paddingLeft: 10,
+    paddingVertical: 4,
+    paddingRight: 8,
+    borderRadius: 8,
+  },
+  imageManifestRefRowActive: {
+    backgroundColor: theme.colors.interactive.secondary + '66',
   },
   imageManifestRefTitle: {
     fontSize: 13,
@@ -1668,6 +1742,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: theme.colors.text.secondary,
+  },
+  imageManifestPreviewShell: {
+    marginTop: 8,
+    width: 260,
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.primary,
+  },
+  imageManifestPreviewImage: {
+    width: '100%',
+    height: 220,
   },
   imageManifestToggle: {
     alignSelf: 'flex-start',
