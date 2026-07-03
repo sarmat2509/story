@@ -87,7 +87,6 @@ function validLayoutResult(): ImageValidationResult {
     hasArtworkOutsidePanelBounds: false,
     hasArtworkOverSpeechBubbles: false,
     hasExtraPanelStructure: false,
-    hasTemplateColorResidue: false,
     layoutFeedback: 'ok',
   };
 }
@@ -97,7 +96,6 @@ function segmentedLayoutResult() {
     hasArtworkOutsidePanelBounds: false,
     hasArtworkOverSpeechBubbles: false,
     hasExtraPanelStructure: true,
-    hasTemplateColorResidue: false,
     hasTextOrLetters: false,
     hasRenderingArtifacts: false,
     layoutFeedback: 'one planned panel is visually split',
@@ -221,18 +219,17 @@ async function testLayoutChecksSchemaAndPromptAreFlagged() {
   assert.strictEqual(result.hasArtworkOutsidePanelBounds, false);
   assert.strictEqual(result.hasArtworkOverSpeechBubbles, false);
   assert.strictEqual(result.hasExtraPanelStructure, false);
-  assert.strictEqual(result.hasTemplateColorResidue, false);
   assert.strictEqual(result.layoutFeedback, 'ok');
   assert.strictEqual(primary.calls.length, 1);
   assert.match(primary.calls[0].prompt, /GRAPHIC NOVEL LAYOUT CHECKS/);
   assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOutsidePanelBounds'));
   assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOverSpeechBubbles'));
   assert.ok((primary.calls[0].schema.required || []).includes('hasExtraPanelStructure'));
-  assert.ok((primary.calls[0].schema.required || []).includes('hasTemplateColorResidue'));
+  assert.ok(!(primary.calls[0].schema.required || []).includes('hasTemplateColorResidue'));
   assert.ok((primary.calls[0].schema.required || []).includes('layoutFeedback'));
 }
 
-async function testLayoutTemplateReferenceIsAttachedForValidation() {
+async function testLayoutTemplateReferenceIsIgnoredForValidation() {
   const primary = new MockTextProvider([validLayoutResult()]);
 
   const result = await runProductImageValidation(
@@ -258,22 +255,21 @@ async function testLayoutTemplateReferenceIsAttachedForValidation() {
 
   assert.strictEqual(result.validationStatus, 'completed');
   assert.strictEqual(primary.calls.length, 1);
-  assert.match(primary.calls[0].prompt, /LAYOUT TEMPLATE REFERENCES/);
-  assert.match(primary.calls[0].prompt, /Image 2: exact page layout template/);
-  assert.match(primary.calls[0].prompt, /"Lera" -> Image 3 \[HUMAN; IDENTITY\]/);
+  assert.doesNotMatch(primary.calls[0].prompt, /LAYOUT TEMPLATE REFERENCES/);
+  assert.doesNotMatch(primary.calls[0].prompt, /layout template/i);
+  assert.match(primary.calls[0].prompt, /"Lera" -> Image 2 \[HUMAN; IDENTITY\]/);
   assert.ok(!primary.calls[0].prompt.includes('"Graphic novel page 3 layout template" ->'));
-  assert.match(primary.calls[0].imageData?.[1]?.instructionText ?? '', /LAYOUT TEMPLATE reference/);
+  assert.doesNotMatch(primary.calls[0].imageData?.[1]?.instructionText ?? '', /LAYOUT TEMPLATE/i);
   const manifest = result.requestManifest as {
     imageOrder: string[];
     references: Array<{ referenceKind: string; imageIndex: number }>;
   };
   assert.deepStrictEqual(manifest.imageOrder, [
     '1_generated_illustration',
-    '2_layout_template_Graphic novel page 3 layout template',
-    '3_identity_Lera',
-    '4_identity_Druzhok',
+    '2_identity_Lera',
+    '3_identity_Druzhok',
   ]);
-  assert.strictEqual(manifest.references[0].referenceKind, 'layout_template');
+  assert.strictEqual(manifest.references[0].referenceKind, 'identity');
   assert.strictEqual(manifest.references[0].imageIndex, 2);
 }
 
@@ -463,8 +459,19 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.doesNotMatch(leraCall.prompt, /EXPECTED CHARACTER: "Druzhok"/);
   assert.strictEqual(leraCall.imageData?.length, 2);
 
-  const manifest = result.requestManifest as { mode: string; passes: Array<{ passKind: string }> };
+  const manifest = result.requestManifest as {
+    mode: string;
+    imageOrder: string[];
+    references: Array<{ referenceKind: string }>;
+    passes: Array<{ passKind: string }>;
+  };
   assert.strictEqual(manifest.mode, 'segmented_parallel_layout_plus_character_identity');
+  assert.deepStrictEqual(manifest.imageOrder, [
+    '1_generated_illustration',
+    '2_identity_turnaround_Lera',
+    '3_identity_turnaround_Druzhok',
+  ]);
+  assert.ok(manifest.references.every((ref) => ref.referenceKind !== 'layout_template'));
   assert.deepStrictEqual(manifest.passes.map((pass) => pass.passKind).sort(), [
     'character_identity',
     'character_identity',
@@ -476,7 +483,7 @@ async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
   await testLayoutChecksSchemaAndPromptAreFlagged();
-  await testLayoutTemplateReferenceIsAttachedForValidation();
+  await testLayoutTemplateReferenceIsIgnoredForValidation();
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
   await testSegmentedValidationRunsLayoutAndPerCharacterPasses();

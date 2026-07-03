@@ -156,13 +156,13 @@ function testLayoutChecksAreFlaggedRuntimeOnly() {
   assert.ok(withLayout.includes('hasArtworkOutsidePanelBounds=true'));
   assert.ok(withLayout.includes('hasArtworkOverSpeechBubbles=true'));
   assert.ok(withLayout.includes('hasExtraPanelStructure=true'));
-  assert.ok(withLayout.includes('hasTemplateColorResidue=true'));
-  assert.ok(withLayout.includes('color-coded guide-template fill'));
   assert.ok(withLayout.includes('exactly N panels'));
   assert.ok(withLayout.includes('layoutFeedback'));
+  assert.ok(!withLayout.includes('hasTemplateColorResidue'));
+  assert.ok(!withLayout.includes('color-coded guide-template fill'));
 }
 
-function testLayoutTemplateReferenceIsNotCharacterMapping() {
+function testLayoutTemplateReferenceIsIgnored() {
   const runtime = buildImageValidationRuntimePrompt({
     expectedCharacters: [{ name: 'Mia', characterKind: 'human' }],
     referenceImages: [
@@ -177,12 +177,10 @@ function testLayoutTemplateReferenceIsNotCharacterMapping() {
     includeBubbleChecks: false,
   });
 
-  assert.ok(
-    runtime.includes('Image 2: layout template reference for the generated graphic novel page')
-  );
-  assert.ok(runtime.includes('LAYOUT TEMPLATE REFERENCES'));
-  assert.ok(runtime.includes('Compare Image 1 against the listed layout template reference'));
-  assert.ok(runtime.includes('"Mia" -> Image 3 [HUMAN; IDENTITY]'));
+  assert.ok(!runtime.includes('layout template reference for the generated graphic novel page'));
+  assert.ok(!runtime.includes('LAYOUT TEMPLATE REFERENCES'));
+  assert.ok(!runtime.includes('Compare Image 1 against the listed layout template reference'));
+  assert.ok(runtime.includes('"Mia" -> Image 2 [HUMAN; IDENTITY]'));
   assert.ok(!runtime.includes('"Graphic novel page 3 layout template" ->'));
   assert.ok(!runtime.includes('hasArtworkOverSpeechBubbles=true'));
 }
@@ -211,6 +209,6 @@ testSubtypeOnlyWhenProvided();
 testValidationMappingFallback();
 testNfcNameMatchingBetweenRosterAndRefs();
 testLayoutChecksAreFlaggedRuntimeOnly();
-testLayoutTemplateReferenceIsNotCharacterMapping();
+testLayoutTemplateReferenceIsIgnored();
 testTurnaroundIdentityReferenceIsExplicit();
 console.log('imageValidationPromptKind tests passed');

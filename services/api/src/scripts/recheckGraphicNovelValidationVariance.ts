@@ -29,8 +29,6 @@ import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
 import { getImageValidationCachedPrefix } from '../prompts/image/ImageValidationPrompt';
 import {
-  detectGraphicNovelTemplateColorResidue,
-  renderGraphicNovelPageTemplate,
   type GraphicNovelPanelScript,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
@@ -67,7 +65,7 @@ type ValidationReferenceImage = {
   characterName: string;
   imageData?: string;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
-  referenceKind: 'identity' | 'layout_template';
+  referenceKind: 'identity';
   identitySource?: 'turnaround' | 'reference_photo';
 };
 
@@ -248,7 +246,7 @@ function buildGraphicNovelPageValidationSceneVisual(
 
   return {
     setting: [
-      `Graphic novel page ${page.pageNumber} using template ${page.template.id}.`,
+      `Graphic novel page ${page.pageNumber} using model-chosen free layout ${page.template.id}.`,
       `The page must visually contain exactly ${page.panels.length} panels, no more and no fewer.`,
       includeBubbleChecks
         ? 'Validate that each planned panel is one continuous illustration/story moment, artwork stays inside panel boxes, and artwork does not cover reserved/server-rendered bubbles.'
@@ -281,14 +279,7 @@ async function buildValidationReferenceImages(params: {
   characters: GraphicNovelCharacterManifest;
 }): Promise<ValidationReferenceImage[]> {
   const pageNames = buildPageCharacterNames(params.page);
-  const refs: ValidationReferenceImage[] = [
-    {
-      characterName: `Graphic novel page ${params.page.pageNumber} layout template`,
-      imageData: (await renderGraphicNovelPageTemplate(params.page)).toString('base64'),
-      mimeType: 'image/png',
-      referenceKind: 'layout_template',
-    },
-  ];
+  const refs: ValidationReferenceImage[] = [];
 
   const seenStoragePaths = new Set<string>();
   for (const character of params.characters) {
@@ -308,31 +299,6 @@ async function buildValidationReferenceImages(params: {
   }
 
   return refs;
-}
-
-function applyTemplateResidueCheck(
-  validation: ImageValidationResult,
-  residue: Awaited<ReturnType<typeof detectGraphicNovelTemplateColorResidue>>
-): void {
-  if (!residue.hasResidue) return;
-  validation.hasTemplateColorResidue = true;
-  (
-    validation as ImageValidationResult & {
-      templateColorResidueDetails?: typeof residue;
-    }
-  ).templateColorResidueDetails = residue;
-  const residueSummary = residue.panels
-    .filter((panel) => panel.matchedPixels > 0)
-    .map(
-      (panel) =>
-        `panel ${panel.panelIndex} ${panel.guideColor}: ${panel.matchedPixels} px (${(panel.ratio * 100).toFixed(2)}%)`
-    )
-    .join('; ');
-  validation.layoutFeedback =
-    validation.layoutFeedback && validation.layoutFeedback !== 'ok'
-      ? `${validation.layoutFeedback}; server pixel check found color-template residue: ${residueSummary}`
-      : `server pixel check found color-template residue: ${residueSummary}`;
-  validation.overallFeedback = `${validation.overallFeedback || 'Validation completed.'} Server pixel check found leftover color-template residue.`;
 }
 
 function summarizeCharacter(result: ImageValidationResult, name: string) {
@@ -471,12 +437,6 @@ function fullValidationAttachmentInstruction(params: {
     return 'Image 1: GENERATED ILLUSTRATION to inspect. Validate this image against the expected roster and references that follow.';
   }
   const name = params.characterName || 'unknown';
-  if (params.referenceKind === 'layout_template') {
-    return `Image ${params.imageIndex}: LAYOUT TEMPLATE reference. Use this as the exact page geometry for the generated graphic novel page: outer page aspect, panel rectangles, black frames, gutters, row/column splits, and color guide areas that should be fully covered by final art.`;
-  }
-  if (params.referenceKind === 'outfit_plate') {
-    return `Image ${params.imageIndex}: OUTFIT PLATE for "${name}". Clothing only. Use this as the strongest wardrobe ground truth for this character in the generated illustration.`;
-  }
   if (params.identitySource === 'turnaround') {
     return `Image ${params.imageIndex}: IDENTITY TURNAROUND model sheet for "${name}". This is strict multi-view identity ground truth for face/head read, hairstyle, hair color zones, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
   }
@@ -697,8 +657,6 @@ async function runSegmentedValidation(params: {
         recordModeration: false,
       }
     );
-    const residue = await detectGraphicNovelTemplateColorResidue(params.image.buffer, params.page);
-    applyTemplateResidueCheck(validation, residue);
     const referenceNamesNormalized = new Set(
       params.referenceImages
         .filter((ref) => ref.referenceKind === 'identity')
@@ -722,7 +680,6 @@ async function runSegmentedValidation(params: {
       passCount: Array.isArray(validation.requestManifest?.passes)
         ? validation.requestManifest.passes.length
         : null,
-      hasTemplateColorResidue: validation.hasTemplateColorResidue ?? false,
       layoutFeedback: validation.layoutFeedback ?? null,
       emilia: summarizeCharacter(validation, 'Емілія'),
       flash: summarizeCharacter(validation, 'Флеш'),
@@ -905,8 +862,6 @@ async function main(): Promise<void> {
         }
       );
 
-      const residue = await detectGraphicNovelTemplateColorResidue(image.buffer, page);
-      applyTemplateResidueCheck(validation, residue);
       const score =
         validation.validationStatus === 'provider_blocked'
           ? null
@@ -923,7 +878,6 @@ async function main(): Promise<void> {
         validationStatus: validation.validationStatus ?? 'completed',
         validationModelUsed: validation.validationModelUsed ?? null,
         validationAttemptKind: validation.validationAttemptKind ?? null,
-        hasTemplateColorResidue: validation.hasTemplateColorResidue ?? false,
         layoutFeedback: validation.layoutFeedback ?? null,
         emilia: summarizeCharacter(validation, 'Емілія'),
         flash: summarizeCharacter(validation, 'Флеш'),

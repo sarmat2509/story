@@ -66,9 +66,6 @@ function validationRefLabel(
   ref: NonNullable<ImageValidationPromptParams['referenceImages']>[number],
   imageIndex: number
 ): string {
-  if (ref.referenceKind === 'layout_template') {
-    return `Image ${imageIndex}: layout template reference for the generated graphic novel page`;
-  }
   const role =
     ref.referenceKind === 'outfit_plate'
       ? 'outfit plate'
@@ -171,7 +168,9 @@ Output JSON rules:
 export function buildImageValidationRuntimePrompt(params: ImageValidationPromptParams): string {
   const { expectedCharacters } = params;
   const refs =
-    params.referenceImages && params.referenceImages.length > 0 ? params.referenceImages : [];
+    params.referenceImages && params.referenceImages.length > 0
+      ? params.referenceImages.filter((ref) => ref.referenceKind !== 'layout_template')
+      : [];
 
   const characterList =
     expectedCharacters.length > 0
@@ -220,30 +219,10 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
           })
           .join('\n')
       : 'None';
-  const layoutTemplateReferences = refs
-    .map((ref, i) =>
-      ref.referenceKind === 'layout_template'
-        ? `Image ${i + 2}: exact page layout template. Use it to compare outer page aspect ratio, panel rectangles, frames, gutters, row/column splits, and leftover color guide residue.`
-        : null
-    )
-    .filter((line): line is string => line != null);
-  const layoutTemplateReferenceText =
-    params.includeLayoutChecks && layoutTemplateReferences.length > 0
-      ? `LAYOUT TEMPLATE REFERENCES:\n${layoutTemplateReferences.join('\n')}`
-      : '';
   const includeBubbleChecks = params.includeBubbleChecks !== false;
   const layoutChecks = params.includeLayoutChecks
     ? [
         'GRAPHIC NOVEL LAYOUT CHECKS:',
-        layoutTemplateReferences.length > 0
-          ? '- Compare Image 1 against the listed layout template reference: same outer page shape, same panel rectangles, same black frame positions, same gutter positions, and same row/column splits.'
-          : '',
-        layoutTemplateReferences.length > 0
-          ? '- Set hasExtraPanelStructure=true for any missing panel, extra panel, merged panel, split planned panel, fake divider, or scene boundary that does not exist in the layout template reference.'
-          : '',
-        layoutTemplateReferences.length > 0
-          ? '- Set hasArtworkOutsidePanelBounds=true when final art occupies template gutters/margins or fails to stay inside the panel interiors shown by the layout template reference.'
-          : '',
         includeBubbleChecks
           ? '- Inspect panel boxes, gutters, page margins, speech bubbles, thought bubbles, caption boxes, bubble tails, outlines, and printed bubble text.'
           : '- Inspect panel boxes, gutters, and page margins. This is an art-only page before server-rendered bubbles, so do not evaluate bubble overlap.',
@@ -251,8 +230,7 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
         includeBubbleChecks
           ? '- Set hasArtworkOverSpeechBubbles=true if any illustration artwork, character, prop, background, color, shadow, or texture overlaps, covers, touches in a confusing way, or reduces readability of any speech/thought/caption bubble, bubble tail, outline, or bubble text.'
           : '',
-        '- Set hasExtraPanelStructure=true if the generated page visually contains extra panels or extra scenes beyond the planned template: fake gutters, extra black/white dividers, inset panels, split-screen cuts, or one planned panel split into multiple different locations, camera shots, or sequential story beats.',
-        '- Set hasTemplateColorResidue=true if any color-coded guide-template fill is still visible in the artwork: sky-blue, peach, mint-green, lavender, butter-yellow, rose-pink, or similar flat template colors appearing as strips, blocks, bands, unpainted edges, or patches behind/around the illustration.',
+        '- Set hasExtraPanelStructure=true if the generated page visually contains extra panels or extra scenes beyond the requested page structure: fake gutters, extra black/white dividers, inset panels, split-screen cuts, or one planned panel split into multiple different locations, camera shots, or sequential story beats.',
         '- If the scene brief says "exactly N panel boxes", the generated page must visually read as exactly N panels. A planned panel may contain rich composition, but it must remain one continuous illustration and one story moment.',
         includeBubbleChecks
           ? '- Do not count the black panel frames, gutters, bubble outlines, bubble fills, bubble tails, or printed bubble text themselves as artwork.'
@@ -277,7 +255,6 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
     params.sceneContext ? `AUTHORITATIVE DESIGNER SCENE BRIEF:\n${params.sceneContext}` : '',
     `IMAGE ORDER:\n${imageOrder}`,
     `VALIDATION MAPPING:\n${validationMapping}`,
-    layoutTemplateReferenceText,
     layoutChecks,
   ]
     .filter(Boolean)

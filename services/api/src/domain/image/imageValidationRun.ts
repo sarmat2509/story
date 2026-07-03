@@ -102,7 +102,6 @@ type SegmentedLayoutValidationResult = {
   hasArtworkOutsidePanelBounds: boolean;
   hasArtworkOverSpeechBubbles?: boolean;
   hasExtraPanelStructure: boolean;
-  hasTemplateColorResidue: boolean;
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
   layoutFeedback: string;
@@ -251,10 +250,6 @@ function buildValidationImageInstruction(params: {
     return `Image ${params.imageIndex}: OUTFIT PLATE for "${name}". Clothing only. Use this as the strongest wardrobe ground truth for this character in the generated illustration.`;
   }
 
-  if (params.referenceKind === 'layout_template') {
-    return `Image ${params.imageIndex}: LAYOUT TEMPLATE reference. Use this as the exact page geometry for the generated graphic novel page: outer page aspect, panel rectangles, black frames, gutters, row/column splits, and color guide areas that should be fully covered by final art.`;
-  }
-
   if (params.identitySource === 'turnaround') {
     return `Image ${params.imageIndex}: IDENTITY TURNAROUND model sheet for "${name}". This is strict multi-view identity ground truth for face/head read, hairstyle, hair color zones, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
   }
@@ -386,9 +381,6 @@ export function normalizeImageValidationResult(
   }
   if (includeLayoutChecks && out.hasExtraPanelStructure == null) {
     out.hasExtraPanelStructure = false;
-  }
-  if (includeLayoutChecks && out.hasTemplateColorResidue == null) {
-    out.hasTemplateColorResidue = false;
   }
   if (includeLayoutChecks && out.layoutFeedback == null) {
     out.layoutFeedback = 'not_requested';
@@ -559,7 +551,6 @@ function buildSegmentedLayoutSchema(includeBubbleChecks: boolean): JsonSchema {
       'hasArtworkOutsidePanelBounds',
       'hasArtworkOverSpeechBubbles',
       'hasExtraPanelStructure',
-      'hasTemplateColorResidue',
       'hasTextOrLetters',
       'hasRenderingArtifacts',
       'layoutFeedback',
@@ -571,7 +562,6 @@ function buildSegmentedLayoutSchema(includeBubbleChecks: boolean): JsonSchema {
         ? { type: 'boolean' }
         : { type: ['boolean', 'null'] },
       hasExtraPanelStructure: { type: 'boolean' },
-      hasTemplateColorResidue: { type: 'boolean' },
       hasTextOrLetters: { type: 'boolean' },
       hasRenderingArtifacts: { type: 'boolean' },
       layoutFeedback: { type: 'string' },
@@ -596,7 +586,7 @@ function buildSegmentedCharacterPrompt(params: {
     params.outfitReference
       ? `Image ${params.identityReference ? 3 : 2} is the outfit plate. Use it only for clothing/wardrobe.`
       : '',
-    'Ignore page layout, panel geometry, bubbles, template residue, story pacing, and all other named characters except for duplicates of this same character.',
+    'Ignore page layout, panel geometry, bubbles, story pacing, and all other named characters except for duplicates of this same character.',
     'For comics/graphic novel pages, the same character may appear in multiple separate panels as normal sequential storytelling; do not mark duplicated=true for that. duplicated=true only means an unintended extra clone/copy in the same panel or same story moment.',
     'Decision order:',
     '1. Search all of Image 1 for a candidate matching this exact named character.',
@@ -633,7 +623,6 @@ function buildSegmentedCharacterPrompt(params: {
 function buildSegmentedLayoutPrompt(params: {
   sceneVisual: SceneVisual;
   includeBubbleChecks: boolean;
-  hasLayoutTemplate: boolean;
 }): string {
   const visual = params.sceneVisual;
   const shot =
@@ -643,15 +632,12 @@ function buildSegmentedLayoutPrompt(params: {
   return [
     'Task: validate layout/artifact quality for Image 1 only.',
     'Do not validate character identity, outfit, pose, or story semantics in this pass.',
-    params.hasLayoutTemplate
-      ? 'Image 2 is the exact layout template. Compare page aspect, panel rectangles, black frames, gutters, row/column splits, and leftover color guide residue.'
-      : 'No layout template image is attached; use only the page brief below.',
+    'No preset layout guide is attached; use only the page brief below and the visible generated page structure.',
     'Set hasExtraPanelStructure=true for missing panels, extra panels, merged/split planned panels, fake dividers, inset panels, or one planned panel split into multiple story beats.',
     'Set hasArtworkOutsidePanelBounds=true when artwork spills into gutters/margins or crosses intended panel boxes.',
     params.includeBubbleChecks
       ? 'Set hasArtworkOverSpeechBubbles=true when art covers, touches confusingly, or reduces readability of speech/thought/caption bubbles, bubble tails, outlines, or bubble text.'
       : 'This is an art-only page before server-rendered bubbles; set hasArtworkOverSpeechBubbles=false unless a real rendered text bubble is already present and visibly covered.',
-    'Set hasTemplateColorResidue=true when guide colors remain visible: sky-blue, peach, mint-green, lavender, butter-yellow, rose-pink, or similar flat template patches.',
     'Set hasTextOrLetters=true for unwanted visible text/letters inside the artwork.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts. Do not use it for ordinary style choices.',
     '',
@@ -935,7 +921,7 @@ export async function runSegmentedProductImageValidation(
     config.image.validationSceneMaxSide
   );
 
-  const preparedReferenceImages =
+  const preparedReferenceImagesRaw =
     input.referenceImages && input.referenceImages.length > 0
       ? await Promise.all(
           input.referenceImages.map(async (ref) => {
@@ -959,9 +945,9 @@ export async function runSegmentedProductImageValidation(
         )
       : undefined;
 
-  const layoutTemplateReference = preparedReferenceImages?.find(
-    (ref) => ref.referenceKind === 'layout_template'
-  );
+  const preparedReferenceImages =
+    preparedReferenceImagesRaw?.filter((ref) => ref.referenceKind !== 'layout_template') ??
+    undefined;
   const characterReferences =
     preparedReferenceImages?.filter((ref) => ref.referenceKind !== 'layout_template') ?? [];
   const sceneOutfitText = input.sceneCharacterOutfitsText?.trim();
@@ -978,7 +964,9 @@ export async function runSegmentedProductImageValidation(
     version: 1,
     validationSystemInstruction: 'image_validation_segmented_v1',
     operation,
-    mode: 'segmented_parallel_layout_plus_character_identity',
+    mode: input.includeLayoutChecks
+      ? 'segmented_parallel_layout_plus_character_identity'
+      : 'segmented_parallel_character_identity',
     includeLayoutChecks: input.includeLayoutChecks === true,
     includeBubbleChecks,
     imageOrder,
@@ -1029,7 +1017,9 @@ export async function runSegmentedProductImageValidation(
       referenceCount: preparedReferenceImages?.length ?? 0,
       imageOrderToModel: imageOrder,
     },
-    'Segmented image validation: sending layout and per-character passes to Vision model'
+    input.includeLayoutChecks
+      ? 'Segmented image validation: sending layout and per-character passes to Vision model'
+      : 'Segmented image validation: sending per-character passes to Vision model'
   );
 
   const layoutPromise = input.includeLayoutChecks
@@ -1043,7 +1033,6 @@ export async function runSegmentedProductImageValidation(
         prompt: buildSegmentedLayoutPrompt({
           sceneVisual: input.sceneVisual,
           includeBubbleChecks,
-          hasLayoutTemplate: !!layoutTemplateReference,
         }),
         schema: buildSegmentedLayoutSchema(includeBubbleChecks),
         imageData: [
@@ -1051,7 +1040,6 @@ export async function runSegmentedProductImageValidation(
             preparedGeneratedImage,
             'Image 1: GENERATED PAGE. Validate layout/artifact quality only.'
           ),
-          ...(layoutTemplateReference ? [imageDataForReference(layoutTemplateReference, 2)] : []),
         ],
         input,
         operation,
@@ -1166,7 +1154,6 @@ export async function runSegmentedProductImageValidation(
     validation.hasArtworkOverSpeechBubbles =
       layout?.hasArtworkOverSpeechBubbles ?? (includeBubbleChecks ? false : undefined);
     validation.hasExtraPanelStructure = layout?.hasExtraPanelStructure ?? false;
-    validation.hasTemplateColorResidue = layout?.hasTemplateColorResidue ?? false;
     validation.layoutFeedback = layoutProviderBlocked
       ? `provider-blocked: ${layoutPass?.providerError || 'no layout verdict'}`
       : layout?.layoutFeedback || 'ok';
@@ -1207,10 +1194,13 @@ export async function runProductImageValidation(
     config.image.validationSceneMaxSide
   );
 
+  const validationReferenceImages =
+    input.referenceImages?.filter((ref) => ref.referenceKind !== 'layout_template');
+
   const preparedReferenceImages =
-    input.referenceImages && input.referenceImages.length > 0
+    validationReferenceImages && validationReferenceImages.length > 0
       ? await Promise.all(
-          input.referenceImages.map(async (ref) => {
+          validationReferenceImages.map(async (ref) => {
             if (!ref.imageData) return ref;
             const prepared = await prepareImageForValidation(
               Buffer.from(ref.imageData, 'base64'),
@@ -1300,7 +1290,7 @@ export async function runProductImageValidation(
   }
 
   const outfitLine = input.sceneCharacterOutfitsText?.trim();
-  const hasReferenceImages = (input.referenceImages?.length ?? 0) > 0;
+  const hasReferenceImages = (preparedReferenceImages?.length ?? 0) > 0;
   const cachedPrefix = getImageValidationCachedPrefix(hasReferenceImages);
 
   const imageOrder = [
@@ -1561,7 +1551,6 @@ export async function runProductImageValidation(
       blockedResult.hasArtworkOverSpeechBubbles = false;
     }
     blockedResult.hasExtraPanelStructure = false;
-    blockedResult.hasTemplateColorResidue = false;
     blockedResult.layoutFeedback = 'provider_blocked_no_layout_verdict';
   }
   return blockedResult;
