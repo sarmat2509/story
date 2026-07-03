@@ -6,7 +6,9 @@ import { inferReferenceKind } from '../utils/referenceImageKind';
 export type { ReferenceImageKind };
 
 export function isPlaceholderReferenceName(name?: string | null): boolean {
-  const base = stripCharacterIdFromName(name || '').trim().toLowerCase();
+  const base = stripCharacterIdFromName(name || '')
+    .trim()
+    .toLowerCase();
   return base === 'unknown' || base === 'unnamed';
 }
 
@@ -17,17 +19,19 @@ export function isPlaceholderReferenceName(name?: string | null): boolean {
  */
 export function buildPlaceholderReferenceNameMap(
   referenceNames: Array<string | undefined | null>,
-  candidateCharacterNames: Array<string | undefined | null>,
+  candidateCharacterNames: Array<string | undefined | null>
 ): Map<string, string> {
   const explicitReferenceNames = new Set(
     referenceNames
-      .filter((name): name is string => typeof name === 'string' && !isPlaceholderReferenceName(name))
+      .filter(
+        (name): name is string => typeof name === 'string' && !isPlaceholderReferenceName(name)
+      )
       .map((name) => stripCharacterIdFromName(name).trim().toLowerCase())
-      .filter(Boolean),
+      .filter(Boolean)
   );
 
   const placeholderRefs = referenceNames.filter(
-    (name): name is string => typeof name === 'string' && isPlaceholderReferenceName(name),
+    (name): name is string => typeof name === 'string' && isPlaceholderReferenceName(name)
   );
 
   const unmatchedCandidates: string[] = [];
@@ -35,7 +39,8 @@ export function buildPlaceholderReferenceNameMap(
   for (const candidate of candidateCharacterNames) {
     if (typeof candidate !== 'string') continue;
     const normalized = stripCharacterIdFromName(candidate).trim().toLowerCase();
-    if (!normalized || seenCandidates.has(normalized) || explicitReferenceNames.has(normalized)) continue;
+    if (!normalized || seenCandidates.has(normalized) || explicitReferenceNames.has(normalized))
+      continue;
     seenCandidates.add(normalized);
     unmatchedCandidates.push(candidate);
   }
@@ -63,6 +68,7 @@ export type ReferenceImageDataEntry = {
   charactersPresent?: string[];
   sceneId?: number;
   referenceEnvironmentId?: string;
+  outfitId?: string;
   storagePath?: string;
 };
 
@@ -74,7 +80,7 @@ export type ReferenceImageDataEntry = {
 export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
   refs: T[],
   maxCharacter: number,
-  maxObject: number,
+  maxObject: number
 ): {
   trimmed: T[];
   droppedCharacterCount: number;
@@ -89,7 +95,7 @@ export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
     (r) =>
       inferReferenceKind(r) !== 'character' &&
       r.source !== 'environment' &&
-      r.source !== 'outfit_plate',
+      r.source !== 'outfit_plate'
   );
 
   const charsKept = chars.slice(0, Math.max(0, maxCharacter));
@@ -102,7 +108,7 @@ export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
   const envKept = objectsKept.filter((r) => r.source === 'environment');
   const platesKept = objectsKept.filter((r) => r.source === 'outfit_plate');
   const otherKept = objectsKept.filter(
-    (r) => r.source !== 'environment' && r.source !== 'outfit_plate',
+    (r) => r.source !== 'environment' && r.source !== 'outfit_plate'
   );
 
   const trimmed = [...envKept, ...charsKept, ...platesKept, ...otherKept] as T[];
@@ -119,9 +125,7 @@ export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
 /**
  * Assign sequential 1-based imageIndex and character name → index map (first sheet per name).
  */
-export function assignSequentialImageIndices(
-  refs: ReferenceImageDataEntry[],
-): Map<string, number> {
+export function assignSequentialImageIndices(refs: ReferenceImageDataEntry[]): Map<string, number> {
   const imageIndexMap = new Map<string, number>();
   let imageIndex = 1;
   for (const ref of refs) {
@@ -150,12 +154,13 @@ export function assignSequentialImageIndices(
  * Stores both full name and ID-stripped base when they differ (matches lookupOutfitForCharacterName keys).
  */
 export function collectOutfitPlateImageIndices(
-  refs: Array<{ source?: string; characterName?: string; imageIndex?: number }> | undefined,
+  refs: Array<{ source?: string; characterName?: string; imageIndex?: number }> | undefined
 ): Map<string, number> {
   const m = new Map<string, number>();
   if (!refs) return m;
   for (const r of refs) {
-    if (r.source !== 'outfit_plate' || !r.characterName || typeof r.imageIndex !== 'number') continue;
+    if (r.source !== 'outfit_plate' || !r.characterName || typeof r.imageIndex !== 'number')
+      continue;
     m.set(r.characterName, r.imageIndex);
     const base = stripCharacterIdFromName(r.characterName).trim();
     if (base && base !== r.characterName) {
@@ -186,6 +191,6 @@ export function logReferenceBucketDelivery(params: {
         totalAfterTrim: params.totalAfterTrim,
       },
     },
-    'Reference images delivered to image provider (bucket policy)',
+    'Reference images delivered to image provider (bucket policy)'
   );
 }

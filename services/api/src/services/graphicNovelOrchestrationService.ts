@@ -25,7 +25,7 @@ import {
   getMixedStoryDomainService,
   getValidationTextProvider,
 } from './aiService';
-import type { StoryEnvironment } from '../ai/types';
+import type { StoryEnvironment, StoryOutfitRow } from '../ai/types';
 import { recordUsage } from './aiUsageService';
 import {
   STORY_TASKS,
@@ -85,12 +85,18 @@ import type { CharacterData, SceneVisual } from './types';
 import type { ReferenceImage } from '../providers/base/IImageProvider';
 import { getOrCreateEnvironmentImage } from './environmentReferenceImageService';
 import {
+  getOrCreateOutfitPlateImage,
+  normalizeOutfitPlateCharacterKey,
+  shouldGenerateOutfitPlateForCharacter,
+} from './outfitPlateService';
+import {
   countNarrationWords,
   extractClosingKeepsakeFromEpisodeText,
   stripAllTags,
   stripCharacterIds,
   stripForAudio,
 } from '../utils/audioTags';
+import { isNaturalAppearanceOutfit } from '../utils/characterOutfits';
 import { getPlanFeatures } from './planService';
 import { getIllustrationBlockStartSceneIds } from './storyOrchestration/utilities';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
@@ -167,6 +173,7 @@ type GraphicNovelReferenceImage = ReferenceImage & {
   isTurnaround?: boolean;
   identitySource?: 'turnaround' | 'reference_photo';
   environmentId?: string;
+  outfitId?: string;
   storagePath?: string;
 };
 
@@ -205,9 +212,7 @@ function annotateGraphicNovelRequestManifest(
   };
 }
 
-function compactGraphicNovelRequestManifests(
-  ...manifests: unknown[]
-): Record<string, unknown>[] {
+function compactGraphicNovelRequestManifests(...manifests: unknown[]): Record<string, unknown>[] {
   return manifests.filter(
     (manifest): manifest is Record<string, unknown> =>
       !!manifest && typeof manifest === 'object' && !Array.isArray(manifest)
@@ -1432,17 +1437,231 @@ async function buildPageCharacterReferenceImages(params: {
   return references;
 }
 
+function characterManifestForPageName(
+  characters: GraphicNovelCharacterManifest,
+  pageName: string
+): GraphicNovelCharacterManifest[number] | undefined {
+  const pageNameKey = normalizeCharacterName(pageName);
+  return characters.find((character) => {
+    const names = [
+      character.name,
+      character.canonicalName,
+      ...(character.nameAliases || []),
+    ].filter((value): value is string => !!value);
+    return names.some((name) => normalizeCharacterName(name) === pageNameKey);
+  });
+}
+
+function characterHasPageReference(
+  characterName: string,
+  characterReferences: GraphicNovelReferenceImage[]
+): boolean {
+  const nameKey = normalizeCharacterName(characterName);
+  return characterReferences.some((reference) => {
+    if (reference.referenceKind !== 'character' || !reference.characterName) return false;
+    return normalizeCharacterName(reference.characterName) === nameKey;
+  });
+}
+
+function collectGraphicNovelOutfitRequests(params: {
+  page: PlannedGraphicNovelPage;
+  characters: GraphicNovelCharacterManifest;
+  characterReferences: GraphicNovelReferenceImage[];
+}): Array<{
+  characterName: string;
+  outfit: StoryOutfitRow;
+  environmentId: string;
+}> {
+  const outfitsById = new Map((params.page.outfits || []).map((outfit) => [outfit.id, outfit]));
+  const seen = new Set<string>();
+  const requests: Array<{
+    characterName: string;
+    outfit: StoryOutfitRow;
+    environmentId: string;
+  }> = [];
+
+  for (const panel of params.page.panels) {
+    const composition = panel.script.visual.sceneVisual.cameraComposition;
+    if (typeof composition === 'string') continue;
+
+    for (const character of composition.characters) {
+      if (!character.outfitId) continue;
+      const outfit = outfitsById.get(character.outfitId);
+      if (!outfit?.description?.trim()) continue;
+      if (isNaturalAppearanceOutfit(outfit.description)) continue;
+      if (!characterHasPageReference(character.name, params.characterReferences)) continue;
+
+      const manifestCharacter = characterManifestForPageName(params.characters, character.name);
+      if (
+        !manifestCharacter ||
+        !shouldGenerateOutfitPlateForCharacter(manifestCharacter as CharacterData)
+      ) {
+        continue;
+      }
+
+      const key = [normalizeCharacterName(character.name), outfit.id].join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      requests.push({
+        characterName: character.name,
+        outfit,
+        environmentId: panel.script.visual.environmentId,
+      });
+    }
+  }
+
+  return requests;
+}
+
+async function buildPageOutfitReferenceImages(params: {
+  storyId: string;
+  storyRequestId?: string;
+  userId: string;
+  page: PlannedGraphicNovelPage;
+  characters: GraphicNovelCharacterManifest;
+  characterReferences: GraphicNovelReferenceImage[];
+  imageDomain: ReturnType<typeof getComplexImageDomainService>;
+  imageStyle: string;
+  ageGroup: string;
+  scenarioCardId?: string;
+  generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
+}): Promise<GraphicNovelReferenceImage[]> {
+  if (!config.image.enableOutfitPlate) return [];
+
+  const assetStorage = getAssetStorageService();
+  const requests = collectGraphicNovelOutfitRequests({
+    page: params.page,
+    characters: params.characters,
+    characterReferences: params.characterReferences,
+  });
+  const references: GraphicNovelReferenceImage[] = [];
+
+  for (const request of requests) {
+    const startedAt = new Date();
+    let plate: Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null = null;
+    try {
+      plate = await getOrCreateOutfitPlateImage({
+        storyId: params.storyId,
+        userId: params.userId,
+        storyEnvironmentId: request.environmentId,
+        characterName: request.characterName,
+        outfitTextRaw: request.outfit.description,
+        outfitId: request.outfit.id,
+        imageStyle: params.imageStyle,
+        ageGroup: params.ageGroup,
+        scenarioCardId: params.scenarioCardId,
+        assetStorage,
+      });
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'outfit_plate_image',
+        targetType: 'outfit_plate',
+        targetKey: `${request.environmentId}:${normalizeOutfitPlateCharacterKey(request.characterName)}:${request.outfit.id}`,
+        status: plate ? 'completed' : 'skipped',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_page_reference',
+          characterName: request.characterName,
+          storyEnvironmentId: request.environmentId,
+          outfitId: request.outfit.id,
+          imageStyle: params.imageStyle,
+          scenarioCardId: params.scenarioCardId,
+        },
+      });
+    } catch (error) {
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'outfit_plate_image',
+        targetType: 'outfit_plate',
+        targetKey: `${request.environmentId}:${normalizeOutfitPlateCharacterKey(request.characterName)}:${request.outfit.id}`,
+        status: 'failed',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_page_reference',
+          characterName: request.characterName,
+          storyEnvironmentId: request.environmentId,
+          outfitId: request.outfit.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      logger.warn(
+        {
+          err: error,
+          storyId: params.storyId,
+          pageNumber: params.page.pageNumber,
+          characterName: request.characterName,
+          outfitId: request.outfit.id,
+        },
+        'Failed to prepare graphic novel outfit plate reference'
+      );
+      continue;
+    }
+
+    if (!plate) continue;
+
+    let fileUri = plate.fileUri;
+    if (config.nanoBanana?.enableFilesApi === true && plate.base64) {
+      try {
+        const uploaded = await params.imageDomain.uploadReferenceFile(
+          Buffer.from(plate.base64, 'base64'),
+          plate.mimeType || 'image/png',
+          `graphic_novel_outfit_${normalizeOutfitPlateCharacterKey(request.characterName)}`,
+          plate.storagePath
+        );
+        fileUri = uploaded?.uri || fileUri;
+      } catch (error) {
+        logger.warn(
+          {
+            err: error,
+            storyId: params.storyId,
+            pageNumber: params.page.pageNumber,
+            characterName: request.characterName,
+            outfitId: request.outfit.id,
+          },
+          'Failed to upload graphic novel outfit plate reference'
+        );
+      }
+    }
+
+    references.push({
+      base64Data: fileUri ? undefined : plate.base64,
+      fileUri,
+      mimeType: plate.mimeType || 'image/png',
+      referenceKind: 'object',
+      characterName: request.characterName,
+      source: 'outfit_plate',
+      type: 'outfit_plate_reference',
+      outfitId: request.outfit.id,
+      storagePath: plate.storagePath,
+    });
+  }
+
+  return references;
+}
+
 function buildGraphicNovelReferenceInstruction(
   reference: GraphicNovelReferenceImage,
   imageIndex: number
 ): string {
   const imgLabel = `Image ${imageIndex}`;
+  if (reference.source === 'outfit_plate') {
+    return `${imgLabel}: Outfit reference for "${reference.characterName || 'character'}".`;
+  }
   if (reference.referenceKind === 'object' || reference.source === 'environment') {
-    return `${imgLabel}: Environment reference for "${reference.characterName || reference.environmentId || 'location'}". Reusable location structure, background objects, materials, and color continuity.`;
+    return `${imgLabel}: Environment reference for "${reference.characterName || reference.environmentId || 'location'}".`;
   }
 
-  const sourceKind = reference.isTurnaround ? 'Character sheet' : 'Reference photo';
-  return `${imgLabel}: Character reference for "${reference.characterName || 'character'}". ${sourceKind}.`;
+  return `${imgLabel}: Character reference for "${reference.characterName || 'character'}".`;
 }
 
 function prepareGraphicNovelPageReferences(params: {
@@ -1450,6 +1669,7 @@ function prepareGraphicNovelPageReferences(params: {
   pageNumber: number;
   environmentReferences: GraphicNovelReferenceImage[];
   characterReferences: GraphicNovelReferenceImage[];
+  outfitReferences?: GraphicNovelReferenceImage[];
 }): GraphicNovelReferenceImage[] {
   const bucketInput: ReferenceImageDataEntry[] = [
     ...params.environmentReferences.map((ref) => ({
@@ -1474,6 +1694,17 @@ function prepareGraphicNovelPageReferences(params: {
       isTurnaround: ref.isTurnaround,
       storagePath: ref.storagePath,
     })),
+    ...(params.outfitReferences || []).map((ref) => ({
+      base64: ref.base64Data || '',
+      mimeType: ref.mimeType || 'image/png',
+      fileUri: ref.fileUri,
+      source: 'outfit_plate',
+      type: 'outfit_plate_reference',
+      characterName: ref.characterName,
+      referenceKind: 'object' as const,
+      outfitId: ref.outfitId,
+      storagePath: ref.storagePath,
+    })),
   ];
 
   const bucketResult = applyReferenceBucketLimits(
@@ -1493,7 +1724,11 @@ function prepareGraphicNovelPageReferences(params: {
   });
 
   const byIdentity = new Map<string, GraphicNovelReferenceImage>();
-  for (const ref of [...params.environmentReferences, ...params.characterReferences]) {
+  for (const ref of [
+    ...params.environmentReferences,
+    ...params.characterReferences,
+    ...(params.outfitReferences || []),
+  ]) {
     const key = [
       ref.referenceKind,
       ref.source,
@@ -1525,6 +1760,9 @@ function prepareGraphicNovelPageReferences(params: {
       source: source?.source || bucketRef.source,
       type: source?.type || bucketRef.type,
       isTurnaround: source?.isTurnaround || bucketRef.isTurnaround,
+      environmentId: source?.environmentId || bucketRef.referenceEnvironmentId,
+      outfitId: source?.outfitId || bucketRef.outfitId,
+      storagePath: source?.storagePath || bucketRef.storagePath,
     };
     return {
       ...reference,
@@ -1684,7 +1922,8 @@ async function applyVisionBubblePlacementForRenderedPage(params: {
           page: params.page,
           imageData: params.imageData,
           mimeType: normalizeVisionMimeType(params.mimeType),
-          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+          onUsage: (usage) =>
+            recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
         })
       : await analyzeGraphicNovelBubbleVision({
           textProvider: getValidationTextProvider(),
@@ -1692,7 +1931,8 @@ async function applyVisionBubblePlacementForRenderedPage(params: {
           imageData: params.imageData,
           mimeType: normalizeVisionMimeType(params.mimeType),
           detectPanelBounds: true,
-          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+          onUsage: (usage) =>
+            recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
         });
     const planned = applyGraphicNovelBubbleVisionLayout(params.page, analysis, {
       useDetectedPanelBounds: !usePanelCrops,
@@ -2170,6 +2410,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         },
         graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
         imageStyle: (spec as any).imageStyle,
+        scenarioCardId: spec.scenarioCard?.id,
         graphicNovelPageCount: pageCount,
         graphicNovelPlannedPageCount: plannedPages.length,
         environments: script.environments,
@@ -2551,6 +2792,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
         sceneIdsWithImages: [],
         imageStyle: (spec as any).imageStyle,
+        scenarioCardId: spec.scenarioCard?.id,
         graphicNovelPageCount: comicBlockCount,
         graphicNovelPlannedPageCount: plannedPages.length,
         graphicNovelLayoutMode: 'free_layout',
@@ -2769,6 +3011,7 @@ async function renderAndStorePage(params: {
   page: any;
   style: string;
   ageGroup: string;
+  scenarioCardId?: string;
   environments: StoryEnvironment[];
   characters: GraphicNovelCharacterManifest;
   createCoverCandidate?: boolean;
@@ -2793,11 +3036,25 @@ async function renderAndStorePage(params: {
     characters: params.characters,
     imageDomain: complexImageDomain,
   });
+  const outfitReferenceImages = await buildPageOutfitReferenceImages({
+    storyId: params.storyId,
+    storyRequestId: params.requestId,
+    userId: params.userId,
+    page: plannedPage,
+    characters: params.characters,
+    characterReferences: characterReferenceImages,
+    imageDomain: complexImageDomain,
+    imageStyle: params.style,
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+    generationKind: params.generationKind,
+  });
   const referenceImages = prepareGraphicNovelPageReferences({
     storyId: params.storyId,
     pageNumber: plannedPage.pageNumber,
     environmentReferences: environmentReferenceImages,
     characterReferences: characterReferenceImages,
+    outfitReferences: outfitReferenceImages,
   });
 
   let rendered = config.image.skipGeneration
@@ -2809,7 +3066,9 @@ async function renderAndStorePage(params: {
             channels: 4,
             background: '#fffaf0',
           },
-        }).png().toBuffer(),
+        })
+          .png()
+          .toBuffer(),
         mimeType: 'image/png',
         generationParams: {
           mode: 'graphic_novel_page_free_layout_placeholder_only',
@@ -2828,24 +3087,25 @@ async function renderAndStorePage(params: {
           objectReferenceCount: referenceImages.filter((ref) => ref.referenceKind === 'object')
             .length,
           environmentReferenceCount: environmentReferenceImages.length,
+          outfitReferenceCount: outfitReferenceImages.length,
         },
       }
     : await generateGraphicNovelPageFreeLayout({
-          imageDomain: complexImageDomain,
-          page: plannedPage,
-          style: params.style,
-          ageGroup: params.ageGroup,
-          environmentsById,
-          referenceImages,
-          onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
-          onAttemptImage: async ({ attempt, imageData }) => {
-            await saveGraphicNovelDebugImage({
-              pageNumber: params.page.pageNumber,
-              label: `free-layout-generate-attempt-${attempt}`,
-              imageData,
-            });
-          },
-        });
+        imageDomain: complexImageDomain,
+        page: plannedPage,
+        style: params.style,
+        ageGroup: params.ageGroup,
+        environmentsById,
+        referenceImages,
+        onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+        onAttemptImage: async ({ attempt, imageData }) => {
+          await saveGraphicNovelDebugImage({
+            pageNumber: params.page.pageNumber,
+            label: `free-layout-generate-attempt-${attempt}`,
+            imageData,
+          });
+        },
+      });
   if (!config.image.skipGeneration) {
     const imageRequestManifest = annotateGraphicNovelRequestManifest(
       rendered.generationParams.imageRequestManifest,
@@ -3266,6 +3526,7 @@ async function renderAndStorePage(params: {
       referenceCount: referenceImages.length,
       environmentReferenceCount: environmentReferenceImages.length,
       characterReferenceCount: characterReferenceImages.length,
+      outfitReferenceCount: outfitReferenceImages.length,
       bubblePlacementMode:
         typeof bubbleVision.placementSummary.mode === 'string'
           ? bubbleVision.placementSummary.mode
@@ -3502,6 +3763,7 @@ export async function regenerateGraphicNovelPageImage(params: {
       page: pageForRender,
       style: params.style || (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor',
       ageGroup,
+      scenarioCardId: storyMetadata.scenarioCardId as string | undefined,
       environments: script.environments || [],
       characters: layoutManifest.characters || [],
       createCoverCandidate: !hasGraphicNovelCover,
@@ -3638,6 +3900,7 @@ export async function processGraphicNovelPages(
         page,
         style: (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor',
         ageGroup: project.ageGroup || story?.ageGroup || '6-8',
+        scenarioCardId: storyMetadata.scenarioCardId as string | undefined,
         environments: script.environments || [],
         characters: layoutManifest.characters || [],
         createCoverCandidate: !hasGraphicNovelCover,
