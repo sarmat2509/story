@@ -83,7 +83,7 @@ type PreparedValidationImage = {
 
 type ValidationPromptMode = 'compact' | 'reduced';
 type ValidationProviderRole = 'primary' | 'fallback';
-type SegmentedValidationPassKind = 'layout' | 'character_identity';
+type SegmentedValidationPassKind = 'layout' | 'character_identity' | 'comic_panel_page';
 
 type PreparedValidationReferenceImage = NonNullable<
   ProductImageValidationInput['referenceImages']
@@ -105,6 +105,65 @@ type SegmentedLayoutValidationResult = {
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
   layoutFeedback: string;
+  overallFeedback: string;
+};
+
+export type GraphicNovelPanelValidationInput = {
+  imageData: Buffer;
+  mimeType: string;
+  pageNumber: number;
+  panels: Array<{
+    panelNumber: number;
+    panelId: string;
+    expectedVisualFocus: string;
+    expectedSetting?: string;
+    expectedCharacters: ProductImageValidationInput['expectedCharacters'];
+  }>;
+  referenceImages?: ProductImageValidationInput['referenceImages'];
+  logContext?: ProductImageValidationInput['logContext'];
+  onUsage?: ProductImageValidationInput['onUsage'];
+};
+
+export type GraphicNovelPanelImageValidationResult = {
+  validationStatus?: 'completed' | 'provider_blocked';
+  validationAttemptKind?: string;
+  validationModelUsed?: string;
+  providerError?: string;
+  requestManifest?: Record<string, unknown>;
+  pageNumber: number;
+  expectedPanelCount: number;
+  detectedPanelCount: number;
+  hasExtraPanelStructure: boolean;
+  hasTextOrLetters: boolean;
+  hasRenderingArtifacts: boolean;
+  layoutFeedback: string;
+  panels: Array<{
+    panelNumber: number;
+    panelId: string;
+    panelDetected: boolean;
+    matchedVisiblePanelDescription: string;
+    visualMatchesExpectedMoment: boolean;
+    unexpectedCharactersPresent: boolean;
+    renderingArtifacts: boolean;
+    panelIssue?: string | null;
+    characters: Array<{
+      name: string;
+      characterKind: ImageValidationCharacterKind;
+      expectedPresent: boolean;
+      found: boolean;
+      recognizableScore: number;
+      faceMatchesReference?: boolean | null;
+      hairMatchesReference?: boolean | null;
+      ageReadMatchesReference?: boolean | null;
+      proportionsMatchReference?: boolean | null;
+      matchesColors: boolean;
+      matchesOutfit: boolean;
+      sameOverallDesignRead?: boolean | null;
+      silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe' | null;
+      identityComparisonSummary: string;
+      issue?: string | null;
+    }>;
+  }>;
   overallFeedback: string;
 };
 
@@ -570,6 +629,190 @@ function buildSegmentedLayoutSchema(includeBubbleChecks: boolean): JsonSchema {
   };
 }
 
+function buildGraphicNovelPanelValidationSchema(): JsonSchema {
+  const panelCharacterSchema: JsonSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'name',
+      'characterKind',
+      'expectedPresent',
+      'found',
+      'recognizableScore',
+      'faceMatchesReference',
+      'hairMatchesReference',
+      'ageReadMatchesReference',
+      'proportionsMatchReference',
+      'matchesColors',
+      'matchesOutfit',
+      'sameOverallDesignRead',
+      'silhouetteDriftSeverity',
+      'identityComparisonSummary',
+      'issue',
+    ],
+    properties: {
+      name: { type: 'string' },
+      characterKind: { type: 'string', enum: ['human', 'animal', 'imaginary'] },
+      expectedPresent: { type: 'boolean' },
+      found: { type: 'boolean' },
+      recognizableScore: { type: 'number', minimum: 0, maximum: 1 },
+      faceMatchesReference: { type: ['boolean', 'null'] },
+      hairMatchesReference: { type: ['boolean', 'null'] },
+      ageReadMatchesReference: { type: ['boolean', 'null'] },
+      proportionsMatchReference: { type: ['boolean', 'null'] },
+      matchesColors: { type: 'boolean' },
+      matchesOutfit: { type: 'boolean' },
+      sameOverallDesignRead: { type: ['boolean', 'null'] },
+      silhouetteDriftSeverity: {
+        type: ['string', 'null'],
+        enum: ['none', 'mild', 'moderate', 'severe', null],
+      },
+      identityComparisonSummary: { type: 'string' },
+      issue: { type: ['string', 'null'] },
+    },
+  };
+
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'pageNumber',
+      'expectedPanelCount',
+      'detectedPanelCount',
+      'hasExtraPanelStructure',
+      'hasTextOrLetters',
+      'hasRenderingArtifacts',
+      'layoutFeedback',
+      'panels',
+      'overallFeedback',
+    ],
+    properties: {
+      pageNumber: { type: 'integer' },
+      expectedPanelCount: { type: 'integer' },
+      detectedPanelCount: { type: 'integer' },
+      hasExtraPanelStructure: { type: 'boolean' },
+      hasTextOrLetters: { type: 'boolean' },
+      hasRenderingArtifacts: { type: 'boolean' },
+      layoutFeedback: { type: 'string' },
+      panels: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'panelNumber',
+            'panelId',
+            'panelDetected',
+            'matchedVisiblePanelDescription',
+            'visualMatchesExpectedMoment',
+            'unexpectedCharactersPresent',
+            'renderingArtifacts',
+            'panelIssue',
+            'characters',
+          ],
+          properties: {
+            panelNumber: { type: 'integer' },
+            panelId: { type: 'string' },
+            panelDetected: { type: 'boolean' },
+            matchedVisiblePanelDescription: { type: 'string' },
+            visualMatchesExpectedMoment: { type: 'boolean' },
+            unexpectedCharactersPresent: { type: 'boolean' },
+            renderingArtifacts: { type: 'boolean' },
+            panelIssue: { type: ['string', 'null'] },
+            characters: { type: 'array', items: panelCharacterSchema },
+          },
+        },
+      },
+      overallFeedback: { type: 'string' },
+    },
+  };
+}
+
+function buildGraphicNovelPanelValidationPrompt(params: {
+  pageNumber: number;
+  panels: GraphicNovelPanelValidationInput['panels'];
+  referenceImages: ProductImageValidationInput['referenceImages'] | undefined;
+}): string {
+  const referenceRows = (params.referenceImages || [])
+    .map((ref, index) => {
+      const role =
+        ref.referenceKind === 'outfit_plate'
+          ? 'outfit plate'
+          : ref.identitySource === 'turnaround'
+            ? 'turnaround identity reference'
+            : 'identity reference';
+      return `Image ${index + 2}: ${role} for "${ref.characterName}"`;
+    })
+    .join('\n');
+
+  const panelRows = params.panels
+    .map((panel) => {
+      const characterRows =
+        panel.expectedCharacters.length > 0
+          ? panel.expectedCharacters
+              .map((character) => {
+                const subtype = character.speciesSubtype?.trim()
+                  ? `; subtype=${character.speciesSubtype.trim()}`
+                  : '';
+                const desc = character.description?.trim()
+                  ? `; description=${character.description.trim()}`
+                  : '';
+                const outfit = character.expectedOutfitForScene?.trim()
+                  ? `; expected outfit=${character.expectedOutfitForScene.trim()}`
+                  : '';
+                return `  - ${character.name} (${character.characterKind}${subtype}${desc}${outfit})`;
+              })
+              .join('\n')
+          : '  - none';
+      return [
+        `Panel ${panel.panelNumber} [${panel.panelId}]`,
+        `Expected visual focus: ${panel.expectedVisualFocus}`,
+        panel.expectedSetting?.trim() ? `Expected setting: ${panel.expectedSetting.trim()}` : '',
+        'Expected characters:',
+        characterRows,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n\n');
+
+  return [
+    'Task: validate one generated graphic novel page panel-by-panel in a single response.',
+    'Image 1 is the generated full comic page. The other images are character identity references and/or outfit plates.',
+    '',
+    'Panel matching rules:',
+    '- Return exactly one panels[] item for each expected Panel N listed below, in the same order.',
+    '- Match each expected panel to the best visible physical panel/region on Image 1 using expected visual focus, expected characters, and visual read, not only naive reading order.',
+    '- If the artwork split one expected panel into multiple physical boxes or merged panels together, still return the expected panel item, set hasExtraPanelStructure=true, describe the split/merge in layoutFeedback and panelIssue, and evaluate characters from the best matching visible region.',
+    '- Do not let a character visible in another panel satisfy presence for this panel. Character found=true must be panel-local.',
+    '- The same character appearing once in multiple different panels is normal and is not duplication.',
+    '',
+    'Character validation rules:',
+    '- For every expected character in a panel, answer whether that exact named character is visible in that panel and whether it matches the reference/expected design.',
+    '- Use the same identity rules as the standard image validator: humans require face/head, hairstyle, age read, proportions, silhouette, and stable marks; animals/imaginary creatures require body type, subtype/species read, silhouette, proportions, and stable colors/markings.',
+    '- If the panel contains only a generic substitute or different stable design, set found=false or recognizableScore<=0.4, even if the role/slot is occupied.',
+    '- If the character is present but details drift, keep found=true and mark the specific fields false.',
+    '- For humans with identity reference, faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference must be booleans.',
+    '- For animals/imaginary creatures, set human-only face/hair/age fields to null; use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference.',
+    '- matchesOutfit validates clothing only when an outfit plate or expected outfit text exists; otherwise use visible default/reference clothing only as a weak clue.',
+    '',
+    'Page-level rules:',
+    '- detectedPanelCount is the number of visible physical comic panel boxes/regions.',
+    '- hasExtraPanelStructure=true if visible physical panels do not match expectedPanelCount, or if there are fake gutters, inset panels, split panels, or merged story beats.',
+    '- hasTextOrLetters=true for unwanted readable text/letters in artwork. Ignore server-rendered HTML speech bubbles if present.',
+    '- hasRenderingArtifacts=true for severe broken anatomy, corrupt objects, incoherent artifacts, or unusable rendering.',
+    '',
+    `PAGE NUMBER: ${params.pageNumber}`,
+    `EXPECTED PANEL COUNT: ${params.panels.length}`,
+    '',
+    referenceRows ? `REFERENCE IMAGE ORDER:\n${referenceRows}` : 'REFERENCE IMAGE ORDER:\nNone',
+    '',
+    `EXPECTED PANELS:\n${panelRows}`,
+    '',
+    'Return JSON only. Do not include markdown.',
+  ].join('\n');
+}
+
 function buildSegmentedCharacterPrompt(params: {
   character: ProductImageValidationInput['expectedCharacters'][number];
   identityReference?: PreparedValidationReferenceImage;
@@ -793,7 +1036,9 @@ async function runSegmentedStructuredPass<T>(params: {
         operation:
           params.passKind === 'layout'
             ? `${params.operation}_layout`
-            : `${params.operation}_character_identity`,
+            : params.passKind === 'comic_panel_page'
+              ? `${params.operation}_comic_panels`
+              : `${params.operation}_character_identity`,
       });
       passManifest.outcome = 'completed';
       passManifest.durationMs = Date.now() - startedAt;
@@ -1176,6 +1421,223 @@ export async function runSegmentedProductImageValidation(
   return validation;
 }
 
+export async function runGraphicNovelPanelImageValidation(
+  textProvider: ITextProvider,
+  input: GraphicNovelPanelValidationInput,
+  options: ProductImageValidationOptions = {}
+): Promise<GraphicNovelPanelImageValidationResult> {
+  const operation = options.operation ?? 'image_validation_graphic_novel_panels';
+  const preparedGeneratedImage = await prepareImageForValidation(
+    input.imageData,
+    input.mimeType,
+    config.image.validationSceneMaxSide
+  );
+
+  const preparedReferenceImages =
+    input.referenceImages && input.referenceImages.length > 0
+      ? await Promise.all(
+          input.referenceImages.map(async (ref) => {
+            if (!ref.imageData) {
+              return {
+                ...ref,
+                mimeType: normalizeVisionMimeType(ref.mimeType),
+              } as PreparedValidationReferenceImage;
+            }
+            const prepared = await prepareImageForValidation(
+              Buffer.from(ref.imageData, 'base64'),
+              ref.mimeType,
+              config.image.validationReferenceMaxSide
+            );
+            return {
+              ...ref,
+              imageData: prepared.buffer.toString('base64'),
+              mimeType: prepared.mimeType,
+            } as PreparedValidationReferenceImage;
+          })
+        )
+      : undefined;
+
+  const prompt = buildGraphicNovelPanelValidationPrompt({
+    pageNumber: input.pageNumber,
+    panels: input.panels,
+    referenceImages: preparedReferenceImages,
+  });
+  const imageData: ImageData[] = [
+    imageDataForGenerated(
+      preparedGeneratedImage,
+      'Image 1: GENERATED FULL COMIC PAGE. Validate panel-by-panel against the expected panel list.'
+    ),
+    ...(preparedReferenceImages || []).map((ref, index) => imageDataForReference(ref, index + 2)),
+  ];
+  const passesManifest: Array<Record<string, unknown>> = [];
+  const requestManifest: Record<string, unknown> = {
+    version: 1,
+    validationSystemInstruction: 'image_validation_graphic_novel_panels_v1',
+    operation,
+    mode: 'single_request_panel_array',
+    pageNumber: input.pageNumber,
+    expectedPanelCount: input.panels.length,
+    expectedPanels: input.panels.map((panel) => ({
+      panelNumber: panel.panelNumber,
+      panelId: panel.panelId,
+      expectedVisualFocus: panel.expectedVisualFocus,
+      expectedSetting: panel.expectedSetting ?? null,
+      expectedCharacters: panel.expectedCharacters.map((character) => ({
+        name: character.name,
+        characterKind: character.characterKind,
+      })),
+    })),
+    generatedImage: {
+      role: 'generated_graphic_novel_page',
+      mimeType: preparedGeneratedImage.mimeType,
+      width: preparedGeneratedImage.width,
+      height: preparedGeneratedImage.height,
+      originalWidth: preparedGeneratedImage.originalWidth,
+      originalHeight: preparedGeneratedImage.originalHeight,
+      resized: preparedGeneratedImage.resized,
+      sha256: sha256Short(preparedGeneratedImage.buffer),
+    },
+    references: (preparedReferenceImages ?? []).map((ref, index) => ({
+      imageIndex: index + 2,
+      characterName: ref.characterName,
+      referenceKind: ref.referenceKind ?? 'identity',
+      identitySource: ref.identitySource,
+      mimeType: ref.mimeType,
+      delivery: ref.fileUri ? 'file_uri' : 'inline_base64',
+      sha256: ref.imageData ? sha256Short(Buffer.from(ref.imageData, 'base64')) : undefined,
+    })),
+    prompt,
+    passes: passesManifest,
+  };
+
+  logger.info(
+    {
+      ...input.logContext,
+      mode: 'single_request_panel_array',
+      pageNumber: input.pageNumber,
+      expectedPanelCount: input.panels.length,
+      referenceCount: preparedReferenceImages?.length ?? 0,
+      generatedImage: {
+        mimeType: preparedGeneratedImage.mimeType,
+        sizeBytes: preparedGeneratedImage.buffer.length,
+        width: preparedGeneratedImage.width,
+        height: preparedGeneratedImage.height,
+        resized: preparedGeneratedImage.resized,
+      },
+    },
+    'Graphic novel panel image validation: sending one panel-array request to Vision model'
+  );
+
+  const pass = await runSegmentedStructuredPass<GraphicNovelPanelImageValidationResult>({
+    textProvider,
+    fallbackTextProvider: options.fallbackTextProvider,
+    model: options.visionModel,
+    fallbackModel: options.fallbackVisionModel,
+    passKind: 'comic_panel_page',
+    passId: `page_${input.pageNumber}`,
+    prompt,
+    schema: buildGraphicNovelPanelValidationSchema(),
+    imageData,
+    input: {
+      imageData: input.imageData,
+      mimeType: input.mimeType,
+      expectedCharacters: input.panels.flatMap((panel) => panel.expectedCharacters),
+      sceneVisual: {
+        setting: `Graphic novel page ${input.pageNumber} panel-array validation.`,
+        lighting: 'N/A',
+        cameraComposition: {
+          shot: `Full page with ${input.panels.length} expected panels.`,
+          characters: [],
+        },
+      },
+      logContext: input.logContext,
+      onUsage: input.onUsage,
+    },
+    operation,
+    manifestPasses: passesManifest,
+    recordModeration: options.recordModeration,
+  });
+
+  if (!pass.result) {
+    return {
+      validationStatus: 'provider_blocked',
+      validationAttemptKind: pass.attemptKind,
+      validationModelUsed: pass.modelUsed,
+      providerError: pass.providerError,
+      requestManifest,
+      pageNumber: input.pageNumber,
+      expectedPanelCount: input.panels.length,
+      detectedPanelCount: 0,
+      hasExtraPanelStructure: false,
+      hasTextOrLetters: false,
+      hasRenderingArtifacts: false,
+      layoutFeedback: `provider-blocked: ${pass.providerError || 'no visual verdict'}`,
+      panels: input.panels.map((panel) => ({
+        panelNumber: panel.panelNumber,
+        panelId: panel.panelId,
+        panelDetected: false,
+        matchedVisiblePanelDescription: 'provider blocked panel validation',
+        visualMatchesExpectedMoment: false,
+        unexpectedCharactersPresent: false,
+        renderingArtifacts: false,
+        panelIssue: pass.providerError || 'provider_blocked_no_visual_verdict',
+        characters: panel.expectedCharacters.map((character) => ({
+          name: character.name,
+          characterKind: character.characterKind,
+          expectedPresent: true,
+          found: false,
+          recognizableScore: 0,
+          faceMatchesReference: character.characterKind === 'human' ? null : null,
+          hairMatchesReference: character.characterKind === 'human' ? null : null,
+          ageReadMatchesReference: character.characterKind === 'human' ? null : null,
+          proportionsMatchReference: null,
+          matchesColors: false,
+          matchesOutfit: false,
+          sameOverallDesignRead: null,
+          silhouetteDriftSeverity: null,
+          identityComparisonSummary: 'Provider blocked panel validation; no visual verdict.',
+          issue: pass.providerError || 'provider_blocked_no_visual_verdict',
+        })),
+      })),
+      overallFeedback: `Provider blocked panel validation: ${pass.providerError || 'no visual verdict'}`,
+    };
+  }
+
+  const result: GraphicNovelPanelImageValidationResult = {
+    ...pass.result,
+    validationStatus: 'completed',
+    validationAttemptKind: pass.attemptKind,
+    validationModelUsed: pass.modelUsed,
+    requestManifest,
+    pageNumber: pass.result.pageNumber || input.pageNumber,
+    expectedPanelCount: pass.result.expectedPanelCount || input.panels.length,
+  };
+
+  logger.info(
+    {
+      ...input.logContext,
+      attemptKind: result.validationAttemptKind,
+      pageNumber: result.pageNumber,
+      expectedPanelCount: result.expectedPanelCount,
+      detectedPanelCount: result.detectedPanelCount,
+      hasExtraPanelStructure: result.hasExtraPanelStructure,
+      panels: result.panels.map((panel) => ({
+        panelNumber: panel.panelNumber,
+        panelDetected: panel.panelDetected,
+        characters: panel.characters.map((character) => ({
+          name: character.name,
+          found: character.found,
+          recognizableScore: character.recognizableScore,
+          issue: character.issue ?? null,
+        })),
+      })),
+    },
+    'Graphic novel panel image validation result'
+  );
+
+  return result;
+}
+
 /**
  * Run the same validation pipeline as production: Image 1 = generated scene, then identity refs;
  * prompt from buildImageValidationPrompt; schema IMAGE_VALIDATION_SCHEMA; temperature 0.2; relaxedSafety true.
@@ -1194,8 +1656,9 @@ export async function runProductImageValidation(
     config.image.validationSceneMaxSide
   );
 
-  const validationReferenceImages =
-    input.referenceImages?.filter((ref) => ref.referenceKind !== 'layout_template');
+  const validationReferenceImages = input.referenceImages?.filter(
+    (ref) => ref.referenceKind !== 'layout_template'
+  );
 
   const preparedReferenceImages =
     validationReferenceImages && validationReferenceImages.length > 0

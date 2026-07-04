@@ -18,8 +18,10 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import config from '../config';
 import {
   IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+  runGraphicNovelPanelImageValidation,
   runProductImageValidation,
   runSegmentedProductImageValidation,
+  type GraphicNovelPanelValidationInput,
 } from '../domain/image/imageValidationRun';
 import { computeValidationScore } from '../services/storyOrchestrationService';
 import type { ImageData, JsonSchema } from '../providers/base/JsonSchema';
@@ -28,10 +30,7 @@ import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
 import { getImageValidationCachedPrefix } from '../prompts/image/ImageValidationPrompt';
-import {
-  type GraphicNovelPanelScript,
-  type PlannedGraphicNovelPage,
-} from '../domain/graphicNovel';
+import { type GraphicNovelPanelScript, type PlannedGraphicNovelPage } from '../domain/graphicNovel';
 import type { ImageValidationResult } from '../ai/types';
 import type { SceneVisual } from '../services/types';
 
@@ -43,7 +42,7 @@ type Args = {
   runs: number;
   provider: 'gemini' | 'openai';
   model?: string;
-  mode: 'full' | 'presence-first' | 'segmented';
+  mode: 'full' | 'presence-first' | 'segmented' | 'comic-panels';
   dumpPromptFile?: string;
 };
 
@@ -94,8 +93,13 @@ function parseArgs(): Args {
       model = argv[++i].trim();
     } else if (arg === '--mode' && argv[i + 1]) {
       const value = argv[++i].trim().toLowerCase();
-      if (value !== 'full' && value !== 'presence-first' && value !== 'segmented') {
-        throw new Error('--mode must be "full", "presence-first", or "segmented"');
+      if (
+        value !== 'full' &&
+        value !== 'presence-first' &&
+        value !== 'segmented' &&
+        value !== 'comic-panels'
+      ) {
+        throw new Error('--mode must be "full", "presence-first", "segmented", or "comic-panels"');
       }
       mode = value;
     } else if (arg === '--dump-prompt-file' && argv[i + 1]) {
@@ -232,6 +236,30 @@ function buildExpectedCharacters(
       characterKind: graphicNovelCharacterKind(character.type),
       description: character.description,
     }));
+}
+
+function buildPanelValidationInputs(
+  page: PlannedGraphicNovelPage,
+  expectedCharacters: ReturnType<typeof buildExpectedCharacters>
+): GraphicNovelPanelValidationInput['panels'] {
+  const byName = new Map(
+    expectedCharacters.map((character) => [normalizeName(character.name), character])
+  );
+  return page.panels.map((panel, index) => {
+    const expectedPanelCharacters = panelCharacterNames(panel.script)
+      .map((name) => byName.get(normalizeName(name)))
+      .filter(
+        (character): character is ReturnType<typeof buildExpectedCharacters>[number] => !!character
+      );
+
+    return {
+      panelNumber: index + 1,
+      panelId: panel.script.panelId || `p${page.pageNumber}-${index + 1}`,
+      expectedVisualFocus: panel.script.visual.primaryRead,
+      expectedSetting: panel.script.visual.sceneVisual.setting,
+      expectedCharacters: expectedPanelCharacters,
+    };
+  });
 }
 
 function buildGraphicNovelPageValidationSceneVisual(
@@ -707,6 +735,116 @@ async function runSegmentedValidation(params: {
   );
 }
 
+async function runComicPanelValidation(params: {
+  args: Args;
+  primary: ReturnType<typeof buildPrimaryProvider>;
+  image: { buffer: Buffer; mimeType: ValidationReferenceImage['mimeType'] };
+  page: PlannedGraphicNovelPage;
+  storyId: string;
+  pageNumber: number;
+  originalAttempt: number;
+  panelInputs: GraphicNovelPanelValidationInput['panels'];
+  referenceImages: ValidationReferenceImage[];
+}): Promise<void> {
+  const summaries: Array<Record<string, unknown>> = [];
+  for (let index = 1; index <= params.args.runs; index++) {
+    const usages: UsageMetadata[] = [];
+    const validation = await runGraphicNovelPanelImageValidation(
+      params.primary.provider,
+      {
+        imageData: params.image.buffer,
+        mimeType: params.image.mimeType,
+        pageNumber: params.pageNumber,
+        panels: params.panelInputs,
+        referenceImages: params.referenceImages,
+        logContext: {
+          storyId: params.storyId,
+          sceneId: params.pageNumber,
+          attempt: params.originalAttempt,
+        },
+        onUsage: (usage) => usages.push(usage),
+      },
+      {
+        visionModel: params.primary.model,
+        fallbackTextProvider: params.primary.fallback,
+        fallbackVisionModel: params.primary.fallbackModel,
+        operation: 'image_validation_graphic_novel_panel_recheck',
+        recordModeration: false,
+      }
+    );
+
+    const summary = {
+      run: index,
+      validationStatus: validation.validationStatus ?? 'completed',
+      validationModelUsed: validation.validationModelUsed ?? null,
+      validationAttemptKind: validation.validationAttemptKind ?? null,
+      expectedPanelCount: validation.expectedPanelCount,
+      detectedPanelCount: validation.detectedPanelCount,
+      hasExtraPanelStructure: validation.hasExtraPanelStructure,
+      hasTextOrLetters: validation.hasTextOrLetters,
+      hasRenderingArtifacts: validation.hasRenderingArtifacts,
+      layoutFeedback: validation.layoutFeedback,
+      overallFeedback: validation.overallFeedback,
+      panels: validation.panels.map((panel) => ({
+        panelNumber: panel.panelNumber,
+        panelId: panel.panelId,
+        panelDetected: panel.panelDetected,
+        visualMatchesExpectedMoment: panel.visualMatchesExpectedMoment,
+        panelIssue: panel.panelIssue ?? null,
+        matchedVisiblePanelDescription: panel.matchedVisiblePanelDescription,
+        characters: panel.characters.map((character) => ({
+          name: character.name,
+          found: character.found,
+          recognizableScore: character.recognizableScore,
+          faceMatchesReference: character.faceMatchesReference ?? null,
+          hairMatchesReference: character.hairMatchesReference ?? null,
+          ageReadMatchesReference: character.ageReadMatchesReference ?? null,
+          proportionsMatchReference: character.proportionsMatchReference ?? null,
+          sameOverallDesignRead: character.sameOverallDesignRead ?? null,
+          silhouetteDriftSeverity: character.silhouetteDriftSeverity ?? null,
+          matchesColors: character.matchesColors,
+          matchesOutfit: character.matchesOutfit,
+          issue: character.issue ?? null,
+          identityComparisonSummary: character.identityComparisonSummary,
+        })),
+      })),
+      usage: summarizeUsage(usages),
+    };
+    summaries.push(summary);
+
+    if (index === 1 && params.args.dumpPromptFile) {
+      await writePromptDump({
+        filePath: params.args.dumpPromptFile,
+        provider: params.args.provider,
+        model: params.primary.model,
+        systemInstruction: IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+        runtimePrompt: String(validation.requestManifest?.prompt ?? ''),
+        imageData: buildFullValidationImageData(params.image, params.referenceImages),
+        requestManifest: validation.requestManifest,
+      });
+    }
+
+    console.log(`\n--- Comic Panel Run ${index} ---`);
+    console.log(JSON.stringify(summary, null, 2));
+  }
+
+  console.log('\n--- Comic Panel Summary ---');
+  console.log(
+    JSON.stringify(
+      summaries.map((summary) => ({
+        run: summary.run,
+        expectedPanelCount: summary.expectedPanelCount,
+        detectedPanelCount: summary.detectedPanelCount,
+        hasExtraPanelStructure: summary.hasExtraPanelStructure,
+        panels: summary.panels,
+        usage: summary.usage,
+      })),
+      null,
+      2
+    )
+  );
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   const pool = new Pool({
@@ -765,6 +903,7 @@ async function main(): Promise<void> {
     const page = pageRow.layout_json;
     const characters = pageRow.layout_manifest?.characters || [];
     const expectedCharacters = buildExpectedCharacters(page, characters);
+    const panelInputs = buildPanelValidationInputs(page, expectedCharacters);
     const referenceImages = await buildValidationReferenceImages({ page, characters });
     const characterReferenceImages = referenceImages.filter(
       (ref) => ref.referenceKind === 'identity'
@@ -792,6 +931,12 @@ async function main(): Promise<void> {
           mode: args.mode,
           runs: args.runs,
           expectedCharacters,
+          expectedPanels: panelInputs.map((panel) => ({
+            panelNumber: panel.panelNumber,
+            panelId: panel.panelId,
+            expectedCharacters: panel.expectedCharacters.map((character) => character.name),
+            expectedVisualFocus: panel.expectedVisualFocus,
+          })),
           references: referenceImages.map((ref, index) => ({
             imageIndex: index + 2,
             characterName: ref.characterName,
@@ -826,6 +971,21 @@ async function main(): Promise<void> {
         originalAttempt: validationRow.attempt,
         expectedCharacters,
         sceneVisual,
+        referenceImages,
+      });
+      return;
+    }
+
+    if (args.mode === 'comic-panels') {
+      await runComicPanelValidation({
+        args,
+        primary,
+        image,
+        page,
+        storyId: validationRow.story_id,
+        pageNumber: validationRow.scene_index,
+        originalAttempt: validationRow.attempt,
+        panelInputs,
         referenceImages,
       });
       return;

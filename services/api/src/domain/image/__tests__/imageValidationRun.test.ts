@@ -12,8 +12,10 @@ import type {
   GenerateTextRequest,
 } from '../../../providers/base/JsonSchema';
 import {
+  runGraphicNovelPanelImageValidation,
   runProductImageValidation,
   runSegmentedProductImageValidation,
+  type GraphicNovelPanelImageValidationResult,
 } from '../imageValidationRun';
 
 const TINY_PNG = Buffer.from(
@@ -111,6 +113,50 @@ function segmentedCharacterResult(
     hasUnexpectedCharacters: false,
     hasRenderingArtifacts: false,
     notes: character.issue || character.identityComparisonSummary,
+  };
+}
+
+function validGraphicNovelPanelResult(): GraphicNovelPanelImageValidationResult {
+  return {
+    pageNumber: 1,
+    expectedPanelCount: 1,
+    detectedPanelCount: 1,
+    hasExtraPanelStructure: false,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    layoutFeedback: 'One physical panel matches the expected page plan.',
+    panels: [
+      {
+        panelNumber: 1,
+        panelId: 'p1-1',
+        panelDetected: true,
+        matchedVisiblePanelDescription: 'A single visible panel with the starry chest.',
+        visualMatchesExpectedMoment: true,
+        unexpectedCharactersPresent: false,
+        renderingArtifacts: false,
+        panelIssue: null,
+        characters: [
+          {
+            name: 'Lera',
+            characterKind: 'human',
+            expectedPresent: true,
+            found: false,
+            recognizableScore: 0.1,
+            faceMatchesReference: false,
+            hairMatchesReference: false,
+            ageReadMatchesReference: false,
+            proportionsMatchReference: false,
+            matchesColors: false,
+            matchesOutfit: false,
+            sameOverallDesignRead: null,
+            silhouetteDriftSeverity: null,
+            identityComparisonSummary: 'The expected child is not visible in this panel.',
+            issue: 'character missing from panel',
+          },
+        ],
+      },
+    ],
+    overallFeedback: 'Panel validation completed.',
   };
 }
 
@@ -479,6 +525,82 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   ]);
 }
 
+async function testGraphicNovelPanelValidationUsesSinglePanelArrayRequest() {
+  const primary = new MockTextProvider([validGraphicNovelPanelResult()]);
+
+  const result = await runGraphicNovelPanelImageValidation(
+    primary,
+    {
+      imageData: TINY_PNG,
+      mimeType: 'image/png',
+      pageNumber: 1,
+      panels: [
+        {
+          panelNumber: 1,
+          panelId: 'p1-1',
+          expectedVisualFocus: 'Lera opens the starry chest.',
+          expectedSetting: 'Quiet attic room.',
+          expectedCharacters: [validationInput.expectedCharacters[0]],
+        },
+      ],
+      referenceImages: [
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'identity',
+          identitySource: 'turnaround',
+        },
+      ],
+    },
+    {
+      visionModel: 'gemini-test',
+      operation: 'test_graphic_novel_panel_validation',
+      recordModeration: false,
+    }
+  );
+
+  assert.strictEqual(result.validationStatus, 'completed');
+  assert.strictEqual(result.validationAttemptKind, 'comic_panel_page_page_1_primary');
+  assert.strictEqual(result.validationModelUsed, 'gemini-test');
+  assert.strictEqual(result.panels.length, 1);
+  assert.strictEqual(result.panels[0].panelId, 'p1-1');
+  assert.strictEqual(result.panels[0].characters[0].name, 'Lera');
+  assert.strictEqual(result.panels[0].characters[0].found, false);
+
+  assert.strictEqual(primary.calls.length, 1);
+  assert.strictEqual(
+    primary.calls[0].operation,
+    'test_graphic_novel_panel_validation_comic_panels'
+  );
+  assert.match(primary.calls[0].prompt, /panel-by-panel in a single response/);
+  assert.match(primary.calls[0].prompt, /Panel 1 \[p1-1\]/);
+  assert.ok((primary.calls[0].schema.required || []).includes('panels'));
+  assert.strictEqual(primary.calls[0].imageData?.length, 2);
+  assert.match(primary.calls[0].imageData?.[0]?.instructionText ?? '', /GENERATED FULL COMIC PAGE/);
+  assert.match(primary.calls[0].imageData?.[1]?.instructionText ?? '', /IDENTITY TURNAROUND/);
+
+  const manifest = result.requestManifest as {
+    mode: string;
+    expectedPanels: Array<{ panelId: string }>;
+    references: Array<{ characterName: string; imageIndex: number }>;
+    passes: Array<{ passKind: string }>;
+  };
+  assert.strictEqual(manifest.mode, 'single_request_panel_array');
+  assert.deepStrictEqual(
+    manifest.expectedPanels.map((panel) => panel.panelId),
+    ['p1-1']
+  );
+  assert.deepStrictEqual(
+    manifest.references.map((ref) => [ref.characterName, ref.imageIndex]),
+    [['Lera', 2]]
+  );
+  assert.deepStrictEqual(
+    manifest.passes.map((pass) => pass.passKind),
+    ['comic_panel_page']
+  );
+}
+
 async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
@@ -487,6 +609,7 @@ async function main() {
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
   await testSegmentedValidationRunsLayoutAndPerCharacterPasses();
+  await testGraphicNovelPanelValidationUsesSinglePanelArrayRequest();
   console.log('imageValidationRun tests passed');
 }
 

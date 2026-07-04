@@ -36,7 +36,12 @@ import {
 import type { ImageValidationResult } from '../../ai/types';
 import { type SceneVisual } from '../../services/types';
 import config from '../../config';
-import { runSegmentedProductImageValidation } from './imageValidationRun';
+import {
+  runGraphicNovelPanelImageValidation,
+  runSegmentedProductImageValidation,
+  type GraphicNovelPanelImageValidationResult,
+  type GraphicNovelPanelValidationInput,
+} from './imageValidationRun';
 import { inferReferenceKind } from '../../utils/referenceImageKind';
 
 export interface BuiltScenePromptPayload {
@@ -638,6 +643,22 @@ export class ImageDomainService {
       fallbackTextProvider: this.fallbackTextProvider,
       fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
       operation: 'image_validation_segmented',
+    });
+  }
+
+  async validateGraphicNovelPagePanels(
+    params: GraphicNovelPanelValidationInput
+  ): Promise<GraphicNovelPanelImageValidationResult> {
+    if (!this.textProvider) {
+      throw new Error('Graphic novel panel image validation requires textProvider');
+    }
+
+    return runGraphicNovelPanelImageValidation(this.textProvider, params, {
+      visionModel:
+        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-3.1-flash-lite',
+      fallbackTextProvider: this.fallbackTextProvider,
+      fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
+      operation: 'image_validation_graphic_novel_panels',
     });
   }
 
