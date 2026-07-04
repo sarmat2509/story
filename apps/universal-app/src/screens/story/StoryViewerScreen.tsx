@@ -2597,6 +2597,7 @@ export default function StoryViewerScreen() {
     const isActivePage =
       effectiveHighlightEnabled && activeGraphicNovelPageNumber === page.pageNumber;
     const pageWidth = graphicNovelPageWidths[page.pageNumber] || graphicNovelCanonicalWidth(page);
+    const pageFailed = page.status === 'failed';
 
     return (
       <View
@@ -2624,12 +2625,25 @@ export default function StoryViewerScreen() {
             </>
           ) : (
             <View style={styles.graphicNovelPagePlaceholder}>
-              <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+              {pageFailed ? (
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={26}
+                  color={theme.colors.status.error}
+                />
+              ) : (
+                <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+              )}
               <Text style={styles.graphicNovelPagePlaceholderText}>
-                {t('story_viewer.comic_page_preparing', {
-                  page: page.pageNumber,
-                  defaultValue: 'Page {{page}} is preparing...',
-                })}
+                {pageFailed
+                  ? t('story_viewer.comic_page_failed', {
+                      page: page.pageNumber,
+                      defaultValue: 'Page {{page}} could not be generated.',
+                    })
+                  : t('story_viewer.comic_page_preparing', {
+                      page: page.pageNumber,
+                      defaultValue: 'Page {{page}} is preparing...',
+                    })}
               </Text>
             </View>
           )}
