@@ -204,7 +204,7 @@ void (async function main() {
   assert.strictEqual(
     (fallbackPlans.find((plan) => plan.slug === 'fairyworld')?.features.stories_per_month.value as { limit: number }).limit,
     30,
-    'static pricing fallback should preserve Fairy World story limit'
+    'static pricing fallback should preserve Story World story limit'
   );
   assert.deepStrictEqual(
     fallbackPlans.map((plan) => [plan.slug, (plan.features.follow_narrator.value as { enabled: boolean }).enabled]),
@@ -225,7 +225,7 @@ void (async function main() {
   assert.match(fallbackHtml, /<div class="name">Free<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Silver Dreams<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
-  assert.match(fallbackHtml, /<div class="name">Fairy World<\/div>/);
+  assert.match(fallbackHtml, /<div class="name">Story World<\/div>/);
   assert.match(goldenCard, /<span class="plan-badge">Most popular<\/span>/);
   assert.match(fallbackHtml, /Up to 5 comics within the story limit/);
   assert.match(fallbackHtml, /Up to 15 comics within the story limit/);

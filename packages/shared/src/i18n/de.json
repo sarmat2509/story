@@ -1,5 +1,5 @@
 {
-  "voice_sample_text": "Hallo, kleiner Freund! Ich erzähle dir ein magisches Märchen über wunderbare Abenteuer - eine Geschichte, die dein Herz mit Freude erfüllt!",
+  "voice_sample_text": "Hallo, kleiner Freund! Ich erzähle dir eine magische Geschichte über wunderbare Abenteuer - sie erfüllt dein Herz mit Freude!",
   "common": {
     "create": "Erstellen",
     "cancel": "Abbrechen",
@@ -28,7 +28,7 @@
     "logout": "Abmelden",
     "signup": "Registrieren",
     "welcome": "Willkommen",
-    "subtitle": "Personalisierte illustrierte Märchen",
+    "subtitle": "Personalisierte illustrierte Geschichten",
     "email": "E-Mail",
     "email_placeholder": "dein@email.de",
     "password": "Passwort",
@@ -84,12 +84,12 @@
   "landing": {
     "hero_title": "WonderTales",
     "hero_subtitle": "Zeichnungen zu Charakteren. Hören, mitlesen, veröffentlichen.",
-    "hero_description": "Verwandle die Zeichnungen deines Kindes in Märchenhelden. Höre Hörgeschichten mit dem Erzähler. Erstelle Geschichten mit eigenen Charakteren, veröffentliche sie und erhalte Bewertungen.",
+    "hero_description": "Verwandle die Zeichnungen deines Kindes in Geschichtenhelden. Höre Hörgeschichten mit dem Erzähler. Erstelle Geschichten mit eigenen Charakteren, veröffentliche sie und erhalte Bewertungen.",
     "how_it_works_title": "So funktioniert es",
     "step_1_title": "Thema und Alter wählen",
     "step_1_text": "4-5 Felder in 10 Sekunden",
     "step_2_title": "Charaktere hinzufügen",
-    "step_2_text": "Lade eine Zeichnung oder ein Foto hoch — KI verwandelt sie in Märchenhelden",
+    "step_2_text": "Lade eine Zeichnung oder ein Foto hoch — KI verwandelt sie in Geschichtenhelden",
     "step_3_title": "Geschichte erhalten",
     "step_3_text": "Illustrationen und Vertonung in Minuten",
     "demo_title": "Beispielgeschichten",
@@ -283,7 +283,7 @@
     "child_profile_required": "Erstelle oder wähle zuerst ein Kinderprofil aus",
     "goal_label": "Moral der Geschichte (optional)",
     "voice_narrator": "Erzählerstimme",
-    "voice_hint": "Wählen Sie eine Stimme für die Erzählung des Märchens",
+    "voice_hint": "Wählen Sie eine Stimme für die Erzählung der Geschichte",
     "style_watercolor": "Aquarell",
     "style_pencil": "Buntstift",
     "style_comic": "Comic",
@@ -316,17 +316,17 @@
   },
   "instant_wizard": {
     "title": "Geschichte erstellen",
-    "subtitle": "Laden Sie Fotos hoch und erstellen Sie sofort ein Märchen",
+    "subtitle": "Laden Sie Fotos hoch und erstellen Sie sofort eine Geschichte",
     "default_theme": "Freies Thema",
     "upload_photos": "Fotos hochladen",
     "photos_description": "Das können Fotos von Kindern, Erwachsenen oder Figuren aus Kinderzeichnungen sein",
     "photos_required": "Bitte laden Sie mindestens ein Foto hoch",
     "age_group": "Alter des Kindes",
-    "age_group_description": "Für welches Alter erstellen wir das Märchen?",
+    "age_group_description": "Für welches Alter erstellen wir die Geschichte?",
     "years": "Jahre",
     "summary_photos": "{{count}} / {{max}} Fotos",
     "scenario_description": "Wählen Sie ein Thema oder lassen Sie es für ein freies Thema leer",
-    "generate_story": "Märchen erstellen"
+    "generate_story": "Geschichte erstellen"
   },
   "characters": {
     "title": "Charaktere",
@@ -568,7 +568,7 @@
     "character_type_animal": "Animal",
     "character_type_imaginary": "Imaginary",
     "share_title": "Share story",
-    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
+    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own story 🎭",
     "publish_share_dialog_title": "Publish story",
     "publish_share_dialog_message": "To share the story, it needs to be published. It will become available to all users.",
     "publish_share_dialog_published": "Published",
@@ -943,7 +943,7 @@
     "select_voice": "Stimme wählen",
     "usage_info": "Übrig: {{remaining}} von {{limit}} Audiogeschichten in diesem Monat",
     "upgrade_to_unlock": "Plan upgraden",
-    "premium_locked_reason": "Premium-Stimmen erfordern den Fairy-World-Plan.",
+    "premium_locked_reason": "Premium-Stimmen erfordern den Geschichtenwelt-Plan.",
     "close": "Schließen",
     "gender": {
       "male": "Männlich",
@@ -1101,7 +1101,7 @@
       "forest": "Forest",
       "robots": "Robots",
       "superheroes": "Superheroes",
-      "fairy_tales": "Fairy Tales",
+      "fairy_tales": "Geschichten",
       "adventure": "Adventure",
       "family": "Family",
       "friends": "Friends",
@@ -1523,7 +1523,7 @@
       "berry_wine": "Beerenmarmelade",
       "vanilla_cream": "Vanillekeks",
       "midnight_blue": "Sternennacht",
-      "storybook_watercolor": "Regenbogen-Märchen",
+      "storybook_watercolor": "Regenbogen-Geschichte",
       "candy_pop": "Süßladen",
       "slate_modern": "Kuschelgrau",
       "dino_jungle": "Dino-Dschungel",
@@ -1782,7 +1782,7 @@
     "reward_unlocked": "Preis geöffnet"
   },
   "published_story": {
-    "cta_title": "Your child is the hero of their own tale",
+    "cta_title": "Your child is the hero of their own story",
     "cta_description": "Create a story where your child becomes the main character. Pictures and audio in minutes.",
     "cta_button": "Sign in and create"
   },

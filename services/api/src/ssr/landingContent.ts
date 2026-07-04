@@ -126,15 +126,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   uk: {
     htmlLang: 'uk',
     ogLocale: 'uk_UA',
-    metaTitle: 'WonderTales — Перетворіть малюнок дитини на героя казки',
+    metaTitle: 'WonderTales — Перетворіть малюнок дитини на героя історії',
     metaDescription:
       'Створюйте персоналізовані історії з ілюстраціями, озвученням і текстом для читання. Безпечно, з урахуванням віку, для сімей.',
     hero: {
       title: 'Перетворіть малюнок дитини на',
-      highlight: 'чарівного героя казки',
+      highlight: 'чарівного героя історії',
       subheadline:
         'Створюйте персоналізовані історії з красивими ілюстраціями, озвученням і текстом для читання — за хвилини, безпечно, з урахуванням віку.',
-      imageAlt: 'Малюнок дитини перетворюється на ілюстрацію до казки',
+      imageAlt: 'Малюнок дитини перетворюється на ілюстрацію до історії',
       cta: 'Створити першу історію безкоштовно →',
     },
     trustChips: {
@@ -151,7 +151,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       cards: [
         {
           title: 'Їхній малюнок оживає',
-          desc: 'Дитина бачить свій світ у казці — її ідеї та улюблені герої стають справжніми персонажами.',
+          desc: 'Дитина бачить свій світ в історії — її ідеї та улюблені герої стають справжніми персонажами.',
           image: '/landing/draw-to-hero.png',
         },
         {
@@ -160,19 +160,19 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/listen-again.png',
         },
         {
-          title: 'Казки, які легко зрозуміти й полюбити',
+          title: 'Історії, які легко зрозуміти й полюбити',
           desc: 'Історії звучать природно, цікаво й по віку — дитині легко стежити за сюжетом і занурюватися в пригоду.',
           image: '/landing/safe-by-age.png',
         },
         {
           title: 'Чарівна історія з’являється дуже швидко',
-          desc: 'Достатньо обрати героя, тему й настрій — або завантажте кілька фото, і WonderTales сам створить персонажів. За кілька хвилин дитина вже може слухати, читати й роздивлятися свою казку.',
+          desc: 'Достатньо обрати героя, тему й настрій — або завантажте кілька фото, і WonderTales сам створить персонажів. За кілька хвилин дитина вже може слухати, читати й роздивлятися свою історію.',
           image: '/landing/create-in-minutes.png',
         },
       ],
     },
     fromSketchToStory: {
-      title: 'Від малюнка до казки — один чарівний процес',
+      title: 'Від малюнка до історії — один чарівний процес',
       subtitle:
         'Побачте, як простий малюнок стає опрацьованим персонажем і повною персоналізованою історією.',
       steps: [
@@ -181,16 +181,16 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           desc: 'Завантажте дитячі малюнки, фото чи просто опишіть персонажів словами — WonderTales перетворить ваші ідеї на живих героїв, яких дитина впізнає, полюбить і захоче бачити знову.',
         },
         {
-          title: 'Налаштуйте казку саме під вашу дитину',
+          title: 'Налаштуйте історію саме під вашу дитину',
           desc: 'Оберіть мову й тему: магія, космос, детективи, страшилки та інші. Можна обрати мораль історії, стиль ілюстрацій і додати особливі побажання. WonderTales врахує все й створить історію, яка відчувається по-справжньому особливою.',
         },
         {
-          title: 'Отримайте готову казку з ілюстраціями',
+          title: 'Отримайте готову історію з ілюстраціями',
           desc: 'За кілька хвилин WonderTales створить повноцінну історію з красивими сценами, продуманим сюжетом і персонажами — щоб читати було цікаво, легко й захопливо.',
         },
         {
           title: 'Слухайте, читайте й діліться разом',
-          desc: 'Увімкніть озвучення, читайте текст у зручному темпі або діліться історією з рідними. Казка стає не просто контентом, а теплим сімейним моментом, до якого хочеться повертатися знову і знову.',
+          desc: 'Увімкніть озвучення, читайте текст у зручному темпі або діліться історією з рідними. Історія стає не просто контентом, а теплим сімейним моментом, до якого хочеться повертатися знову і знову.',
         },
       ],
     },
@@ -225,7 +225,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Ідеально перед сном і для спокійних моментів',
-          desc: 'Готова казка для щоденних сімейних ритуалів.',
+          desc: 'Готова історія для щоденних сімейних ритуалів.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -236,8 +236,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       ],
     },
     featureGrid: {
-      title: 'Все необхідне для чарівного часу з казками',
-      subtitle: 'Створено для красивої, простої й багаторазової персоналізованої казки.',
+      title: 'Все необхідне для чарівного часу з історіями',
+      subtitle: 'Створено для красивої, простої й багаторазової персоналізованої історії.',
       features: [
         {
           title: 'Голосове озвучення',
@@ -246,7 +246,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Текст для читання разом',
-          desc: 'Слово за словом підсвічується під озвучення — дитина слідкує оком і природно пов’язує звук із текстом. Як караоке для казок.',
+          desc: 'Слово за словом підсвічується під озвучення — дитина слідкує оком і природно пов’язує звук із текстом. Як караоке для історій.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -260,8 +260,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Своя історія від малюнка до казки',
-          desc: 'Дитина стає автором власної казки — придумує героя, обирає пригоду, ділиться з сім’єю чи друзями. Опублікуйте в каталозі — отримайте оцінки від читачів.',
+          title: 'Своя історія з дитячого малюнка',
+          desc: 'Дитина стає автором власної історії — придумує героя, обирає пригоду, ділиться з сім’єю чи друзями. Опублікуйте в каталозі — отримайте оцінки від читачів.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -271,7 +271,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Ілюстрації різних стилів',
-          desc: 'Оберіть стиль під настрій — акварель, пластелін, 3D-анімація, комікс чи нічна казка. Кожна історія виглядає по-своєму.',
+          desc: 'Оберіть стиль під настрій — акварель, пластелін, 3D-анімація, комікс чи нічна історія. Кожна історія виглядає по-своєму.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -290,7 +290,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Голоси для озвучення',
       subtitle:
-        'Обирайте голос для казки — жіночий чи чоловічий. Передслухайте перед створенням історії. Безкоштовні голоси для всіх. Преміум-голоси (Персей, Оріон, Андромеда, Кассіопея) — для тарифу Казковий світ.',
+        'Обирайте голос для історії — жіночий чи чоловічий. Передслухайте перед створенням історії. Безкоштовні голоси для всіх. Преміум-голоси (Персей, Оріон, Андромеда, Кассіопея) — для тарифу Світ історій.',
       previewAria: 'Передслухати',
       noSampleAria: 'Немає зразка',
       fallbackVoices: [
@@ -321,7 +321,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Безкоштовний', price: '0' },
         silver: { name: 'Срібні мрії', price: '—' },
         golden: { name: 'Золоті зорі', price: '—' },
-        fairyworld: { name: 'Казковий світ', price: '—' },
+        fairyworld: { name: 'Світ історій', price: '—' },
       },
     },
     faq: {
@@ -331,7 +331,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       items: [
         {
           q: 'Чому WonderTales безпечно для дітей?',
-          a: 'Текст кожної сцени перевіряється окремо: WonderTales аналізує зміст на відповідність віку, безпечні теми й щасливе закінчення. Якщо сцена не проходить перевірку, сервіс автоматично переписує її з урахуванням зауважень. Ілюстрації теж проходять валідацію: WonderTales перевіряє кожне зображення на наявність забороненого контенту й за потреби генерує заміну. У WonderTales діють чіткі обмеження: без насильства, горя чи травмуючих сцен; лише дружній, позитивний тон. Складність речень узгоджена з Lexile, тому казка залишається зрозумілою саме для обраного віку.',
+          a: 'Текст кожної сцени перевіряється окремо: WonderTales аналізує зміст на відповідність віку, безпечні теми й щасливе закінчення. Якщо сцена не проходить перевірку, сервіс автоматично переписує її з урахуванням зауважень. Ілюстрації теж проходять валідацію: WonderTales перевіряє кожне зображення на наявність забороненого контенту й за потреби генерує заміну. У WonderTales діють чіткі обмеження: без насильства, горя чи травмуючих сцен; лише дружній, позитивний тон. Складність речень узгоджена з Lexile, тому історія залишається зрозумілою саме для обраного віку.',
         },
         {
           q: 'Чи можу я використати малюнок дитини в історії?',
@@ -347,7 +347,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Чи можна слухати історію в аудіо?',
-          a: 'Так. Після створення історії можна згенерувати виразне озвучення з емоціями: радість, цікавість, шепіт, сміх. Голоси жіночі й чоловічі, з різними тембрами. Є режим читання разом: слово підсвічується синхронно з озвученням, як караоке для казок, — дитина легко співвідносить звук і текст. Преміум-голоси доступні на вищих тарифах, а ліміт аудіоісторій залежить від плану.',
+          a: 'Так. Після створення історії можна згенерувати виразне озвучення з емоціями: радість, цікавість, шепіт, сміх. Голоси жіночі й чоловічі, з різними тембрами. Є режим читання разом: слово підсвічується синхронно з озвученням, як караоке для історій, — дитина легко співвідносить звук і текст. Преміум-голоси доступні на вищих тарифах, а ліміт аудіоісторій залежить від плану.',
         },
         {
           q: 'Чи можна створювати історії різними мовами?',
@@ -364,7 +364,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Які є стилі ілюстрацій?',
-          a: 'Доступні акварель, олівець, комікс, тепла 3D-анімація, нічна казка, фетр, пластелін і аніме. Оберіть стиль під настрій — і кожна історія виглядатиме по-своєму.',
+          a: 'Доступні акварель, олівець, комікс, тепла 3D-анімація, нічна історія, фетр, пластелін і аніме. Оберіть стиль під настрій — і кожна історія виглядатиме по-своєму.',
         },
         {
           q: 'Який обсяг історії?',
@@ -382,15 +382,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   ru: {
     htmlLang: 'ru',
     ogLocale: 'ru_RU',
-    metaTitle: 'WonderTales — превратите рисунок ребенка в героя сказки',
+    metaTitle: 'WonderTales — превратите рисунок ребенка в героя истории',
     metaDescription:
       'Создавайте персонализированные истории с иллюстрациями, озвучкой и текстом для чтения. Безопасно, с учетом возраста, для всей семьи.',
     hero: {
       title: 'Превратите рисунок ребенка в',
-      highlight: 'волшебного героя сказки',
+      highlight: 'волшебного героя истории',
       subheadline:
         'Создавайте персонализированные истории с красивыми иллюстрациями, озвучкой и текстом для чтения — за минуты, безопасно и с учетом возраста.',
-      imageAlt: 'Рисунок ребенка превращается в иллюстрацию к сказке',
+      imageAlt: 'Рисунок ребенка превращается в иллюстрацию к истории',
       cta: 'Создать первую историю бесплатно →',
     },
     trustChips: {
@@ -407,7 +407,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       cards: [
         {
           title: 'Их рисунок оживает',
-          desc: 'Ребенок видит свой мир в сказке: его идеи и любимые герои становятся настоящими персонажами.',
+          desc: 'Ребенок видит свой мир в истории: его идеи и любимые герои становятся настоящими персонажами.',
           image: '/landing/draw-to-hero.png',
         },
         {
@@ -416,19 +416,19 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/listen-again.png',
         },
         {
-          title: 'Сказки, которые легко понять и полюбить',
+          title: 'Истории, которые легко понять и полюбить',
           desc: 'Истории звучат естественно, интересно и по возрасту — ребенку легко следить за сюжетом и погружаться в приключение.',
           image: '/landing/safe-by-age.png',
         },
         {
           title: 'Волшебная история появляется очень быстро',
-          desc: 'Достаточно выбрать героя, тему и настроение — или загрузить несколько фото, и WonderTales сам создаст персонажей. Через пару минут ребенок уже может слушать, читать и рассматривать свою сказку.',
+          desc: 'Достаточно выбрать героя, тему и настроение — или загрузить несколько фото, и WonderTales сам создаст персонажей. Через пару минут ребенок уже может слушать, читать и рассматривать свою историю.',
           image: '/landing/create-in-minutes.png',
         },
       ],
     },
     fromSketchToStory: {
-      title: 'От рисунка до сказки — один волшебный процесс',
+      title: 'От рисунка до истории — один волшебный процесс',
       subtitle: 'Посмотрите, как простой рисунок превращается в проработанного персонажа и полноценную персонализированную историю.',
       steps: [
         {
@@ -436,16 +436,16 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           desc: 'Загрузите детские рисунки, фотографии или просто опишите персонажей словами — WonderTales превратит ваши идеи в живых героев, которых ребенок узнает, полюбит и захочет видеть снова.',
         },
         {
-          title: 'Настройте сказку именно под вашего ребенка',
+          title: 'Настройте историю именно под вашего ребенка',
           desc: 'Выберите язык и тему: магия, космос, детективы, страшилки и другие. Можно задать мораль истории, стиль иллюстраций и особые пожелания. WonderTales учтет все и создаст историю, которая ощущается по-настоящему особенной.',
         },
         {
-          title: 'Получите готовую сказку с иллюстрациями',
+          title: 'Получите готовую историю с иллюстрациями',
           desc: 'Через несколько минут WonderTales создаст полноценную историю с красивыми сценами, продуманным сюжетом и героями — чтобы читать было легко, интересно и захватывающе.',
         },
         {
           title: 'Слушайте, читайте и делитесь вместе',
-          desc: 'Включайте озвучку, читайте текст в удобном темпе или делитесь историей с близкими. Сказка становится не просто контентом, а теплым семейным моментом, к которому хочется возвращаться снова и снова.',
+          desc: 'Включайте озвучку, читайте текст в удобном темпе или делитесь историей с близкими. История становится не просто контентом, а теплым семейным моментом, к которому хочется возвращаться снова и снова.',
         },
       ],
     },
@@ -479,7 +479,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Идеально перед сном и для спокойных моментов',
-          desc: 'Готовая сказка для ежедневных семейных ритуалов.',
+          desc: 'Готовая история для ежедневных семейных ритуалов.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -490,8 +490,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       ],
     },
     featureGrid: {
-      title: 'Все необходимое для волшебного времени со сказками',
-      subtitle: 'Продумано для красивой, простой и многоразовой персонализированной сказки.',
+      title: 'Все необходимое для волшебного времени с историями',
+      subtitle: 'Продумано для красивой, простой и многоразовой персонализированной истории.',
       features: [
         {
           title: 'Голосовая озвучка',
@@ -500,7 +500,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Текст для чтения вместе',
-          desc: 'Слова подсвечиваются синхронно с озвучкой — ребенок следит глазами и естественно связывает звук с текстом. Как караоке для сказок.',
+          desc: 'Слова подсвечиваются синхронно с озвучкой — ребенок следит глазами и естественно связывает звук с текстом. Как караоке для историй.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -514,8 +514,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Своя история от рисунка до сказки',
-          desc: 'Ребенок становится автором собственной сказки — придумывает героя, выбирает приключение, делится с семьей и друзьями. Публикуйте в каталоге и получайте оценки читателей.',
+          title: 'Своя история из детского рисунка',
+          desc: 'Ребенок становится автором собственной истории — придумывает героя, выбирает приключение, делится с семьей и друзьями. Публикуйте в каталоге и получайте оценки читателей.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -525,7 +525,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Иллюстрации в разных стилях',
-          desc: 'Выберите стиль под настроение — акварель, пластилин, 3D-анимация, комикс или ночная сказка. Каждая история выглядит по-своему.',
+          desc: 'Выберите стиль под настроение — акварель, пластилин, 3D-анимация, комикс или ночная история. Каждая история выглядит по-своему.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -544,7 +544,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Голоса для озвучки',
       subtitle:
-        'Выбирайте голос для сказки — женский или мужской. Прослушайте перед созданием истории. Базовые голоса доступны всем. Премиум-голоса (Персей, Орион, Андромеда, Кассиопея) — для плана Fairy World.',
+        'Выбирайте голос для истории — женский или мужской. Прослушайте перед созданием истории. Базовые голоса доступны всем. Премиум-голоса (Персей, Орион, Андромеда, Кассиопея) — для плана Story World.',
       previewAria: 'Прослушать',
       noSampleAria: 'Нет примера',
       fallbackVoices: [
@@ -575,7 +575,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Бесплатный', price: '0' },
         silver: { name: 'Серебряные мечты', price: '—' },
         golden: { name: 'Золотые звезды', price: '—' },
-        fairyworld: { name: 'Сказочный мир', price: '—' },
+        fairyworld: { name: 'Мир историй', price: '—' },
       },
     },
     faq: {
@@ -618,7 +618,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Какие есть стили иллюстраций?',
-          a: 'Доступны акварель, карандаш, комикс, теплая 3D-анимация, ночная сказка, фетр, пластилин и аниме. Выбирайте стиль под настроение — и каждая история будет выглядеть по-своему.',
+          a: 'Доступны акварель, карандаш, комикс, теплая 3D-анимация, ночная история, фетр, пластилин и аниме. Выбирайте стиль под настроение — и каждая история будет выглядеть по-своему.',
         },
         {
           q: 'Какой объем у истории?',
@@ -676,7 +676,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'A magical story appears fast',
-          desc: 'Pick a hero, theme, and mood — or upload a few photos and let WonderTales build the characters for you. In just a few minutes your child can listen, read, and explore their own fairy tale.',
+          desc: 'Pick a hero, theme, and mood — or upload a few photos and let WonderTales build the characters for you. In just a few minutes your child can listen, read, and explore their own story.',
           image: '/landing/create-in-minutes.png',
         },
       ],
@@ -733,7 +733,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Perfect for bedtime and quiet moments',
-          desc: 'A ready-made fairy tale for comforting daily family rituals.',
+          desc: 'A ready-made story for comforting daily family rituals.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -754,7 +754,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Read-along text',
-          desc: 'Words highlight in sync with the narration, helping children connect sound and text naturally. Think karaoke for fairy tales.',
+          desc: 'Words highlight in sync with the narration, helping children connect sound and text naturally. Think karaoke for stories.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -768,8 +768,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'A story of their own from sketch to tale',
-          desc: 'Children become authors of their own fairy tale — inventing heroes, choosing adventures, and sharing them with friends or family. Publish to the catalog and receive reader ratings.',
+          title: 'A story of their own from a sketch',
+          desc: 'Children become authors of their own story — inventing heroes, choosing adventures, and sharing them with friends or family. Publish to the catalog and receive reader ratings.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -779,7 +779,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Illustrations in different styles',
-          desc: 'Choose the look that matches the mood — watercolor, clay, 3D animation, comic, or night tale. Every story can feel visually distinct.',
+          desc: 'Choose the look that matches the mood — watercolor, clay, 3D animation, comic, or night story. Every story can feel visually distinct.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -798,7 +798,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Narration voices',
       subtitle:
-        'Choose a voice for the story — female or male. Preview it before you create. Standard voices are available to everyone. Premium voices (Perseus, Orion, Andromeda, Cassiopeia) come with the Fairy World plan.',
+        'Choose a voice for the story — female or male. Preview it before you create. Standard voices are available to everyone. Premium voices (Perseus, Orion, Andromeda, Cassiopeia) come with the Story World plan.',
       previewAria: 'Preview voice',
       noSampleAria: 'No sample available',
       fallbackVoices: [
@@ -829,7 +829,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Free', price: '0' },
         silver: { name: 'Silver Dreams', price: '—' },
         golden: { name: 'Golden Stars', price: '—' },
-        fairyworld: { name: 'Fairy World', price: '—' },
+        fairyworld: { name: 'Story World', price: '—' },
       },
     },
     faq: {
@@ -872,7 +872,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'What illustration styles are available?',
-          a: 'You can choose from watercolor, pencil, comic, warm 3D animation, night tale, felt, clay, and anime. Pick the visual mood that fits your story best.',
+          a: 'You can choose from watercolor, pencil, comic, warm 3D animation, night story, felt, clay, and anime. Pick the visual mood that fits your story best.',
         },
         {
           q: 'How long is a typical story?',
@@ -890,15 +890,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   es: {
     htmlLang: 'es',
     ogLocale: 'es_ES',
-    metaTitle: 'WonderTales — convierte el dibujo de tu hijo en un héroe de cuento',
+    metaTitle: 'WonderTales — convierte el dibujo de tu hijo en un héroe de una historia',
     metaDescription:
       'Crea historias personalizadas con ilustraciones, narración y texto para leer juntos. Seguras, adaptadas por edad y pensadas para familias.',
     hero: {
       title: 'Convierte el dibujo de tu hijo en un',
-      highlight: 'héroe mágico de cuento',
+      highlight: 'héroe mágico de una historia',
       subheadline:
         'Crea historias personalizadas con ilustraciones preciosas, narración en voz y texto para seguir leyendo en pocos minutos, de forma segura y adaptada a la edad.',
-      imageAlt: 'Un dibujo infantil se transforma en una ilustración de cuento',
+      imageAlt: 'Un dibujo infantil se transforma en una ilustración de una historia',
       cta: 'Crear la primera historia gratis →',
     },
     trustChips: {
@@ -915,7 +915,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       cards: [
         {
           title: 'Su dibujo cobra vida',
-          desc: 'El niño ve su propio mundo dentro del cuento: sus ideas y personajes favoritos se convierten en héroes reales.',
+          desc: 'El niño ve su propio mundo dentro de la historia: sus ideas y personajes favoritos se convierten en héroes reales.',
           image: '/landing/draw-to-hero.png',
         },
         {
@@ -924,19 +924,19 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/listen-again.png',
         },
         {
-          title: 'Cuentos fáciles de seguir y de amar',
+          title: 'Historias fáciles de seguir y de amar',
           desc: 'Las historias suenan naturales, son adecuadas para la edad y ayudan al niño a seguir la aventura con facilidad.',
           image: '/landing/safe-by-age.png',
         },
         {
           title: 'La historia mágica aparece muy rápido',
-          desc: 'Elige un héroe, un tema y un ambiente, o sube unas fotos y deja que WonderTales cree los personajes. En pocos minutos tu hijo ya podrá escuchar, leer y explorar su propio cuento.',
+          desc: 'Elige un héroe, un tema y un ambiente, o sube unas fotos y deja que WonderTales cree los personajes. En pocos minutos tu hijo ya podrá escuchar, leer y explorar su propia historia.',
           image: '/landing/create-in-minutes.png',
         },
       ],
     },
     fromSketchToStory: {
-      title: 'Del dibujo al cuento en un solo proceso mágico',
+      title: 'Del dibujo a una historia en un solo proceso mágico',
       subtitle: 'Descubre cómo un simple boceto se convierte en un personaje completo y en una historia totalmente personalizada.',
       steps: [
         {
@@ -944,11 +944,11 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           desc: 'Sube dibujos infantiles, fotos familiares o simplemente describe a los personajes con palabras. WonderTales transforma esas ideas en héroes vivos que tu hijo reconocerá y querrá volver a ver.',
         },
         {
-          title: 'Adapta el cuento a tu hijo',
+          title: 'Adapta la historia a tu hijo',
           desc: 'Elige idioma y tema: magia, espacio, misterios, sustos suaves y mucho más. También puedes indicar la moraleja, el estilo visual y deseos especiales. WonderTales lo combina todo en una historia verdaderamente personal.',
         },
         {
-          title: 'Recibe un cuento completo con ilustraciones',
+          title: 'Recibe una historia completa con ilustraciones',
           desc: 'En pocos minutos WonderTales crea una historia completa con escenas hermosas, una trama cuidada y personajes memorables para que leer resulte emocionante y fácil.',
         },
         {
@@ -987,7 +987,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Perfecto para dormir y para momentos tranquilos',
-          desc: 'Un cuento listo para acompañar los rituales familiares del día a día.',
+          desc: 'Una historia lista para acompañar los rituales familiares del día a día.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -999,7 +999,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     featureGrid: {
       title: 'Todo lo necesario para un momento mágico de lectura',
-      subtitle: 'Diseñado para una experiencia de cuentos personalizada, bonita, simple y reutilizable.',
+      subtitle: 'Diseñado para una experiencia de historias personalizada, bonita, simple y reutilizable.',
       features: [
         {
           title: 'Narración en voz',
@@ -1008,7 +1008,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Texto para leer juntos',
-          desc: 'Las palabras se iluminan al ritmo de la narración y ayudan al niño a relacionar de forma natural el sonido con el texto. Como karaoke para cuentos.',
+          desc: 'Las palabras se iluminan al ritmo de la narración y ayudan al niño a relacionar de forma natural el sonido con el texto. Como karaoke para historias.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -1022,8 +1022,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Una historia propia, del dibujo al cuento',
-          desc: 'El niño se convierte en autor de su propio cuento: inventa héroes, elige aventuras y las comparte con familia o amigos. Publica en el catálogo y recibe valoraciones.',
+          title: 'Una historia propia a partir del dibujo',
+          desc: 'El niño se convierte en autor de su propia historia: inventa héroes, elige aventuras y las comparte con familia o amigos. Publica en el catálogo y recibe valoraciones.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -1033,7 +1033,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Ilustraciones en distintos estilos',
-          desc: 'Elige el estilo visual según el ambiente: acuarela, plastilina, animación 3D, cómic o cuento nocturno. Cada historia puede verse diferente.',
+          desc: 'Elige el estilo visual según el ambiente: acuarela, plastilina, animación 3D, cómic o historia nocturna. Cada historia puede verse diferente.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -1052,7 +1052,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Voces de narración',
       subtitle:
-        'Elige una voz para el cuento, femenina o masculina. Puedes escucharla antes de crear la historia. Las voces estándar están disponibles para todos. Las voces premium (Perseo, Orión, Andrómeda, Casiopea) forman parte del plan Fairy World.',
+        'Elige una voz para la historia, femenina o masculina. Puedes escucharla antes de crear la historia. Las voces estándar están disponibles para todos. Las voces premium (Perseo, Orión, Andrómeda, Casiopea) forman parte del plan Story World.',
       previewAria: 'Escuchar muestra',
       noSampleAria: 'Sin muestra disponible',
       fallbackVoices: [
@@ -1083,7 +1083,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Gratis', price: '0' },
         silver: { name: 'Sueños de Plata', price: '—' },
         golden: { name: 'Estrellas Doradas', price: '—' },
-        fairyworld: { name: 'Mundo de Hadas', price: '—' },
+        fairyworld: { name: 'Mundo de historias', price: '—' },
       },
     },
     faq: {
@@ -1126,7 +1126,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: '¿Qué estilos de ilustración hay?',
-          a: 'Puedes elegir entre acuarela, lápiz, cómic, animación 3D cálida, cuento nocturno, fieltro, plastilina y anime. Elige el estilo que mejor encaje con el ambiente de tu historia.',
+          a: 'Puedes elegir entre acuarela, lápiz, cómic, animación 3D cálida, historia nocturna, fieltro, plastilina y anime. Elige el estilo que mejor encaje con el ambiente de tu historia.',
         },
         {
           q: '¿Cuánto suele durar una historia?',
@@ -1144,15 +1144,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   de: {
     htmlLang: 'de',
     ogLocale: 'de_DE',
-    metaTitle: 'WonderTales — verwandle die Zeichnung deines Kindes in einen Märchenhelden',
+    metaTitle: 'WonderTales — verwandle die Zeichnung deines Kindes in einen Geschichtenhelden',
     metaDescription:
       'Erstelle personalisierte Geschichten mit Illustrationen, Erzählstimme und Mitlesetext. Sicher, altersgerecht und für Familien gemacht.',
     hero: {
       title: 'Verwandle die Zeichnung deines Kindes in einen',
-      highlight: 'magischen Märchenhelden',
+      highlight: 'magischen Geschichtenhelden',
       subheadline:
         'Erstelle personalisierte Geschichten mit wunderschönen Illustrationen, Erzählstimme und Mitlesetext in wenigen Minuten — sicher und altersgerecht.',
-      imageAlt: 'Eine Kinderzeichnung verwandelt sich in eine Märchenillustration',
+      imageAlt: 'Eine Kinderzeichnung verwandelt sich in eine Illustration für eine Geschichte',
       cta: 'Erste Geschichte kostenlos erstellen →',
     },
     trustChips: {
@@ -1241,7 +1241,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Perfekt für die Schlafenszeit und ruhige Momente',
-          desc: 'Ein fertiges Märchen für liebevolle Familienrituale im Alltag.',
+          desc: 'Eine fertige Geschichte für liebevolle Familienrituale im Alltag.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -1262,7 +1262,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Mitlesetext',
-          desc: 'Die Wörter werden synchron zur Stimme hervorgehoben und helfen Kindern, Klang und Schrift natürlich zu verbinden. Wie Karaoke für Märchen.',
+          desc: 'Die Wörter werden synchron zur Stimme hervorgehoben und helfen Kindern, Klang und Schrift natürlich zu verbinden. Wie Karaoke für Geschichten.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -1276,7 +1276,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Die eigene Geschichte — von der Zeichnung zum Märchen',
+          title: 'Die eigene Geschichte aus der Zeichnung',
           desc: 'Kinder werden zu Autorinnen und Autoren ihrer eigenen Geschichte: Sie erfinden Figuren, wählen Abenteuer und teilen sie mit Familie und Freunden. Veröffentliche im Katalog und sammle Bewertungen.',
           image: '/landing/draw-to-story.png',
         },
@@ -1287,7 +1287,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Illustrationen in verschiedenen Stilen',
-          desc: 'Wähle den Look passend zur Stimmung — Aquarell, Knete, 3D-Animation, Comic oder Nachtmärchen. So kann jede Geschichte visuell anders wirken.',
+          desc: 'Wähle den Look passend zur Stimmung — Aquarell, Knete, 3D-Animation, Comic oder Nachtgeschichte. So kann jede Geschichte visuell anders wirken.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -1337,7 +1337,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Kostenlos', price: '0' },
         silver: { name: 'Silberträume', price: '—' },
         golden: { name: 'Goldene Sterne', price: '—' },
-        fairyworld: { name: 'Märchenwelt', price: '—' },
+        fairyworld: { name: 'Geschichtenwelt', price: '—' },
       },
     },
     faq: {
@@ -1380,7 +1380,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Welche Illustrationsstile gibt es?',
-          a: 'Zur Auswahl stehen Aquarell, Bleistift, Comic, warme 3D-Animation, Nachtmärchen, Filz, Knete und Anime. Wähle den Stil, der am besten zur Stimmung deiner Geschichte passt.',
+          a: 'Zur Auswahl stehen Aquarell, Bleistift, Comic, warme 3D-Animation, Nachtgeschichte, Filz, Knete und Anime. Wähle den Stil, der am besten zur Stimmung deiner Geschichte passt.',
         },
         {
           q: 'Wie lang ist eine typische Geschichte?',
@@ -1398,15 +1398,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   fr: {
     htmlLang: 'fr',
     ogLocale: 'fr_FR',
-    metaTitle: 'WonderTales — transformez le dessin de votre enfant en héros de conte',
+    metaTitle: 'WonderTales — transformez le dessin de votre enfant en héros d’histoire',
     metaDescription:
       'Créez des histoires personnalisées avec illustrations, narration et texte à lire ensemble. Une expérience sûre, adaptée à l’âge et pensée pour les familles.',
     hero: {
       title: 'Transformez le dessin de votre enfant en',
-      highlight: 'héros magique de conte',
+      highlight: 'héros magique d’histoire',
       subheadline:
         'Créez en quelques minutes des histoires personnalisées avec de belles illustrations, une narration audio et un texte à suivre, en toute sécurité et selon l’âge.',
-      imageAlt: 'Un dessin d’enfant se transforme en illustration de conte',
+      imageAlt: 'Un dessin d’enfant se transforme en illustration d’histoire',
       cta: 'Créer la première histoire gratuitement →',
     },
     trustChips: {
@@ -1438,13 +1438,13 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Une histoire magique apparaît très vite',
-          desc: 'Choisissez un héros, un thème et une ambiance, ou téléversez quelques photos et laissez WonderTales créer les personnages. En quelques minutes, votre enfant peut déjà écouter, lire et explorer son propre conte.',
+          desc: 'Choisissez un héros, un thème et une ambiance, ou téléversez quelques photos et laissez WonderTales créer les personnages. En quelques minutes, votre enfant peut déjà écouter, lire et explorer son propre histoire.',
           image: '/landing/create-in-minutes.png',
         },
       ],
     },
     fromSketchToStory: {
-      title: 'Du dessin au conte dans un seul parcours magique',
+      title: 'Du dessin au histoire dans un seul parcours magique',
       subtitle: 'Découvrez comment un simple croquis devient un personnage abouti et une histoire entièrement personnalisée.',
       steps: [
         {
@@ -1495,7 +1495,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Parfait pour le coucher et les moments calmes',
-          desc: 'Un conte prêt à accompagner les rituels familiaux du quotidien.',
+          desc: 'Une histoire prête à accompagner les rituels familiaux du quotidien.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -1507,7 +1507,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     featureGrid: {
       title: 'Tout ce qu’il faut pour un moment de lecture magique',
-      subtitle: 'Pensé pour une expérience de conte personnalisée, belle, simple et réutilisable.',
+      subtitle: 'Pensé pour une expérience d’histoire personnalisée, belle, simple et réutilisable.',
       features: [
         {
           title: 'Narration audio',
@@ -1516,7 +1516,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Texte à lire ensemble',
-          desc: 'Les mots se surlignent au rythme de la narration et aident l’enfant à relier naturellement le son et le texte. Comme un karaoké pour contes.',
+          desc: 'Les mots se surlignent au rythme de la narration et aident l’enfant à relier naturellement le son et le texte. Comme un karaoké pour histoires.',
           image: '/landing/read-along-text.png',
         },
         {
@@ -1530,8 +1530,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Sa propre histoire, du dessin au conte',
-          desc: 'L’enfant devient l’auteur de son propre conte : il invente des héros, choisit les aventures et les partage avec ses proches. Publiez dans le catalogue et recevez des avis.',
+          title: 'Sa propre histoire, du dessin au histoire',
+          desc: 'L’enfant devient l’auteur de son propre histoire : il invente des héros, choisit les aventures et les partage avec ses proches. Publiez dans le catalogue et recevez des avis.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -1541,7 +1541,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Des illustrations dans plusieurs styles',
-          desc: 'Choisissez un style visuel selon l’ambiance : aquarelle, pâte à modeler, animation 3D, bande dessinée ou conte de nuit. Chaque histoire peut avoir son propre univers.',
+          desc: 'Choisissez un style visuel selon l’ambiance : aquarelle, pâte à modeler, animation 3D, bande dessinée ou histoire de nuit. Chaque histoire peut avoir son propre univers.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -1560,7 +1560,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Voix de narration',
       subtitle:
-        'Choisissez une voix pour l’histoire, féminine ou masculine. Vous pouvez l’écouter avant de créer. Les voix standard sont accessibles à tous. Les voix premium (Persée, Orion, Andromède, Cassiopée) font partie du plan Fairy World.',
+        'Choisissez une voix pour l’histoire, féminine ou masculine. Vous pouvez l’écouter avant de créer. Les voix standard sont accessibles à tous. Les voix premium (Persée, Orion, Andromède, Cassiopée) font partie du plan Story World.',
       previewAria: 'Écouter un extrait',
       noSampleAria: 'Aucun extrait disponible',
       fallbackVoices: [
@@ -1591,7 +1591,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Gratuit', price: '0' },
         silver: { name: 'Rêves d’Argent', price: '—' },
         golden: { name: 'Étoiles Dorées', price: '—' },
-        fairyworld: { name: 'Monde des Fées', price: '—' },
+        fairyworld: { name: 'Monde des histoires', price: '—' },
       },
     },
     faq: {
@@ -1634,7 +1634,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Quels styles d’illustration sont disponibles ?',
-          a: 'Vous pouvez choisir entre aquarelle, crayon, bande dessinée, animation 3D chaleureuse, conte de nuit, feutrine, pâte à modeler et anime. Sélectionnez le style qui correspond le mieux à l’ambiance de votre histoire.',
+          a: 'Vous pouvez choisir entre aquarelle, crayon, bande dessinée, animation 3D chaleureuse, histoire de nuit, feutrine, pâte à modeler et anime. Sélectionnez le style qui correspond le mieux à l’ambiance de votre histoire.',
         },
         {
           q: 'Quelle est la longueur d’une histoire en général ?',
@@ -1652,15 +1652,15 @@ const landingContent: Record<LandingLocale, LandingContent> = {
   pl: {
     htmlLang: 'pl',
     ogLocale: 'pl_PL',
-    metaTitle: 'WonderTales — zamień rysunek dziecka w bohatera bajki',
+    metaTitle: 'WonderTales — zamień rysunek dziecka w bohatera historii',
     metaDescription:
       'Twórz spersonalizowane historie z ilustracjami, narracją i tekstem do wspólnego czytania. Bezpieczne, dopasowane do wieku i stworzone dla rodzin.',
     hero: {
       title: 'Zamień rysunek dziecka w',
-      highlight: 'magicznego bohatera bajki',
+      highlight: 'magicznego bohatera historii',
       subheadline:
         'Twórz spersonalizowane historie z pięknymi ilustracjami, narracją głosową i tekstem do wspólnego czytania w kilka minut — bezpiecznie i z uwzględnieniem wieku dziecka.',
-      imageAlt: 'Rysunek dziecka zamienia się w ilustrację do bajki',
+      imageAlt: 'Rysunek dziecka zamienia się w ilustrację do historii',
       cta: 'Stwórz pierwszą historię za darmo →',
     },
     trustChips: {
@@ -1686,19 +1686,19 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/listen-again.png',
         },
         {
-          title: 'Bajki łatwe do śledzenia i pokochania',
+          title: 'Historie łatwe do śledzenia i pokochania',
           desc: 'Historie brzmią naturalnie, są dopasowane do wieku i pomagają dziecku z łatwością podążać za fabułą.',
           image: '/landing/safe-by-age.png',
         },
         {
           title: 'Magiczna historia pojawia się bardzo szybko',
-          desc: 'Wybierz bohatera, temat i nastrój albo wgraj kilka zdjęć i pozwól WonderTales stworzyć postacie. Już po chwili dziecko może słuchać, czytać i oglądać własną bajkę.',
+          desc: 'Wybierz bohatera, temat i nastrój albo wgraj kilka zdjęć i pozwól WonderTales stworzyć postacie. Już po chwili dziecko może słuchać, czytać i oglądać własną historię.',
           image: '/landing/create-in-minutes.png',
         },
       ],
     },
     fromSketchToStory: {
-      title: 'Od rysunku do bajki w jednym magicznym procesie',
+      title: 'Od rysunku do historii w jednym magicznym procesie',
       subtitle: 'Zobacz, jak prosty szkic staje się dopracowaną postacią i w pełni spersonalizowaną historią.',
       steps: [
         {
@@ -1749,7 +1749,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Idealne na dobranoc i spokojne chwile',
-          desc: 'Gotowa bajka, która może stać się częścią codziennych rodzinnych rytuałów.',
+          desc: 'Gotowa historia, która może stać się częścią codziennych rodzinnych rytuałów.',
           image: '/landing/bedtime-moments.png',
         },
         {
@@ -1760,7 +1760,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       ],
     },
     featureGrid: {
-      title: 'Wszystko, czego potrzeba do magicznego czasu z bajkami',
+      title: 'Wszystko, czego potrzeba do magicznego czasu z historiami',
       subtitle: 'Zaprojektowane z myślą o pięknym, prostym i wielokrotnym doświadczeniu spersonalizowanego opowiadania.',
       features: [
         {
@@ -1784,8 +1784,8 @@ const landingContent: Record<LandingLocale, LandingContent> = {
           image: '/landing/favorite-hero-series.png',
         },
         {
-          title: 'Własna historia od rysunku do bajki',
-          desc: 'Dziecko staje się autorem własnej bajki — wymyśla bohaterów, wybiera przygody i dzieli się nimi z rodziną i przyjaciółmi. Publikuj w katalogu i zbieraj oceny.',
+          title: 'Własna historia z rysunku',
+          desc: 'Dziecko staje się autorem własnej historii — wymyśla bohaterów, wybiera przygody i dzieli się nimi z rodziną i przyjaciółmi. Publikuj w katalogu i zbieraj oceny.',
           image: '/landing/draw-to-story.png',
         },
         {
@@ -1795,7 +1795,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           title: 'Ilustracje w różnych stylach',
-          desc: 'Wybierz wygląd pasujący do nastroju — akwarela, plastelina, animacja 3D, komiks albo nocna bajka. Każda historia może wyglądać inaczej.',
+          desc: 'Wybierz wygląd pasujący do nastroju — akwarela, plastelina, animacja 3D, komiks albo nocna historia. Każda historia może wyglądać inaczej.',
           image: '/landing/illustration-styles.png',
         },
       ],
@@ -1814,7 +1814,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Głosy narratora',
       subtitle:
-        'Wybierz głos do historii — kobiecy lub męski. Możesz go odsłuchać przed utworzeniem opowieści. Głosy standardowe są dostępne dla wszystkich. Głosy premium (Perseusz, Orion, Andromeda, Kasjopeja) należą do planu Fairy World.',
+        'Wybierz głos do historii — kobiecy lub męski. Możesz go odsłuchać przed utworzeniem opowieści. Głosy standardowe są dostępne dla wszystkich. Głosy premium (Perseusz, Orion, Andromeda, Kasjopeja) należą do planu Story World.',
       previewAria: 'Odsłuchaj próbkę',
       noSampleAria: 'Brak próbki',
       fallbackVoices: [
@@ -1845,7 +1845,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         free: { name: 'Darmowy', price: '0' },
         silver: { name: 'Srebrne Marzenia', price: '—' },
         golden: { name: 'Złote Gwiazdy', price: '—' },
-        fairyworld: { name: 'Bajkowy Świat', price: '—' },
+        fairyworld: { name: 'Świat historii', price: '—' },
       },
     },
     faq: {
@@ -1888,7 +1888,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
         },
         {
           q: 'Jakie style ilustracji są dostępne?',
-          a: 'Do wyboru są akwarela, ołówek, komiks, ciepła animacja 3D, nocna bajka, filc, plastelina i anime. Wybierz styl, który najlepiej pasuje do klimatu historii.',
+          a: 'Do wyboru są akwarela, ołówek, komiks, ciepła animacja 3D, nocna historia, filc, plastelina i anime. Wybierz styl, który najlepiej pasuje do klimatu historii.',
         },
         {
           q: 'Jak długa jest typowa historia?',
@@ -2005,13 +2005,13 @@ export function formatLandingDuration(locale: string, minutes: number): string {
 export function getPlanDisplayName(locale: string, slug: string, fallbackName: string): string {
   const normalizedLocale = normalizeLandingLocale(locale);
   const translations: Record<LandingLocale, Partial<Record<string, string>>> = {
-    uk: { free: 'Безкоштовний', silver: 'Срібні мрії', golden: 'Золоті зорі', fairyworld: 'Казковий світ' },
-    ru: { free: 'Бесплатный', silver: 'Серебряные мечты', golden: 'Золотые звезды', fairyworld: 'Сказочный мир' },
-    en: { free: 'Free', silver: 'Silver Dreams', golden: 'Golden Stars', fairyworld: 'Fairy World' },
-    es: { free: 'Gratis', silver: 'Sueños de Plata', golden: 'Estrellas Doradas', fairyworld: 'Mundo de Hadas' },
-    de: { free: 'Kostenlos', silver: 'Silberträume', golden: 'Goldene Sterne', fairyworld: 'Märchenwelt' },
-    fr: { free: 'Gratuit', silver: 'Rêves d’Argent', golden: 'Étoiles Dorées', fairyworld: 'Monde des Fées' },
-    pl: { free: 'Darmowy', silver: 'Srebrne Marzenia', golden: 'Złote Gwiazdy', fairyworld: 'Bajkowy Świat' },
+    uk: { free: 'Безкоштовний', silver: 'Срібні мрії', golden: 'Золоті зорі', fairyworld: 'Світ історій' },
+    ru: { free: 'Бесплатный', silver: 'Серебряные мечты', golden: 'Золотые звезды', fairyworld: 'Мир историй' },
+    en: { free: 'Free', silver: 'Silver Dreams', golden: 'Golden Stars', fairyworld: 'Story World' },
+    es: { free: 'Gratis', silver: 'Sueños de Plata', golden: 'Estrellas Doradas', fairyworld: 'Mundo de historias' },
+    de: { free: 'Kostenlos', silver: 'Silberträume', golden: 'Goldene Sterne', fairyworld: 'Geschichtenwelt' },
+    fr: { free: 'Gratuit', silver: 'Rêves d’Argent', golden: 'Étoiles Dorées', fairyworld: 'Monde des histoires' },
+    pl: { free: 'Darmowy', silver: 'Srebrne Marzenia', golden: 'Złote Gwiazdy', fairyworld: 'Świat historii' },
   };
   return translations[normalizedLocale][slug] || fallbackName;
 }
@@ -2070,7 +2070,7 @@ export function buildPlanDescription(
     es: ['audiohistoria', 'audiohistorias'],
     de: ['Audiogeschichte', 'Audiogeschichten'],
     fr: ['histoire audio', 'histoires audio'],
-    pl: ['audiobajka', 'audiobajki', 'audiobajek'],
+    pl: ['audiohistoria', 'audiohistorie', 'audiohistorii'],
   });
   const illustrations = formatCountLabel(normalizedLocale, imagesPerStory, {
     uk: ['ілюстрація', 'ілюстрації', 'ілюстрацій'],

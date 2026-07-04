@@ -6,7 +6,7 @@
 
 | English | Українська | Russian | Español | Notes |
 |---------|-----------|---------|----------|-------|
-| Story | Казка | Сказка | Cuento | Main content unit |
+| Story | Історія | История | Historia | Main content unit |
 | Episode | Епізод | Эпизод | Episodio | Part of series |
 | Series | Серія | Серия | Serie | Collection of episodes |
 | Scene | Сцена | Сцена | Escena | Illustration unit |
@@ -14,7 +14,7 @@
 | Library (My stories) | Мої історії | Мои истории | Mis historias | User's story collection |
 | Profile | Профіль | Профиль | Perfil | Child/user profile |
 
-## Story Elements / Елементи казки
+## Story Elements / Елементи історії
 
 | English | Українська | Russian | Español |
 |---------|-----------|---------|----------|

@@ -1,5 +1,5 @@
 {
-  "voice_sample_text": "Bonjour, petit ami ! Je vais te raconter un conte magique sur des aventures merveilleuses - une histoire qui remplira ton cœur de joie !",
+  "voice_sample_text": "Bonjour, petit ami ! Je vais te raconter une histoire magique sur des aventures merveilleuses - elle remplira ton cœur de joie !",
   "common": {
     "create": "Créer",
     "cancel": "Annuler",
@@ -28,7 +28,7 @@
     "logout": "Se déconnecter",
     "signup": "S'inscrire",
     "welcome": "Bienvenue",
-    "subtitle": "Contes illustrés personnalisés",
+    "subtitle": "Histoires illustrées personnalisées",
     "email": "E-mail",
     "email_placeholder": "ton@email.fr",
     "password": "Mot de passe",
@@ -84,7 +84,7 @@
   "landing": {
     "hero_title": "WonderTales",
     "hero_subtitle": "Dessins en personnages. Écoute, lis, publie.",
-    "hero_description": "Transforme les dessins de ton enfant en héros d'histoires. Écoute des contes audio avec le narrateur. Crée des histoires avec tes propres personnages, publie-les et reçois des notes.",
+    "hero_description": "Transforme les dessins de ton enfant en héros d'histoires. Écoute des histoires audio avec le narrateur. Crée des histoires avec tes propres personnages, publie-les et reçois des notes.",
     "how_it_works_title": "Comment ça marche",
     "step_1_title": "Choisis le thème et l'âge",
     "step_1_text": "4-5 champs en 10 secondes",
@@ -283,7 +283,7 @@
     "child_profile_required": "Créez ou choisissez d'abord un profil enfant",
     "goal_label": "Morale de l'histoire (optionnel)",
     "voice_narrator": "Voix du narrateur",
-    "voice_hint": "Sélectionnez une voix pour la narration du conte",
+    "voice_hint": "Sélectionnez une voix pour la narration de l'histoire",
     "style_watercolor": "Aquarelle",
     "style_pencil": "Crayon de couleur",
     "style_comic": "Bande dessinée",
@@ -316,17 +316,17 @@
   },
   "instant_wizard": {
     "title": "Créer une histoire",
-    "subtitle": "Importez des photos et créez un conte instantanément",
+    "subtitle": "Importez des photos et créez une histoire instantanément",
     "default_theme": "Thème libre",
     "upload_photos": "Importer des photos",
     "photos_description": "Il peut s'agir de photos d'enfants, d'adultes ou de personnages de dessins d'enfants",
     "photos_required": "Importez au moins une photo",
     "age_group": "Âge de l'enfant",
-    "age_group_description": "Pour quel âge créons-nous ce conte ?",
+    "age_group_description": "Pour quel âge créons-nous cette histoire ?",
     "years": "ans",
     "summary_photos": "{{count}} / {{max}} photos",
     "scenario_description": "Choisissez un thème ou laissez vide pour un thème libre",
-    "generate_story": "Créer le conte"
+    "generate_story": "Créer l'histoire"
   },
   "characters": {
     "title": "Personnages",
@@ -568,7 +568,7 @@
     "character_type_animal": "Animal",
     "character_type_imaginary": "Imaginary",
     "share_title": "Share story",
-    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
+    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own story 🎭",
     "publish_share_dialog_title": "Publish story",
     "publish_share_dialog_message": "To share the story, it needs to be published. It will become available to all users.",
     "publish_share_dialog_published": "Published",
@@ -943,7 +943,7 @@
     "select_voice": "Sélectionner la voix",
     "usage_info": "Restant: {{remaining}} sur {{limit}} histoires audio ce mois-ci",
     "upgrade_to_unlock": "Mettre à niveau",
-    "premium_locked_reason": "Les voix premium nécessitent le plan Fairy World.",
+    "premium_locked_reason": "Les voix premium nécessitent le plan Story World.",
     "close": "Fermer",
     "gender": {
       "male": "Masculin",
@@ -1101,7 +1101,7 @@
       "forest": "Forest",
       "robots": "Robots",
       "superheroes": "Superheroes",
-      "fairy_tales": "Fairy Tales",
+      "fairy_tales": "Histoires",
       "adventure": "Adventure",
       "family": "Family",
       "friends": "Friends",
@@ -1523,7 +1523,7 @@
       "berry_wine": "Confiture de baies",
       "vanilla_cream": "Biscuit vanille",
       "midnight_blue": "Nuit étoilée",
-      "storybook_watercolor": "Conte arc-en-ciel",
+      "storybook_watercolor": "Histoire arc-en-ciel",
       "candy_pop": "Boutique de bonbons",
       "slate_modern": "Petit nuage gris",
       "dino_jungle": "Jungle des dinosaures",
@@ -1766,13 +1766,13 @@
       "Très bien, tu as saisi l’idée principale.",
       "Bonne réponse, lecture attentive.",
       "Oui ! Tu te souviens bien de l’histoire.",
-      "Bien joué ! C’était bien dans le conte.",
+      "Bien joué ! C’était bien dans l'histoire.",
       "Très bien observé, la réponse correspond."
     ],
     "retry_feedback": "Presque. Regarde l’indice et essaie encore.",
     "retry_button": "Réessayer",
     "reflective_feedback": "Bonne idée. Vous pouvez en parler ensemble.",
-    "invitation_title": "Veux-tu ouvrir une petite activité après le conte ?",
+    "invitation_title": "Veux-tu ouvrir une petite activité après l'histoire ?",
     "invitation_subtitle": "On vérifie quelques moments et on débloque un prix.",
     "loading": "Préparation des activités...",
     "generate_cta": "Préparer les activités",
@@ -1782,7 +1782,7 @@
     "reward_unlocked": "Prix débloqué"
   },
   "published_story": {
-    "cta_title": "Your child is the hero of their own tale",
+    "cta_title": "Your child is the hero of their own story",
     "cta_description": "Create a story where your child becomes the main character. Pictures and audio in minutes.",
     "cta_button": "Sign in and create"
   },

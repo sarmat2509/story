@@ -1,5 +1,5 @@
 {
-  "voice_sample_text": "Hello, little friend! I'll tell you a magical tale about amazing adventures - a story that will fill your heart with joy!",
+  "voice_sample_text": "Hello, little friend! I'll tell you a magical story about amazing adventures - one that will fill your heart with joy!",
   "common": {
     "create": "Create",
     "cancel": "Cancel",
@@ -28,7 +28,7 @@
     "logout": "Logout",
     "signup": "Sign up",
     "welcome": "Welcome",
-    "subtitle": "Personalized illustrated fairy tales",
+    "subtitle": "Personalized illustrated stories",
     "email": "Email",
     "email_placeholder": "your@email.com",
     "password": "Password",
@@ -91,7 +91,7 @@
   "landing": {
     "hero_title": "WonderTales",
     "hero_subtitle": "Turn drawings into characters. Listen, read along. Create and publish.",
-    "hero_description": "Transform your child's drawings into story heroes. Listen to audio tales with the narrator. Create stories with your own characters, publish them, and get ratings.",
+    "hero_description": "Transform your child's drawings into story heroes. Listen to audio stories with the narrator. Create stories with your own characters, publish them, and get ratings.",
     "how_it_works_title": "How it works",
     "step_1_title": "Choose theme and age",
     "step_1_text": "4-5 fields, 10 seconds",
@@ -323,17 +323,17 @@
   },
   "instant_wizard": {
     "title": "Create Story",
-    "subtitle": "Upload photos and create a tale instantly",
+    "subtitle": "Upload photos and create a story instantly",
     "default_theme": "Free theme",
     "upload_photos": "Upload Photos",
     "photos_description": "These can be photos of children, adults, or characters from children's drawings",
     "photos_required": "Please upload at least one photo",
     "age_group": "Child's Age",
-    "age_group_description": "For what age are we creating the tale?",
+    "age_group_description": "For what age are we creating the story?",
     "years": "years",
     "summary_photos": "{{count}} / {{max}} photos",
     "scenario_description": "Choose story theme or leave empty for free theme",
-    "generate_story": "Create Tale"
+    "generate_story": "Create Story"
   },
   "characters": {
     "title": "Characters",
@@ -559,7 +559,7 @@
       "forest": "Forest",
       "robots": "Robots",
       "superheroes": "Superheroes",
-      "fairy_tales": "Fairy Tales",
+      "fairy_tales": "Stories",
       "adventure": "Adventure",
       "family": "Family",
       "friends": "Friends",
@@ -992,7 +992,7 @@
     "parent_review_pending_share_blocked": "Approve this child-created story before sharing it.",
     "parent_review_rejected_share_blocked": "Rejected child-created stories cannot be shared.",
     "share_title": "Share story",
-    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
+    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own story 🎭",
     "publish_share_dialog_title": "Publish story",
     "publish_share_dialog_message": "To share the story, it needs to be published. It will become available to all users.",
     "visibility_public_notice": "Public stories can appear in the catalog and be seen by anyone. Choose link-only for private sharing.",
@@ -1043,7 +1043,7 @@
     "map_tile_already_on_map": "Map piece already on the map"
   },
   "published_story": {
-    "cta_title": "Your child is the hero of their own tale",
+    "cta_title": "Your child is the hero of their own story",
     "cta_description": "Create a story where your child becomes the main character. Pictures and audio in minutes.",
     "cta_button": "Sign in and create"
   },
@@ -1186,7 +1186,7 @@
       "berry_wine": "Berry Jam",
       "vanilla_cream": "Vanilla Cookie",
       "midnight_blue": "Starlight Night",
-      "storybook_watercolor": "Rainbow Tale",
+      "storybook_watercolor": "Rainbow Story",
       "candy_pop": "Candy Shop",
       "slate_modern": "Cozy Cloud",
       "dino_jungle": "Dino Jungle",
@@ -1654,7 +1654,7 @@
     "select_voice": "Select Voice",
     "usage_info": "Remaining: {{remaining}} of {{limit}} audio stories this month",
     "upgrade_to_unlock": "Upgrade Plan",
-    "premium_locked_reason": "Premium voices require the Fairy World plan.",
+    "premium_locked_reason": "Premium voices require the Story World plan.",
     "close": "Close",
     "gender": {
       "male": "Male",
