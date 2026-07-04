@@ -133,6 +133,7 @@ function validGraphicNovelPanelResult(): GraphicNovelPanelImageValidationResult 
         matchedVisiblePanelDescription: 'A single visible panel with the starry chest.',
         visualMatchesExpectedMoment: true,
         unexpectedCharactersPresent: false,
+        unexpectedNamedCharacters: [],
         renderingArtifacts: false,
         panelIssue: null,
         characters: [
@@ -534,6 +535,7 @@ async function testGraphicNovelPanelValidationUsesSinglePanelArrayRequest() {
       imageData: TINY_PNG,
       mimeType: 'image/png',
       pageNumber: 1,
+      pageCharacters: validationInput.expectedCharacters,
       panels: [
         {
           panelNumber: 1,
@@ -575,6 +577,9 @@ async function testGraphicNovelPanelValidationUsesSinglePanelArrayRequest() {
   );
   assert.match(primary.calls[0].prompt, /panel-by-panel in a single response/);
   assert.match(primary.calls[0].prompt, /Panel 1 \[p1-1\]/);
+  assert.match(primary.calls[0].prompt, /PAGE CHARACTER ROSTER/);
+  assert.match(primary.calls[0].prompt, /Page roster characters that should NOT be visible/);
+  assert.match(primary.calls[0].prompt, /Druzhok/);
   assert.ok((primary.calls[0].schema.required || []).includes('panels'));
   assert.strictEqual(primary.calls[0].imageData?.length, 2);
   assert.match(primary.calls[0].imageData?.[0]?.instructionText ?? '', /GENERATED FULL COMIC PAGE/);

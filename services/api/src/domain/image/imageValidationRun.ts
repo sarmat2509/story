@@ -112,6 +112,7 @@ export type GraphicNovelPanelValidationInput = {
   imageData: Buffer;
   mimeType: string;
   pageNumber: number;
+  pageCharacters?: ProductImageValidationInput['expectedCharacters'];
   panels: Array<{
     panelNumber: number;
     panelId: string;
@@ -144,6 +145,13 @@ export type GraphicNovelPanelImageValidationResult = {
     matchedVisiblePanelDescription: string;
     visualMatchesExpectedMoment: boolean;
     unexpectedCharactersPresent: boolean;
+    unexpectedNamedCharacters: Array<{
+      name: string;
+      characterKind: ImageValidationCharacterKind;
+      recognizableScore: number;
+      identityComparisonSummary: string;
+      issue: string;
+    }>;
     renderingArtifacts: boolean;
     panelIssue?: string | null;
     characters: Array<{
@@ -630,6 +638,19 @@ function buildSegmentedLayoutSchema(includeBubbleChecks: boolean): JsonSchema {
 }
 
 function buildGraphicNovelPanelValidationSchema(): JsonSchema {
+  const unexpectedNamedCharacterSchema: JsonSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['name', 'characterKind', 'recognizableScore', 'identityComparisonSummary', 'issue'],
+    properties: {
+      name: { type: 'string' },
+      characterKind: { type: 'string', enum: ['human', 'animal', 'imaginary'] },
+      recognizableScore: { type: 'number', minimum: 0, maximum: 1 },
+      identityComparisonSummary: { type: 'string' },
+      issue: { type: 'string' },
+    },
+  };
+
   const panelCharacterSchema: JsonSchema = {
     type: 'object',
     additionalProperties: false,
@@ -706,6 +727,7 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
             'matchedVisiblePanelDescription',
             'visualMatchesExpectedMoment',
             'unexpectedCharactersPresent',
+            'unexpectedNamedCharacters',
             'renderingArtifacts',
             'panelIssue',
             'characters',
@@ -717,6 +739,10 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
             matchedVisiblePanelDescription: { type: 'string' },
             visualMatchesExpectedMoment: { type: 'boolean' },
             unexpectedCharactersPresent: { type: 'boolean' },
+            unexpectedNamedCharacters: {
+              type: 'array',
+              items: unexpectedNamedCharacterSchema,
+            },
             renderingArtifacts: { type: 'boolean' },
             panelIssue: { type: ['string', 'null'] },
             characters: { type: 'array', items: panelCharacterSchema },
@@ -731,6 +757,7 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
 function buildGraphicNovelPanelValidationPrompt(params: {
   pageNumber: number;
   panels: GraphicNovelPanelValidationInput['panels'];
+  pageCharacters: ProductImageValidationInput['expectedCharacters'];
   referenceImages: ProductImageValidationInput['referenceImages'] | undefined;
 }): string {
   const referenceRows = (params.referenceImages || [])
@@ -745,8 +772,32 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     })
     .join('\n');
 
+  const pageCharacterRows =
+    params.pageCharacters.length > 0
+      ? params.pageCharacters
+          .map((character) => {
+            const subtype = character.speciesSubtype?.trim()
+              ? `; subtype=${character.speciesSubtype.trim()}`
+              : '';
+            const desc = character.description?.trim()
+              ? `; description=${character.description.trim()}`
+              : '';
+            return `- ${character.name} (${character.characterKind}${subtype}${desc})`;
+          })
+          .join('\n')
+      : '- none';
+
   const panelRows = params.panels
     .map((panel) => {
+      const expectedNames = new Set(
+        panel.expectedCharacters.map((character) =>
+          stripCharacterIdFromName(character.name).trim().toLowerCase()
+        )
+      );
+      const notExpectedCharacters = params.pageCharacters.filter(
+        (character) =>
+          !expectedNames.has(stripCharacterIdFromName(character.name).trim().toLowerCase())
+      );
       const characterRows =
         panel.expectedCharacters.length > 0
           ? panel.expectedCharacters
@@ -764,12 +815,18 @@ function buildGraphicNovelPanelValidationPrompt(params: {
               })
               .join('\n')
           : '  - none';
+      const notExpectedRows =
+        notExpectedCharacters.length > 0
+          ? notExpectedCharacters.map((character) => `  - ${character.name}`).join('\n')
+          : '  - none';
       return [
         `Panel ${panel.panelNumber} [${panel.panelId}]`,
         `Expected visual focus: ${panel.expectedVisualFocus}`,
         panel.expectedSetting?.trim() ? `Expected setting: ${panel.expectedSetting.trim()}` : '',
-        'Expected characters:',
+        'Expected characters allowed in this panel:',
         characterRows,
+        'Page roster characters that should NOT be visible in this panel:',
+        notExpectedRows,
       ]
         .filter(Boolean)
         .join('\n');
@@ -786,6 +843,8 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     '- If the artwork split one expected panel into multiple physical boxes or merged panels together, still return the expected panel item, set hasExtraPanelStructure=true, describe the split/merge in layoutFeedback and panelIssue, and evaluate characters from the best matching visible region.',
     '- Do not let a character visible in another panel satisfy presence for this panel. Character found=true must be panel-local.',
     '- The same character appearing once in multiple different panels is normal and is not duplication.',
+    '- The expected characters listed for a panel are the only named page-roster characters allowed in that panel.',
+    '- If a page-roster character listed under "should NOT be visible" appears in that panel, add it to unexpectedNamedCharacters and set unexpectedCharactersPresent=true.',
     '',
     'Character validation rules:',
     '- For every expected character in a panel, answer whether that exact named character is visible in that panel and whether it matches the reference/expected design.',
@@ -795,6 +854,7 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     '- For humans with identity reference, faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference must be booleans.',
     '- For animals/imaginary creatures, set human-only face/hair/age fields to null; use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference.',
     '- matchesOutfit validates clothing only when an outfit plate or expected outfit text exists; otherwise use visible default/reference clothing only as a weak clue.',
+    '- unexpectedNamedCharacters is only for page-roster characters visible in a panel where they are not expected. Do not put environment objects, props, or unnamed background creatures there.',
     '',
     'Page-level rules:',
     '- detectedPanelCount is the number of visible physical comic panel boxes/regions.',
@@ -806,6 +866,8 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     `EXPECTED PANEL COUNT: ${params.panels.length}`,
     '',
     referenceRows ? `REFERENCE IMAGE ORDER:\n${referenceRows}` : 'REFERENCE IMAGE ORDER:\nNone',
+    '',
+    `PAGE CHARACTER ROSTER:\n${pageCharacterRows}`,
     '',
     `EXPECTED PANELS:\n${panelRows}`,
     '',
@@ -1427,6 +1489,19 @@ export async function runGraphicNovelPanelImageValidation(
   options: ProductImageValidationOptions = {}
 ): Promise<GraphicNovelPanelImageValidationResult> {
   const operation = options.operation ?? 'image_validation_graphic_novel_panels';
+  const pageCharacters =
+    input.pageCharacters && input.pageCharacters.length > 0
+      ? input.pageCharacters
+      : Array.from(
+          new Map(
+            input.panels
+              .flatMap((panel) => panel.expectedCharacters)
+              .map((character) => [
+                stripCharacterIdFromName(character.name).trim().toLowerCase(),
+                character,
+              ])
+          ).values()
+        );
   const preparedGeneratedImage = await prepareImageForValidation(
     input.imageData,
     input.mimeType,
@@ -1460,6 +1535,7 @@ export async function runGraphicNovelPanelImageValidation(
   const prompt = buildGraphicNovelPanelValidationPrompt({
     pageNumber: input.pageNumber,
     panels: input.panels,
+    pageCharacters,
     referenceImages: preparedReferenceImages,
   });
   const imageData: ImageData[] = [
@@ -1477,6 +1553,10 @@ export async function runGraphicNovelPanelImageValidation(
     mode: 'single_request_panel_array',
     pageNumber: input.pageNumber,
     expectedPanelCount: input.panels.length,
+    pageCharacters: pageCharacters.map((character) => ({
+      name: character.name,
+      characterKind: character.characterKind,
+    })),
     expectedPanels: input.panels.map((panel) => ({
       panelNumber: panel.panelNumber,
       panelId: panel.panelId,
@@ -1579,6 +1659,7 @@ export async function runGraphicNovelPanelImageValidation(
         matchedVisiblePanelDescription: 'provider blocked panel validation',
         visualMatchesExpectedMoment: false,
         unexpectedCharactersPresent: false,
+        unexpectedNamedCharacters: [],
         renderingArtifacts: false,
         panelIssue: pass.providerError || 'provider_blocked_no_visual_verdict',
         characters: panel.expectedCharacters.map((character) => ({

@@ -186,28 +186,22 @@ function graphicNovelCharacterKind(type?: string): 'human' | 'animal' | 'imagina
   return 'human';
 }
 
-function panelCharacterNames(panel: GraphicNovelPanelScript): string[] {
-  const names: string[] = [];
-  const push = (value: unknown) => {
-    if (typeof value !== 'string') return;
-    const trimmed = value.trim();
-    if (trimmed && !names.includes(trimmed)) names.push(trimmed);
-  };
-
-  for (const name of panel.charactersPresent || []) push(name);
-  for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) push(line.speaker);
+function panelCameraCharacterNames(panel: GraphicNovelPanelScript): string[] {
   const composition = panel.visual.sceneVisual.cameraComposition;
-  if (typeof composition !== 'string') {
-    for (const character of composition.characters || []) push(character.name);
-  }
+  if (typeof composition === 'string') return [];
 
+  const names: string[] = [];
+  for (const character of composition.characters || []) {
+    const name = character.name?.trim();
+    if (name && !names.includes(name)) names.push(name);
+  }
   return names;
 }
 
-function buildPageCharacterNames(page: PlannedGraphicNovelPage): Set<string> {
+function buildPageCameraCharacterNames(page: PlannedGraphicNovelPage): Set<string> {
   const names = new Set<string>();
   for (const panel of page.panels) {
-    for (const name of panelCharacterNames(panel.script)) {
+    for (const name of panelCameraCharacterNames(panel.script)) {
       names.add(normalizeName(name));
     }
   }
@@ -228,7 +222,7 @@ function buildExpectedCharacters(
   page: PlannedGraphicNovelPage,
   characters: GraphicNovelCharacterManifest
 ) {
-  const pageNames = buildPageCharacterNames(page);
+  const pageNames = buildPageCameraCharacterNames(page);
   return characters
     .filter((character) => characterMatchesPage(character, pageNames))
     .map((character) => ({
@@ -246,7 +240,7 @@ function buildPanelValidationInputs(
     expectedCharacters.map((character) => [normalizeName(character.name), character])
   );
   return page.panels.map((panel, index) => {
-    const expectedPanelCharacters = panelCharacterNames(panel.script)
+    const expectedPanelCharacters = panelCameraCharacterNames(panel.script)
       .map((name) => byName.get(normalizeName(name)))
       .filter(
         (character): character is ReturnType<typeof buildExpectedCharacters>[number] => !!character
@@ -293,7 +287,7 @@ function buildGraphicNovelPageValidationSceneVisual(
           `Environment id: ${panel.script.visual.environmentId}`,
           `Scene setting delta: ${panel.script.visual.sceneVisual.setting}`,
           includeBubbleChecks ? `Bubble count: ${panel.bubbles.length}` : null,
-          `Characters named in panel: ${panelCharacterNames(panel.script).join(', ') || 'none'}`,
+          `Camera composition characters: ${panelCameraCharacterNames(panel.script).join(', ') || 'none'}`,
         ]
           .filter(Boolean)
           .join('. '),
@@ -306,7 +300,7 @@ async function buildValidationReferenceImages(params: {
   page: PlannedGraphicNovelPage;
   characters: GraphicNovelCharacterManifest;
 }): Promise<ValidationReferenceImage[]> {
-  const pageNames = buildPageCharacterNames(params.page);
+  const pageNames = buildPageCameraCharacterNames(params.page);
   const refs: ValidationReferenceImage[] = [];
 
   const seenStoragePaths = new Set<string>();
@@ -743,6 +737,7 @@ async function runComicPanelValidation(params: {
   storyId: string;
   pageNumber: number;
   originalAttempt: number;
+  expectedCharacters: ReturnType<typeof buildExpectedCharacters>;
   panelInputs: GraphicNovelPanelValidationInput['panels'];
   referenceImages: ValidationReferenceImage[];
 }): Promise<void> {
@@ -755,6 +750,7 @@ async function runComicPanelValidation(params: {
         imageData: params.image.buffer,
         mimeType: params.image.mimeType,
         pageNumber: params.pageNumber,
+        pageCharacters: params.expectedCharacters,
         panels: params.panelInputs,
         referenceImages: params.referenceImages,
         logContext: {
@@ -790,6 +786,8 @@ async function runComicPanelValidation(params: {
         panelId: panel.panelId,
         panelDetected: panel.panelDetected,
         visualMatchesExpectedMoment: panel.visualMatchesExpectedMoment,
+        unexpectedCharactersPresent: panel.unexpectedCharactersPresent,
+        unexpectedNamedCharacters: panel.unexpectedNamedCharacters,
         panelIssue: panel.panelIssue ?? null,
         matchedVisiblePanelDescription: panel.matchedVisiblePanelDescription,
         characters: panel.characters.map((character) => ({
@@ -985,6 +983,7 @@ async function main(): Promise<void> {
         storyId: validationRow.story_id,
         pageNumber: validationRow.scene_index,
         originalAttempt: validationRow.attempt,
+        expectedCharacters,
         panelInputs,
         referenceImages,
       });
