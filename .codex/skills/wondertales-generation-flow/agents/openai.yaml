@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Generation Flow"
+  short_description: "Trace story and comic generation"
+  default_prompt: "Use $wondertales-generation-flow to trace WonderTales story, image, validation, regeneration, comic, and mixed-story flows."

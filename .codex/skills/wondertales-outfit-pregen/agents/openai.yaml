@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Outfit Pregen"
+  short_description: "Generate and optimize outfit plate assets"
+  default_prompt: "Use $wondertales-outfit-pregen to generate planned outfit plates and optimize them as JPEG assets."

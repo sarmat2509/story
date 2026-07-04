@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Project Map"
+  short_description: "Map repo, DB, modules, providers"
+  default_prompt: "Use $wondertales-project-map to find the right WonderTales files, database tables, modules, and providers before editing."

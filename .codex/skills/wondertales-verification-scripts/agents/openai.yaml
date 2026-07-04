@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Verification Scripts"
+  short_description: "Choose the right WonderTales check script"
+  default_prompt: "Use $wondertales-verification-scripts to choose and run the right WonderTales verification command."
