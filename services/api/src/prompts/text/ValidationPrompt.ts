@@ -3,23 +3,27 @@
  * Generates prompts for scene-by-scene content safety validation
  */
 
-import type { EpisodeText, PolicyProfile } from '../../ai/types';
+import type { EpisodeText, PolicyProfile, StorySpec } from '../../ai/types';
 import { getContentPolicy } from '../contentPolicy';
+
+type ReservedCharacter = StorySpec['characters'][number];
 
 export interface ValidationPromptParams {
   sceneText: EpisodeText['scenes'][0];
   policy: PolicyProfile;
   isLastScene: boolean;
   scenarioCardId?: string;
+  reservedCharacters?: ReservedCharacter[];
 }
 
 export interface BatchValidationPromptParams {
   scenes: EpisodeText['scenes'];
   policy: PolicyProfile;
   scenarioCardId?: string;
+  reservedCharacters?: ReservedCharacter[];
 }
 
-export const TEXT_VALIDATION_CACHE_KEY = 'text_validation_rules_v1';
+export const TEXT_VALIDATION_CACHE_KEY = 'text_validation_rules_v2';
 
 function compactCameraComposition(cameraComposition: unknown): string {
   if (!cameraComposition || typeof cameraComposition !== 'object') return '';
@@ -48,6 +52,50 @@ function compactCameraComposition(cameraComposition: unknown): string {
   return Object.keys(normalized).length > 0 ? JSON.stringify(normalized) : '';
 }
 
+function formatReservedCharacters(characters?: ReservedCharacter[]): string {
+  const rows = (characters || [])
+    .filter((character) => String(character?.name || '').trim())
+    .map((character) => ({
+      name: character.name,
+      canonicalName: character.canonicalName ?? null,
+      nameAliases: Array.isArray(character.nameAliases) ? character.nameAliases : [],
+      type: character.type,
+      subtype: character.subtype ?? null,
+      role: character.role ?? null,
+      visualReference: Boolean(
+        (character as any).turnaroundSheet?.url ||
+          (character as any).turnaroundSheet?.frontUrl ||
+          (character.referencePhotos?.length || 0) > 0
+      ),
+      description:
+        (character as any).descriptionEn ||
+        (character as any).aiGeneratedDescription ||
+        character.description ||
+        character.appearance ||
+        '',
+    }));
+
+  return rows.length > 0 ? JSON.stringify(rows, null, 2) : '';
+}
+
+function formatCharacterIdentityValidationRules(characters?: ReservedCharacter[]): string {
+  const reserved = formatReservedCharacters(characters);
+  if (!reserved) return '';
+
+  return `RESERVED CHARACTER IDENTITY VALIDATION:
+The following exact names and aliases belong to user-selected/reference-grounded characters. Validate the semantics of how those listed names are used; do not flag merely similar-sounding names.
+${reserved}
+
+Rules:
+- These names are reserved for those exact character identities only.
+- Fail with category "reserved_name_reused_for_new_entity" if a reserved character name is reused for a different entity, species, object, location, narrator, helper, vehicle, world-bearing animal, or environment.
+- Fail with category "reserved_character_identity_conflict" if a reserved character is reinterpreted as a different species, body, scale, or role than its description/reference identity.
+- Valid: a reserved character stands on, talks about, rides, sees, or helps a separate creature.
+- Valid: an environment is located on a giant turtle/tortoise, if that turtle is not given a reserved character name.
+- Invalid: a reserved moss creature named "Моховик" is presented as "the tortoise", "giant turtle", "oldest turtle", or the carrier of the world.
+- If the evidence is ambiguous but likely an identity conflict, fail with category "character_identity_unclear".`;
+}
+
 export function buildBatchValidationCachedPrefix(): string {
   return `Validate children's story scenes for age-appropriateness and narrative safety.
 
@@ -59,6 +107,7 @@ Core validation rules:
 - Other scenes should progress the story appropriately.
 - If cameraComposition is present, it must list all physically present characters.
 - If text clearly includes a present character missing from cameraComposition.characters, return correctedCameraComposition.
+- If RESERVED CHARACTER IDENTITY VALIDATION is provided in the runtime prompt, enforce it.
 
 Output contract:
 {
@@ -67,7 +116,7 @@ Output contract:
       "sceneId": <number>,
       "violations": [
         {
-          "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete",
+          "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear",
           "severity": "critical" | "high" | "medium",
           "message": "Clear explanation",
           "suggestion": "How to fix (optional)"
@@ -81,11 +130,14 @@ Output contract:
   ]
 }
 
+Use categories:
+"content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".
+
 Use EXACT character names in correctedCameraComposition.`;
 }
 
 export function buildValidationPrompt(params: ValidationPromptParams): string {
-  const { sceneText, policy, isLastScene, scenarioCardId } = params;
+  const { sceneText, policy, isLastScene, scenarioCardId, reservedCharacters } = params;
   const { validationRules } = getContentPolicy({
     policyProfile: policy,
     scenarioCardId,
@@ -111,6 +163,7 @@ CORE VALIDATION RULES:
     : 'This scene should progress the story appropriately.'}
 - If cameraComposition is present, it must list all physically present characters.
 - If text clearly includes a present character missing from cameraComposition.characters, return correctedCameraComposition.
+${formatCharacterIdentityValidationRules(reservedCharacters)}
 
 SCENE:
 TEXT: ${sceneText.text}
@@ -125,13 +178,13 @@ OUTPUT CONTRACT:
 }
 
 If invalid, set "isValid" to false and include violations using categories:
-"content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete".
+"content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".
 
 Use EXACT character names in correctedCameraComposition. Preserve existing outfitId when camera data already provides it.`;
 }
 
 export function buildBatchValidationRuntimePrompt(params: BatchValidationPromptParams): string {
-  const { scenes, policy, scenarioCardId } = params;
+  const { scenes, policy, scenarioCardId, reservedCharacters } = params;
   const { validationRules } = getContentPolicy({
     policyProfile: policy,
     scenarioCardId,
@@ -158,6 +211,8 @@ LAST SCENE ID: ${scenes.length > 0 ? scenes[scenes.length - 1].sceneId : '?'}
 
 POLICY RULES:
 ${validationRules}
+
+${formatCharacterIdentityValidationRules(reservedCharacters)}
 
 SCENES:
 ${scenesBlock}

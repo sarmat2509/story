@@ -172,7 +172,10 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         spec.policyProfile,
         isLastScene,
         spec.scenarioCard?.id,
-        { onUsage: (u) => recordUsage(u, usageContext) },
+        {
+          onUsage: (u) => recordUsage(u, usageContext),
+          reservedCharacters: spec.characters,
+        },
       );
       const durationMs = Date.now() - sceneStart;
       initialValidationDurations.push(durationMs);
@@ -305,7 +308,10 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
               spec.policyProfile,
               scene.sceneId === text.scenes[text.scenes.length - 1]?.sceneId,
               spec.scenarioCard?.id,
-              { onUsage: (u) => recordUsage(u, usageContext) },
+              {
+                onUsage: (u) => recordUsage(u, usageContext),
+                reservedCharacters: spec.characters,
+              },
             );
             const durationMs = Date.now() - sceneStart;
             completedValidationUnits += 1;

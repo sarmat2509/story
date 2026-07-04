@@ -411,6 +411,13 @@ ${thoughtBubbleRules(spec.ageGroup, pageCount)}
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
+CHARACTER NAME OWNERSHIP:
+- Names listed in CHARACTERS are reserved identity names for those exact characters only.
+- Never reuse a listed character name for a newly invented creature, elder, helper, narrator, location, vehicle, object, world-animal, or environmental being.
+- If the scenario needs an additional named creature/helper (for example a giant animal carrying a world on its back), create a fresh name that is not similar to any listed character name.
+- Do not reinterpret a reference-grounded character as a different species, scale, place, or vehicle. If a listed character appears, they remain that same character identity.
+- If an environment is on, inside, or carried by a large creature, that creature must have its own new name unless it is explicitly listed in CHARACTERS as that exact creature.
+
 ${formatStructuredOutfitRules({ includeChangeRules: true })}
 
 ${formatStructuredSpeakerNameRules({
@@ -511,6 +518,12 @@ ${
     ? graphicNovelCharacterList(spec, continuationContext)
     : safetyFallbackCharacterList(spec)
 }
+
+CHARACTER NAME OWNERSHIP:
+- Names listed in CHARACTERS are reserved for those exact characters only.
+- Do not use a listed character name for a new creature/helper/location/object or for a large world-carrying animal.
+- If the story needs another named creature, invent a different name.
+- A listed character must not be rewritten as a different species, scale, place, or vehicle.
 
 ${formatStructuredOutfitRules({ includeChangeRules: true })}
 

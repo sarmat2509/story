@@ -1,8 +1,9 @@
-import type { StoryEnvironment, StoryOutfitRow, StorySpec } from '../../ai/types';
+import type { EpisodeText, SceneValidationResult, StoryEnvironment, StoryOutfitRow, StorySpec } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { CameraCharacterComposition } from '../../services/types';
 import {
+  buildValidationPrompt,
   buildGraphicNovelPrompt,
   buildGraphicNovelSafetyFallbackPrompt,
   GRAPHIC_NOVEL_SCRIPT_SCHEMA,
@@ -18,6 +19,7 @@ import type {
 import { planGraphicNovelLayouts } from './layoutPlanner';
 import { logger } from '../../utils/logger';
 import config from '../../config';
+import { VALIDATION_SCHEMA } from '../story/schemas';
 
 const GRAPHIC_NOVEL_MAX_OUTPUT_TOKENS = 48000;
 const FALLBACK_ENVIRONMENT_ID = 'env_main';
@@ -26,6 +28,30 @@ type OutfitKind = 'natural' | 'everyday' | 'swimwear';
 function isProviderContentBlockedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /PROHIBITED_CONTENT|Content blocked|content filter|blocked by/i.test(message);
+}
+
+class GraphicNovelScriptTextValidationError extends Error {
+  constructor(
+    public readonly failures: Array<{
+      pageNumber: number;
+      violations: SceneValidationResult['violations'];
+    }>
+  ) {
+    super(
+      `Graphic novel script text validation failed: ${failures
+        .flatMap((failure) =>
+          failure.violations.map(
+            (violation) => `page ${failure.pageNumber}: ${violation.category}: ${violation.message}`
+          )
+        )
+        .join('; ')}`
+    );
+    this.name = 'GraphicNovelScriptTextValidationError';
+  }
+}
+
+function isGraphicNovelScriptRetryableError(error: unknown): boolean {
+  return error instanceof GraphicNovelScriptTextValidationError;
 }
 
 function roleForPage(pageNumber: number, pageCount: number): GraphicNovelPageRole {
@@ -386,8 +412,138 @@ function normalizeScript(
   };
 }
 
+function graphicNovelPageToValidationScene(
+  script: GraphicNovelScript,
+  page: GraphicNovelScript['pages'][number],
+  fallbackSceneId: number
+): EpisodeText['scenes'][number] {
+  const sceneId = Number.isFinite(page.pageNumber) ? page.pageNumber : fallbackSceneId;
+  const panels = (Array.isArray(page.panels) ? page.panels : []).map((panel, index) => {
+    const cameraComposition = panel.visual?.sceneVisual?.cameraComposition;
+    return {
+      panelId: panel.panelId || `p${sceneId}-${index + 1}`,
+      caption: panel.caption ?? null,
+      dialogue: (panel.dialogue || []).map((line) => ({
+        speaker: line.speaker,
+        text: line.text,
+      })),
+      thoughts: (panel.thoughts || []).map((line) => ({
+        speaker: line.speaker,
+        text: line.text,
+      })),
+      visual: {
+        primaryRead: panel.visual?.primaryRead ?? null,
+        environmentId: panel.visual?.environmentId ?? null,
+        setting: panel.visual?.sceneVisual?.setting ?? null,
+        lighting: panel.visual?.sceneVisual?.lighting ?? null,
+        camera:
+          cameraComposition && typeof cameraComposition !== 'string'
+            ? cameraComposition
+            : cameraComposition || null,
+      },
+    };
+  });
+
+  return {
+    sceneId,
+    text: `GRAPHIC_NOVEL_PAGE_SCRIPT_JSON:\n${JSON.stringify(
+      {
+        storyTitle: script.title,
+        storyDescription: script.description,
+        pageNumber: sceneId,
+        pageRole: page.pageRole,
+        panels,
+      },
+      null,
+      2
+    )}`,
+    primaryRead: panels.map((panel) => panel.visual.primaryRead).filter(Boolean).join(' | '),
+    sceneVisual: {
+      setting: panels.map((panel) => panel.visual.setting).filter(Boolean).join(' | '),
+      lighting: panels.map((panel) => panel.visual.lighting).filter(Boolean).join(' | '),
+      cameraComposition: {
+        shot: `graphic novel page ${sceneId}`,
+        characters: panels.flatMap((panel) => {
+          const camera = panel.visual.camera;
+          if (!camera || typeof camera === 'string' || !Array.isArray(camera.characters)) {
+            return [];
+          }
+          return camera.characters;
+        }),
+      },
+    },
+  };
+}
+
 export class GraphicNovelDomainService {
-  constructor(private textProvider: ITextProvider) {}
+  constructor(
+    private textProvider: ITextProvider,
+    private validationTextProvider: ITextProvider = textProvider
+  ) {}
+
+  private async validateScriptText(params: {
+    script: GraphicNovelScript;
+    spec: StorySpec;
+    onUsage?: (usage: UsageMetadata) => void;
+  }): Promise<void> {
+    const pages = Array.isArray(params.script.pages) ? params.script.pages : [];
+    const failures: GraphicNovelScriptTextValidationError['failures'] = [];
+
+    for (const [index, page] of pages.entries()) {
+      const sceneText = graphicNovelPageToValidationScene(params.script, page, index + 1);
+      const prompt = buildValidationPrompt({
+        sceneText,
+        policy: params.spec.policyProfile,
+        isLastScene: index === pages.length - 1,
+        scenarioCardId: params.spec.scenarioCard?.id,
+        reservedCharacters: params.spec.characters,
+      });
+
+      logger.debug(
+        {
+          pageNumber: sceneText.sceneId,
+          promptLength: prompt.length,
+          promptPreview: prompt.slice(0, 500),
+        },
+        'Graphic novel page text validation prompt'
+      );
+
+      const validation = await this.validationTextProvider.generateStructured<SceneValidationResult>({
+        prompt,
+        schema: VALIDATION_SCHEMA,
+        temperature: 0.1,
+        model: config.ai.validationModel,
+        onUsage: params.onUsage,
+        operation: 'validateScene',
+      });
+
+      const violations = Array.isArray(validation.violations) ? validation.violations : [];
+      logger.info(
+        {
+          pageNumber: sceneText.sceneId,
+          isValid: validation.isValid,
+          violationCount: violations.length,
+          violations: violations.slice(0, 5).map((violation) => ({
+            category: violation.category,
+            severity: violation.severity,
+            message: violation.message,
+          })),
+        },
+        'Graphic novel page text validation complete'
+      );
+
+      if (!validation.isValid || violations.length > 0) {
+        failures.push({
+          pageNumber: sceneText.sceneId,
+          violations,
+        });
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new GraphicNovelScriptTextValidationError(failures);
+    }
+  }
 
   async generateScript(params: {
     spec: StorySpec;
@@ -427,6 +583,11 @@ export class GraphicNovelDomainService {
           onUsage: params.onUsage,
           operation: attempt.operation,
         });
+        await this.validateScriptText({
+          script: raw,
+          spec: params.spec,
+          onUsage: params.onUsage,
+        });
         usedAttempt = attempt.label;
         break;
       } catch (error) {
@@ -439,6 +600,18 @@ export class GraphicNovelDomainService {
               fallbackModel: attempts[1].model ?? null,
             },
             'Graphic novel script generation was blocked; retrying with safety fallback prompt'
+          );
+          continue;
+        }
+        if (index === 0 && isGraphicNovelScriptRetryableError(error)) {
+          logger.warn(
+            {
+              err: error,
+              pageCount: params.pageCount,
+              ageGroup: params.spec.ageGroup,
+              fallbackModel: attempts[1].model ?? null,
+            },
+            'Graphic novel script failed text validation; retrying with safety fallback prompt'
           );
           continue;
         }

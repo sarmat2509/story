@@ -110,7 +110,10 @@ export function getComplexImageDomainService(): ImageDomainService {
 export function getGraphicNovelDomainService(): GraphicNovelDomainService {
   if (!graphicNovelDomainService) {
     logger.info('Initializing Graphic Novel Domain Service');
-    graphicNovelDomainService = new GraphicNovelDomainService(getTextProvider());
+    graphicNovelDomainService = new GraphicNovelDomainService(
+      getTextProvider(),
+      getValidationTextProvider()
+    );
   }
 
   return graphicNovelDomainService;

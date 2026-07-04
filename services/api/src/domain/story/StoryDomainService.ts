@@ -17,6 +17,7 @@ import { canonicalizeMapTileFeatures } from './mapTileMasks';
 
 export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
+  reservedCharacters?: StorySpec['characters'];
   /** When true, uses continuation prompt with previousOutlines, usedPlots, required/optional characters */
   isContinuation?: boolean;
   continuationContext?: {
@@ -384,6 +385,7 @@ export class StoryDomainService {
       policy,
       isLastScene,
       scenarioCardId,
+      reservedCharacters: options?.reservedCharacters,
     });
 
     logger.debug(
@@ -447,7 +449,12 @@ export class StoryDomainService {
     scenarioCardId?: string,
     options?: StoryDomainOptions
   ): Promise<BatchValidationResult> {
-    const prompt = buildBatchValidationRuntimePrompt({ scenes, policy, scenarioCardId });
+    const prompt = buildBatchValidationRuntimePrompt({
+      scenes,
+      policy,
+      scenarioCardId,
+      reservedCharacters: options?.reservedCharacters,
+    });
     const cachedPrefix = {
       key: TEXT_VALIDATION_CACHE_KEY,
       content: buildBatchValidationCachedPrefix(),

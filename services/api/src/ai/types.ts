@@ -19,7 +19,10 @@ export interface SceneValidationResult {
       | 'fear_level'
       | 'emotional_tone'
       | 'vocabulary'
-      | 'camera_composition_incomplete';
+      | 'camera_composition_incomplete'
+      | 'reserved_character_identity_conflict'
+      | 'reserved_name_reused_for_new_entity'
+      | 'character_identity_unclear';
     severity: 'critical' | 'high' | 'medium';
     message: string;
     suggestion?: string;

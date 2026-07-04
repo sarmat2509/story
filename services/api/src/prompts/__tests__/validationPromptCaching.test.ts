@@ -30,11 +30,23 @@ function testTextValidationPromptSplit() {
         },
       } as any,
     ],
+    reservedCharacters: [
+      {
+        id: 'char-mia',
+        name: 'Mia',
+        type: 'person',
+        role: 'hero',
+        description: 'A young child with short curls and a yellow raincoat.',
+        referencePhotos: [{ url: 'mia.png' }],
+      } as any,
+    ],
   });
 
   assert.ok(cached.includes('Output contract'));
   assert.ok(!cached.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('Mia waves to the owl.'));
+  assert.ok(runtime.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
+  assert.ok(runtime.includes('reserved_name_reused_for_new_entity'));
   assert.ok(runtime.includes('"shot":"wide"'));
   assert.ok(runtime.includes('DB CONTENT POLICY TO ENFORCE:'));
   assert.ok(runtime.includes('no dangerous tool instructions'));
@@ -55,10 +67,22 @@ function testSingleSceneValidationPrompt() {
         },
       },
     } as any,
+    reservedCharacters: [
+      {
+        id: 'char-mia',
+        name: 'Mia',
+        type: 'person',
+        role: 'hero',
+        description: 'A young child with short curls and a yellow raincoat.',
+        referencePhotos: [{ url: 'mia.png' }],
+      } as any,
+    ],
   });
 
   assert.ok(prompt.includes('SCENE ID: 2'));
   assert.ok(prompt.includes('Mia waves to the owl.'));
+  assert.ok(prompt.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
+  assert.ok(prompt.includes('reserved_character_identity_conflict'));
   assert.ok(prompt.includes('CAMERA:'));
   assert.ok(prompt.includes('correctedCameraComposition'));
 }
@@ -99,7 +123,7 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v10');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v11');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
   assert.ok(
     cached.content.includes(

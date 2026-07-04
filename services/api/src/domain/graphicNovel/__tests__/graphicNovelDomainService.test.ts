@@ -142,6 +142,138 @@ const SCRIPT_FIXTURE = {
   ],
 } as any;
 
+const MOKHOVYK_SPEC: StorySpec = {
+  ...SPEC,
+  characters: [
+    {
+      id: 'creature-moss',
+      name: 'Моховик',
+      type: 'imaginary',
+      role: 'friend',
+      referencePhotos: [{ url: 'characters/mokhovyk.png' }],
+      description:
+        "Маленька істота з м'якого зеленого моху, крихітними очима і квіткою на маківці.",
+    } as any,
+    {
+      id: 'child-1',
+      name: 'Емілія',
+      type: 'child',
+      role: 'hero',
+      referencePhotos: [{ url: 'characters/emilia.png' }],
+      description: 'A curious reader.',
+    } as any,
+  ],
+};
+
+const MOKHOVYK_CONFLICT_SCRIPT = {
+  title: 'Секретна мова велетенської черепахи',
+  description: 'Friends travel on a giant tortoise shell.',
+  language: 'uk',
+  environments: [
+    {
+      id: 'env_shell_forest',
+      name: 'Ліс на панцирі',
+      description: 'A miniature forest growing atop a massive tortoise shell.',
+    },
+  ],
+  outfits: [
+    { id: 'mokhovyk_natural', characterName: 'Моховик', description: 'natural appearance' },
+    { id: 'emilia_natural', characterName: 'Емілія', description: 'natural appearance' },
+  ],
+  pages: [
+    {
+      pageNumber: 1,
+      pageRole: 'opening',
+      panels: [
+        {
+          panelId: 'p1-1',
+          dialogue: [],
+          thoughts: [],
+          caption: 'Моховик — найстаріша черепаха у світі.',
+          visual: {
+            environmentId: 'env_shell_forest',
+            primaryRead: 'Mokhovyk the tortoise moves through clouds',
+            sceneVisual: {
+              setting: 'The giant tortoise moves through soft clouds.',
+              lighting: 'warm sunrise',
+              cameraComposition: {
+                shot: 'wide shot',
+                characters: [
+                  {
+                    name: 'Моховик',
+                    position: 'center_background',
+                    description: 'The giant tortoise is swimming through the sky.',
+                    outfitId: 'mokhovyk_natural',
+                  },
+                ],
+              },
+            },
+          },
+        },
+        {
+          panelId: 'p1-2',
+          dialogue: [{ speaker: 'Емілія', text: 'Ми маємо допомогти мешканцям лісу.' }],
+          thoughts: [],
+          visual: {
+            environmentId: 'env_shell_forest',
+            primaryRead: 'Emilia looks across the forest',
+            sceneVisual: {
+              setting: 'Emilia stands near tiny trees.',
+              lighting: 'warm sunrise',
+              cameraComposition: {
+                shot: 'medium shot',
+                characters: [
+                  {
+                    name: 'Емілія',
+                    position: 'left_foreground',
+                    description: 'looking gently toward the path',
+                    outfitId: 'emilia_natural',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  ],
+} as any;
+
+const MOKHOVYK_SAFE_SCRIPT = {
+  ...MOKHOVYK_CONFLICT_SCRIPT,
+  title: 'Секретна мова небесної черепахи',
+  pages: [
+    {
+      ...MOKHOVYK_CONFLICT_SCRIPT.pages[0],
+      panels: [
+        {
+          ...MOKHOVYK_CONFLICT_SCRIPT.pages[0].panels[0],
+          caption: 'Небесна черепаха несла на собі цілий ліс.',
+          visual: {
+            ...MOKHOVYK_CONFLICT_SCRIPT.pages[0].panels[0].visual,
+            primaryRead: 'sky tortoise carries a forest',
+            sceneVisual: {
+              ...MOKHOVYK_CONFLICT_SCRIPT.pages[0].panels[0].visual.sceneVisual,
+              cameraComposition: {
+                shot: 'wide shot',
+                characters: [
+                  {
+                    name: 'Моховик',
+                    position: 'left_foreground',
+                    description: 'standing on the moss path, looking up with a thoughtful smile',
+                    outfitId: 'mokhovyk_natural',
+                  },
+                ],
+              },
+            },
+          },
+        },
+        MOKHOVYK_CONFLICT_SCRIPT.pages[0].panels[1],
+      ],
+    },
+  ],
+} as any;
+
 class BlockThenSucceedProvider implements ITextProvider {
   public requests: GenerateStructuredRequest[] = [];
 
@@ -160,15 +292,56 @@ class BlockThenSucceedProvider implements ITextProvider {
   }
 }
 
+class BadNameThenSucceedProvider implements ITextProvider {
+  public requests: GenerateStructuredRequest[] = [];
+
+  async generateText(_request: GenerateTextRequest): Promise<string> {
+    throw new Error('generateText should not be called');
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
+    this.requests.push(request);
+    return (this.requests.length === 1 ? MOKHOVYK_CONFLICT_SCRIPT : MOKHOVYK_SAFE_SCRIPT) as T;
+  }
+}
+
+class ScriptTextValidationProvider implements ITextProvider {
+  public requests: GenerateStructuredRequest[] = [];
+
+  constructor(
+    private results: Array<{ isValid: boolean; violations?: unknown[] }> = [{ isValid: true }]
+  ) {}
+
+  async generateText(_request: GenerateTextRequest): Promise<string> {
+    throw new Error('generateText should not be called');
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
+    this.requests.push(request);
+    const result = this.results[Math.min(this.requests.length - 1, this.results.length - 1)];
+    return {
+      sceneId: this.requests.length,
+      isValid: result.isValid,
+      violations: result.violations ?? [],
+      correctedCameraComposition: null,
+    } as T;
+  }
+}
+
 async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
   const provider = new BlockThenSucceedProvider();
-  const service = new GraphicNovelDomainService(provider);
+  const validationProvider = new ScriptTextValidationProvider();
+  const service = new GraphicNovelDomainService(provider, validationProvider);
 
   const script = await service.generateScript({ spec: SPEC, pageCount: 8 });
 
   assert.equal(script.title, 'Світла стрічка');
   assert.equal(script.pages.length, 8, 'normalization still fills the requested page count');
   assert.equal(provider.requests.length, 2);
+  assert.equal(validationProvider.requests.length, 1);
+  assert.equal(validationProvider.requests[0].operation, 'validateScene');
+  assert.match(validationProvider.requests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
+  assert.match(validationProvider.requests[0].prompt, /RESERVED CHARACTER IDENTITY VALIDATION/);
   assert.equal(provider.requests[0].operation, 'graphic_novel_script');
   assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
   assert.match(provider.requests[0].prompt, /Емілія \(person, role: hero, visual reference: yes\)/);
@@ -205,8 +378,50 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
   }
 }
 
+async function testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused() {
+  const provider = new BadNameThenSucceedProvider();
+  const validationProvider = new ScriptTextValidationProvider([
+    {
+      isValid: false,
+      violations: [
+        {
+          category: 'reserved_character_identity_conflict',
+          severity: 'high',
+          message:
+            'The reserved moss-creature character is semantically presented as the giant tortoise.',
+          suggestion: 'Rename the giant tortoise or keep Моховик as the small moss creature.',
+        },
+      ],
+    },
+    { isValid: true },
+  ]);
+  const service = new GraphicNovelDomainService(provider, validationProvider);
+
+  const script = await service.generateScript({ spec: MOKHOVYK_SPEC, pageCount: 2 });
+
+  assert.equal(provider.requests.length, 2);
+  assert.equal(validationProvider.requests.length, 2);
+  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
+  assert.equal(validationProvider.requests[0].operation, 'validateScene');
+  assert.match(validationProvider.requests[0].prompt, /RESERVED CHARACTER IDENTITY VALIDATION/);
+  assert.match(validationProvider.requests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
+  assert.match(validationProvider.requests[0].prompt, /reserved_character_identity_conflict/);
+  assert.match(validationProvider.requests[0].prompt, /MOKHOVYK|Моховик/i);
+  assert.equal(script.title, 'Секретна мова небесної черепахи');
+
+  const firstCharacter =
+    script.pages[0].panels[0].visual.sceneVisual.cameraComposition;
+  assert.notEqual(typeof firstCharacter, 'string');
+  if (typeof firstCharacter !== 'string') {
+    const mokhovyk = firstCharacter.characters.find((character) => character.name === 'Моховик');
+    assert.match(mokhovyk?.description ?? '', /standing on the moss path/);
+  }
+}
+
 async function run() {
   await testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock();
+  await testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused();
   console.log('graphicNovelDomainService tests passed');
 }
 
