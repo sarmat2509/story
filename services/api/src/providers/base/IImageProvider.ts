@@ -11,6 +11,7 @@ import type { UsageMetadata } from './UsageMetadata';
  */
 export interface ReferenceImage {
   url?: string; // Storage URL for internal use (optional if base64Data provided)
+  storagePath?: string; // Internal storage path, used to preserve the original MIME type
   base64Data?: string; // Base64-encoded image data (alternative to url)
   fileUri?: string; // Provider file URI (alternative to base64Data — avoids inline payload)
   mimeType?: string; // MIME type if using base64Data (e.g., 'image/jpeg', 'image/png')

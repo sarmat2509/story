@@ -16,6 +16,7 @@ import {
   getStoryOutfitPlateCacheRepository,
 } from '../repositories';
 import type { AssetStorageService } from './assetStorageService';
+import { imageMimeTypeFromPath } from '../utils/imageMimeType';
 
 export function normalizeOutfitPlateCharacterKey(characterName: string): string {
   return stripCharacterIdFromName(characterName).trim().toLowerCase();
@@ -126,7 +127,7 @@ export async function getOrCreateOutfitPlateImage(params: {
       const buffer = await params.assetStorage.getAssetByPath(cached.storagePath);
       return {
         base64: buffer.toString('base64'),
-        mimeType: 'image/png',
+        mimeType: imageMimeTypeFromPath(cached.storagePath),
         storagePath: cached.storagePath,
       };
     }
@@ -151,7 +152,7 @@ export async function getOrCreateOutfitPlateImage(params: {
     );
     return {
       base64: buffer.toString('base64'),
-      mimeType: 'image/png',
+      mimeType: imageMimeTypeFromPath(similar.storagePath),
       storagePath: similar.storagePath,
     };
   }

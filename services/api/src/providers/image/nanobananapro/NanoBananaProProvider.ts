@@ -17,6 +17,11 @@ import type { IFileManager } from '../../base/IFileManager';
 import { GeminiFileManager } from './GeminiFileManager';
 import { logger } from '../../../utils/logger';
 import { config } from '../../../config';
+import {
+  inferImageMimeTypeFromPath,
+  normalizeImageMimeType,
+  resolveImageMimeType,
+} from '../../../utils/imageMimeType';
 
 export class NanoBananaProProvider implements IImageProvider {
   private client: GoogleGenAI;
@@ -181,6 +186,8 @@ export class NanoBananaProProvider implements IImageProvider {
         characterName: ref.characterName,
         hasInstructionText: !!ref.instructionText,
         mimeType: ref.mimeType,
+        storagePath: ref.storagePath,
+        resolvedMimeType: this.resolveReferenceMimeType(ref),
         urlPreview: ref.url ? ref.url.substring(0, 100) : undefined,
         base64Length: ref.base64Data?.length || 0,
       }))
@@ -194,39 +201,68 @@ export class NanoBananaProProvider implements IImageProvider {
 
       // Prefer fileUri (Files API) over inline base64 to reduce payload
       if (refImage.fileUri) {
-        const mimeType = refImage.mimeType || 'image/png';
+        const mimeType = this.resolveReferenceMimeType(refImage);
         parts.push({
           fileData: {
             fileUri: refImage.fileUri,
             mimeType,
           },
         });
-        logger.debug({ fileUri: refImage.fileUri }, 'Using file URI for reference (Files API)');
+        logger.debug({ fileUri: refImage.fileUri, mimeType }, 'Using file URI for reference (Files API)');
       } else if (refImage.base64Data) {
-        const mimeType = refImage.mimeType || 'image/png';
+        const mimeType = this.resolveReferenceMimeType(refImage);
         parts.push({
           inlineData: {
             mimeType,
             data: refImage.base64Data,
           },
         });
-        logger.debug('Using provided base64 data for reference');
+        logger.debug({ mimeType }, 'Using provided base64 data for reference');
       } else if (refImage.url) {
         const imageBuffer = await this.downloadImage(refImage.url);
         const imageBase64 = imageBuffer.toString('base64');
+        const mimeType = this.resolveReferenceMimeType(refImage, 'image/jpeg');
         parts.push({
           inlineData: {
-            mimeType: 'image/jpeg',
+            mimeType,
             data: imageBase64,
           },
         });
-        logger.debug({ url: refImage.url }, 'Downloaded and converted reference image');
+        logger.debug({ url: refImage.url, mimeType }, 'Downloaded and converted reference image');
       } else {
         throw new Error('Reference image must have fileUri, base64Data, or url');
       }
     }
 
     return parts;
+  }
+
+  private resolveReferenceMimeType(refImage: ReferenceImage, fallback = 'image/png'): string {
+    const resolved = resolveImageMimeType({
+      mimeType: refImage.mimeType,
+      storagePath: refImage.storagePath,
+      url: refImage.url,
+      fallback,
+    });
+    const inferred =
+      inferImageMimeTypeFromPath(refImage.storagePath) || inferImageMimeTypeFromPath(refImage.url);
+    const provided = normalizeImageMimeType(refImage.mimeType);
+
+    if (provided && inferred && provided !== inferred) {
+      logger.warn(
+        {
+          characterName: refImage.characterName,
+          providedMimeType: provided,
+          inferredMimeType: inferred,
+          resolvedMimeType: resolved,
+          storagePath: refImage.storagePath,
+          urlPreview: refImage.url ? refImage.url.substring(0, 100) : undefined,
+        },
+        'Reference image MIME type differs from storage path; using inferred MIME type'
+      );
+    }
+
+    return resolved;
   }
 
   /**

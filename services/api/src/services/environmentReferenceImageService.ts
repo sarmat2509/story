@@ -16,6 +16,7 @@ import { getEnvironmentImageProvider } from './aiService';
 import type { getAssetStorageService } from './assetStorageService';
 import { generateEmbedding } from './embeddingService';
 import { logger } from '../utils/logger';
+import { imageMimeTypeFromPath } from '../utils/imageMimeType';
 
 export interface EnvImageData {
   base64: string;
@@ -69,7 +70,7 @@ export async function getOrCreateEnvironmentImageCore(
       const buffer = await assetStorage.getAssetByPath(cached.storagePath);
       return {
         base64: buffer.toString('base64'),
-        mimeType: 'image/png',
+        mimeType: imageMimeTypeFromPath(cached.storagePath),
         storagePath: cached.storagePath,
       };
     }
@@ -89,7 +90,7 @@ export async function getOrCreateEnvironmentImageCore(
     );
     return {
       base64: buffer.toString('base64'),
-      mimeType: 'image/png',
+      mimeType: imageMimeTypeFromPath(cached.storagePath),
       storagePath: cached.storagePath,
     };
   }
@@ -103,7 +104,7 @@ export async function getOrCreateEnvironmentImageCore(
     await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
     return {
       base64: buffer.toString('base64'),
-      mimeType: 'image/png',
+      mimeType: imageMimeTypeFromPath(similar.storagePath),
       storagePath: similar.storagePath,
     };
   }

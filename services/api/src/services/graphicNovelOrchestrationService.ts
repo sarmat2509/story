@@ -77,6 +77,7 @@ import {
   type GraphicNovelBubbleVisionAnalysis,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
+import { imageMimeTypeFromPath } from '../utils/imageMimeType';
 import { graphicNovelPanelCountRange } from '../prompts/text';
 import type { Rect } from '../domain/graphicNovel/types';
 import { mixedStoryComicPages, type MixedStoryScript } from '../domain/mixedStory';
@@ -1006,10 +1007,7 @@ function extractStoragePath(url: string): string {
 }
 
 function mimeTypeForStoragePath(storagePath: string): string {
-  const lower = storagePath.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  return 'image/png';
+  return imageMimeTypeFromPath(storagePath);
 }
 
 function buildGraphicNovelCharacterReferences(
