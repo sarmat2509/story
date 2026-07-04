@@ -617,14 +617,16 @@ function manifestReferencePreviewUrl(row: Record<string, unknown>): string | nul
 function ImageManifestReferenceRow({
   row,
   index,
-  keyPrefix,
+  rowKey,
+  previewOpen,
+  onTogglePreview,
 }: {
   row: Record<string, unknown>;
   index: number;
-  keyPrefix: string;
+  rowKey: string;
+  previewOpen: boolean;
+  onTogglePreview: (rowKey: string | null) => void;
 }) {
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const name = compactManifestValue(row.characterName ?? row.environmentId ?? row.name);
   const kind = compactManifestValue(row.referenceKind);
   const source = compactManifestValue(row.source);
@@ -638,55 +640,56 @@ function ImageManifestReferenceRow({
       : 'n/a';
 
   return (
-    <Pressable
-      key={`${keyPrefix}-ref-${index}`}
+    <View
       style={[
-        styles.imageManifestRefRow,
-        previewUrl && (hovered || previewVisible) ? styles.imageManifestRefRowActive : null,
+        styles.imageManifestRefRowAnchor,
+        previewOpen ? styles.imageManifestRefRowAnchorActive : null,
       ]}
-      onHoverIn={() => {
-        setHovered(true);
-        if (previewUrl) setPreviewVisible(true);
-      }}
-      onHoverOut={() => {
-        setHovered(false);
-        setPreviewVisible(false);
-      }}
-      onFocus={() => previewUrl && setPreviewVisible(true)}
-      onBlur={() => setPreviewVisible(false)}
-      onPress={() => previewUrl && setPreviewVisible((current) => !current)}
     >
-      <Text style={styles.imageManifestRefTitle}>
-        Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
-      </Text>
-      <Text selectable style={styles.imageManifestRefMeta}>
-        {source}/{type} · {transport}
-      </Text>
-      <Text selectable style={styles.imageManifestRefPath}>
-        {storagePath}
-      </Text>
-      {row.instructionText ? (
-        <Text selectable style={styles.imageManifestInstruction}>
-          {String(row.instructionText)}
+      <Pressable
+        style={[
+          styles.imageManifestRefRow,
+          previewUrl && previewOpen ? styles.imageManifestRefRowActive : null,
+        ]}
+        disabled={!previewUrl}
+        onPress={() => {
+          if (!previewUrl) return;
+          onTogglePreview(previewOpen ? null : rowKey);
+        }}
+      >
+        <Text style={styles.imageManifestRefTitle}>
+          Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
         </Text>
-      ) : null}
-      {previewUrl && previewVisible ? (
-        <View style={styles.imageManifestPreviewShell}>
+        <Text selectable style={styles.imageManifestRefMeta}>
+          {source}/{type} · {transport}
+        </Text>
+        <Text selectable style={styles.imageManifestRefPath}>
+          {storagePath}
+        </Text>
+        {row.instructionText ? (
+          <Text selectable style={styles.imageManifestInstruction}>
+            {String(row.instructionText)}
+          </Text>
+        ) : null}
+      </Pressable>
+      {previewUrl && previewOpen ? (
+        <View style={styles.imageManifestPreviewTooltip}>
           <AuthenticatedAdminImagePreview
             url={previewUrl}
-            style={styles.imageManifestPreviewImage}
+            style={styles.imageManifestPreviewTooltipImage}
             resizeMode="contain"
             emptyLabel="Preview unavailable"
             iconName="image-outline"
           />
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
 
 function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
   const [expanded, setExpanded] = useState(false);
+  const [activePreviewKey, setActivePreviewKey] = useState<string | null>(null);
   const root = recordOrNull(manifest);
   if (!root) return null;
 
@@ -704,12 +707,15 @@ function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
       <View style={styles.imageManifestRefList}>
         {refs.map((ref, index) => {
           const row = recordOrNull(ref) ?? {};
+          const rowKey = `${keyPrefix}-ref-${index}`;
           return (
             <ImageManifestReferenceRow
-              key={`${keyPrefix}-ref-${index}`}
+              key={rowKey}
               row={row}
               index={index}
-              keyPrefix={keyPrefix}
+              rowKey={rowKey}
+              previewOpen={activePreviewKey === rowKey}
+              onTogglePreview={setActivePreviewKey}
             />
           );
         })}
@@ -1713,6 +1719,12 @@ const styles = StyleSheet.create({
   imageManifestRefList: {
     gap: 8,
   },
+  imageManifestRefRowAnchor: {
+    position: 'relative',
+  },
+  imageManifestRefRowAnchorActive: {
+    zIndex: 20,
+  },
   imageManifestRefRow: {
     gap: 3,
     borderLeftWidth: 3,
@@ -1743,19 +1755,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: theme.colors.text.secondary,
   },
-  imageManifestPreviewShell: {
-    marginTop: 8,
-    width: 260,
-    maxWidth: '100%',
+  imageManifestPreviewTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 10,
+    width: 400,
+    marginBottom: 8,
+    padding: 8,
     borderWidth: 1,
     borderColor: theme.colors.border.light,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: theme.colors.background.primary,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
-  imageManifestPreviewImage: {
+  imageManifestPreviewTooltipImage: {
     width: '100%',
-    height: 220,
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: theme.colors.background.secondary,
   },
   imageManifestToggle: {
     alignSelf: 'flex-start',
