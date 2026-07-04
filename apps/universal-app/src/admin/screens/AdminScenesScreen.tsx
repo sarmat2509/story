@@ -91,6 +91,22 @@ function toLabel(key: string): string {
     .toUpperCase();
 }
 
+function omitFullTextPromptForDisplay(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(omitFullTextPromptForDisplay);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+    if (key === 'fullTextPrompt') return;
+    sanitized[key] = omitFullTextPromptForDisplay(child);
+  });
+  return sanitized;
+}
+
 function scrollToAnchor(anchorId: string) {
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     document.getElementById(anchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -695,7 +711,7 @@ function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
 
   const requests = arrayOfRecords(root.requests);
   const fallbackReferences = Array.isArray(root.references) ? root.references : [];
-  const rawJson = JSON.stringify(root, null, 2);
+  const rawJson = JSON.stringify(omitFullTextPromptForDisplay(root), null, 2);
 
   const renderReferenceRows = (references: unknown, keyPrefix: string) => {
     const refs = Array.isArray(references) ? references : [];

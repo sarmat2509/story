@@ -526,6 +526,84 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   ]);
 }
 
+async function testSegmentedValidationUsesOutfitPlateAsWardrobeGroundTruth() {
+  const primary = new MockTextProvider([
+    segmentedCharacterResult({
+      name: 'Lera',
+      characterKind: 'human',
+      found: true,
+      duplicated: false,
+      recognizableScore: 1,
+      faceMatchesReference: true,
+      hairMatchesReference: true,
+      ageReadMatchesReference: true,
+      proportionsMatchReference: true,
+      matchesColors: true,
+      matchesOutfit: true,
+      sameOverallDesignRead: true,
+      silhouetteDriftSeverity: 'none',
+      identityComparisonSummary: 'Matches identity; outfit matches the outfit plate.',
+      issue: null as unknown as string | undefined,
+    }),
+  ]);
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      expectedCharacters: [validationInput.expectedCharacters[0]],
+      includeLayoutChecks: false,
+      includeBubbleChecks: false,
+      referenceImages: [
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'identity',
+          identitySource: 'turnaround',
+        },
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'outfit_plate',
+        },
+      ],
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  assert.strictEqual(primary.calls.length, 1);
+  const leraCall = primary.calls[0];
+  assert.strictEqual(leraCall.imageData?.length, 3);
+  assert.match(leraCall.prompt, /Image 3 is the outfit plate/);
+  assert.match(leraCall.prompt, /Set matchesOutfit=true/);
+  assert.match(leraCall.prompt, /do not compare clothing to Image 2 identity\/default clothes/);
+  assert.match(
+    leraCall.prompt,
+    /Identity-reference clothing must not make matchesOutfit=false/
+  );
+
+  const manifest = result.requestManifest as {
+    imageOrder: string[];
+    passes: Array<{
+      passKind: string;
+      imageOrder: Array<{ imageIndex: number; instructionText: string }>;
+    }>;
+  };
+  assert.deepStrictEqual(manifest.imageOrder, [
+    '1_generated_illustration',
+    '2_identity_turnaround_Lera',
+    '3_outfit_plate_Lera',
+  ]);
+  assert.deepStrictEqual(
+    manifest.passes[0].imageOrder.map((image) => image.imageIndex),
+    [1, 2, 3]
+  );
+  assert.match(manifest.passes[0].imageOrder[2].instructionText, /OUTFIT PLATE for "Lera"/);
+  assert.strictEqual(result.characters[0].matchesOutfit, true);
+}
+
 async function testGraphicNovelPanelValidationUsesSinglePanelArrayRequest() {
   const primary = new MockTextProvider([validGraphicNovelPanelResult()]);
 
@@ -614,6 +692,7 @@ async function main() {
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
   await testSegmentedValidationRunsLayoutAndPerCharacterPasses();
+  await testSegmentedValidationUsesOutfitPlateAsWardrobeGroundTruth();
   await testGraphicNovelPanelValidationUsesSinglePanelArrayRequest();
   console.log('imageValidationRun tests passed');
 }

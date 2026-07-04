@@ -137,6 +137,22 @@ function objectOrNull(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function omitFullTextPrompt(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(omitFullTextPrompt);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === 'fullTextPrompt') continue;
+    sanitized[key] = omitFullTextPrompt(child);
+  }
+  return sanitized;
+}
+
 function buildAdminImageRequestManifest(
   generationParams: unknown,
   imageStoragePath: string | null
@@ -195,8 +211,8 @@ function buildAdminImageRequestManifest(
     referenceCount: params.referenceCount ?? references.length,
     characterReferenceCount: params.characterReferenceCount ?? null,
     objectReferenceCount: params.objectReferenceCount ?? null,
-    requests: requestManifests,
-    references,
+    requests: omitFullTextPrompt(requestManifests),
+    references: omitFullTextPrompt(references),
   };
 }
 

@@ -9,6 +9,9 @@
  *   pnpm --filter wondertales-api exec tsx \
  *     src/scripts/generateFreeLayoutGraphicNovelPage.ts \
  *     --story-id=<uuid> --page=1 --panel-count=5
+ *
+ * Add --prompt-only=true to write the exact system/prompt/report files without
+ * calling the image generator.
  */
 
 import './loadEnvForScripts';
@@ -43,6 +46,7 @@ import {
   normalizeOutfitPlateCharacterKey,
   shouldGenerateOutfitPlateForCharacter,
 } from '../services/outfitPlateService';
+import { formatReferenceBindingInstruction } from '../services/referenceBinding';
 import type { StoryEnvironment, StoryOutfitRow } from '../ai/types';
 import type { ReferenceImage } from '../providers/base/IImageProvider';
 import type { CharacterData } from '../services/types';
@@ -408,25 +412,9 @@ async function buildOutfitPlateReferences(params: {
 
 function buildReferenceInstruction(
   reference: GraphicNovelReferenceImage,
-  imageIndex: number,
-  identityIndexByName: Map<string, number>
+  imageIndex: number
 ): string {
-  if (reference.source === 'environment') {
-    return `Image ${imageIndex}: Environment reference for "${reference.characterName || reference.environmentId || 'location'}". Reusable location layout, fixed background objects, materials, and color continuity.`;
-  }
-
-  if (reference.source === 'outfit_plate') {
-    const identityIndex = reference.characterName
-      ? identityIndexByName.get(normalizeName(reference.characterName))
-      : undefined;
-    const identityText = identityIndex
-      ? ` Combine it with character identity reference Image ${identityIndex}.`
-      : ' Combine it with the matching character identity reference.';
-    return `Image ${imageIndex}: CLOTHES SOURCE for "${reference.characterName || 'character'}". Use only garments, shoes, colors, and worn accessories from this image.${identityText} Do not copy mannequin pose, face, hair, or body.`;
-  }
-
-  const sourceKind = reference.isTurnaround ? 'Character sheet' : 'Reference photo';
-  return `Image ${imageIndex}: Character reference for "${reference.characterName || 'character'}". ${sourceKind}.`;
+  return formatReferenceBindingInstruction(reference, imageIndex);
 }
 
 function prepareReferences(params: {
@@ -470,12 +458,6 @@ function prepareReferences(params: {
     totalAfterTrim: bucketResult.trimmed.length,
   });
 
-  const identityIndexByName = new Map<string, number>();
-  for (const ref of bucketResult.trimmed) {
-    if (ref.referenceKind !== 'character' || !ref.characterName || !ref.imageIndex) continue;
-    identityIndexByName.set(normalizeName(ref.characterName), ref.imageIndex);
-  }
-
   const references = bucketResult.trimmed.map((ref) => {
     const imageIndex = ref.imageIndex || 1;
     const mapped: GraphicNovelReferenceImage = {
@@ -490,11 +472,12 @@ function prepareReferences(params: {
       environmentId: ref.environmentId,
       outfitId: ref.outfitId,
       storagePath: ref.storagePath,
+      referenceBindingId: ref.referenceBindingId,
       imageIndex,
     };
     return {
       ...mapped,
-      instructionText: buildReferenceInstruction(mapped, imageIndex, identityIndexByName),
+      instructionText: buildReferenceInstruction(mapped, imageIndex),
     };
   });
 
@@ -545,6 +528,7 @@ function referenceReport(ref: GraphicNovelReferenceImage): Record<string, unknow
     environmentId: ref.environmentId ?? null,
     outfitId: ref.outfitId ?? null,
     storagePath: ref.storagePath ?? null,
+    referenceBindingId: ref.referenceBindingId ?? null,
     hasFileUri: !!ref.fileUri,
     hasBase64Data: !!ref.base64Data,
     instructionText: ref.instructionText ?? null,
@@ -560,6 +544,7 @@ async function main(): Promise<void> {
   const pageNumber = Number(argValue('page') || '1');
   const panelCount = Number(argValue('panel-count') || '5');
   const includeOutfitPlates = argBoolean('outfit-plates', true);
+  const promptOnly = argBoolean('prompt-only', false);
   const outputDir = path.resolve(
     process.cwd(),
     'output',
@@ -664,26 +649,7 @@ async function main(): Promise<void> {
   await fs.writeFile(path.join(outputDir, `page-${pageNumber}-free-layout-system.txt`), systemInstruction);
   await fs.writeFile(path.join(outputDir, `page-${pageNumber}-free-layout-prompt.txt`), prompt);
 
-  const rendered = await generateGraphicNovelPageFreeLayout({
-    imageDomain,
-    page,
-    style,
-    ageGroup,
-    scenarioCardId,
-    environmentsById,
-    referenceImages: prepared.references,
-    onUsage: (usage) => recordUsage(usage, { userId: story.userId, storyId }),
-    onAttemptImage: async ({ imageData, mimeType }) => {
-      const ext = extensionForMimeType(mimeType);
-      await fs.writeFile(path.join(outputDir, `page-${pageNumber}-free-layout-attempt-1.${ext}`), imageData);
-    },
-  });
-
-  const imageExt = extensionForMimeType(rendered.mimeType);
-  const imagePath = path.join(outputDir, `page-${pageNumber}-free-layout-art-only.${imageExt}`);
-  await fs.writeFile(imagePath, rendered.imageData);
-
-  const report = {
+  const baseReport = {
     storyId,
     projectId: project.id,
     pageNumber,
@@ -691,13 +657,14 @@ async function main(): Promise<void> {
     actualPanelCount: page.panels.length,
     sourcePageNumbers,
     outputDir,
-    imagePath,
+    imagePath: null as string | null,
     style,
     ageGroup,
     scenarioCardId: scenarioCardId ?? null,
     presetLayoutReferenceSent: false,
     modelChoosesPanelLayout: true,
     planningLayoutId: page.template.id,
+    promptOnly,
     references: {
       beforeBucket: {
         environment: environmentReferences.length,
@@ -720,11 +687,51 @@ async function main(): Promise<void> {
       primaryRead: panel.script.visual.primaryRead,
       cameraComposition: panel.script.visual.sceneVisual.cameraComposition,
     })),
-    generationParams: rendered.generationParams,
     promptFiles: {
       system: path.join(outputDir, `page-${pageNumber}-free-layout-system.txt`),
       prompt: path.join(outputDir, `page-${pageNumber}-free-layout-prompt.txt`),
     },
+  };
+
+  if (promptOnly) {
+    const reportPath = path.join(outputDir, `page-${pageNumber}-free-layout-report.json`);
+    await fs.writeFile(reportPath, JSON.stringify(baseReport, null, 2));
+
+    console.log(JSON.stringify({
+      status: 'prompt_only',
+      outputDir,
+      reportPath,
+      promptPath: baseReport.promptFiles.prompt,
+      systemPath: baseReport.promptFiles.system,
+      referenceCount: prepared.references.length,
+      templateReferenceSent: false,
+    }, null, 2));
+    return;
+  }
+
+  const rendered = await generateGraphicNovelPageFreeLayout({
+    imageDomain,
+    page,
+    style,
+    ageGroup,
+    scenarioCardId,
+    environmentsById,
+    referenceImages: prepared.references,
+    onUsage: (usage) => recordUsage(usage, { userId: story.userId, storyId }),
+    onAttemptImage: async ({ imageData, mimeType }) => {
+      const ext = extensionForMimeType(mimeType);
+      await fs.writeFile(path.join(outputDir, `page-${pageNumber}-free-layout-attempt-1.${ext}`), imageData);
+    },
+  });
+
+  const imageExt = extensionForMimeType(rendered.mimeType);
+  const imagePath = path.join(outputDir, `page-${pageNumber}-free-layout-art-only.${imageExt}`);
+  await fs.writeFile(imagePath, rendered.imageData);
+
+  const report = {
+    ...baseReport,
+    imagePath,
+    generationParams: rendered.generationParams,
   };
   const reportPath = path.join(outputDir, `page-${pageNumber}-free-layout-report.json`);
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2));

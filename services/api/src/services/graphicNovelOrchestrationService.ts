@@ -179,6 +179,10 @@ type GraphicNovelReferenceImage = ReferenceImage & {
   storagePath?: string;
 };
 
+function isGraphicNovelOutfitReference(ref: GraphicNovelReferenceImage): boolean {
+  return ref.source === 'outfit_plate' || ref.type === 'outfit_plate_reference';
+}
+
 type RenderedGraphicNovelPageAssets = {
   pageAssetId: string;
   coverAssetId?: string;
@@ -1321,7 +1325,7 @@ async function buildPageEnvironmentReferenceImages(params: {
     }
     if (!image) continue;
 
-    references.push({
+    const reference: GraphicNovelReferenceImage = {
       base64Data: image.base64,
       mimeType: image.storagePath ? mimeTypeForStoragePath(image.storagePath) : image.mimeType,
       referenceKind: 'object',
@@ -1330,7 +1334,10 @@ async function buildPageEnvironmentReferenceImages(params: {
       type: 'environment_reference',
       environmentId: environment.id,
       storagePath: image.storagePath,
-      instructionText: `Environment reference for "${environment.name}". Reusable location layout, fixed background objects, materials, and color continuity.`,
+    };
+    references.push({
+      ...reference,
+      instructionText: formatReferenceBindingInstruction(reference),
     });
   }
 
@@ -1979,15 +1986,23 @@ async function validateGraphicNovelRenderedPage(params: {
     const characterValidationReferenceImages = params.referenceImages
       ?.filter(
         (ref) =>
-          ref.referenceKind === 'character' && ref.characterName && (ref.base64Data || ref.fileUri)
+          ref.characterName &&
+          (ref.base64Data || ref.fileUri) &&
+          (ref.referenceKind === 'character' || isGraphicNovelOutfitReference(ref))
       )
       .map((ref) => ({
         characterName: ref.characterName!,
         imageData: ref.base64Data,
         fileUri: ref.fileUri,
         mimeType: ref.mimeType || 'image/png',
-        referenceKind: 'identity' as const,
-        identitySource: ref.isTurnaround ? ('turnaround' as const) : ('reference_photo' as const),
+        referenceKind: isGraphicNovelOutfitReference(ref)
+          ? ('outfit_plate' as const)
+          : ('identity' as const),
+        identitySource: isGraphicNovelOutfitReference(ref)
+          ? undefined
+          : ref.isTurnaround
+            ? ('turnaround' as const)
+            : ('reference_photo' as const),
       }));
     const validationReferenceImages = characterValidationReferenceImages ?? [];
     const validation = await params.imageDomain.validateGeneratedImageSegmented({

@@ -3900,26 +3900,6 @@ async function saveImagePromptDebugArtifact(params: {
         url: ref.url ?? null,
         hasBase64Data: ref.hasBase64Data,
       })),
-      fullTextPrompt:
-        `PRIMARY READ:\n${params.payload.primaryRead ?? ''}\n\n` +
-        `SYSTEM INSTRUCTION:\n${params.payload.systemInstruction ?? ''}\n\n` +
-        `USER PROMPT:\n${params.payload.prompt}\n\n` +
-        `REFERENCE IMAGES:\n${JSON.stringify(
-          (params.payload.referenceImages ?? []).map((ref, index) => ({
-            index: index + 1,
-            imageIndex: ref.imageIndex ?? index + 1,
-            referenceBindingId: ref.referenceBindingId ?? null,
-            instructionText: ref.instructionText ?? null,
-            characterName: ref.characterName ?? null,
-            referenceKind: ref.referenceKind ?? null,
-            mimeType: ref.mimeType ?? null,
-            fileUri: ref.fileUri ?? null,
-            url: ref.url ?? null,
-            hasBase64Data: ref.hasBase64Data,
-          })),
-          null,
-          2
-        )}`,
     };
 
     await fs.writeFile(filePath, JSON.stringify(debugRecord, null, 2), 'utf-8');

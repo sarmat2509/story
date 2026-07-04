@@ -166,6 +166,7 @@ export type GraphicNovelPanelImageValidationResult = {
       proportionsMatchReference?: boolean | null;
       matchesColors: boolean;
       matchesOutfit: boolean;
+      actualVisibleDescription?: string | null;
       sameOverallDesignRead?: boolean | null;
       silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe' | null;
       identityComparisonSummary: string;
@@ -577,6 +578,7 @@ function buildSegmentedCharacterSchema(): JsonSchema {
           'proportionsMatchReference',
           'matchesColors',
           'matchesOutfit',
+          'actualVisibleDescription',
           'sameOverallDesignRead',
           'silhouetteDriftSeverity',
           'identityComparisonSummary',
@@ -594,6 +596,7 @@ function buildSegmentedCharacterSchema(): JsonSchema {
           proportionsMatchReference: { type: ['boolean', 'null'] },
           matchesColors: { type: 'boolean' },
           matchesOutfit: { type: 'boolean' },
+          actualVisibleDescription: { type: ['string', 'null'] },
           sameOverallDesignRead: { type: ['boolean', 'null'] },
           silhouetteDriftSeverity: {
             type: ['string', 'null'],
@@ -666,6 +669,7 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
       'proportionsMatchReference',
       'matchesColors',
       'matchesOutfit',
+      'actualVisibleDescription',
       'sameOverallDesignRead',
       'silhouetteDriftSeverity',
       'identityComparisonSummary',
@@ -683,6 +687,7 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
       proportionsMatchReference: { type: ['boolean', 'null'] },
       matchesColors: { type: 'boolean' },
       matchesOutfit: { type: 'boolean' },
+      actualVisibleDescription: { type: ['string', 'null'] },
       sameOverallDesignRead: { type: ['boolean', 'null'] },
       silhouetteDriftSeverity: {
         type: ['string', 'null'],
@@ -851,6 +856,7 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     '- Use the same identity rules as the standard image validator: humans require face/head, hairstyle, age read, proportions, silhouette, and stable marks; animals/imaginary creatures require body type, subtype/species read, silhouette, proportions, and stable colors/markings.',
     '- If the panel contains only a generic substitute or different stable design, set found=false or recognizableScore<=0.4, even if the role/slot is occupied.',
     '- If the character is present but details drift, keep found=true and mark the specific fields false.',
+    '- For each missing or wrong expected character, actualVisibleDescription must describe the visible substitute/candidate in that panel using concrete visual words. Use null only when the expected character is correct or no substitute/candidate is visible.',
     '- For humans with identity reference, faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference must be booleans.',
     '- For animals/imaginary creatures, set human-only face/hair/age fields to null; use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference.',
     '- matchesOutfit validates clothing only when an outfit plate or expected outfit text exists; otherwise use visible default/reference clothing only as a weak clue.',
@@ -897,7 +903,9 @@ function buildSegmentedCharacterPrompt(params: {
     '1. Search all of Image 1 for a candidate matching this exact named character.',
     '2. If an identity reference exists, first decide whether the same stable design is present. Generic substitutes or different stable designs are not the named character.',
     '3. Then compare identity details: for humans use face/head read, age read, hairstyle structure, hair color zoning, body proportions, silhouette, and stable marks. For animals/imaginary creatures use body type, species/subtype read, silhouette, proportions, stable colors/markings.',
-    '4. Finally evaluate outfit only against the outfit plate, scene outfit text, or identity/default outfit when no stronger wardrobe ground truth exists.',
+    params.outfitReference
+      ? `4. Finally evaluate outfit against the outfit plate only. Set matchesOutfit=true if the character in Image 1 is wearing the clothing/wardrobe from Image ${params.identityReference ? 3 : 2}; do not compare clothing to Image 2 identity/default clothes.`
+      : '4. Finally evaluate outfit only against scene outfit text, or identity/default outfit when no stronger wardrobe ground truth exists.',
     'If the same stable character design is absent, set found=false and recognizableScore <= 0.4 even if a similar role/slot is occupied.',
     'If the same character is present but hair/outfit/details drift, keep found=true and mark the specific fields false.',
     'Return one JSON object for this character only.',
@@ -918,6 +926,10 @@ function buildSegmentedCharacterPrompt(params: {
     '- For humans with identity reference, faceMatchesReference/hairMatchesReference/ageReadMatchesReference/proportionsMatchReference must be booleans.',
     '- For animals and imaginary creatures, set faceMatchesReference/hairMatchesReference/ageReadMatchesReference to null; use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference for identity.',
     '- sameOverallDesignRead is true only when first-glance stable design read is unchanged; use null when no identity reference exists.',
+    params.outfitReference
+      ? '- matchesOutfit is a wardrobe-only boolean: true means the visible clothing matches the outfit plate; false means the visible clothing does not match the outfit plate. Identity-reference clothing must not make matchesOutfit=false when an outfit plate is attached.'
+      : '- matchesOutfit is a wardrobe-only boolean based on scene outfit text or default/reference clothing when no outfit plate is attached.',
+    '- actualVisibleDescription must describe what is actually visible instead when this expected character is missing or replaced by a wrong design. Be concrete and visual, e.g. "blond girl in a blue dress", "brown dragon-like quadruped", "small green mushroom creature". Use null only when the expected character is clearly correct or no substitute/candidate is visible.',
     '- issue should be null when there is no concrete problem; otherwise list concise observed problems.',
     '- identityComparisonSummary must separately say what matches, what differs, and whether the first-glance design read drifted.',
   ];
@@ -1206,6 +1218,7 @@ function buildProviderBlockedCharacterResult(
     proportionsMatchReference: null,
     matchesColors: true,
     matchesOutfit: true,
+    actualVisibleDescription: null,
     identityComparisonSummary:
       'Provider blocked segmented character validation; no visual verdict.',
     issue: error
@@ -1674,6 +1687,7 @@ export async function runGraphicNovelPanelImageValidation(
           proportionsMatchReference: null,
           matchesColors: false,
           matchesOutfit: false,
+          actualVisibleDescription: null,
           sameOverallDesignRead: null,
           silhouetteDriftSeverity: null,
           identityComparisonSummary: 'Provider blocked panel validation; no visual verdict.',
@@ -2081,6 +2095,7 @@ export async function runProductImageValidation(
       proportionsMatchReference: null,
       matchesColors: true,
       matchesOutfit: true,
+      actualVisibleDescription: null,
       identityComparisonSummary: 'Provider blocked validation; no visual verdict.',
       issue: 'provider_blocked_no_visual_verdict',
     })),

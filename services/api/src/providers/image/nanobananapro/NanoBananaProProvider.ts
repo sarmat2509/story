@@ -127,7 +127,8 @@ export class NanoBananaProProvider implements IImageProvider {
 
     try {
       // Build the full edit payload for the non-conversational fallback path.
-      const fallbackParts: any[] = await this.buildReferenceParts(request.referenceImages);
+      const referenceParts = await this.buildReferenceParts(request.referenceImages);
+      const fallbackParts: any[] = [...referenceParts];
 
       const originalImageInstruction = request.operation === 'graphic_novel_page_edit'
         ? 'SOURCE COMIC PAGE TO EDIT: preserve the existing page aspect, visible panel count, panel borders, gutters, and composition while applying the requested corrections.'
@@ -148,9 +149,10 @@ export class NanoBananaProProvider implements IImageProvider {
       fallbackParts.push({ text: request.editInstructions });
 
       // For Gemini Interactions multi-turn edits, previous_interaction_id already
-      // points at the prior generated image/context. Keep the next turn concise.
+      // points at the prior generated image/context. Send labeled references but
+      // do not resend the failed generated image.
       const interactionParts = request.previousInteractionId
-        ? [{ text: request.editInstructions }]
+        ? [...referenceParts, { text: request.editInstructions }]
         : fallbackParts;
 
       return await this.callGeminiImageAPI({

@@ -58,17 +58,17 @@ export function referenceBindingIdFor(ref: ReferenceBindingInput): string {
   if (existing) return existing;
 
   const kind = referenceBindingKind(ref);
-  const hash = shortStableHash([
-    kind,
-    ref.characterName,
-    ref.environmentId,
-    ref.referenceEnvironmentId,
-    ref.outfitId,
-    ref.storagePath,
-    ref.source,
-    ref.type,
-    ref.imageIndex,
-  ]);
+  const hash = ref.storagePath
+    ? shortStableHash([kind, ref.storagePath])
+    : shortStableHash([
+        kind,
+        ref.characterName,
+        ref.environmentId,
+        ref.referenceEnvironmentId,
+        ref.outfitId,
+        ref.source,
+        ref.type,
+      ]);
 
   if (kind === 'environment') {
     const label = slugReferenceLabel(
@@ -109,36 +109,27 @@ export function referenceBindingLabel(
   return idx ? `${referenceBindingIdFor(ref)} / Image ${idx}` : referenceBindingIdFor(ref);
 }
 
-function referenceDisplayName(ref: ReferenceBindingInput): string {
-  return (
-    stripCharacterIdFromName(ref.characterName || '').trim() ||
-    ref.environmentId ||
-    ref.referenceEnvironmentId ||
-    'reference'
-  );
-}
-
 export function formatReferenceBindingInstruction(
   ref: ReferenceBindingInput,
   imageIndex?: number | null
 ): string {
-  const label = referenceBindingLabel(ref, imageIndex);
-  const name = referenceDisplayName(ref);
+  void imageIndex;
+  const id = referenceBindingIdFor(ref);
   const kind = referenceBindingKind(ref);
 
   if (kind === 'environment') {
-    return `${label}: Environment reference for "${name}". Reusable location structure, background objects, materials, and color continuity.`;
+    return `${id}: environment reference. Use for location structure, background objects, materials, and color continuity.`;
   }
 
   if (kind === 'outfit') {
-    return `${label}: Outfit reference for "${name}". Wardrobe only: garments, shoes, and worn accessories. Do not use this reference for face, hair, body, age, species, silhouette, or identity.`;
+    return `${id}: outfit reference. Wardrobe only: garments, shoes, and worn accessories. Do not use for face, hair, body, age, species, silhouette, or identity.`;
   }
 
   if (kind === 'character') {
-    return `${label}: Character identity reference for "${name}". This image is one character only. Use only ${referenceBindingIdFor(ref)} when the prompt asks for "${name}" or this REF id. Do not borrow body parts, clothes, colors, heads, species, silhouette, or facial traits from another reference.`;
+    return `${id}: character identity reference. One character only. Use only when panel content names ${id}. Do not borrow body parts, clothes, colors, heads, species, silhouette, or facial traits from another REF.`;
   }
 
-  return `${label}: Object reference for "${name}". Use only for the named object or prop.`;
+  return `${id}: object reference. Use only when panel content names ${id}.`;
 }
 
 export function buildReferenceBindingRegistry(
@@ -150,17 +141,16 @@ export function buildReferenceBindingRegistry(
     const imageIndex = ref.imageIndex ?? index + 1;
     const id = referenceBindingIdFor({ ...ref, imageIndex });
     const kind = referenceBindingKind(ref);
-    const display = referenceDisplayName(ref);
     if (kind === 'outfit') {
-      return `- ${id} = Image ${imageIndex} = outfit reference for "${display}" (wardrobe only).`;
+      return `- ${id} = outfit reference (wardrobe only).`;
     }
     if (kind === 'environment') {
-      return `- ${id} = Image ${imageIndex} = environment reference for "${display}".`;
+      return `- ${id} = environment reference.`;
     }
     if (kind === 'character') {
-      return `- ${id} = Image ${imageIndex} = character identity reference for "${display}".`;
+      return `- ${id} = character identity reference.`;
     }
-    return `- ${id} = Image ${imageIndex} = object reference for "${display}".`;
+    return `- ${id} = object reference.`;
   });
   return `${options.title ?? 'REFERENCE BINDING REGISTRY'}:\n${rows.join('\n')}`;
 }

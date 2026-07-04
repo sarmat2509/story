@@ -9,6 +9,7 @@ import {
   buildGraphicNovelPageValidationRepairInstructions,
   overlayGraphicNovelBubblesOnly,
 } from '../pageRenderer';
+import type { ReferenceImage } from '../../../providers/base/IImageProvider';
 import type { PlannedGraphicNovelPage } from '../types';
 
 function visual(primaryRead: string, characterName = 'Mira') {
@@ -35,7 +36,7 @@ function visual(primaryRead: string, characterName = 'Mira') {
 }
 
 function samplePage(): PlannedGraphicNovelPage {
-  return planGraphicNovelLayouts({
+  const page = planGraphicNovelLayouts({
     ageGroup: '4-5',
     pages: [
       {
@@ -68,6 +69,10 @@ function samplePage(): PlannedGraphicNovelPage {
       },
     ],
   })[0];
+  page.characterAliases = {
+    Mira: ['Mira', 'Mila'],
+  };
+  return page;
 }
 
 async function pixelAt(
@@ -190,13 +195,21 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
   assert.match(systemInstruction, /No text\. No speech bubbles\./);
   assert.match(prompt, /Create a single comic page with exactly 2 panels/);
   assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
-  assert.match(prompt, /REF_CH_MIRA_TEST01 \/ Image 1: Character identity reference for "Mira"\./);
-  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02 \/ Image 2: Outfit reference for "Mira"\./);
+  assert.match(prompt, /REF_CH_MIRA_TEST01: character identity reference\./);
+  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02: outfit reference\./);
   assert.match(prompt, /REFERENCE BINDING REGISTRY:/);
+  assert.match(prompt, /REF_CH_MIRA_TEST01 = character identity reference\./);
+  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02 = outfit reference \(wardrobe only\)\./);
   assert.match(prompt, /Characters:/);
-  assert.match(prompt, /Characters allowed in this panel: Mira \/ REF_CH_MIRA_TEST01 \/ Image 1/);
-  assert.match(prompt, /Mira \/ REF_CH_MIRA_TEST01 \/ Image 1: position left_foreground/);
-  assert.match(prompt, /outfit from REF_OUTFIT_MIRA_TEST02 \/ Image 2/);
+  assert.match(prompt, /- Setting: REF_CH_MIRA_TEST01 finds a glowing button\./);
+  assert.match(prompt, /  \* REF_CH_MIRA_TEST01: position left_foreground/);
+  assert.match(prompt, /outfit from REF_OUTFIT_MIRA_TEST02/);
+  assert.doesNotMatch(prompt, /\/ Image \d+/);
+  assert.doesNotMatch(prompt, /for "Mira"/);
+  assert.doesNotMatch(prompt, /Characters allowed in this panel/);
+  assert.doesNotMatch(prompt, /Page character refs not in this panel/);
+  assert.doesNotMatch(prompt, /Mira \/ REF_CH_MIRA_TEST01 \/ Image 1: position/);
+  assert.doesNotMatch(prompt, /outfit from REF_OUTFIT_MIRA_TEST02 \/ Image 2/);
   assert.doesNotMatch(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
   assert.doesNotMatch(prompt, /color-coded/i);
   assert.doesNotMatch(prompt, /\bslot\b/i);
@@ -204,7 +217,7 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
   assert.doesNotMatch(prompt, /Fill this/);
 }
 
-function testImageRequestManifestUsesCompactReferenceGuide(): void {
+function testImageRequestManifestOmitsCombinedFullTextPrompt(): void {
   const manifest = buildGraphicNovelImageRequestManifest({
     operation: 'graphic_novel_page_free_layout_generate',
     mode: 'generate',
@@ -224,11 +237,9 @@ function testImageRequestManifestUsesCompactReferenceGuide(): void {
     ],
   });
 
-  const fullTextPrompt = String(manifest.fullTextPrompt || '');
-  assert.match(fullTextPrompt, /REFERENCE IMAGE GUIDE:/);
-  assert.match(fullTextPrompt, /REF_CH_MIRA_TEST01 \/ Image 1: Character identity reference for "Mira"\./);
-  assert.doesNotMatch(fullTextPrompt, /REFERENCE IMAGES:\n\[/);
-  assert.doesNotMatch(fullTextPrompt, /"storagePath"/);
+  assert.equal(manifest.prompt, 'Create a page.');
+  assert.equal(manifest.systemInstruction, 'No text. No speech bubbles.');
+  assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'fullTextPrompt'), false);
 }
 
 function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
@@ -259,7 +270,7 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
     },
   ]);
 
-  assert.match(prompt, /- Environment: Playroom; REF_ENV_PLAYROOM_TEST01 \/ Image 1\./);
+  assert.match(prompt, /- Environment: REF_ENV_PLAYROOM_TEST01\./);
   assert.doesNotMatch(prompt, /long reusable playroom description/);
 }
 
@@ -295,15 +306,48 @@ async function testBubbleOnlyOverlayPreservesArtAndDrawsBubble(): Promise<void> 
   );
 }
 
-function testRepairInstructionsUsePanelBoundsWithoutPresetSlots(): void {
+function testRepairInstructionsUseCompactValidatorFeedbackWithoutArtTarget(): void {
   const page = samplePage();
+  const referenceImages: Array<ReferenceImage & { source?: string; type?: string }> = [
+    {
+      referenceKind: 'character',
+      characterName: 'Mira',
+      referenceBindingId: 'REF_CH_MIRA_ABC123',
+    },
+    {
+      referenceKind: 'object',
+      source: 'outfit_plate',
+      type: 'outfit_plate_reference',
+      characterName: 'Mira',
+      referenceBindingId: 'REF_OUTFIT_MIRA_PLAY_DEF456',
+    },
+  ];
   const prompt = buildGraphicNovelPageValidationRepairInstructions({
     page,
     score: 72,
     validation: {
       characterCount: 1,
       expectedCharacterCount: 1,
-      characters: [],
+      characters: [
+        {
+          name: 'Mira',
+          characterKind: 'human',
+          found: true,
+          duplicated: false,
+          recognizableScore: 0.7,
+          faceMatchesReference: false,
+          hairMatchesReference: true,
+          ageReadMatchesReference: true,
+          proportionsMatchReference: true,
+          matchesColors: true,
+          matchesOutfit: false,
+          actualVisibleDescription: 'a blond girl in a blue dress',
+          sameOverallDesignRead: true,
+          silhouetteDriftSeverity: 'none',
+          issue: 'face and outfit do not match the references',
+          identityComparisonSummary: 'Face differs; outfit differs.',
+        },
+      ],
       hasUnexpectedCharacters: false,
       hasTextOrLetters: false,
       hasRenderingArtifacts: false,
@@ -313,10 +357,20 @@ function testRepairInstructionsUsePanelBoundsWithoutPresetSlots(): void {
       layoutFeedback: 'art spills outside panel 1',
       overallFeedback: 'repair panel bounds',
     },
+    referenceImages,
   });
 
-  assert.match(prompt, /Panel 1 bounds: x=/);
-  assert.match(prompt, /artwork outside panel bounds: yes/);
+  assert.match(prompt, /Panel 1: REF_CH_MIRA_ABC123 is incorrect/);
+  assert.match(prompt, /currently visible: a blond girl in a blue dress/);
+  assert.match(prompt, /Use REF_CH_MIRA_ABC123 for identity and REF_OUTFIT_MIRA_PLAY_DEF456 for wardrobe/);
+  assert.match(prompt, /Keep repaired artwork inside the existing panel borders/);
+  assert.doesNotMatch(prompt, /ATTACHED REFERENCES/);
+  assert.doesNotMatch(prompt, /Use the attached reference images by these REF labels/);
+  assert.doesNotMatch(prompt, /REF_CH_MIRA_ABC123 = character identity reference/);
+  assert.doesNotMatch(prompt, /ART TARGET BY PANEL/);
+  assert.doesNotMatch(prompt, /Panel 1 bounds: x=/);
+  assert.doesNotMatch(prompt, /Camera:/);
+  assert.doesNotMatch(prompt, /Lighting:/);
   assert.doesNotMatch(prompt, /color-coded/i);
   assert.doesNotMatch(prompt, /\bslot\b/i);
   assert.doesNotMatch(prompt, /guide color/i);
@@ -327,10 +381,10 @@ async function main(): Promise<void> {
   testHtmlTextOverlayIncludesBubbleTextStyle();
   testHtmlTextOverlaySeparatesRawArtifactText();
   testFreeLayoutInstructionsUseReferencesWithoutPresetSlots();
-  testImageRequestManifestUsesCompactReferenceGuide();
+  testImageRequestManifestOmitsCombinedFullTextPrompt();
   testEnvironmentReferenceSuppressesEnvironmentDescription();
   await testBubbleOnlyOverlayPreservesArtAndDrawsBubble();
-  testRepairInstructionsUsePanelBoundsWithoutPresetSlots();
+  testRepairInstructionsUseCompactValidatorFeedbackWithoutArtTarget();
   console.log('graphicNovelPageRenderer tests passed');
 }
 

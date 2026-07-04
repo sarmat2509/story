@@ -206,6 +206,12 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
             description:
               'Whether VISIBLE clothing/shoes/accessories match the scene wardrobe text (CHARACTER OUTFITS / Expected outfit for THIS scene), NOT the turnaround reference. If an outfit plate reference is provided, use that outfit plate as the strongest clothing ground truth. Require garment TYPE and key structural details from the scene text / plate (sleeve length, neckline/collar, skirt length, shoe type). Same dominant color but wrong silhouette (e.g. another yellow dress) = false. True if no outfit is specified in scene text, or visible costume aligns with the written spec. Do not mark false merely because the clothing differs from the identity sheet / turnaround clothes. Occlusion rules apply when scene context hides parts.',
           },
+          actualVisibleDescription: {
+            type: 'string',
+            nullable: true,
+            description:
+              'When the expected character is missing or the visible slot is occupied by the wrong design, briefly describe what is actually visible instead, using concrete visual words useful for edit repair (e.g. "blond girl in a blue dress", "brown dragon-like quadruped", "small green mushroom creature"). Use null only when the expected character is clearly correct or no substitute/candidate is visible.',
+          },
           identityComparisonSummary: {
             type: 'string',
             description:
@@ -236,6 +242,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           'recognizableScore',
           'matchesColors',
           'matchesOutfit',
+          'actualVisibleDescription',
           'identityComparisonSummary',
         ],
       },

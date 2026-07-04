@@ -91,9 +91,17 @@ async function testConversationalEditUsesPreviousInteractionWithoutResendingImag
   assert.equal(requests.generateContent, null);
   assert.deepEqual(
     requests.interaction?.input.map((part: any) => part.type),
-    ['text']
+    ['text', 'image', 'text']
   );
-  assert.match(requests.interaction?.input[0].text, /Repair only Emilia identity/);
+  assert.match(requests.interaction?.input[0].text, /Character reference/);
+  assert.equal(requests.interaction?.input[1].data, Buffer.from('emilia-reference').toString('base64'));
+  assert.match(requests.interaction?.input[2].text, /Repair only Emilia identity/);
+  assert.ok(
+    !requests.interaction?.input.some(
+      (part: any) => part.type === 'image' && part.data === Buffer.from('failed-page-image').toString('base64')
+    ),
+    'conversational edit should not resend the failed source image'
+  );
 }
 
 async function testGenerateContentFallbackStillReceivesFullEditPayload() {
@@ -121,7 +129,7 @@ async function testGenerateContentFallbackStillReceivesFullEditPayload() {
   assert.equal(requests.interaction?.previous_interaction_id, 'interaction-generate-123');
   assert.deepEqual(
     requests.interaction?.input.map((part: any) => part.type),
-    ['text']
+    ['text', 'image', 'text']
   );
 
   const fallbackParts = requests.generateContent?.contents?.[0]?.parts ?? [];

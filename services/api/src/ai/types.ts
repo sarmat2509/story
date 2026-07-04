@@ -68,6 +68,8 @@ export interface ImageValidationResult {
     proportionsMatchReference?: boolean | null;
     matchesColors: boolean;
     matchesOutfit: boolean;
+    /** What is actually visible in the expected character slot when the expected identity is missing or wrong. */
+    actualVisibleDescription?: string | null;
     /** Explicit age/face/hair/proportions/stable traits vs reference — no vague "similar enough". */
     identityComparisonSummary: string;
     /** When set: whether silhouette, body type, and first-glance read match the reference design. Used for animal + imaginary identity. */
