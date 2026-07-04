@@ -126,18 +126,18 @@ export class NanoBananaProProvider implements IImageProvider {
     }, 'Editing image with Nano Banana Pro - Image Edit Request');
 
     try {
-      // Build content parts: reference images first, then original image, then edit instructions
-      const parts: any[] = await this.buildReferenceParts(request.referenceImages);
+      // Build the full edit payload for the non-conversational fallback path.
+      const fallbackParts: any[] = await this.buildReferenceParts(request.referenceImages);
 
       const originalImageInstruction = request.operation === 'graphic_novel_page_edit'
         ? 'SOURCE COMIC PAGE TO EDIT: preserve the existing page aspect, visible panel count, panel borders, gutters, and composition while applying the requested corrections.'
         : 'FAILED SCENE ILLUSTRATION TO REPAIR: use this image for composition, pose intent, background, lighting, and art style continuity only. ' +
           'Do not use it as the source of truth for any character face, hairstyle, body identity, or outfit detail that the edit instructions identify as wrong.';
 
-      parts.push({ text: originalImageInstruction });
+      fallbackParts.push({ text: originalImageInstruction });
 
       // Add the original generated image that needs editing.
-      parts.push({
+      fallbackParts.push({
         inlineData: {
           mimeType: request.originalMimeType,
           data: request.originalImage.toString('base64'),
@@ -145,10 +145,17 @@ export class NanoBananaProProvider implements IImageProvider {
       });
 
       // Add edit instructions last
-      parts.push({ text: request.editInstructions });
+      fallbackParts.push({ text: request.editInstructions });
+
+      // For Gemini Interactions multi-turn edits, previous_interaction_id already
+      // points at the prior generated image/context. Keep the next turn concise.
+      const interactionParts = request.previousInteractionId
+        ? [{ text: request.editInstructions }]
+        : fallbackParts;
 
       return await this.callGeminiImageAPI({
-        parts,
+        parts: interactionParts,
+        fallbackParts,
         aspectRatio: request.aspectRatio,
         systemInstruction: request.systemInstruction,
         personGeneration: request.personGeneration,
@@ -271,6 +278,7 @@ export class NanoBananaProProvider implements IImageProvider {
    */
   private async callGeminiImageAPI(params: {
     parts: any[];
+    fallbackParts?: any[];
     aspectRatio?: string;
     systemInstruction?: string;
     personGeneration?: string;
@@ -283,6 +291,7 @@ export class NanoBananaProProvider implements IImageProvider {
   }): Promise<GeneratedImage> {
     const {
       parts,
+      fallbackParts,
       aspectRatio,
       systemInstruction,
       personGeneration,
@@ -293,6 +302,7 @@ export class NanoBananaProProvider implements IImageProvider {
       onUsage,
       operation: op,
     } = params;
+    const generateContentParts = fallbackParts ?? parts;
 
     const providerRequestId = `gemini-img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const requestDiagnostics = this.buildRequestDiagnostics({
@@ -306,6 +316,19 @@ export class NanoBananaProProvider implements IImageProvider {
       operationType,
       previousInteractionId,
     });
+    const fallbackRequestDiagnostics = fallbackParts
+      ? this.buildRequestDiagnostics({
+          providerRequestId,
+          parts: fallbackParts,
+          aspectRatio,
+          systemInstruction,
+          personGeneration,
+          promptLength,
+          referenceCount,
+          operationType,
+          previousInteractionId,
+        })
+      : requestDiagnostics;
 
     // Log full request structure (untruncated for debugging)
     logger.info({
@@ -344,6 +367,10 @@ export class NanoBananaProProvider implements IImageProvider {
       hasPreviousInteractionId: !!previousInteractionId,
       previousInteractionId: previousInteractionId ?? null,
       diagnostics: requestDiagnostics,
+      ...(fallbackParts && {
+        fallbackPartsCount: fallbackParts.length,
+        fallbackDiagnostics: fallbackRequestDiagnostics,
+      }),
     }, `Calling Gemini API for image ${operationType}`);
 
     // Count tokens before generation (optional but helpful for diagnostics)
@@ -395,6 +422,7 @@ export class NanoBananaProProvider implements IImageProvider {
         providerRequestId,
         errorDiagnostics: this.extractApiErrorDiagnostics(interactionError),
         requestDiagnostics,
+        fallbackRequestDiagnostics,
         model: this.model,
         operationType,
         hasPreviousInteractionId: !!previousInteractionId,
@@ -418,7 +446,7 @@ export class NanoBananaProProvider implements IImageProvider {
     try {
       response = await this.client.models.generateContent({
         model: this.model,
-        contents: [{ role: 'user', parts }],
+        contents: [{ role: 'user', parts: generateContentParts }],
         config: generateContentConfig,
       });
     } catch (generateContentError) {
@@ -427,7 +455,7 @@ export class NanoBananaProProvider implements IImageProvider {
         model: this.model,
         operationType,
         errorDiagnostics: this.extractApiErrorDiagnostics(generateContentError),
-        requestDiagnostics,
+        requestDiagnostics: fallbackRequestDiagnostics,
         generateContentConfig: this.sanitizeForLog(generateContentConfig),
       }, 'Gemini generateContent image call failed');
       throw generateContentError;
@@ -627,8 +655,8 @@ export class NanoBananaProProvider implements IImageProvider {
 
   /**
    * Gemini Interactions API is the only Gemini path that supports
-   * previous_interaction_id. We still send the full reference pack on every turn;
-   * the previous id adds provider-side continuity for image repair.
+   * previous_interaction_id. When a previous id is available, edit calls use a
+   * conversational turn instead of resending the failed image.
    */
   private async callGeminiInteractionsImageAPI(params: {
     providerRequestId: string;
