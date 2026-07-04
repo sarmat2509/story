@@ -74,6 +74,7 @@ import {
   collectOutfitPlateImageIndices,
   logReferenceBucketDelivery,
 } from './referenceImageBuckets';
+import { referenceBindingIdFor, referenceBindingLabel } from './referenceBinding';
 import {
   getOrCreateOutfitPlateImage,
   normalizeOutfitPlateCharacterKey,
@@ -2774,6 +2775,8 @@ export async function processStoryImages(
                   fileUri: envImageData.fileUri,
                   source: 'environment',
                   type: 'environment_reference',
+                  characterName: currentEnvironment?.name || currentEnvironmentId,
+                  referenceEnvironmentId: currentEnvironmentId,
                   imageIndex: 1,
                 },
               ]
@@ -3887,6 +3890,8 @@ async function saveImagePromptDebugArtifact(params: {
       aspectRatio: params.payload.aspectRatio ?? null,
       referenceImages: (params.payload.referenceImages ?? []).map((ref, index) => ({
         index: index + 1,
+        imageIndex: ref.imageIndex ?? index + 1,
+        referenceBindingId: ref.referenceBindingId ?? null,
         instructionText: ref.instructionText ?? null,
         characterName: ref.characterName ?? null,
         referenceKind: ref.referenceKind ?? null,
@@ -3902,6 +3907,8 @@ async function saveImagePromptDebugArtifact(params: {
         `REFERENCE IMAGES:\n${JSON.stringify(
           (params.payload.referenceImages ?? []).map((ref, index) => ({
             index: index + 1,
+            imageIndex: ref.imageIndex ?? index + 1,
+            referenceBindingId: ref.referenceBindingId ?? null,
             instructionText: ref.instructionText ?? null,
             characterName: ref.characterName ?? null,
             referenceKind: ref.referenceKind ?? null,
@@ -4897,11 +4904,27 @@ async function generateSceneImageWithReference(
       if (!ref.characterName) return ref;
       const resolvedName = placeholderReferenceNameMap.get(ref.characterName);
       return resolvedName && resolvedName !== ref.characterName
-        ? { ...ref, characterName: resolvedName }
+        ? {
+            ...ref,
+            characterName: resolvedName,
+            referenceBindingId: referenceBindingIdFor({
+              ...ref,
+              characterName: resolvedName,
+              referenceBindingId: undefined,
+            }),
+          }
         : ref;
     });
 
     const subjectAliasByImageIndex = buildSubjectAliasByImageIndex(context.imageIndexMap);
+    const referenceBindingByImageIndex = new Map<number, string>();
+    for (const ref of resolvedReferenceImageDataArray || []) {
+      const imageIndex = (ref as any).imageIndex;
+      const bindingId = (ref as any).referenceBindingId;
+      if (typeof imageIndex === 'number' && typeof bindingId === 'string' && bindingId) {
+        referenceBindingByImageIndex.set(imageIndex, bindingId);
+      }
+    }
 
     // Build reference images array with Google Asset Graph numbered labels
     const referenceImagesArray = resolvedReferenceImageDataArray?.map((ref, index) => {
@@ -4922,6 +4945,7 @@ async function generateSceneImageWithReference(
                 : 'previous_scene',
         characterName: (ref as any).characterName || 'unknown',
         currentEnvironmentId: context.currentEnvironmentId,
+        referenceBindingId: (ref as any).referenceBindingId,
       };
 
       if (refSource === 'environment') {
@@ -4945,6 +4969,8 @@ async function generateSceneImageWithReference(
             }
           }
           meta.identityImageIndex = idIdx;
+          meta.identityReferenceBindingId =
+            idIdx !== undefined ? referenceBindingByImageIndex.get(idIdx) : undefined;
           meta.subjectAlias = idIdx !== undefined ? subjectAliasByImageIndex.get(idIdx) : undefined;
           meta.clothesAlias = meta.subjectAlias
             ? meta.subjectAlias.replace(/^Subject\b/, 'Clothes')
@@ -4971,6 +4997,13 @@ async function generateSceneImageWithReference(
         instructionText: buildReferenceInstructionText(meta),
         characterName: (ref as any).characterName || meta.characterName,
         source: refSource,
+        type: (ref as any).type,
+        imageIndex: refImageIndex,
+        referenceBindingId: (ref as any).referenceBindingId,
+        environmentId: (ref as any).environmentId,
+        referenceEnvironmentId: (ref as any).referenceEnvironmentId,
+        outfitId: (ref as any).outfitId,
+        storagePath: (ref as any).storagePath,
         referenceKind:
           refSource === 'environment' || refSource === 'outfit_plate'
             ? ('object' as const)
@@ -5796,6 +5829,8 @@ interface ReferenceMetadata {
   referenceEnvironmentId?: string; // Environment of the reference scene image
   /** Character sheet / photo index for outfit_plate refs — cross-linked in instruction text */
   identityImageIndex?: number;
+  referenceBindingId?: string;
+  identityReferenceBindingId?: string;
   /** Anonymous visual alias sent to the image model instead of the character name */
   subjectAlias?: string;
   /** Anonymous clothing alias paired to subjectAlias, e.g. Subject A -> Clothes A */
@@ -6139,19 +6174,31 @@ async function buildValidationReferenceImages(params: {
  */
 function buildReferenceInstructionText(meta: ReferenceMetadata): string {
   const imgLabel = `Image ${meta.imageIndex}`;
+  const bindingLabel = meta.referenceBindingId
+    ? referenceBindingLabel({ referenceBindingId: meta.referenceBindingId, imageIndex: meta.imageIndex }, meta.imageIndex)
+    : imgLabel;
 
   if (meta.source === 'environment') {
-    return `${imgLabel}: Environment reference — content/layout only, not style. Re-draw in scene art style.`;
+    return `${bindingLabel}: Environment reference — content/layout only, not style. Re-draw in scene art style.`;
   }
 
   if (meta.source === 'outfit_plate') {
     const idIdx = meta.identityImageIndex;
     const subject = meta.subjectAlias ?? 'the matching subject';
     const clothes = meta.clothesAlias ?? 'the clothes source';
+    const identityLabel =
+      idIdx && meta.identityReferenceBindingId
+        ? referenceBindingLabel(
+            { referenceBindingId: meta.identityReferenceBindingId, imageIndex: idIdx },
+            idIdx
+          )
+        : idIdx
+          ? `Image ${idIdx}`
+          : 'the matching PERSON SOURCE';
     const identityPart = idIdx
-      ? `DRAW COMMAND: draw ${subject} from Image ${idIdx} wearing ${clothes} from ${imgLabel}. Image ${idIdx} is PERSON SOURCE. ${imgLabel} is CLOTHES SOURCE only.`
-      : `DRAW COMMAND: draw the matching PERSON SOURCE wearing ${clothes} from ${imgLabel}. The character reference is PERSON SOURCE. ${imgLabel} is CLOTHES SOURCE only.`;
-    return `${imgLabel}: CLOTHES SOURCE ${clothes}. Use only the clothing/accessories from this image. ${identityPart} Do not use ${imgLabel} for face, hair, body, age, or silhouette. Do not draw the mannequin.`;
+      ? `DRAW COMMAND: draw ${subject} from ${identityLabel} wearing ${clothes} from ${bindingLabel}. ${identityLabel} is PERSON SOURCE. ${bindingLabel} is CLOTHES SOURCE only.`
+      : `DRAW COMMAND: draw the matching PERSON SOURCE wearing ${clothes} from ${bindingLabel}. The character reference is PERSON SOURCE. ${bindingLabel} is CLOTHES SOURCE only.`;
+    return `${bindingLabel}: CLOTHES SOURCE ${clothes}. Use only the clothing/accessories from this image. ${identityPart} Do not use ${bindingLabel} for face, hair, body, age, or silhouette. Do not draw the mannequin.`;
   }
 
   if (
@@ -6161,7 +6208,7 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
   ) {
     const sheetType = meta.isTurnaround ? 'Character sheet' : 'Reference photo';
     const subject = meta.subjectAlias ?? 'Subject';
-    return `${imgLabel}: PERSON SOURCE ${subject}. ${sheetType}. Use as the locked source of truth for face, exact hairstyle structure, hair placement, age read, body proportions, silhouette, skin/hair palette, and stable marks.`;
+    return `${bindingLabel}: PERSON SOURCE ${subject}. ${sheetType}. Use as the locked source of truth for face, exact hairstyle structure, hair placement, age read, body proportions, silhouette, skin/hair palette, and stable marks.`;
   }
 
   // Scene reference — env-aware label
@@ -6171,10 +6218,10 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
     meta.currentEnvironmentId === meta.referenceEnvironmentId;
 
   if (sameLocation) {
-    return `${imgLabel}: Previous scene reference (same location).`;
+    return `${bindingLabel}: Previous scene reference (same location).`;
   }
 
-  return `${imgLabel}: Previous scene reference (different location — use for character reference only).`;
+  return `${bindingLabel}: Previous scene reference (different location — use for character reference only).`;
 }
 
 /**

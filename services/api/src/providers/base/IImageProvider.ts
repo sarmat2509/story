@@ -18,6 +18,10 @@ export interface ReferenceImage {
   characterName?: string; // Optional label for the reference
   /** Gemini 3.1 image: identity refs vs object refs (environment, outfit plate) for logging / limits */
   referenceKind?: 'character' | 'object';
+  /** Stable prompt binding id, e.g. REF_CH_EMILIIA_A1B2C3, used alongside Image N. */
+  referenceBindingId?: string;
+  /** 1-based interleaving order used in prompts as Image N. */
+  imageIndex?: number;
   instructionText?: string; // Per-image instruction for multimodal interleaving (placed before image in parts)
   // Additional fields for API conversion
   referenceId?: number; // 1-4, used in prompt as [1], [2], etc.

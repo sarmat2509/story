@@ -56,6 +56,7 @@ import {
   logReferenceBucketDelivery,
   type ReferenceImageDataEntry,
 } from './referenceImageBuckets';
+import { formatReferenceBindingInstruction } from './referenceBinding';
 import {
   analyzeGraphicNovelBubbleVision,
   analyzeGraphicNovelBubbleVisionByPanelCrops,
@@ -1651,15 +1652,7 @@ function buildGraphicNovelReferenceInstruction(
   reference: GraphicNovelReferenceImage,
   imageIndex: number
 ): string {
-  const imgLabel = `Image ${imageIndex}`;
-  if (reference.source === 'outfit_plate') {
-    return `${imgLabel}: Outfit reference for "${reference.characterName || 'character'}".`;
-  }
-  if (reference.referenceKind === 'object' || reference.source === 'environment') {
-    return `${imgLabel}: Environment reference for "${reference.characterName || reference.environmentId || 'location'}".`;
-  }
-
-  return `${imgLabel}: Character reference for "${reference.characterName || 'character'}".`;
+  return formatReferenceBindingInstruction(reference, imageIndex);
 }
 
 function prepareGraphicNovelPageReferences(params: {
@@ -1761,6 +1754,8 @@ function prepareGraphicNovelPageReferences(params: {
       environmentId: source?.environmentId || bucketRef.referenceEnvironmentId,
       outfitId: source?.outfitId || bucketRef.outfitId,
       storagePath: source?.storagePath || bucketRef.storagePath,
+      imageIndex: bucketRef.imageIndex,
+      referenceBindingId: source?.referenceBindingId || bucketRef.referenceBindingId,
     };
     return {
       ...reference,

@@ -168,6 +168,8 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
       mimeType: 'image/png',
       characterName: 'Mira',
       referenceKind: 'character',
+      imageIndex: 1,
+      referenceBindingId: 'REF_CH_MIRA_TEST01',
       instructionText: 'Image 1: IDENTITY SOURCE Subject A for "Mira". Character sheet.',
     },
     {
@@ -177,6 +179,8 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
       referenceKind: 'object',
       source: 'outfit_plate',
       type: 'outfit_plate_reference',
+      imageIndex: 2,
+      referenceBindingId: 'REF_OUTFIT_MIRA_TEST02',
       instructionText: 'Image 2: Outfit reference for "Mira".',
     } as any,
   ]);
@@ -186,11 +190,13 @@ function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
   assert.match(systemInstruction, /No text\. No speech bubbles\./);
   assert.match(prompt, /Create a single comic page with exactly 2 panels/);
   assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
-  assert.match(prompt, /Image 1: Character reference: "Mira"\./);
-  assert.match(prompt, /Image 2: Outfit reference: "Mira"\./);
+  assert.match(prompt, /REF_CH_MIRA_TEST01 \/ Image 1: Character identity reference for "Mira"\./);
+  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02 \/ Image 2: Outfit reference for "Mira"\./);
+  assert.match(prompt, /REFERENCE BINDING REGISTRY:/);
   assert.match(prompt, /Characters:/);
-  assert.match(prompt, /Mira: position left_foreground/);
-  assert.match(prompt, /outfit from Image 2/);
+  assert.match(prompt, /Characters allowed in this panel: Mira \/ REF_CH_MIRA_TEST01 \/ Image 1/);
+  assert.match(prompt, /Mira \/ REF_CH_MIRA_TEST01 \/ Image 1: position left_foreground/);
+  assert.match(prompt, /outfit from REF_OUTFIT_MIRA_TEST02 \/ Image 2/);
   assert.doesNotMatch(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
   assert.doesNotMatch(prompt, /color-coded/i);
   assert.doesNotMatch(prompt, /\bslot\b/i);
@@ -211,6 +217,8 @@ function testImageRequestManifestUsesCompactReferenceGuide(): void {
         characterName: 'Mira',
         referenceKind: 'character',
         source: 'character_reference',
+        imageIndex: 1,
+        referenceBindingId: 'REF_CH_MIRA_TEST01',
         storagePath: 'photos/mira.png',
       } as any,
     ],
@@ -218,7 +226,7 @@ function testImageRequestManifestUsesCompactReferenceGuide(): void {
 
   const fullTextPrompt = String(manifest.fullTextPrompt || '');
   assert.match(fullTextPrompt, /REFERENCE IMAGE GUIDE:/);
-  assert.match(fullTextPrompt, /Image 1: Character reference: "Mira"\./);
+  assert.match(fullTextPrompt, /REF_CH_MIRA_TEST01 \/ Image 1: Character identity reference for "Mira"\./);
   assert.doesNotMatch(fullTextPrompt, /REFERENCE IMAGES:\n\[/);
   assert.doesNotMatch(fullTextPrompt, /"storagePath"/);
 }
@@ -242,12 +250,16 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
       mimeType: 'image/png',
       characterName: 'Playroom',
       referenceKind: 'object',
+      source: 'environment',
+      type: 'environment_reference',
+      imageIndex: 1,
+      referenceBindingId: 'REF_ENV_PLAYROOM_TEST01',
       instructionText:
         'Image 1: Environment reference for "Playroom". Reusable location structure.',
     },
   ]);
 
-  assert.match(prompt, /- Environment: Playroom; Image 1\./);
+  assert.match(prompt, /- Environment: Playroom; REF_ENV_PLAYROOM_TEST01 \/ Image 1\./);
   assert.doesNotMatch(prompt, /long reusable playroom description/);
 }
 

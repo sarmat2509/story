@@ -53,6 +53,8 @@ export interface BuiltScenePromptPayload {
     instructionText?: string;
     characterName?: string;
     referenceKind?: 'character' | 'object';
+    referenceBindingId?: string;
+    imageIndex?: number;
     mimeType?: string;
     fileUri?: string;
     hasBase64Data: boolean;
@@ -104,7 +106,14 @@ export interface SceneImageWithReferenceRequest {
     instructionText: string;
     characterName?: string;
     source?: string;
+    type?: string;
+    imageIndex?: number;
+    referenceBindingId?: string;
     referenceKind?: 'character' | 'object';
+    environmentId?: string;
+    referenceEnvironmentId?: string;
+    outfitId?: string;
+    storagePath?: string;
   }>;
 
   // System instruction (static context: role, art style, format, quality)
@@ -252,6 +261,7 @@ export class ImageDomainService {
       realWorldCharacters: request.realWorldCharacters,
       imageIndexMap: request.imageIndexMap,
       outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter,
+      referenceImages: request.referenceImages,
       currentEnvironment: request.currentEnvironment,
       characterOutfits: request.characterOutfits,
       scenarioCardId: request.scenarioCardId,
@@ -295,6 +305,14 @@ export class ImageDomainService {
         mimeType: ref.mimeType,
         instructionText: ref.instructionText,
         characterName: ref.characterName,
+        referenceBindingId: ref.referenceBindingId,
+        imageIndex: ref.imageIndex,
+        source: ref.source,
+        type: ref.type,
+        environmentId: ref.environmentId,
+        referenceEnvironmentId: ref.referenceEnvironmentId,
+        outfitId: ref.outfitId,
+        storagePath: ref.storagePath,
         referenceKind:
           ref.referenceKind ??
           inferReferenceKind({
@@ -333,6 +351,8 @@ export class ImageDomainService {
         instructionText: ref.instructionText,
         characterName: ref.characterName,
         referenceKind: ref.referenceKind,
+        referenceBindingId: ref.referenceBindingId,
+        imageIndex: (ref as { imageIndex?: number }).imageIndex,
         mimeType: ref.mimeType,
         fileUri: ref.fileUri,
         hasBase64Data: !!ref.base64Data,
@@ -386,6 +406,8 @@ export class ImageDomainService {
         instructionText: ref.instructionText,
         characterName: ref.characterName,
         referenceKind: ref.referenceKind,
+        referenceBindingId: ref.referenceBindingId,
+        imageIndex: ref.imageIndex,
         mimeType: ref.mimeType,
         fileUri: ref.fileUri,
         hasBase64Data: !!ref.base64Data,
@@ -684,7 +706,14 @@ export class ImageDomainService {
       instructionText: string;
       characterName?: string;
       source?: string;
+      type?: string;
+      imageIndex?: number;
+      referenceBindingId?: string;
       referenceKind?: 'character' | 'object';
+      environmentId?: string;
+      referenceEnvironmentId?: string;
+      outfitId?: string;
+      storagePath?: string;
     }>;
     systemInstruction?: string;
     targetedRepairManifest?: ImageEditRepairManifest;
@@ -733,6 +762,14 @@ export class ImageDomainService {
           mimeType: ref.mimeType,
           instructionText: ref.instructionText,
           characterName: ref.characterName,
+          referenceBindingId: ref.referenceBindingId,
+          imageIndex: ref.imageIndex,
+          source: ref.source,
+          type: ref.type,
+          environmentId: ref.environmentId,
+          referenceEnvironmentId: ref.referenceEnvironmentId,
+          outfitId: ref.outfitId,
+          storagePath: ref.storagePath,
           referenceKind:
             ref.referenceKind ??
             inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),

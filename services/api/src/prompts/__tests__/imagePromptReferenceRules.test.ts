@@ -298,8 +298,10 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
 
 async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   let capturedSystemInstruction = '';
+  let capturedPrompt = '';
   const imageProvider = {
-    async generateImage(request: { systemInstruction?: string }) {
+    async generateImage(request: { prompt?: string; systemInstruction?: string }) {
+      capturedPrompt = request.prompt || '';
       capturedSystemInstruction = request.systemInstruction || '';
       return { imageUrl: 'https://example.com/test.png' };
     },
@@ -318,6 +320,8 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
         instructionText: 'Image 1: Character sheet for "Mia".',
         characterName: 'Mia',
         referenceKind: 'character',
+        imageIndex: 1,
+        referenceBindingId: 'REF_CH_MIA_TEST01',
       },
     ],
     systemInstruction: buildImageSystemInstruction({
@@ -331,6 +335,7 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   });
 
   assert.ok(!capturedSystemInstruction.includes('ENVIRONMENT REFERENCE:'));
+  assert.ok(capturedPrompt.includes('Subject A (REF_CH_MIA_TEST01 / Image 1)'));
 }
 
 testReferenceBackedCharacterDoesNotDuplicateTextIdentity();

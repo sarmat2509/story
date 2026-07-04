@@ -9,6 +9,13 @@ import { stripAllTags } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
 import { buildPlaceholderReferenceNameMap, isPlaceholderReferenceName } from '../../services/referenceImageBuckets';
+import {
+  buildReferenceBindingRegistry,
+  findCharacterReferenceBinding,
+  findOutfitReferenceBinding,
+  referenceBindingLabel,
+  type ReferenceBindingInput,
+} from '../../services/referenceBinding';
 import type { StoryEnvironment } from '../../ai/types';
 import { getImageStylePrefix } from './styles';
 import { getImageContentPolicy } from '../contentPolicy';
@@ -252,17 +259,40 @@ function getSubjectAliasForName(
   return aliasContext?.byNormalizedName.get(normalized) ?? 'Subject';
 }
 
+function subjectReferenceLabel(
+  alias: string,
+  imageIdx?: number,
+  ref?: ReferenceBindingInput,
+): string {
+  if (imageIdx !== undefined && ref) {
+    return `${alias} (${referenceBindingLabel(ref, imageIdx)})`;
+  }
+  if (imageIdx !== undefined) {
+    return `${alias} (Image ${imageIdx})`;
+  }
+  if (ref) {
+    return `${alias} (${referenceBindingLabel(ref)})`;
+  }
+  return alias;
+}
+
 function formatOutfitPlateCrossRef(
   plateIdx: number,
   identityImageIdx?: number,
   subject?: string,
+  identityRef?: ReferenceBindingInput,
+  outfitRef?: ReferenceBindingInput,
 ): string {
   const subjectLabel = subject ?? 'the matching subject';
   const clothesLabel = clothesAliasForSubject(subject) ?? 'the clothing/accessories';
+  const plateLabel = outfitRef ? referenceBindingLabel(outfitRef, plateIdx) : `Image ${plateIdx}`;
   if (identityImageIdx !== undefined && identityImageIdx !== plateIdx) {
-    return ` Draw ${subjectLabel} from Image ${identityImageIdx} wearing ${clothesLabel} from Image ${plateIdx}. Image ${identityImageIdx} is PERSON SOURCE; Image ${plateIdx} is CLOTHES SOURCE only.`;
+    const identityLabel = identityRef
+      ? referenceBindingLabel(identityRef, identityImageIdx)
+      : `Image ${identityImageIdx}`;
+    return ` Draw ${subjectLabel} from ${identityLabel} wearing ${clothesLabel} from ${plateLabel}. ${identityLabel} is PERSON SOURCE; ${plateLabel} is CLOTHES SOURCE only.`;
   }
-  return ` ${subjectLabel} is wearing ${clothesLabel} from Image ${plateIdx}. Image ${plateIdx} is CLOTHES SOURCE only; do not let it change face, hair, body identity, or silhouette.`;
+  return ` ${subjectLabel} is wearing ${clothesLabel} from ${plateLabel}. ${plateLabel} is CLOTHES SOURCE only; do not let it change face, hair, body identity, or silhouette.`;
 }
 
 function sanitizeSettingForImagePrompt(setting: string): string {
@@ -430,6 +460,7 @@ function buildCompositionText(params: {
   imageIndexMap?: Map<string, number>;
   referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
+  referenceImages?: ReferenceBindingInput[];
   aliasContext?: SubjectAliasContext;
 }): string {
   const cam = params.sceneVisual.cameraComposition;
@@ -458,7 +489,8 @@ function buildCompositionText(params: {
     );
     const imageIdx = resolveCharacterImageIndex(character.name, params.imageIndexMap);
     const alias = getSubjectAliasForName(character.name, params.aliasContext, imageIdx);
-    const label = imageIdx ? `${alias} (Image ${imageIdx})` : alias;
+    const ref = findCharacterReferenceBinding(character.name, params.referenceImages);
+    const label = subjectReferenceLabel(alias, imageIdx, ref);
     return `${label}: ${description}`;
   });
 
@@ -498,6 +530,7 @@ export function buildSceneImagePrompt(params: {
   imageIndexMap?: Map<string, number>;
   // Outfit plate indices (Image N) per character — must match reference interleave order
   outfitPlateImageIndexByCharacter?: Map<string, number>;
+  referenceImages?: ReferenceBindingInput[];
   // Current scene's environment (moved from system instruction to user prompt)
   currentEnvironment?: StoryEnvironment;
   // Scene-specific outfit overrides from text generation
@@ -524,6 +557,7 @@ export function buildSceneImagePrompt(params: {
       hasReferences: params.hasReferences,
       imageIndexMap: params.imageIndexMap,
       outfitPlateImageIndexByCharacter: params.outfitPlateImageIndexByCharacter,
+      referenceImages: params.referenceImages,
       currentEnvironment: params.currentEnvironment,
       characterOutfits: params.characterOutfits,
       hasEnvironmentImageRef: params.hasEnvironmentImageRef,
@@ -563,10 +597,15 @@ export function buildSceneImagePrompt(params: {
       params.imageIndexMap,
       params.characterOutfits,
       params.outfitPlateImageIndexByCharacter,
+      params.referenceImages,
       legacyAliasContext,
     );
+    const referenceRegistry = buildReferenceBindingRegistry(params.referenceImages);
+    const referenceRegistrySection = referenceRegistry
+      ? `\n\n${referenceRegistry}\n- Reference binding: each REF id is the only allowed visual source for its labeled subject. Do not swap, merge, or borrow traits between different REF ids.`
+      : '';
     const charSection = characterLines ? `\n\n${characterLines}` : '';
-    return `${stylePrefix}, ${replaceSubjectNames(cleanVisualPrompt, legacyAliasContext)}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
+    return `${stylePrefix}, ${replaceSubjectNames(cleanVisualPrompt, legacyAliasContext)}${referenceRegistrySection}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
   }
 
   // Non-reference legacy path (Imagen 3)
@@ -600,6 +639,7 @@ function buildStructuredPrompt(params: {
   hasReferences?: boolean;
   imageIndexMap?: Map<string, number>;
   outfitPlateImageIndexByCharacter?: Map<string, number>;
+  referenceImages?: ReferenceBindingInput[];
   currentEnvironment?: StoryEnvironment;
   characterOutfits?: Record<string, string>;
   hasEnvironmentImageRef?: boolean;
@@ -626,6 +666,14 @@ function buildStructuredPrompt(params: {
     }
   }
 
+  const referenceRegistry = buildReferenceBindingRegistry(params.referenceImages);
+  if (referenceRegistry) {
+    sections.push(referenceRegistry);
+    sections.push(
+      '- Reference binding: each REF id is the only allowed visual source for its labeled subject. Do not swap, merge, or borrow traits between different REF ids.'
+    );
+  }
+
   // CHARACTERS — with Image N back-references and inline descriptions
   const characterLines = buildCharacterSection(
     params.realWorldCharacters,
@@ -634,6 +682,7 @@ function buildStructuredPrompt(params: {
     params.imageIndexMap,
     params.characterOutfits,
     params.outfitPlateImageIndexByCharacter,
+    params.referenceImages,
     aliasContext,
   );
   if (characterLines) {
@@ -647,6 +696,7 @@ function buildStructuredPrompt(params: {
       imageIndexMap: params.imageIndexMap,
       referenceCharacterNames: params.referenceCharacterNames,
       realWorldCharacters: params.realWorldCharacters,
+      referenceImages: params.referenceImages,
       aliasContext,
     });
     sections.push(`- Composition: ${composition}`);
@@ -707,6 +757,7 @@ function buildCharacterSection(
   imageIndexMap?: Map<string, number>,
   characterOutfits?: Record<string, string>,
   outfitPlateImageIndexByCharacter?: Map<string, number>,
+  referenceImages?: ReferenceBindingInput[],
   aliasContext?: SubjectAliasContext,
 ): string {
   const lines: string[] = [];
@@ -731,9 +782,15 @@ function buildCharacterSection(
         resolveCharacterImageIndex(originalName, imageIndexMap) ??
         resolveCharacterImageIndex(name, imageIndexMap);
       const alias = getSubjectAliasForName(name, aliasContext, imgIdx);
+      const identityRef =
+        findCharacterReferenceBinding(name, referenceImages) ??
+        findCharacterReferenceBinding(originalName, referenceImages);
       const plateIdx =
         resolveOutfitPlateImageIndex(name, outfitPlateImageIndexByCharacter) ??
         resolveOutfitPlateImageIndex(originalName, outfitPlateImageIndexByCharacter);
+      const outfitRef =
+        findOutfitReferenceBinding(name, referenceImages) ??
+        findOutfitReferenceBinding(originalName, referenceImages);
       // When an outfit plate is attached, wardrobe must come from that image only — no text mix.
       const outfitOverride = shouldAppendTextOutfitOverride({
         hasCharacterReference: true,
@@ -743,12 +800,14 @@ function buildCharacterSection(
         : undefined;
       const outfitSuffix = outfitOverride ? formatOutfitOverrideForPrompt(outfitOverride) : '';
       const plateSuffix =
-        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias) : '';
+        plateIdx !== undefined
+          ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias, identityRef, outfitRef)
+          : '';
       if (imgIdx) {
         const sheetType = (typeof entry !== 'string' && entry.isTurnaround) ? 'character design from the sheet' : 'reference photo';
-        lines.push(`- ${alias} (Image ${imgIdx}): match the ${sheetType}.${outfitSuffix}${plateSuffix}`);
+        lines.push(`- ${subjectReferenceLabel(alias, imgIdx, identityRef)}: match the ${sheetType}.${outfitSuffix}${plateSuffix}`);
       } else if (!isPlaceholderReferenceName(originalName)) {
-        lines.push(`- ${alias}: match the attached reference image.${outfitSuffix}${plateSuffix}`);
+        lines.push(`- ${subjectReferenceLabel(alias, undefined, identityRef)}: match the attached reference image.${outfitSuffix}${plateSuffix}`);
       }
     }
   }
@@ -762,7 +821,9 @@ function buildCharacterSection(
       }
       const imgIdx = resolveCharacterImageIndex(char.name, imageIndexMap);
       const alias = getSubjectAliasForName(char.name, aliasContext, imgIdx);
+      const identityRef = findCharacterReferenceBinding(char.name, referenceImages);
       const plateIdx = resolveOutfitPlateImageIndex(char.name, outfitPlateImageIndexByCharacter);
+      const outfitRef = findOutfitReferenceBinding(char.name, referenceImages);
       const outfitOverride = shouldAppendTextOutfitOverride({
         hasCharacterReference: imgIdx !== undefined,
         outfitPlateImageIndex: plateIdx,
@@ -776,11 +837,13 @@ function buildCharacterSection(
         aliasContext,
       );
       const plateSuffix =
-        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias) : '';
+        plateIdx !== undefined
+          ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias, identityRef, outfitRef)
+          : '';
       if (imgIdx) {
-        lines.push(`- ${alias} (Image ${imgIdx}): ${desc}${plateSuffix}`);
+        lines.push(`- ${subjectReferenceLabel(alias, imgIdx, identityRef)}: ${desc}${plateSuffix}`);
       } else {
-        lines.push(`- ${alias}: ${desc}${plateSuffix}`);
+        lines.push(`- ${subjectReferenceLabel(alias, undefined, identityRef)}: ${desc}${plateSuffix}`);
       }
     }
   }

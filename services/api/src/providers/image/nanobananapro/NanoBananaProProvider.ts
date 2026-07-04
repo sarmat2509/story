@@ -191,6 +191,8 @@ export class NanoBananaProProvider implements IImageProvider {
         hasBase64: !!ref.base64Data,
         hasFileUri: !!ref.fileUri,
         characterName: ref.characterName,
+        referenceBindingId: ref.referenceBindingId,
+        imageIndex: ref.imageIndex,
         hasInstructionText: !!ref.instructionText,
         mimeType: ref.mimeType,
         storagePath: ref.storagePath,

@@ -10,6 +10,15 @@ import type { ImageValidationResult } from '../../ai/types';
 import type { ReferenceImage } from '../../providers/base/IImageProvider';
 import type { BubbleGeometry, PlannedGraphicNovelPage, Rect } from './types';
 import { getImageStylePrefix } from '../../prompts/image/styles';
+import {
+  buildReferenceBindingRegistry,
+  findCharacterReferenceBinding,
+  findEnvironmentReferenceBinding,
+  findOutfitReferenceBinding,
+  formatReferenceBindingInstruction,
+  referenceBindingLabel,
+  type ReferenceBindingInput,
+} from '../../services/referenceBinding';
 
 const BUBBLE_FILL_OPACITY = 0.84;
 const BUBBLE_CORNER_RADIUS_PX = 24;
@@ -670,10 +679,18 @@ function cameraCharacters(
 
   return composition.characters
     .map((character) => {
-      const outfitReferenceIndex = findOutfitReferenceIndex(character.name, referenceImages);
+      const characterLabel = characterReferenceLabel(character.name, referenceImages);
+      const outfitRef = findOutfitReferenceBinding(character.name, referenceImages);
+      const outfitReferenceIndex =
+        referenceImageIndex(outfitRef, referenceImages) ??
+        findOutfitReferenceIndex(character.name, referenceImages);
       const outfitDescription = character.outfitId ? outfitsById.get(character.outfitId) : null;
       const outfit = outfitReferenceIndex
-        ? `from Image ${outfitReferenceIndex}`
+        ? `from ${
+            outfitRef
+              ? referenceBindingLabel(outfitRef, outfitReferenceIndex)
+              : `Image ${outfitReferenceIndex}`
+          }`
         : character.outfitId
           ? outfitDescription === undefined
             ? `outfit id ${character.outfitId}`
@@ -686,9 +703,50 @@ function cameraCharacters(
       ]
         .filter(Boolean)
         .join('; ');
-      return `  * ${character.name}: ${staging}`;
+      return `  * ${characterLabel}: ${staging}`;
     })
     .join('\n');
+}
+
+function panelCameraCharacterNames(panel: PlannedGraphicNovelPage['panels'][number]): string[] {
+  const composition = panel.script.visual.sceneVisual.cameraComposition;
+  if (typeof composition === 'string') return [];
+  return composition.characters.map((character) => character.name);
+}
+
+function collectPageCameraCharacterNames(page: PlannedGraphicNovelPage): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const panel of page.panels) {
+    for (const name of panelCameraCharacterNames(panel)) {
+      const key = normalizeReferenceName(name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+function panelCharacterBindingLines(params: {
+  panel: PlannedGraphicNovelPage['panels'][number];
+  pageCharacterNames: string[];
+  referenceImages: ReferenceImage[];
+}): string[] {
+  const allowedNames = panelCameraCharacterNames(params.panel);
+  const allowedKeys = new Set(allowedNames.map(normalizeReferenceName).filter(Boolean));
+  const allowed = allowedNames.map((name) => characterReferenceLabel(name, params.referenceImages));
+  const forbidden = params.pageCharacterNames
+    .filter((name) => !allowedKeys.has(normalizeReferenceName(name)))
+    .map((name) => characterReferenceLabel(name, params.referenceImages));
+
+  const lines = [
+    `- Characters allowed in this panel: ${allowed.length > 0 ? allowed.join(', ') : 'none'}.`,
+  ];
+  if (forbidden.length > 0) {
+    lines.push(`- Page character refs not in this panel: ${forbidden.join(', ')}. Do not draw them in this panel.`);
+  }
+  return lines;
 }
 
 function panelGeometryLine(
@@ -710,6 +768,27 @@ function normalizeReferenceName(value?: string | null): string {
   return String(value || '')
     .trim()
     .toLowerCase();
+}
+
+function referenceImageIndex(
+  reference: ReferenceBindingInput | undefined,
+  referenceImages: ReferenceImage[]
+): number | null {
+  if (!reference) return null;
+  if (typeof reference.imageIndex === 'number') return reference.imageIndex;
+  const index = referenceImages.indexOf(reference as ReferenceImage);
+  return index >= 0 ? index + 1 : null;
+}
+
+function characterReferenceLabel(
+  characterName: string,
+  referenceImages: ReferenceImage[]
+): string {
+  const reference = findCharacterReferenceBinding(characterName, referenceImages);
+  const index = referenceImageIndex(reference, referenceImages);
+  return reference && index
+    ? `${characterName} / ${referenceBindingLabel(reference, index)}`
+    : characterName;
 }
 
 function isOutfitReference(reference: ReferenceImage): boolean {
@@ -737,7 +816,7 @@ function findOutfitReferenceIndex(
     );
   });
 
-  return index >= 0 ? index + 1 : null;
+  return index >= 0 ? (referenceImages[index].imageIndex ?? index + 1) : null;
 }
 
 function findEnvironmentReferenceIndex(
@@ -757,7 +836,7 @@ function findEnvironmentReferenceIndex(
       instructionText.includes(environmentId)
     );
   });
-  return index >= 0 ? index + 1 : null;
+  return index >= 0 ? (referenceImages[index].imageIndex ?? index + 1) : null;
 }
 
 function environmentSlotLine(
@@ -766,7 +845,13 @@ function environmentSlotLine(
 ): string | null {
   if (!environment) return null;
   const referenceIndex = findEnvironmentReferenceIndex(environment, referenceImages);
-  const environmentSource = referenceIndex ? `Image ${referenceIndex}` : environment.description;
+  const environmentRef = findEnvironmentReferenceBinding(environment, referenceImages);
+  const environmentSource =
+    referenceIndex && environmentRef
+      ? referenceBindingLabel(environmentRef, referenceIndex)
+      : referenceIndex
+        ? `Image ${referenceIndex}`
+        : environment.description;
   return `- Environment: ${environment.name}; ${environmentSource}.`;
 }
 
@@ -777,18 +862,8 @@ function buildReferenceBrief(referenceImages: ReferenceImage[] = []): string {
 
   return referenceImages
     .map((reference, index) => {
-      const source = (reference as { source?: string }).source;
-      const fallbackLabel = `Image ${index + 1}: ${reference.referenceKind === 'object' ? 'object/environment' : 'character identity'} reference${reference.characterName ? ` for ${reference.characterName}` : ''}.`;
-      if (reference.referenceKind === 'character') {
-        return `- Image ${index + 1}: Character reference: "${reference.characterName || 'character'}".`;
-      }
-      if (source === 'outfit_plate') {
-        return `- Image ${index + 1}: Outfit reference: "${reference.characterName || 'character'}".`;
-      }
-      if (reference.referenceKind === 'object') {
-        return `- Image ${index + 1}: Environment reference: "${reference.characterName || 'location'}".`;
-      }
-      return `- ${reference.instructionText || fallbackLabel}`;
+      const imageIndex = reference.imageIndex ?? index + 1;
+      return `- ${formatReferenceBindingInstruction(reference, imageIndex)}`;
     })
     .join('\n');
 }
@@ -808,6 +883,8 @@ export function summarizeGraphicNovelReferenceImages(
 
     return {
       index: index + 1,
+      imageIndex: ref.imageIndex ?? index + 1,
+      referenceBindingId: ref.referenceBindingId ?? null,
       characterName: ref.characterName ?? null,
       referenceKind: ref.referenceKind ?? null,
       source: meta.source ?? null,
@@ -869,7 +946,8 @@ function buildPanelFreeLayoutBrief(
   index: number,
   environments: Map<string, StoryEnvironment>,
   referenceImages: ReferenceImage[],
-  outfitsById: Map<string, string> = new Map()
+  outfitsById: Map<string, string> = new Map(),
+  pageCharacterNames: string[] = []
 ): string {
   const visual = panel.script.visual;
   const sceneVisual = visual.sceneVisual;
@@ -884,6 +962,7 @@ function buildPanelFreeLayoutBrief(
     `- Setting: ${sentence(sceneVisual.setting)}`,
     `- Camera: ${shot}.`,
     `- Lighting: ${sentence(sceneVisual.lighting)}`,
+    ...panelCharacterBindingLines({ panel, pageCharacterNames, referenceImages }),
     `- Characters:`,
     cameraCharacters(panel, outfitsById, referenceImages),
   ]
@@ -896,7 +975,8 @@ function buildPanelRepairBrief(
   index: number,
   environments: Map<string, StoryEnvironment>,
   referenceImages: ReferenceImage[],
-  outfitsById: Map<string, string> = new Map()
+  outfitsById: Map<string, string> = new Map(),
+  pageCharacterNames: string[] = []
 ): string {
   const visual = panel.script.visual;
   const sceneVisual = visual.sceneVisual;
@@ -912,6 +992,7 @@ function buildPanelRepairBrief(
     `- Setting: ${sentence(sceneVisual.setting)}`,
     `- Camera: ${shot}.`,
     `- Lighting: ${sentence(sceneVisual.lighting)}`,
+    ...panelCharacterBindingLines({ panel, pageCharacterNames, referenceImages }),
     `- Characters:`,
     cameraCharacters(panel, outfitsById, referenceImages),
   ]
@@ -944,9 +1025,17 @@ export function buildGraphicNovelPageFreeLayoutInstructions(
   } = {}
 ): string {
   const outfits = outfitById(page);
+  const pageCharacterNames = collectPageCameraCharacterNames(page);
   const panelInstructions = page.panels
     .map((panel, index) =>
-      buildPanelFreeLayoutBrief(panel, index, environmentsById, referenceImages, outfits)
+      buildPanelFreeLayoutBrief(
+        panel,
+        index,
+        environmentsById,
+        referenceImages,
+        outfits,
+        pageCharacterNames
+      )
     )
     .join('\n\n');
   const styleLine = options.style
@@ -958,6 +1047,7 @@ Panel count is strict: draw exactly ${page.panels.length} physical panel boxes, 
 
 REFERENCE IMAGES TO FOLLOW:
 ${buildReferenceBrief(referenceImages)}
+${buildReferenceBindingRegistry(referenceImages)}
 
 PANEL CONTENT:
 ${panelInstructions}`;
@@ -1043,9 +1133,17 @@ export function buildGraphicNovelPageValidationRepairInstructions(params: {
   const referenceImages = params.referenceImages ?? [];
   const environments = params.environmentsById ?? new Map<string, StoryEnvironment>();
   const outfits = outfitById(params.page);
+  const pageCharacterNames = collectPageCameraCharacterNames(params.page);
   const panelInstructions = params.page.panels
     .map((panel, index) =>
-      buildPanelRepairBrief(panel, index, environments, referenceImages, outfits)
+      buildPanelRepairBrief(
+        panel,
+        index,
+        environments,
+        referenceImages,
+        outfits,
+        pageCharacterNames
+      )
     )
     .join('\n\n');
 
@@ -1053,6 +1151,7 @@ export function buildGraphicNovelPageValidationRepairInstructions(params: {
 
 REFERENCE IMAGES TO FOLLOW:
 ${buildReferenceBrief(referenceImages)}
+${buildReferenceBindingRegistry(referenceImages)}
 
 VALIDATION RESULT:
 - score: ${params.score ?? 'n/a'}

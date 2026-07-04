@@ -2,6 +2,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import { logger } from '../utils/logger';
 import type { ReferenceImageKind } from '../utils/referenceImageKind';
 import { inferReferenceKind } from '../utils/referenceImageKind';
+import { ensureReferenceBindingId } from './referenceBinding';
 
 export type { ReferenceImageKind };
 
@@ -63,6 +64,7 @@ export type ReferenceImageDataEntry = {
   type?: string;
   characterName?: string;
   imageIndex?: number;
+  referenceBindingId?: string;
   referenceKind?: ReferenceImageKind;
   isTurnaround?: boolean;
   charactersPresent?: string[];
@@ -131,6 +133,7 @@ export function assignSequentialImageIndices(refs: ReferenceImageDataEntry[]): M
   for (const ref of refs) {
     if (ref.source === 'environment') {
       ref.imageIndex = imageIndex;
+      ensureReferenceBindingId(ref);
       imageIndex++;
       continue;
     }
@@ -144,6 +147,7 @@ export function assignSequentialImageIndices(refs: ReferenceImageDataEntry[]): M
       }
     }
     ref.imageIndex = imageIndex;
+    ensureReferenceBindingId(ref);
     imageIndex++;
   }
   return imageIndexMap;
