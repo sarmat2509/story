@@ -2638,11 +2638,9 @@ export default function StoryViewerScreen() {
                 {pageFailed
                   ? t('story_viewer.comic_page_failed', {
                       page: page.pageNumber,
-                      defaultValue: 'Page {{page}} could not be generated.',
                     })
                   : t('story_viewer.comic_page_preparing', {
                       page: page.pageNumber,
-                      defaultValue: 'Page {{page}} is preparing...',
                     })}
               </Text>
             </View>
@@ -2658,7 +2656,7 @@ export default function StoryViewerScreen() {
         <View style={styles.graphicNovelLoading}>
           <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
           <Text style={styles.graphicNovelPagePlaceholderText}>
-            {t('story_viewer.comic_loading', { defaultValue: 'Loading comic pages...' })}
+            {t('story_viewer.comic_loading')}
           </Text>
         </View>
       );
@@ -2738,7 +2736,6 @@ export default function StoryViewerScreen() {
                 <Text style={styles.graphicNovelPagePlaceholderText}>
                   {t('story_viewer.comic_page_preparing', {
                     page: pageNumber,
-                    defaultValue: 'Page {{page}} is preparing...',
                   })}
                 </Text>
               </View>
