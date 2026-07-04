@@ -11,6 +11,8 @@ Use this skill as a command map for this repository. Prefer the existing targete
 
 Do not invent a one-off `tsx -e` live check when a parameterized script already exists. If the existing script is missing a needed production-path detail, patch or extend the script rather than mixing old and new validation paths inline.
 
+For production topology, deploy flow, droplet location, live logs, backup/restore, cron, alerting, or shared proxy/certbot work, switch to `wondertales-production-ops`. Keep this skill for choosing scripts and local/non-production verification commands.
+
 ## First Choice
 
 Run commands from the repo root unless the script says otherwise. Use these defaults:

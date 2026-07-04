@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Production Ops"
+  short_description: "Deploy and operate WonderTales production"
+  default_prompt: "Use $wondertales-production-ops to deploy, verify, or investigate WonderTales production safely."

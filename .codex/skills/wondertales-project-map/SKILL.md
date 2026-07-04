@@ -22,6 +22,7 @@ Start with source files, not stale docs. Prefer `rg` around the listed pivots, t
 
 - For story, instant, child-mode, continuation, graphic novel, mixed story, image validation, or regeneration flow, switch to `wondertales-generation-flow`.
 - For tests, scripts, migrations, launch gates, image rechecks, or production diagnostics, switch to `wondertales-verification-scripts`.
+- For production deploys, droplet topology, live logs, shared proxy, certbot, backup/restore, cron, and alerting, switch to `wondertales-production-ops`.
 - For blog SSR article content, switch to `wondertales-blog-article`.
 - For table meaning, inspect `services/api/src/db/schema.ts` first, then the matching repository in `services/api/src/repositories`.
 - For app payload shape, inspect `packages/shared/src/schemas/index.ts` first, then API route and frontend hook.
