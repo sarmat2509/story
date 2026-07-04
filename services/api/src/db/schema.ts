@@ -1637,7 +1637,7 @@ export const graphicNovelProjects = pgTable(
     language: varchar('language', { length: 5 }).notNull(),
     ageGroup: varchar('age_group', { length: 10 }).notNull(),
     pageCount: integer('page_count').notNull().default(8),
-    status: varchar('status', { length: 20 }).notNull().default('generating'),
+    status: varchar('status', { length: 40 }).notNull().default('generating'),
     scriptJson: jsonb('script_json').notNull(),
     layoutManifest: jsonb('layout_manifest').notNull().default({}),
     createdAt: timestamp('created_at').defaultNow().notNull(),
