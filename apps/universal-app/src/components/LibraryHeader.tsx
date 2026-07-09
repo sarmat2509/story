@@ -2,7 +2,9 @@ import React, { useMemo, useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Platform,
   type PressableStateCallbackType,
@@ -11,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AudioFilterToggle, AudioFilterToggleRef } from './AudioFilterToggle';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type ExtendedPressableState = PressableStateCallbackType & {
   hovered?: boolean;
@@ -53,6 +56,42 @@ interface Props {
 }
 
 type DropdownKey = 'scenario' | 'age' | 'language' | 'reading';
+
+function MobileFilterOption({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      focusable
+      style={(state: ExtendedPressableState) => [
+        styles.mobileFilterOption,
+        selected && styles.mobileFilterOptionActive,
+        Platform.OS === 'web' && state.hovered && !selected && styles.mobileFilterOptionHovered,
+        state.pressed && styles.mobileFilterOptionPressed,
+        Platform.OS === 'web' && state.focused && styles.mobileFilterOptionFocused,
+      ]}
+    >
+      <Text
+        style={[
+          styles.mobileFilterOptionText,
+          selected && styles.mobileFilterOptionTextActive,
+        ]}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function FilterDropdown({
   buttonLabel,
@@ -147,7 +186,18 @@ const LibraryHeaderComponent = ({
   selectedReadingTime,
   onReadingTimeChange,
 }: Props) => {
+  const { isMobile } = useResponsive();
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  const [draftAudioFilter, setDraftAudioFilter] = useState(initialAudioFilter);
+  const [draftScenarioId, setDraftScenarioId] = useState<string | null>(
+    selectedScenarioId ?? null
+  );
+  const [draftAgeGroup, setDraftAgeGroup] = useState<string | null>(selectedAgeGroup ?? null);
+  const [draftLanguage, setDraftLanguage] = useState<string | null>(selectedLanguage ?? null);
+  const [draftReadingTime, setDraftReadingTime] = useState<string | null>(
+    selectedReadingTime ?? null
+  );
 
   // Use ref to store labels - updates on language change but doesn't cause re-creation
   const labelsRef = useRef({
@@ -202,162 +252,382 @@ const LibraryHeaderComponent = ({
     readingTimeOptions.find((option) => option.value === selectedReadingTime)?.label ??
     t('library.all_reading_times');
 
-  return (
-    <View style={styles.header}>
-      <View style={styles.leftControls}>
-        {audioFilterElement}
+  useEffect(() => {
+    if (isFilterModalVisible) return;
 
-        {scenarioCards.length > 0 && onScenarioChange && (
-          <FilterDropdown
-            buttonLabel={selectedScenarioLabel}
-            isOpen={openDropdown === 'scenario'}
-            onToggle={() => setOpenDropdown((prev) => (prev === 'scenario' ? null : 'scenario'))}
-            options={scenarioOptions}
-            selectedValue={selectedScenarioId}
-            onSelect={(value) => {
-              onScenarioChange(value);
-              setOpenDropdown(null);
-            }}
-          />
-        )}
+    setDraftAudioFilter(initialAudioFilter);
+    setDraftScenarioId(selectedScenarioId ?? null);
+    setDraftAgeGroup(selectedAgeGroup ?? null);
+    setDraftLanguage(selectedLanguage ?? null);
+    setDraftReadingTime(selectedReadingTime ?? null);
+  }, [
+    initialAudioFilter,
+    isFilterModalVisible,
+    selectedAgeGroup,
+    selectedLanguage,
+    selectedReadingTime,
+    selectedScenarioId,
+  ]);
 
-        {ageOptions.length > 0 && onAgeGroupChange && (
-          <FilterDropdown
-            buttonLabel={selectedAgeLabel}
-            isOpen={openDropdown === 'age'}
-            onToggle={() => setOpenDropdown((prev) => (prev === 'age' ? null : 'age'))}
-            options={ageOptions}
-            selectedValue={selectedAgeGroup}
-            onSelect={(value) => {
-              onAgeGroupChange(value);
-              setOpenDropdown(null);
-            }}
-          />
-        )}
+  const openFilterModal = () => {
+    setDraftAudioFilter(initialAudioFilter);
+    setDraftScenarioId(selectedScenarioId ?? null);
+    setDraftAgeGroup(selectedAgeGroup ?? null);
+    setDraftLanguage(selectedLanguage ?? null);
+    setDraftReadingTime(selectedReadingTime ?? null);
+    setOpenDropdown(null);
+    setFilterModalVisible(true);
+  };
 
-        {languageOptions.length > 0 && onLanguageChange && (
-          <FilterDropdown
-            buttonLabel={selectedLanguageLabel}
-            isOpen={openDropdown === 'language'}
-            onToggle={() => setOpenDropdown((prev) => (prev === 'language' ? null : 'language'))}
-            options={languageOptions}
-            selectedValue={selectedLanguage}
-            onSelect={(value) => {
-              onLanguageChange(value);
-              setOpenDropdown(null);
-            }}
-          />
-        )}
+  const closeFilterModal = () => {
+    setFilterModalVisible(false);
+  };
 
-        {readingTimeOptions.length > 0 && onReadingTimeChange && (
-          <FilterDropdown
-            buttonLabel={selectedReadingTimeLabel}
-            isOpen={openDropdown === 'reading'}
-            onToggle={() => setOpenDropdown((prev) => (prev === 'reading' ? null : 'reading'))}
-            options={readingTimeOptions}
-            selectedValue={selectedReadingTime}
-            onSelect={(value) => {
-              onReadingTimeChange(value);
-              setOpenDropdown(null);
-            }}
-          />
-        )}
+  const applyMobileFilters = () => {
+    if (draftAudioFilter !== initialAudioFilter) {
+      onToggleAudioFilter(draftAudioFilter);
+      audioToggleRef.current?.setValue(draftAudioFilter);
+    }
+
+    if (onScenarioChange && draftScenarioId !== (selectedScenarioId ?? null)) {
+      onScenarioChange(draftScenarioId);
+    }
+
+    if (onAgeGroupChange && draftAgeGroup !== (selectedAgeGroup ?? null)) {
+      onAgeGroupChange(draftAgeGroup);
+    }
+
+    if (onLanguageChange && draftLanguage !== (selectedLanguage ?? null)) {
+      onLanguageChange(draftLanguage);
+    }
+
+    if (onReadingTimeChange && draftReadingTime !== (selectedReadingTime ?? null)) {
+      onReadingTimeChange(draftReadingTime);
+    }
+
+    setFilterModalVisible(false);
+  };
+
+  const renderMobileFilterGroup = (
+    title: string,
+    options: FilterOption[],
+    selectedValue: string | null | undefined,
+    onSelect: (value: string | null) => void
+  ) => {
+    if (options.length === 0) return null;
+
+    return (
+      <View style={styles.mobileFilterGroup}>
+        <Text style={styles.mobileFilterGroupTitle}>{title.replace(/:$/, '')}</Text>
+        <View style={styles.mobileFilterOptions}>
+          {options.map((option, index) => (
+            <MobileFilterOption
+              key={`${option.value ?? 'all'}-${index}`}
+              label={option.label}
+              selected={(selectedValue ?? null) === option.value}
+              onPress={() => onSelect(option.value)}
+            />
+          ))}
+        </View>
       </View>
+    );
+  };
 
-      <View style={styles.rightControls}>
-        {totalPages > 1 && (
-          <View style={styles.paginationInHeader}>
+  return (
+    <>
+      <View style={styles.header}>
+        <View style={styles.leftControls}>
+          {isMobile ? (
             <Pressable
-              onPress={() => onPageChange(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              focusable={currentPage !== 1}
+              onPress={openFilterModal}
+              accessibilityRole="button"
+              accessibilityLabel={t('library.filters')}
+              focusable
               style={(state: ExtendedPressableState) => [
-                styles.paginationButton,
-                currentPage === 1 && styles.paginationButtonDisabled,
-                currentPage !== 1 &&
-                  Platform.OS === 'web' &&
-                  state.hovered &&
-                  styles.paginationButtonHovered,
-                currentPage !== 1 && state.pressed && styles.paginationButtonPressed,
-                currentPage !== 1 &&
-                  Platform.OS === 'web' &&
-                  state.focused &&
-                  styles.paginationButtonFocused,
+                styles.filterSettingsButton,
+                Platform.OS === 'web' && state.hovered && styles.filterSettingsButtonHovered,
+                state.pressed && styles.filterSettingsButtonPressed,
+                Platform.OS === 'web' && state.focused && styles.filterSettingsButtonFocused,
               ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={20}
-                color={
-                  currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary
-                }
-              />
+              <Ionicons name="settings-outline" size={24} color={theme.colors.text.primary} />
             </Pressable>
+          ) : (
+            <>
+              {audioFilterElement}
 
-            <Text style={styles.paginationText}>
-              {t('library.page')} {currentPage} {t('library.of')} {totalPages}
-            </Text>
+              {scenarioCards.length > 0 && onScenarioChange && (
+                <FilterDropdown
+                  buttonLabel={selectedScenarioLabel}
+                  isOpen={openDropdown === 'scenario'}
+                  onToggle={() =>
+                    setOpenDropdown((prev) => (prev === 'scenario' ? null : 'scenario'))
+                  }
+                  options={scenarioOptions}
+                  selectedValue={selectedScenarioId}
+                  onSelect={(value) => {
+                    onScenarioChange(value);
+                    setOpenDropdown(null);
+                  }}
+                />
+              )}
 
+              {ageOptions.length > 0 && onAgeGroupChange && (
+                <FilterDropdown
+                  buttonLabel={selectedAgeLabel}
+                  isOpen={openDropdown === 'age'}
+                  onToggle={() => setOpenDropdown((prev) => (prev === 'age' ? null : 'age'))}
+                  options={ageOptions}
+                  selectedValue={selectedAgeGroup}
+                  onSelect={(value) => {
+                    onAgeGroupChange(value);
+                    setOpenDropdown(null);
+                  }}
+                />
+              )}
+
+              {languageOptions.length > 0 && onLanguageChange && (
+                <FilterDropdown
+                  buttonLabel={selectedLanguageLabel}
+                  isOpen={openDropdown === 'language'}
+                  onToggle={() =>
+                    setOpenDropdown((prev) => (prev === 'language' ? null : 'language'))
+                  }
+                  options={languageOptions}
+                  selectedValue={selectedLanguage}
+                  onSelect={(value) => {
+                    onLanguageChange(value);
+                    setOpenDropdown(null);
+                  }}
+                />
+              )}
+
+              {readingTimeOptions.length > 0 && onReadingTimeChange && (
+                <FilterDropdown
+                  buttonLabel={selectedReadingTimeLabel}
+                  isOpen={openDropdown === 'reading'}
+                  onToggle={() =>
+                    setOpenDropdown((prev) => (prev === 'reading' ? null : 'reading'))
+                  }
+                  options={readingTimeOptions}
+                  selectedValue={selectedReadingTime}
+                  onSelect={(value) => {
+                    onReadingTimeChange(value);
+                    setOpenDropdown(null);
+                  }}
+                />
+              )}
+            </>
+          )}
+        </View>
+
+        {!isMobile && (
+          <View style={styles.rightControls}>
+            {totalPages > 1 && (
+              <View style={styles.paginationInHeader}>
+                <Pressable
+                  onPress={() => onPageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  focusable={currentPage !== 1}
+                  style={(state: ExtendedPressableState) => [
+                    styles.paginationButton,
+                    currentPage === 1 && styles.paginationButtonDisabled,
+                    currentPage !== 1 &&
+                      Platform.OS === 'web' &&
+                      state.hovered &&
+                      styles.paginationButtonHovered,
+                    currentPage !== 1 && state.pressed && styles.paginationButtonPressed,
+                    currentPage !== 1 &&
+                      Platform.OS === 'web' &&
+                      state.focused &&
+                      styles.paginationButtonFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={20}
+                    color={
+                      currentPage === 1
+                        ? theme.colors.text.disabled
+                        : theme.colors.interactive.primary
+                    }
+                  />
+                </Pressable>
+
+                <Text style={styles.paginationText}>
+                  {t('library.page')} {currentPage} {t('library.of')} {totalPages}
+                </Text>
+
+                <Pressable
+                  onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  focusable={currentPage !== totalPages}
+                  style={(state: ExtendedPressableState) => [
+                    styles.paginationButton,
+                    currentPage === totalPages && styles.paginationButtonDisabled,
+                    currentPage !== totalPages &&
+                      Platform.OS === 'web' &&
+                      state.hovered &&
+                      styles.paginationButtonHovered,
+                    currentPage !== totalPages && state.pressed && styles.paginationButtonPressed,
+                    currentPage !== totalPages &&
+                      Platform.OS === 'web' &&
+                      state.focused &&
+                      styles.paginationButtonFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={
+                      currentPage === totalPages
+                        ? theme.colors.text.disabled
+                        : theme.colors.interactive.primary
+                    }
+                  />
+                </Pressable>
+              </View>
+            )}
             <Pressable
-              onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              focusable={currentPage !== totalPages}
+              onPress={onToggleViewMode}
+              accessibilityLabel={t(
+                viewMode === 'grid' ? 'library.switch_to_list_view' : 'library.switch_to_grid_view'
+              )}
+              focusable
               style={(state: ExtendedPressableState) => [
-                styles.paginationButton,
-                currentPage === totalPages && styles.paginationButtonDisabled,
-                currentPage !== totalPages &&
-                  Platform.OS === 'web' &&
-                  state.hovered &&
-                  styles.paginationButtonHovered,
-                currentPage !== totalPages && state.pressed && styles.paginationButtonPressed,
-                currentPage !== totalPages &&
-                  Platform.OS === 'web' &&
-                  state.focused &&
-                  styles.paginationButtonFocused,
+                styles.viewToggle,
+                Platform.OS === 'web' && state.hovered && styles.viewToggleHovered,
+                state.pressed && styles.viewTogglePressed,
+                Platform.OS === 'web' && state.focused && styles.viewToggleFocused,
               ]}
             >
               <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={
-                  currentPage === totalPages
-                    ? theme.colors.text.disabled
-                    : theme.colors.interactive.primary
-                }
+                name={viewMode === 'grid' ? 'list' : 'grid'}
+                size={24}
+                color={theme.colors.text.primary}
               />
             </Pressable>
           </View>
         )}
-        <Pressable
-          onPress={onToggleViewMode}
-          accessibilityLabel={t(
-            viewMode === 'grid' ? 'library.switch_to_list_view' : 'library.switch_to_grid_view'
-          )}
-          focusable
-          style={(state: ExtendedPressableState) => [
-            styles.viewToggle,
-            Platform.OS === 'web' && state.hovered && styles.viewToggleHovered,
-            state.pressed && styles.viewTogglePressed,
-            Platform.OS === 'web' && state.focused && styles.viewToggleFocused,
-          ]}
-        >
-          <Ionicons
-            name={viewMode === 'grid' ? 'list' : 'grid'}
-            size={24}
-            color={theme.colors.text.primary}
-          />
-        </Pressable>
       </View>
-    </View>
+
+      <Modal
+        visible={isMobile && isFilterModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFilterModal}
+      >
+        <View style={styles.mobileFilterModalRoot}>
+          <Pressable
+            style={styles.mobileFilterBackdrop}
+            onPress={closeFilterModal}
+            accessibilityLabel={t('common.close')}
+          />
+          <View style={styles.mobileFilterPanel}>
+            <View style={styles.mobileFilterHeader}>
+              <Text style={styles.mobileFilterTitle}>{t('library.filters')}</Text>
+              <Pressable
+                onPress={closeFilterModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                focusable
+                style={(state: ExtendedPressableState) => [
+                  styles.mobileFilterCloseButton,
+                  Platform.OS === 'web' && state.hovered && styles.mobileFilterCloseButtonHovered,
+                  state.pressed && styles.mobileFilterCloseButtonPressed,
+                  Platform.OS === 'web' && state.focused && styles.mobileFilterCloseButtonFocused,
+                ]}
+              >
+                <Ionicons name="close" size={22} color={theme.colors.text.primary} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.mobileFilterScroll}
+              contentContainerStyle={styles.mobileFilterContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.mobileFilterGroup}>
+                <View style={styles.mobileFilterOptions}>
+                  <MobileFilterOption
+                    label={labelsRef.current.allStories}
+                    selected={!draftAudioFilter}
+                    onPress={() => setDraftAudioFilter(false)}
+                  />
+                  <MobileFilterOption
+                    label={labelsRef.current.audioOnly}
+                    selected={draftAudioFilter}
+                    onPress={() => setDraftAudioFilter(true)}
+                  />
+                </View>
+              </View>
+
+              {scenarioCards.length > 0 && onScenarioChange
+                ? renderMobileFilterGroup(
+                    t('library.filter_scenario'),
+                    scenarioOptions,
+                    draftScenarioId,
+                    setDraftScenarioId
+                  )
+                : null}
+
+              {ageOptions.length > 0 && onAgeGroupChange
+                ? renderMobileFilterGroup(
+                    t('library.filter_age'),
+                    ageOptions,
+                    draftAgeGroup,
+                    setDraftAgeGroup
+                  )
+                : null}
+
+              {languageOptions.length > 0 && onLanguageChange
+                ? renderMobileFilterGroup(
+                    t('settings.language'),
+                    languageOptions,
+                    draftLanguage,
+                    setDraftLanguage
+                  )
+                : null}
+
+              {readingTimeOptions.length > 0 && onReadingTimeChange
+                ? renderMobileFilterGroup(
+                    t('library.all_reading_times'),
+                    readingTimeOptions,
+                    draftReadingTime,
+                    setDraftReadingTime
+                  )
+                : null}
+            </ScrollView>
+
+            <View style={styles.mobileFilterActions}>
+              <Pressable
+                onPress={applyMobileFilters}
+                accessibilityRole="button"
+                focusable
+                style={(state: ExtendedPressableState) => [
+                  styles.mobileFilterApplyButton,
+                  Platform.OS === 'web' && state.hovered && styles.mobileFilterApplyButtonHovered,
+                  state.pressed && styles.mobileFilterApplyButtonPressed,
+                  Platform.OS === 'web' && state.focused && styles.mobileFilterApplyButtonFocused,
+                ]}
+              >
+                <Text style={styles.mobileFilterApplyText}>{t('common.apply')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
-// Custom comparison: ignore initialAudioFilter changes (used only for initial mount)
+// AudioFilterToggle still treats initialAudioFilter as mount-only; mobile draft filters need it.
 const areEqual = (prevProps: Props, nextProps: Props) => {
   return (
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.currentPage === nextProps.currentPage &&
     prevProps.totalPages === nextProps.totalPages &&
+    prevProps.initialAudioFilter === nextProps.initialAudioFilter &&
     prevProps.onToggleViewMode === nextProps.onToggleViewMode &&
     prevProps.onToggleAudioFilter === nextProps.onToggleAudioFilter &&
     prevProps.onPageChange === nextProps.onPageChange &&
@@ -375,7 +645,6 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.readingTimeOptions === nextProps.readingTimeOptions &&
     prevProps.selectedReadingTime === nextProps.selectedReadingTime &&
     prevProps.onReadingTimeChange === nextProps.onReadingTimeChange
-    // Intentionally skip initialAudioFilter - it's only for initial useState
   );
 };
 
@@ -406,6 +675,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing[3],
   },
+  filterSettingsButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
+  },
+  filterSettingsButtonHovered: Platform.select({
+    web: {
+      backgroundColor: theme.colors.primary[50],
+      borderColor: theme.colors.primary[200],
+      boxShadow: `0 2px 8px ${hexAlpha(theme.colors.primary[900], 0.1)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  filterSettingsButtonPressed: {
+    opacity: 0.92,
+  },
+  filterSettingsButtonFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   viewToggle: {
     padding: theme.spacing[2],
     borderRadius: theme.borders.radius.md,
@@ -600,5 +907,200 @@ const styles = StyleSheet.create({
   dropdownItemTextActive: {
     color: theme.colors.interactive.primary,
     fontWeight: theme.typography.fontWeight.semibold,
+  },
+  mobileFilterModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  mobileFilterBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.34)',
+  },
+  mobileFilterPanel: {
+    maxHeight: '86%',
+    marginHorizontal: theme.spacing[3],
+    marginBottom: theme.spacing[3],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: `0 18px 40px ${hexAlpha(theme.colors.neutral[900], 0.2)}`,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+      default: {
+        elevation: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.16,
+        shadowRadius: 18,
+      },
+    }),
+  },
+  mobileFilterHeader: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing[4],
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
+  },
+  mobileFilterTitle: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  mobileFilterCloseButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.full,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 160ms ease, box-shadow 160ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
+  },
+  mobileFilterCloseButtonHovered: {
+    backgroundColor: theme.colors.primary[50],
+  },
+  mobileFilterCloseButtonPressed: {
+    opacity: 0.86,
+  },
+  mobileFilterCloseButtonFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
+  mobileFilterScroll: {
+    flexGrow: 0,
+  },
+  mobileFilterContent: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[4],
+    paddingBottom: theme.spacing[2],
+    gap: theme.spacing[5],
+  },
+  mobileFilterGroup: {
+    gap: theme.spacing[3],
+  },
+  mobileFilterGroupTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  mobileFilterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  mobileFilterOption: {
+    minHeight: 42,
+    maxWidth: '100%',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
+  },
+  mobileFilterOptionActive: {
+    backgroundColor: theme.colors.primary[50],
+    borderColor: theme.colors.interactive.primary,
+  },
+  mobileFilterOptionHovered: Platform.select({
+    web: {
+      backgroundColor: theme.colors.primary[50],
+      borderColor: theme.colors.primary[200],
+      boxShadow: `0 1px 8px ${hexAlpha(theme.colors.primary[900], 0.08)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  mobileFilterOptionPressed: {
+    opacity: 0.9,
+  },
+  mobileFilterOptionFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
+  mobileFilterOptionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary,
+  },
+  mobileFilterOptionTextActive: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  mobileFilterActions: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[4],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  mobileFilterApplyButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.interactive.primary,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
+  },
+  mobileFilterApplyButtonHovered: Platform.select({
+    web: {
+      boxShadow: `0 2px 12px ${hexAlpha(theme.colors.primary[900], 0.18)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  mobileFilterApplyButtonPressed: {
+    opacity: 0.9,
+  },
+  mobileFilterApplyButtonFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
+  mobileFilterApplyText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
 });
