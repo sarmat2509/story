@@ -178,6 +178,21 @@ function hasRobots(text, headerValue, expected) {
   );
 }
 
+function buildPublicAlternates(path) {
+  const routePath = path === '/' ? '' : path;
+  const localizedPath = routePath || '/';
+  return {
+    en: `${baseUrl}${routePath}`,
+    uk: `${baseUrl}/uk${localizedPath}`,
+    ru: `${baseUrl}/ru${localizedPath}`,
+    es: `${baseUrl}/es${localizedPath}`,
+    de: `${baseUrl}/de${localizedPath}`,
+    fr: `${baseUrl}/fr${localizedPath}`,
+    pl: `${baseUrl}/pl${localizedPath}`,
+    'x-default': `${baseUrl}${routePath}`,
+  };
+}
+
 function getHtmlAttr(tag, attr) {
   const match = tag?.match(new RegExp(`${attr}=["']([^"']+)["']`, 'i'));
   return match?.[1] || '';
@@ -250,12 +265,6 @@ async function checkLocalizedSeo({ path, label, lang, canonical, alternates }) {
       pass(`${label} ${path} hreflang ${hreflang} matches`);
     } else {
       fail(`${label} ${path} hreflang ${hreflang}=${alternateByLang.get(hreflang) || 'missing'}, expected ${href}`);
-    }
-  }
-
-  for (const hiddenLocale of ['ru', 'es', 'de', 'fr', 'pl']) {
-    if (alternateByLang.has(hiddenLocale)) {
-      fail(`${label} ${path} exposes incomplete hreflang ${hiddenLocale}`);
     }
   }
 }
@@ -514,7 +523,7 @@ async function main() {
     { path: '/admin/users', label: 'SPA admin users', robots: 'noindex,nofollow' },
     { path: '/admin/validations', label: 'SPA admin validations', robots: 'noindex,nofollow' },
     { path: '/admin/scenes', label: 'SPA admin scenes', robots: 'noindex,nofollow' },
-    { path: '/ru/pricing', label: 'Unsupported localized public pricing', expectedStatus: 404, robots: 'noindex,nofollow' },
+    { path: '/ru/pricing', label: 'SSR Russian pricing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/not-a-real-public-route-smoke', label: 'Unknown public route', expectedStatus: 404, robots: 'noindex,nofollow' },
   ];
   for (const page of pages) await checkPage(page);
@@ -539,132 +548,84 @@ async function main() {
       label: 'SSR landing SEO',
       lang: 'en',
       canonical: `${baseUrl}`,
-      alternates: {
-        en: `${baseUrl}`,
-        uk: `${baseUrl}/uk/`,
-        'x-default': `${baseUrl}`,
-      },
+      alternates: buildPublicAlternates('/'),
     },
     {
       path: '/uk/',
       label: 'SSR Ukrainian landing SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/`,
-      alternates: {
-        en: `${baseUrl}`,
-        uk: `${baseUrl}/uk/`,
-        'x-default': `${baseUrl}`,
-      },
+      alternates: buildPublicAlternates('/'),
     },
     {
       path: '/pricing',
       label: 'SSR pricing SEO',
       lang: 'en',
       canonical: `${baseUrl}/pricing`,
-      alternates: {
-        en: `${baseUrl}/pricing`,
-        uk: `${baseUrl}/uk/pricing`,
-        'x-default': `${baseUrl}/pricing`,
-      },
+      alternates: buildPublicAlternates('/pricing'),
     },
     {
       path: '/uk/pricing',
       label: 'SSR Ukrainian pricing SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/pricing`,
-      alternates: {
-        en: `${baseUrl}/pricing`,
-        uk: `${baseUrl}/uk/pricing`,
-        'x-default': `${baseUrl}/pricing`,
-      },
+      alternates: buildPublicAlternates('/pricing'),
     },
     {
       path: '/stories',
       label: 'SSR stories catalog SEO',
       lang: 'en',
       canonical: `${baseUrl}/stories`,
-      alternates: {
-        en: `${baseUrl}/stories`,
-        uk: `${baseUrl}/uk/stories`,
-        'x-default': `${baseUrl}/stories`,
-      },
+      alternates: buildPublicAlternates('/stories'),
     },
     {
       path: '/uk/stories',
       label: 'SSR Ukrainian stories catalog SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/stories`,
-      alternates: {
-        en: `${baseUrl}/stories`,
-        uk: `${baseUrl}/uk/stories`,
-        'x-default': `${baseUrl}/stories`,
-      },
+      alternates: buildPublicAlternates('/stories'),
     },
     {
       path: '/terms',
       label: 'SSR terms SEO',
       lang: 'en',
       canonical: `${baseUrl}/terms`,
-      alternates: {
-        en: `${baseUrl}/terms`,
-        uk: `${baseUrl}/uk/terms`,
-        'x-default': `${baseUrl}/terms`,
-      },
+      alternates: buildPublicAlternates('/terms'),
     },
     {
       path: '/uk/terms',
       label: 'SSR Ukrainian terms SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/terms`,
-      alternates: {
-        en: `${baseUrl}/terms`,
-        uk: `${baseUrl}/uk/terms`,
-        'x-default': `${baseUrl}/terms`,
-      },
+      alternates: buildPublicAlternates('/terms'),
     },
     {
       path: '/privacy',
       label: 'SSR privacy SEO',
       lang: 'en',
       canonical: `${baseUrl}/privacy`,
-      alternates: {
-        en: `${baseUrl}/privacy`,
-        uk: `${baseUrl}/uk/privacy`,
-        'x-default': `${baseUrl}/privacy`,
-      },
+      alternates: buildPublicAlternates('/privacy'),
     },
     {
       path: '/uk/privacy',
       label: 'SSR Ukrainian privacy SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/privacy`,
-      alternates: {
-        en: `${baseUrl}/privacy`,
-        uk: `${baseUrl}/uk/privacy`,
-        'x-default': `${baseUrl}/privacy`,
-      },
+      alternates: buildPublicAlternates('/privacy'),
     },
     {
       path: '/support',
       label: 'SSR support SEO',
       lang: 'en',
       canonical: `${baseUrl}/support`,
-      alternates: {
-        en: `${baseUrl}/support`,
-        uk: `${baseUrl}/uk/support`,
-        'x-default': `${baseUrl}/support`,
-      },
+      alternates: buildPublicAlternates('/support'),
     },
     {
       path: '/uk/support',
       label: 'SSR Ukrainian support SEO',
       lang: 'uk',
       canonical: `${baseUrl}/uk/support`,
-      alternates: {
-        en: `${baseUrl}/support`,
-        uk: `${baseUrl}/uk/support`,
-        'x-default': `${baseUrl}/support`,
-      },
+      alternates: buildPublicAlternates('/support'),
     },
   ];
   for (const page of localizedSeoPages) await checkLocalizedSeo(page);
