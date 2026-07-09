@@ -32,6 +32,7 @@ interface Props {
   userNotes?: string;
   onNotesChange: (notes: string) => void;
   notesEnabled?: boolean;
+  compactAddChild?: boolean;
 }
 
 export function AdvancedSettingsForm({
@@ -48,6 +49,7 @@ export function AdvancedSettingsForm({
   userNotes = '',
   onNotesChange,
   notesEnabled = true,
+  compactAddChild = false,
 }: Props) {
   const { t } = useTranslation();
 
@@ -97,11 +99,22 @@ export function AdvancedSettingsForm({
               ))}
             </ScrollView>
             {onAddChild && (
-              <TouchableOpacity onPress={onAddChild} style={[styles.chip, styles.addProfileChip]}>
+              <TouchableOpacity
+                onPress={onAddChild}
+                style={[
+                  styles.chip,
+                  styles.addProfileChip,
+                  compactAddChild && styles.addProfileChipCompact,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={t('wizard.create_child_profile')}
+              >
                 <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-                <Text style={[styles.chipText, styles.addProfileChipText]}>
-                  {t('wizard.create_child_profile')}
-                </Text>
+                {!compactAddChild ? (
+                  <Text style={[styles.chipText, styles.addProfileChipText]}>
+                    {t('wizard.create_child_profile')}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
             )}
           </View>
@@ -229,6 +242,11 @@ const styles = StyleSheet.create({
   addProfileChip: {
     flexShrink: 0,
     borderColor: theme.colors.interactive.primary,
+  },
+  addProfileChipCompact: {
+    width: 48,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
   },
   addProfileChipText: {
     color: theme.colors.interactive.primary,

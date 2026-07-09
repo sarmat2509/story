@@ -71,6 +71,7 @@ export default function WizardScreen() {
   const enterKey = useScreenEnter();
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
+  const isMobile = width < theme.breakpoints.tablet;
   const presetScenarioCardId = useMemo(
     () => getWizardScenarioPreset(route.params, getWebSearch()),
     [route.params]
@@ -99,6 +100,7 @@ export default function WizardScreen() {
   const [activeStep, setActiveStep] = useState(0);
   const activeStepScrollRef = React.useRef(activeStep);
   const [isAiNoticeExpanded, setIsAiNoticeExpanded] = useState(false);
+  const [isMobileSummaryExpanded, setIsMobileSummaryExpanded] = useState(false);
 
   // Modal state
   const [isChildModalVisible, setIsChildModalVisible] = useState(false);
@@ -153,11 +155,7 @@ export default function WizardScreen() {
   const usesMixedStoryQuota = storyFormat === 'mixed';
   const usesEnhancedStoryFormat = storyFormat === 'comic' || storyFormat === 'mixed';
   const storyFormatAnalytics =
-    storyFormat === 'comic'
-      ? 'graphic_novel'
-      : storyFormat === 'mixed'
-        ? 'mixed_story'
-        : 'story';
+    storyFormat === 'comic' ? 'graphic_novel' : storyFormat === 'mixed' ? 'mixed_story' : 'story';
 
   const openGraphicNovelPaywall = () => {
     setPaywallKind('graphicNovels');
@@ -323,7 +321,7 @@ export default function WizardScreen() {
       ? t('wizard.format_comic', { defaultValue: 'Comic' })
       : storyFormat === 'mixed'
         ? t('wizard.format_mixed', { defaultValue: 'Story + comic' })
-      : t('wizard.format_story', { defaultValue: 'Story' });
+        : t('wizard.format_story', { defaultValue: 'Story' });
   const summaryItems = [
     {
       key: 'format',
@@ -375,6 +373,11 @@ export default function WizardScreen() {
       }`,
     },
   ];
+  const summaryCompactLabel = [
+    selectedStoryFormatLabel,
+    selectedScenario?.name ?? t('wizard.free_theme'),
+    selectedLanguageLabel,
+  ].join(' · ');
   const steps = [
     { key: 'basics', label: t('wizard.step_basics'), icon: 'sparkles-outline' as const },
     { key: 'details', label: t('wizard.step_details'), icon: 'options-outline' as const },
@@ -525,22 +528,22 @@ export default function WizardScreen() {
     } catch (error: unknown) {
       console.error('Failed to create story:', error);
       setIsGenerating(false);
-      const response = (error as {
-        response?: { status?: number; data?: { code?: string; featureSlug?: string } };
-      })?.response;
+      const response = (
+        error as {
+          response?: { status?: number; data?: { code?: string; featureSlug?: string } };
+        }
+      )?.response;
       const status = response?.status;
       const errorCode = response?.data?.code;
       const featureSlug = response?.data?.featureSlug;
       if (
         status === 403 &&
-        (errorCode === 'GRAPHIC_NOVEL_LIMIT_REACHED' ||
-          featureSlug === 'graphic_novels_per_month')
+        (errorCode === 'GRAPHIC_NOVEL_LIMIT_REACHED' || featureSlug === 'graphic_novels_per_month')
       ) {
         openGraphicNovelPaywall();
       } else if (
         status === 403 &&
-        (errorCode === 'MIXED_STORY_NOT_AVAILABLE' ||
-          featureSlug === 'mixed_stories_per_month')
+        (errorCode === 'MIXED_STORY_NOT_AVAILABLE' || featureSlug === 'mixed_stories_per_month')
       ) {
         openMixedStoryPaywall();
       } else if (status === 429) {
@@ -664,9 +667,16 @@ export default function WizardScreen() {
   return (
     <>
       <LinearGradient colors={modernGradients.page} style={styles.page}>
-        <ScrollView ref={wizardScrollRef} contentContainerStyle={styles.content}>
+        <ScrollView
+          ref={wizardScrollRef}
+          contentContainerStyle={[
+            styles.content,
+            isMobile && styles.contentMobile,
+            isMobile && styles.contentMobileWithBottomPanel,
+          ]}
+        >
           <AnimatedSection delay={0} trigger={enterKey}>
-            <View style={styles.heroPanel}>
+            <View style={[styles.heroPanel, isMobile && styles.heroPanelMobile]}>
               <View style={styles.heroIcon}>
                 <Ionicons name="sparkles-outline" size={24} color={theme.colors.primary[700]} />
               </View>
@@ -687,7 +697,7 @@ export default function WizardScreen() {
           <View style={[styles.workspace, isWide && styles.workspaceWide]}>
             <View style={[styles.mainColumn, isWide && styles.mainColumnWide]}>
               <AnimatedSection delay={80} trigger={enterKey}>
-                <View style={styles.stepperCard}>
+                <View style={[styles.stepperCard, isMobile && styles.stepperCardMobile]}>
                   <Text style={styles.stepperEyebrow}>
                     {t('wizard.step_progress', {
                       current: activeStep + 1,
@@ -698,6 +708,7 @@ export default function WizardScreen() {
                     {steps.map((step, index) => {
                       const isActive = activeStep === index;
                       const isComplete = activeStep > index;
+                      const showStepLabel = !isMobile || isActive;
                       return (
                         <React.Fragment key={step.key}>
                           <TouchableOpacity
@@ -708,6 +719,8 @@ export default function WizardScreen() {
                             ]}
                             onPress={() => setActiveStep(index)}
                             activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel={step.label}
                           >
                             <View
                               style={[
@@ -725,14 +738,16 @@ export default function WizardScreen() {
                                 }
                               />
                             </View>
-                            <Text
-                              style={[
-                                styles.stepLabel,
-                                (isActive || isComplete) && styles.stepLabelActive,
-                              ]}
-                            >
-                              {step.label}
-                            </Text>
+                            {showStepLabel ? (
+                              <Text
+                                style={[
+                                  styles.stepLabel,
+                                  (isActive || isComplete) && styles.stepLabelActive,
+                                ]}
+                              >
+                                {step.label}
+                              </Text>
+                            ) : null}
                           </TouchableOpacity>
                           {index < steps.length - 1 ? (
                             <View style={styles.stepSequenceArrow} pointerEvents="none">
@@ -754,7 +769,7 @@ export default function WizardScreen() {
                 {activeStep === 0 ? (
                   <View style={styles.stepContent}>
                     {!isChildSession ? (
-                      <View style={styles.formatPanel}>
+                      <View style={[styles.formatPanel, isMobile && styles.formatPanelMobile]}>
                         <Text style={styles.formatTitle}>
                           {t('wizard.format_title', { defaultValue: 'Choose format' })}
                         </Text>
@@ -877,7 +892,7 @@ export default function WizardScreen() {
                 ) : null}
 
                 {activeStep === 1 ? (
-                  <View style={styles.detailsPanel}>
+                  <View style={[styles.detailsPanel, isMobile && styles.detailsPanelMobile]}>
                     <AdvancedSettingsForm
                       childProfileId={childProfileId}
                       onChildProfileChange={setChildProfileId}
@@ -894,12 +909,13 @@ export default function WizardScreen() {
                       userNotes={userNotes}
                       onNotesChange={setUserNotes}
                       notesEnabled={notesEnabled}
+                      compactAddChild={isMobile}
                     />
                   </View>
                 ) : null}
 
                 {activeStep === 2 ? (
-                  <View style={styles.detailsPanel}>
+                  <View style={[styles.detailsPanel, isMobile && styles.detailsPanelMobile]}>
                     <View style={styles.sectionHeading}>
                       <Ionicons name="people-outline" size={24} color={theme.colors.text.primary} />
                       <Text style={styles.sectionHeadingText}>{t('wizard.add_characters')}</Text>
@@ -918,133 +934,264 @@ export default function WizardScreen() {
               </AnimatedSection>
             </View>
 
-            <View
-              style={[
-                styles.summaryColumn,
-                isWide && styles.summaryColumnFixed,
-                !isWide && styles.summaryColumnFull,
-              ]}
-            >
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryEyebrow}>
-                  {t('wizard.story_preview', { defaultValue: 'Story setup' })}
-                </Text>
-                <Text style={styles.summaryTitle}>
-                  {t('wizard.your_story', { defaultValue: 'Your story' })}
-                </Text>
-                <View style={styles.summaryList}>
-                  {summaryItems.map((item) => (
-                    <View key={item.key} style={styles.summaryItem}>
-                      <View style={styles.summaryDot} />
-                      <Text style={styles.summaryItemText}>{item.label}</Text>
-                    </View>
-                  ))}
-                </View>
-                {usage ? (
-                  <View style={styles.summaryLimits}>
-                    <Text style={styles.summaryLimit}>
-                      {t('usage_summary.stories', { defaultValue: 'Stories' })}:{' '}
-                      {formatUsageLimitLabel(usage.stories)}
-                    </Text>
-                    {usesGraphicQuota && usage.graphicNovels ? (
+            {!isMobile ? (
+              <View
+                style={[
+                  styles.summaryColumn,
+                  isWide && styles.summaryColumnFixed,
+                  !isWide && styles.summaryColumnFull,
+                ]}
+              >
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryEyebrow}>
+                    {t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                  </Text>
+                  <Text style={styles.summaryTitle}>
+                    {t('wizard.your_story', { defaultValue: 'Your story' })}
+                  </Text>
+                  <View style={styles.summaryList}>
+                    {summaryItems.map((item) => (
+                      <View key={item.key} style={styles.summaryItem}>
+                        <View style={styles.summaryDot} />
+                        <Text style={styles.summaryItemText}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {usage ? (
+                    <View style={styles.summaryLimits}>
                       <Text style={styles.summaryLimit}>
-                        {t('usage_summary.graphic_novels_in_story_limit', {
-                          defaultValue: 'Comics within stories',
-                        })}:{' '}
-                        {formatUsageLimitLabel(usage.graphicNovels)}
+                        {t('usage_summary.stories', { defaultValue: 'Stories' })}:{' '}
+                        {formatUsageLimitLabel(usage.stories)}
                       </Text>
-                    ) : null}
-                    {usesMixedStoryQuota && usage.mixedStories ? (
-                      <Text style={styles.summaryLimit}>
-                        {t('usage_summary.mixed_stories_in_story_limit', {
-                          defaultValue: 'Story + comic within stories',
-                        })}:{' '}
-                        {formatUsageLimitLabel(usage.mixedStories)}
+                      {usesGraphicQuota && usage.graphicNovels ? (
+                        <Text style={styles.summaryLimit}>
+                          {t('usage_summary.graphic_novels_in_story_limit', {
+                            defaultValue: 'Comics within stories',
+                          })}
+                          : {formatUsageLimitLabel(usage.graphicNovels)}
+                        </Text>
+                      ) : null}
+                      {usesMixedStoryQuota && usage.mixedStories ? (
+                        <Text style={styles.summaryLimit}>
+                          {t('usage_summary.mixed_stories_in_story_limit', {
+                            defaultValue: 'Story + comic within stories',
+                          })}
+                          : {formatUsageLimitLabel(usage.mixedStories)}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  <View style={styles.aiGenerationNotice}>
+                    <TouchableOpacity
+                      style={styles.aiGenerationNoticeToggle}
+                      onPress={() => setIsAiNoticeExpanded((expanded) => !expanded)}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isAiNoticeExpanded }}
+                    >
+                      <Ionicons
+                        name="sparkles-outline"
+                        size={16}
+                        color={theme.colors.text.tertiary}
+                      />
+                      <Text numberOfLines={1} style={styles.aiGenerationNoticeTitle}>
+                        {t('wizard.ai_generation_notice_title', {
+                          defaultValue: 'About AI generation',
+                        })}
+                      </Text>
+                      <Ionicons
+                        name={isAiNoticeExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={theme.colors.text.tertiary}
+                      />
+                    </TouchableOpacity>
+                    {isAiNoticeExpanded ? (
+                      <Text style={styles.aiGenerationNoticeText}>
+                        {t('wizard.ai_generation_notice', {
+                          defaultValue:
+                            'Your content will be created with AI. Minor image or text generation errors may occasionally appear, so a quick adult review of the result is recommended.',
+                        })}
                       </Text>
                     ) : null}
                   </View>
-                ) : null}
-                <View style={styles.aiGenerationNotice}>
-                  <TouchableOpacity
-                    style={styles.aiGenerationNoticeToggle}
-                    onPress={() => setIsAiNoticeExpanded((expanded) => !expanded)}
-                    activeOpacity={0.75}
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: isAiNoticeExpanded }}
-                  >
-                    <Ionicons name="sparkles-outline" size={16} color={theme.colors.text.tertiary} />
-                    <Text numberOfLines={1} style={styles.aiGenerationNoticeTitle}>
-                      {t('wizard.ai_generation_notice_title', {
-                        defaultValue: 'About AI generation',
-                      })}
-                    </Text>
-                    <Ionicons
-                      name={isAiNoticeExpanded ? 'chevron-up' : 'chevron-down'}
-                      size={16}
-                      color={theme.colors.text.tertiary}
-                    />
-                  </TouchableOpacity>
-                  {isAiNoticeExpanded ? (
-                    <Text style={styles.aiGenerationNoticeText}>
-                      {t('wizard.ai_generation_notice', {
-                        defaultValue:
-                          'Your content will be created with AI. Minor image or text generation errors may occasionally appear, so a quick adult review of the result is recommended.',
-                      })}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={styles.summaryActions}>
-                  {activeStep > 0 ? (
+                  <View style={styles.summaryActions}>
+                    {activeStep > 0 ? (
+                      <AppButton
+                        label={t('common.back')}
+                        onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
+                        variant="secondary"
+                        size="md"
+                        leading={
+                          <Ionicons
+                            name="chevron-back"
+                            size={18}
+                            color={theme.colors.text.secondary}
+                          />
+                        }
+                        style={styles.summaryBackButton}
+                      />
+                    ) : null}
                     <AppButton
-                      label={t('common.back')}
-                      onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
-                      variant="secondary"
-                      size="md"
-                      leading={
-                        <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
+                      label={
+                        isLastStep
+                          ? storyFormat === 'comic'
+                            ? t('wizard.create_comic', { defaultValue: 'Create comic' })
+                            : storyFormat === 'mixed'
+                              ? t('wizard.create_mixed_story', {
+                                  defaultValue: 'Create story + comic',
+                                })
+                              : t('common.create')
+                          : t('common.next')
                       }
-                      style={styles.summaryBackButton}
+                      onPress={isLastStep ? handleGenerate : handleNextStep}
+                      size="md"
+                      disabled={
+                        isLastStep
+                          ? !storyLanguage ||
+                            (!isChildSession && !childProfileId) ||
+                            isGenerating ||
+                            !canGenerateStories
+                          : isGenerating
+                      }
+                      loading={isLastStep && isGenerating}
+                      trailing={
+                        !isLastStep ? (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={theme.colors.text.inverse}
+                          />
+                        ) : undefined
+                      }
+                      style={styles.summaryPrimaryButton}
                     />
-                  ) : null}
-                  <AppButton
-                    label={
-                      isLastStep
-                        ? storyFormat === 'comic'
-                          ? t('wizard.create_comic', { defaultValue: 'Create comic' })
-                          : storyFormat === 'mixed'
-                            ? t('wizard.create_mixed_story', {
-                                defaultValue: 'Create story + comic',
-                              })
-                          : t('common.create')
-                        : t('common.next')
-                    }
-                    onPress={isLastStep ? handleGenerate : handleNextStep}
-                    size="md"
-                    disabled={
-                      isLastStep
-                        ? !storyLanguage ||
-                          (!isChildSession && !childProfileId) ||
-                          isGenerating ||
-                          !canGenerateStories
-                        : isGenerating
-                    }
-                    loading={isLastStep && isGenerating}
-                    trailing={
-                      !isLastStep ? (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={18}
-                          color={theme.colors.text.inverse}
-                        />
-                      ) : undefined
-                    }
-                    style={styles.summaryPrimaryButton}
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+
+        {isMobile ? (
+          <View style={styles.mobileSummaryDock} pointerEvents="box-none">
+            <View style={styles.mobileSummaryPanel}>
+              <TouchableOpacity
+                style={styles.mobileSummaryToggle}
+                onPress={() => setIsMobileSummaryExpanded((expanded) => !expanded)}
+                activeOpacity={0.78}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isMobileSummaryExpanded }}
+                accessibilityLabel={t('wizard.story_preview', { defaultValue: 'Story setup' })}
+              >
+                <View style={styles.mobileSummaryText}>
+                  <Text style={styles.mobileSummaryEyebrow}>
+                    {t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.mobileSummaryTitle}>
+                    {summaryCompactLabel}
+                  </Text>
+                </View>
+                <View style={styles.mobileSummaryChevron}>
+                  <Ionicons
+                    name={isMobileSummaryExpanded ? 'chevron-down' : 'chevron-up'}
+                    size={18}
+                    color={theme.colors.text.secondary}
                   />
                 </View>
+              </TouchableOpacity>
+
+              {isMobileSummaryExpanded ? (
+                <ScrollView
+                  style={styles.mobileSummaryDetailsScroll}
+                  contentContainerStyle={styles.mobileSummaryDetails}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.summaryList}>
+                    {summaryItems.map((item) => (
+                      <View key={item.key} style={styles.summaryItem}>
+                        <View style={styles.summaryDot} />
+                        <Text style={styles.summaryItemText}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {usage ? (
+                    <View style={styles.summaryLimits}>
+                      <Text style={styles.summaryLimit}>
+                        {t('usage_summary.stories', { defaultValue: 'Stories' })}:{' '}
+                        {formatUsageLimitLabel(usage.stories)}
+                      </Text>
+                      {usesGraphicQuota && usage.graphicNovels ? (
+                        <Text style={styles.summaryLimit}>
+                          {t('usage_summary.graphic_novels_in_story_limit', {
+                            defaultValue: 'Comics within stories',
+                          })}
+                          : {formatUsageLimitLabel(usage.graphicNovels)}
+                        </Text>
+                      ) : null}
+                      {usesMixedStoryQuota && usage.mixedStories ? (
+                        <Text style={styles.summaryLimit}>
+                          {t('usage_summary.mixed_stories_in_story_limit', {
+                            defaultValue: 'Story + comic within stories',
+                          })}
+                          : {formatUsageLimitLabel(usage.mixedStories)}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </ScrollView>
+              ) : null}
+
+              <View style={styles.mobileSummaryActions}>
+                {activeStep > 0 ? (
+                  <AppButton
+                    label={t('common.back')}
+                    onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
+                    variant="secondary"
+                    size="sm"
+                    leading={
+                      <Ionicons name="chevron-back" size={17} color={theme.colors.text.secondary} />
+                    }
+                    style={styles.mobileSummaryBackButton}
+                  />
+                ) : null}
+                <AppButton
+                  label={
+                    isLastStep
+                      ? storyFormat === 'comic'
+                        ? t('wizard.create_comic', { defaultValue: 'Create comic' })
+                        : storyFormat === 'mixed'
+                          ? t('wizard.create_mixed_story', {
+                              defaultValue: 'Create story + comic',
+                            })
+                          : t('common.create')
+                      : t('common.next')
+                  }
+                  onPress={isLastStep ? handleGenerate : handleNextStep}
+                  size="sm"
+                  disabled={
+                    isLastStep
+                      ? !storyLanguage ||
+                        (!isChildSession && !childProfileId) ||
+                        isGenerating ||
+                        !canGenerateStories
+                      : isGenerating
+                  }
+                  loading={isLastStep && isGenerating}
+                  trailing={
+                    !isLastStep ? (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={17}
+                        color={theme.colors.text.inverse}
+                      />
+                    ) : undefined
+                  }
+                  style={styles.mobileSummaryPrimaryButton}
+                />
               </View>
             </View>
           </View>
-        </ScrollView>
+        ) : null}
       </LinearGradient>
 
       {/* Generation Progress Modal */}
@@ -1108,6 +1255,13 @@ const styles = StyleSheet.create({
     padding: theme.spacing[8],
     minHeight: '100%',
   },
+  contentMobile: {
+    paddingHorizontal: theme.spacing[3],
+    paddingTop: theme.spacing[4],
+  },
+  contentMobileWithBottomPanel: {
+    paddingBottom: 156,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1130,6 +1284,10 @@ const styles = StyleSheet.create({
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
     ...modernShadows.card,
+  },
+  heroPanelMobile: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[5],
   },
   heroIcon: {
     width: 48,
@@ -1176,6 +1334,10 @@ const styles = StyleSheet.create({
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
     ...modernShadows.subtle,
+  },
+  stepperCardMobile: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
   },
   stepperEyebrow: {
     marginBottom: theme.spacing[3],
@@ -1244,6 +1406,9 @@ const styles = StyleSheet.create({
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
     ...modernShadows.subtle,
+  },
+  formatPanelMobile: {
+    padding: theme.spacing[4],
   },
   formatTitle: {
     marginBottom: theme.spacing[3],
@@ -1383,6 +1548,9 @@ const styles = StyleSheet.create({
     backgroundColor: modernColors.surface,
     ...modernShadows.subtle,
   },
+  detailsPanelMobile: {
+    padding: theme.spacing[4],
+  },
   sectionHeading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1439,5 +1607,83 @@ const styles = StyleSheet.create({
   },
   summaryPrimaryButton: {
     flex: 1,
+  },
+  mobileSummaryDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
+    zIndex: 50,
+  },
+  mobileSummaryPanel: {
+    gap: theme.spacing[2],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: Platform.select({
+      web: 'rgba(255, 255, 255, 0.72)',
+      default: 'rgba(255, 255, 255, 0.92)',
+    }),
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(16px) saturate(145%)' as any,
+        WebkitBackdropFilter: 'blur(16px) saturate(145%)' as any,
+      },
+      default: {},
+    }),
+    ...modernShadows.card,
+  },
+  mobileSummaryToggle: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  mobileSummaryText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mobileSummaryEyebrow: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.primary[700],
+    textTransform: 'uppercase',
+  },
+  mobileSummaryTitle: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  mobileSummaryChevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  mobileSummaryDetailsScroll: {
+    maxHeight: 220,
+  },
+  mobileSummaryDetails: {
+    gap: theme.spacing[3],
+    paddingBottom: theme.spacing[1],
+  },
+  mobileSummaryActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: theme.spacing[2],
+  },
+  mobileSummaryBackButton: {
+    minWidth: 104,
+    paddingHorizontal: theme.spacing[3],
+  },
+  mobileSummaryPrimaryButton: {
+    flex: 1,
+    paddingHorizontal: theme.spacing[4],
   },
 });

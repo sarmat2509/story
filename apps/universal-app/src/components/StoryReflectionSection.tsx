@@ -19,6 +19,7 @@ import { useGenerateStoryQuiz, useSaveStoryQuizAnswer, useStoryQuiz } from '@/ap
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type AnswerState = {
   selectedIds: string[];
@@ -730,6 +731,7 @@ export function StoryReflectionSection({
   rewardAction,
 }: StoryReflectionSectionProps) {
   const { t } = useTranslation();
+  const { isMobile } = useResponsive();
   const quizQuery = useStoryQuiz(storyId, enabled);
   const generateQuiz = useGenerateStoryQuiz();
   const saveQuizAnswer = useSaveStoryQuizAnswer();
@@ -774,7 +776,10 @@ export function StoryReflectionSection({
   if (!payload) {
     if (isGenerating) {
       return (
-        <View style={styles.invitationContainer} testID="story-quiz-generating">
+        <View
+          style={[styles.invitationContainer, isMobile && styles.invitationContainerMobile]}
+          testID="story-quiz-generating"
+        >
           <View style={styles.invitationIcon}>
             <Ionicons name="gift-outline" size={24} color={theme.colors.text.inverse} />
           </View>
@@ -801,7 +806,10 @@ export function StoryReflectionSection({
     }
 
     return (
-      <View style={styles.invitationContainer} testID="story-quiz-invitation">
+      <View
+        style={[styles.invitationContainer, isMobile && styles.invitationContainerMobile]}
+        testID="story-quiz-invitation"
+      >
         <View style={styles.invitationIcon}>
           <Ionicons name="gift-outline" size={24} color={theme.colors.text.inverse} />
         </View>
@@ -912,6 +920,9 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.light,
     backgroundColor: theme.colors.background.secondary,
     gap: 14,
+  },
+  invitationContainerMobile: {
+    borderRadius: 0,
   },
   invitationIcon: {
     width: 42,

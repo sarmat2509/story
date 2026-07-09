@@ -313,7 +313,8 @@ export default function StoryViewerScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
-  const { isTabletPortrait, isMobile } = useResponsive();
+  const { isTabletPortrait, isMobile, width } = useResponsive();
+  const mobileHeaderTitleMaxWidth = isMobile ? Math.max(0, width - 128) : undefined;
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
   const isArtisanMode = user?.mode === 'artisan';
@@ -532,7 +533,9 @@ export default function StoryViewerScreen() {
     if (story?.title) {
       if (story.scenarioCardName) {
         navigation.setOptions({
-          headerTitleContainerStyle: isMobile ? styles.mobileHeaderTitleContainer : undefined,
+          headerTitleContainerStyle: isMobile
+            ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
+            : undefined,
           headerTitleAlign: isMobile ? 'left' : undefined,
           headerTitle: () => (
             isMobile ? (
@@ -611,7 +614,9 @@ export default function StoryViewerScreen() {
         });
       } else {
         navigation.setOptions({
-          headerTitleContainerStyle: isMobile ? styles.mobileHeaderTitleContainer : undefined,
+          headerTitleContainerStyle: isMobile
+            ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
+            : undefined,
           headerTitleAlign: isMobile ? 'left' : undefined,
           headerTitle: isMobile
             ? () => (
@@ -631,6 +636,7 @@ export default function StoryViewerScreen() {
     seriesInfo?.baseTitle,
     seriesInfo?.seriesId,
     isMobile,
+    mobileHeaderTitleMaxWidth,
     navigation,
   ]);
 
@@ -2679,11 +2685,11 @@ export default function StoryViewerScreen() {
         {showImage && scene.image?.url && scene.image?.status !== 'failed' ? (
           <Image
             source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
-            style={styles.sceneImage as ImageStyle}
+            style={[styles.sceneImage, isMobile && styles.sceneImageMobile] as ImageStyle}
             resizeMode="cover"
           />
         ) : showImage && (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
-          <View style={styles.sceneImagePlaceholder}>
+          <View style={[styles.sceneImagePlaceholder, isMobile && styles.sceneImageMobile]}>
             <Text
               style={[
                 styles.sceneImagePlaceholderText,
@@ -3560,6 +3566,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  sceneImageMobile: {
+    borderRadius: 0,
+  },
   sceneImagePlaceholderText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.tertiary,
@@ -3894,21 +3903,27 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   mobileHeaderTitleContainer: {
-    left: 72,
-    right: 100,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
   },
   mobileHeaderRightContainer: {
-    right: theme.spacing[2],
+    right: 0,
   },
   mobileHeaderBreadcrumb: {
     flex: 1,
+    width: '100%',
+    maxWidth: '100%',
     minWidth: 0,
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   mobileHeaderBreadcrumbTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: '100%',
     minWidth: 0,
+    overflow: 'hidden',
   },
   mobileHeaderBreadcrumbLinkPressable: {
     flexShrink: 1,
@@ -3918,9 +3933,12 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.interactive.primary,
     lineHeight: 18,
+    maxWidth: '100%',
   },
   mobileHeaderBreadcrumbCurrent: {
     flexShrink: 1,
+    width: '100%',
+    maxWidth: '100%',
     minWidth: 0,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,

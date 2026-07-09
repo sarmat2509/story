@@ -27,6 +27,7 @@ import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
@@ -63,6 +64,7 @@ type ProfilePrivacyRequestIntent = {
 
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
+  const { isMobile } = useResponsive();
   const { user, logout, setUser } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const enterKey = useScreenEnter();
@@ -423,16 +425,20 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, isMobile && styles.contentMobile]}>
         <AnimatedSection delay={0} trigger={enterKey}>
-          <View style={styles.header}>
+          <View style={[styles.header, isMobile && styles.headerMobile]}>
             <Text style={styles.title}>{t('profile.title')}</Text>
           </View>
         </AnimatedSection>
 
-        <View style={styles.profileLayout}>
-          <AnimatedSection delay={120} trigger={enterKey} style={styles.profileAside}>
-            <View style={styles.profileAsideCard}>
+        <View style={[styles.profileLayout, isMobile && styles.profileLayoutMobile]}>
+          <AnimatedSection
+            delay={120}
+            trigger={enterKey}
+            style={[styles.profileAside, isMobile && styles.profileAsideMobile]}
+          >
+            <View style={[styles.profileAsideCard, isMobile && styles.profileAsideCardMobile]}>
               <TouchableOpacity
                 style={styles.avatarContainer}
                 onPress={handlePickAvatar}
@@ -499,11 +505,15 @@ export default function ProfileScreen() {
             </View>
           </AnimatedSection>
 
-          <View style={styles.settingsGrid}>
+          <View style={[styles.settingsGrid, isMobile && styles.settingsGridMobile]}>
             <AnimatedSection
               delay={120}
               trigger={enterKey}
-              style={[styles.settingsPanel, styles.settingsPanelWide]}
+              style={[
+                styles.settingsPanel,
+                styles.settingsPanelWide,
+                isMobile && styles.settingsPanelMobile,
+              ]}
             >
               <View style={styles.settingsPanelHeader}>
                 <Ionicons
@@ -514,8 +524,8 @@ export default function ProfileScreen() {
                 <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
               </View>
 
-              <View style={styles.accountColumns}>
-                <View style={styles.accountColumn}>
+              <View style={[styles.accountColumns, isMobile && styles.accountColumnsMobile]}>
+                <View style={[styles.accountColumn, isMobile && styles.accountColumnMobile]}>
                   <View style={styles.infoRow}>
                     <Text style={styles.label}>{t('profile.name')}</Text>
                     <TextInput
@@ -534,7 +544,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
 
-                <View style={styles.accountColumn}>
+                <View style={[styles.accountColumn, isMobile && styles.accountColumnMobile]}>
                   <View style={styles.infoRow}>
                     <Text style={styles.label}>{t('profile.pseudonym')}</Text>
                     <TextInput
@@ -568,11 +578,15 @@ export default function ProfileScreen() {
                 onPress={handleSaveProfile}
                 disabled={updateProfile.isPending}
                 loading={updateProfile.isPending}
-                style={styles.profileSaveAction}
+                style={[styles.profileSaveAction, isMobile && styles.mobileFullWidthAction]}
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={180} trigger={enterKey} style={styles.settingsPanel}>
+            <AnimatedSection
+              delay={180}
+              trigger={enterKey}
+              style={[styles.settingsPanel, isMobile && styles.settingsPanelMobile]}
+            >
               <View style={styles.settingsPanelHeader}>
                 <Ionicons
                   name="shield-checkmark-outline"
@@ -584,7 +598,9 @@ export default function ProfileScreen() {
                 </Text>
               </View>
 
-              <View style={styles.exitPasscodeHeader}>
+              <View
+                style={[styles.exitPasscodeHeader, isMobile && styles.exitPasscodeHeaderMobile]}
+              >
                 <View style={styles.exitPasscodeHeaderText}>
                   <Text style={styles.exitPasscodeTitle}>
                     {t('profile.child_mode_exit_passcode_title')}
@@ -632,11 +648,15 @@ export default function ProfileScreen() {
                     : t('profile.child_mode_exit_passcode_save')
                 }
                 onPress={() => setShowChildModePasscodeModal(true)}
-                style={styles.profileSaveAction}
+                style={[styles.profileSaveAction, isMobile && styles.mobileFullWidthAction]}
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={220} trigger={enterKey} style={styles.settingsPanel}>
+            <AnimatedSection
+              delay={220}
+              trigger={enterKey}
+              style={[styles.settingsPanel, isMobile && styles.settingsPanelMobile]}
+            >
               <View style={styles.settingsPanelHeader}>
                 <Ionicons
                   name="options-outline"
@@ -697,7 +717,11 @@ export default function ProfileScreen() {
               ) : null}
             </AnimatedSection>
 
-            <AnimatedSection delay={280} trigger={enterKey} style={styles.settingsPanel}>
+            <AnimatedSection
+              delay={280}
+              trigger={enterKey}
+              style={[styles.settingsPanel, isMobile && styles.settingsPanelMobile]}
+            >
               <View style={styles.settingsPanelHeader}>
                 <Ionicons
                   name="diamond-outline"
@@ -745,7 +769,7 @@ export default function ProfileScreen() {
                         ? t('billing.manage_subscription')
                         : t('profile.upgrade_plan')
                     }
-                    style={styles.subscriptionAction}
+                    style={[styles.subscriptionAction, isMobile && styles.mobileFullWidthAction]}
                     onPress={handleManageSubscription}
                     disabled={createPortalSession.isPending}
                     loading={createPortalSession.isPending}
@@ -758,7 +782,11 @@ export default function ProfileScreen() {
             <AnimatedSection
               delay={320}
               trigger={enterKey}
-              style={[styles.settingsPanel, styles.settingsPanelWide]}
+              style={[
+                styles.settingsPanel,
+                styles.settingsPanelWide,
+                isMobile && styles.settingsPanelMobile,
+              ]}
             >
               <View style={styles.settingsPanelHeader}>
                 <Ionicons
@@ -786,10 +814,12 @@ export default function ProfileScreen() {
 
               <View style={styles.privacyActionsPanel}>
                 <Text style={styles.privacyActionsBody}>{t('profile.data_requests_body')}</Text>
-                <View style={styles.privacyActionsRow}>
+                <View
+                  style={[styles.privacyActionsRow, isMobile && styles.privacyActionsRowMobile]}
+                >
                   <AppButton
                     label={t('profile.request_data_export')}
-                    style={styles.privacyActionButton}
+                    style={[styles.privacyActionButton, isMobile && styles.mobileFullWidthAction]}
                     disabled={createPrivacyRequest.isPending}
                     onPress={() => openProfilePrivacyRequest('export')}
                     variant="secondary"
@@ -804,7 +834,7 @@ export default function ProfileScreen() {
                   />
                   <AppButton
                     label={t('profile.request_data_deletion')}
-                    style={styles.privacyActionButton}
+                    style={[styles.privacyActionButton, isMobile && styles.mobileFullWidthAction]}
                     disabled={createPrivacyRequest.isPending}
                     onPress={() => openProfilePrivacyRequest('deletion')}
                     variant="dangerSecondary"
@@ -823,7 +853,7 @@ export default function ProfileScreen() {
                         ? t('profile.delete_account_deleting')
                         : t('profile.delete_account_button')
                     }
-                    style={styles.deleteAccountAction}
+                    style={[styles.deleteAccountAction, isMobile && styles.mobileFullWidthAction]}
                     disabled={deleteAccount.isPending}
                     onPress={() => setShowDeleteAccountConfirm(true)}
                     variant="danger"
@@ -848,7 +878,13 @@ export default function ProfileScreen() {
                     <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
                   ) : (
                     recentPrivacyRequests.map((request) => (
-                      <View key={request.id} style={styles.privacyRequestRow}>
+                      <View
+                        key={request.id}
+                        style={[
+                          styles.privacyRequestRow,
+                          isMobile && styles.privacyRequestRowMobile,
+                        ]}
+                      >
                         <View style={styles.privacyRequestInfo}>
                           <Text style={styles.privacyRequestType}>
                             {getPrivacyRequestTypeLabel(request.requestType)}
@@ -872,13 +908,17 @@ export default function ProfileScreen() {
             <AnimatedSection
               delay={420}
               trigger={enterKey}
-              style={[styles.settingsPanel, styles.settingsPanelFooter]}
+              style={[
+                styles.settingsPanel,
+                styles.settingsPanelFooter,
+                isMobile && styles.settingsPanelMobile,
+              ]}
             >
               <AppButton
                 label={t('profile.logout')}
                 onPress={handleLogout}
                 variant="dangerSecondary"
-                style={styles.logoutAction}
+                style={[styles.logoutAction, isMobile && styles.mobileFullWidthAction]}
               />
 
               <View style={styles.footer}>
@@ -954,8 +994,10 @@ export default function ProfileScreen() {
         onRequestClose={handleCloseChildModePasscodeModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.passcodeModal}>
-            <View style={styles.passcodeModalHeader}>
+          <View style={[styles.passcodeModal, isMobile && styles.passcodeModalMobile]}>
+            <View
+              style={[styles.passcodeModalHeader, isMobile && styles.passcodeModalHeaderMobile]}
+            >
               <View style={styles.passcodeModalHeaderText}>
                 <Text style={styles.passcodeModalTitle}>
                   {t('profile.child_mode_exit_passcode_title')}
@@ -989,8 +1031,8 @@ export default function ProfileScreen() {
               </View>
             ) : null}
 
-            <View style={styles.exitPasscodeFields}>
-              <View style={styles.exitPasscodeField}>
+            <View style={[styles.exitPasscodeFields, isMobile && styles.exitPasscodeFieldsMobile]}>
+              <View style={[styles.exitPasscodeField, isMobile && styles.exitPasscodeFieldMobile]}>
                 <Text style={styles.label}>{t('profile.child_mode_exit_passcode_new')}</Text>
                 <TextInput
                   style={styles.pseudonymInput}
@@ -1002,7 +1044,7 @@ export default function ProfileScreen() {
                   maxLength={128}
                 />
               </View>
-              <View style={styles.exitPasscodeField}>
+              <View style={[styles.exitPasscodeField, isMobile && styles.exitPasscodeFieldMobile]}>
                 <Text style={styles.label}>{t('profile.child_mode_exit_passcode_confirm')}</Text>
                 <TextInput
                   style={styles.pseudonymInput}
@@ -1017,14 +1059,16 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.passcodeModalActions}>
+            <View
+              style={[styles.passcodeModalActions, isMobile && styles.passcodeModalActionsMobile]}
+            >
               <AppButton
                 label={t('common.cancel')}
                 onPress={handleCloseChildModePasscodeModal}
                 disabled={updateChildModeExitPasscode.isPending}
                 variant="secondary"
                 size="md"
-                style={styles.passcodeModalAction}
+                style={[styles.passcodeModalAction, isMobile && styles.mobileFullWidthAction]}
               />
               <AppButton
                 label={
@@ -1036,7 +1080,7 @@ export default function ProfileScreen() {
                 disabled={!canSaveChildModeExitPasscode}
                 loading={updateChildModeExitPasscode.isPending}
                 size="md"
-                style={styles.passcodeModalAction}
+                style={[styles.passcodeModalAction, isMobile && styles.mobileFullWidthAction]}
               />
             </View>
           </View>
@@ -1525,5 +1569,83 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.neutral[400],
+  },
+  contentMobile: {
+    paddingHorizontal: theme.spacing[3],
+    paddingTop: theme.spacing[4],
+    paddingBottom: theme.spacing[8],
+  },
+  headerMobile: {
+    marginBottom: theme.spacing[4],
+  },
+  profileLayoutMobile: {
+    flexDirection: 'column',
+    gap: theme.spacing[4],
+  },
+  profileAsideMobile: {
+    width: '100%',
+    position: 'relative',
+    top: 0,
+  },
+  profileAsideCardMobile: {
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+  },
+  settingsGridMobile: {
+    width: '100%',
+    flexDirection: 'column',
+    flexWrap: 'nowrap',
+    gap: theme.spacing[3],
+  },
+  settingsPanelMobile: {
+    width: '100%',
+    minWidth: 0,
+    flexBasis: 'auto',
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+  },
+  accountColumnsMobile: {
+    flexDirection: 'column',
+    gap: theme.spacing[4],
+  },
+  accountColumnMobile: {
+    width: '100%',
+    minWidth: 0,
+  },
+  exitPasscodeHeaderMobile: {
+    flexDirection: 'column',
+    gap: theme.spacing[3],
+  },
+  privacyActionsRowMobile: {
+    flexDirection: 'column',
+  },
+  privacyRequestRowMobile: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  passcodeModalMobile: {
+    maxWidth: '100%',
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+  },
+  passcodeModalHeaderMobile: {
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[4],
+  },
+  exitPasscodeFieldsMobile: {
+    flexDirection: 'column',
+    gap: theme.spacing[3],
+  },
+  exitPasscodeFieldMobile: {
+    width: '100%',
+    minWidth: 0,
+  },
+  passcodeModalActionsMobile: {
+    flexDirection: 'column',
+  },
+  mobileFullWidthAction: {
+    width: '100%',
+    minWidth: 0,
+    alignSelf: 'stretch',
   },
 });

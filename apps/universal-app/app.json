@@ -4,7 +4,7 @@
     "slug": "wondertales",
     "description": "Parent-managed AI storytelling for families, with child profiles, optional parent-provided reference photos, illustrated stories, narration, and parent-controlled sharing.",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "wondertales",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/icon.png",
