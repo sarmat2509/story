@@ -25,9 +25,8 @@ assert.doesNotMatch(ukHtml, /href="https:\/\/app\.wondertales\.com\/privacy"/);
 
 const esHtml = renderLandingHtml({ locale: 'es' });
 
-assert.match(esHtml, /<html lang="en">/);
-assert.match(esHtml, /Parent control and privacy from the first story/);
-assert.match(esHtml, /href="https:\/\/app\.wondertales\.com\/privacy"/);
-assert.doesNotMatch(esHtml, /href="https:\/\/app\.wondertales\.com\/es\/privacy"/);
+assert.match(esHtml, /<html lang="es">/);
+assert.match(esHtml, /Control parental y privacidad desde la primera historia/);
+assert.match(esHtml, /href="https:\/\/app\.wondertales\.com\/es\/privacy"/);
 
 console.log('renderLandingTrustLayer tests passed');
