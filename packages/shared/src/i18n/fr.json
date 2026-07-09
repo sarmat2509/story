@@ -4,6 +4,7 @@
     "create": "Créer",
     "cancel": "Annuler",
     "save": "Enregistrer",
+    "apply": "Appliquer",
     "delete": "Supprimer",
     "edit": "Modifier",
     "back": "Retour",
@@ -167,6 +168,7 @@
   },
   "library": {
     "title": "Bibliothèque",
+    "filters": "Filtres",
     "empty": "Vous n'avez pas encore d'histoires",
     "create_first": "Créez votre première histoire",
     "filter_age": "Filtrer par âge",
@@ -598,6 +600,10 @@
       "cta": "Aller au quiz"
     },
     "welcome_back": "Welcome back, {{name}}!",
+    "greeting_regular": "Ravi de vous voir, {{name}} !",
+    "greeting_regular_child": "Ravi de te voir, {{name}} !",
+    "greeting_returning": "Bon retour, {{name}} !",
+    "greeting_frequent": "Encore une histoire, {{name}} ?",
     "tagline": "What magical story shall we create today?",
     "stats": {
       "stories": "Stories",

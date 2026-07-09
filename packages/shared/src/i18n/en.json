@@ -4,6 +4,7 @@
     "create": "Create",
     "cancel": "Cancel",
     "save": "Save",
+    "apply": "Apply",
     "delete": "Delete",
     "edit": "Edit",
     "back": "Back",
@@ -174,6 +175,7 @@
   },
   "library": {
     "title": "Library",
+    "filters": "Filters",
     "empty": "You don't have any stories yet",
     "create_first": "Create your first story",
     "filter_age": "Filter by age",
@@ -1296,6 +1298,10 @@
   },
   "dashboard": {
     "welcome_back": "Welcome back, {{name}}!",
+    "greeting_regular": "Good to see you, {{name}}!",
+    "greeting_regular_child": "Good to see you, {{name}}!",
+    "greeting_returning": "Welcome back, {{name}}!",
+    "greeting_frequent": "Back for more stories, {{name}}!",
     "tagline": "What magical story shall we create today?",
     "story_corner": "Story corner",
     "featured_story_badge": "Continue reading",

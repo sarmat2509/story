@@ -4,6 +4,7 @@
     "create": "Создать",
     "cancel": "Отмена",
     "save": "Сохранить",
+    "apply": "Применить",
     "delete": "Удалить",
     "edit": "Редактировать",
     "back": "Назад",
@@ -174,6 +175,7 @@
   },
   "library": {
     "title": "Библиотека",
+    "filters": "Фильтры",
     "empty": "У вас пока нет историй",
     "create_first": "Создайте свою первую историю",
     "filter_age": "Фильтр по возрасту",
@@ -1281,6 +1283,10 @@
   },
   "dashboard": {
     "welcome_back": "С возвращением, {{name}}!",
+    "greeting_regular": "Рады видеть вас, {{name}}!",
+    "greeting_regular_child": "Рады видеть тебя, {{name}}!",
+    "greeting_returning": "С возвращением, {{name}}!",
+    "greeting_frequent": "Снова за историями, {{name}}!",
     "tagline": "Какую волшебную историю создадим сегодня?",
     "story_corner": "Уголок историй",
     "featured_story_badge": "Продолжить чтение",

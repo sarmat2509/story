@@ -4,6 +4,7 @@
     "create": "Crear",
     "cancel": "Cancelar",
     "save": "Guardar",
+    "apply": "Aplicar",
     "delete": "Eliminar",
     "edit": "Editar",
     "back": "Atrás",
@@ -167,6 +168,7 @@
   },
   "library": {
     "title": "Biblioteca",
+    "filters": "Filtros",
     "empty": "Aún no tienes historias",
     "create_first": "Crea tu primera historia",
     "filter_age": "Filtrar por edad",
@@ -1232,6 +1234,10 @@
       "cta": "Ir al quiz"
     },
     "welcome_back": "Welcome back, {{name}}!",
+    "greeting_regular": "Qué bueno verte, {{name}}!",
+    "greeting_regular_child": "Qué bueno verte, {{name}}!",
+    "greeting_returning": "Te damos la bienvenida de nuevo, {{name}}!",
+    "greeting_frequent": "Otra historia, {{name}}?",
     "tagline": "What magical story shall we create today?",
     "stats": {
       "stories": "Stories",

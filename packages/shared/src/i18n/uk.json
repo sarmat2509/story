@@ -4,6 +4,7 @@
     "create": "Створити",
     "cancel": "Скасувати",
     "save": "Зберегти",
+    "apply": "Застосувати",
     "delete": "Видалити",
     "edit": "Редагувати",
     "back": "Назад",
@@ -174,6 +175,7 @@
   },
   "library": {
     "title": "Бібліотека",
+    "filters": "Фільтри",
     "empty": "У вас ще немає історій",
     "create_first": "Створіть свою першу історію",
     "filter_age": "Фільтр за віком",
@@ -1296,6 +1298,10 @@
   },
   "dashboard": {
     "welcome_back": "Ласкаво просимо назад, {{name}}!",
+    "greeting_regular": "Раді бачити вас, {{name}}!",
+    "greeting_regular_child": "Раді бачити тебе, {{name}}!",
+    "greeting_returning": "Ласкаво просимо назад, {{name}}!",
+    "greeting_frequent": "Знову до історій, {{name}}!",
     "tagline": "Яку чарівну історію створимо сьогодні?",
     "story_corner": "Куточок історій",
     "featured_story_badge": "Продовжити читання",
