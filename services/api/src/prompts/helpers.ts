@@ -7,9 +7,14 @@
  */
 
 import type { StorySpec, PolicyProfile } from '../ai/types';
+import type { JsonSchema } from '../providers/base/JsonSchema';
 import { getLanguageFullDisplay, stripCharacterIdFromName, type Locale } from '@wondertales/shared';
 import { getTextStyleGuidance } from './image/styles';
 import { getContentPolicy } from './contentPolicy';
+import {
+  MAX_SCENE_IMAGE_CHARACTERS,
+  TARGET_SCENE_IMAGE_CHARACTERS,
+} from '../domain/story/sceneCharacterLimits';
 
 /**
  * Get full language display name from code
@@ -201,10 +206,12 @@ export function formatStructuredOutfitRules(
   const rules = [
     'OUTFITS:',
     '- Return a top-level outfits[] array. Each row has id, characterName, description.',
-    '- outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.',
+    '- Detailed wardrobe descriptions are ONLY for child/person/human characters. These rows drive outfit plate matching and dressed turnaround generation.',
+    '- For child/person/human characters, outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.',
+    '- Animal, imaginary, creature, object, vehicle, or environmental characters must use description exactly "natural appearance"; do not invent garment text for them.',
     '- Do not put face, hair, body, age, species, expression, personality, pose, or identity details in outfits[].description.',
     '- Every visual.sceneVisual.cameraComposition.characters[] row MUST include outfitId referencing one outfits[].id.',
-    '- Include one outfit row for every outfitId used by a physically present character. Creatures/animals may use description exactly "natural appearance"; still set outfitId.',
+    '- Include one outfit row for every outfitId used by a physically present character. Non-human rows are technical natural-appearance bindings only, not outfit-plate requests.',
   ];
 
   if (options.includeChangeRules) {
@@ -216,6 +223,40 @@ export function formatStructuredOutfitRules(
   }
 
   return rules.join('\n');
+}
+
+export function structuredOutfitsJsonSchema(): JsonSchema {
+  return {
+    type: 'array',
+    minItems: 1,
+    items: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'Short unique outfit id referenced by visual character rows.',
+        },
+        characterName: {
+          type: 'string',
+          description: 'Exact story character name that uses this outfit id.',
+        },
+        description: {
+          type: 'string',
+          description:
+            'Wardrobe-only English for child/person/human characters. Use exactly "natural appearance" for animal, imaginary, creature, object, vehicle, or environmental characters.',
+        },
+      },
+      required: ['id', 'characterName', 'description'],
+    },
+  };
+}
+
+export function structuredCameraCharacterOutfitIdJsonSchema(): JsonSchema {
+  return {
+    type: 'string',
+    description:
+      'Exact outfits[].id for this character in this shot. Detailed outfit rows are used only for child/person/human characters; non-human characters use a natural-appearance binding.',
+  };
 }
 
 export function formatStructuredSpeakerNameRules(
@@ -850,6 +891,10 @@ export function formatDirectorPhysicalReadabilityRules(): string {
     'Choose framing, camera angle, crop, and character placement so the anchor scene reads correctly at first glance.',
     'Do not use dramatic, atmospheric, or cinematic composition if it makes the illustration look like a different event than the one described in the text.',
     '',
+    'CONTACT GEOMETRY RULE:',
+    formatContactGeometryWriterRule(),
+    'Prefer concrete staging phrases such as "standing directly in front of the door, hand on the handle" or "leaning beside the porthole, face close to the glass".',
+    '',
     'BODY AND MATERIAL BEHAVIOR RULE:',
     'Character posture, fabric behavior, hair behavior, held objects, and environmental interaction must match the physical state of the scene.',
     'Body language and materials should react believably to movement, weather, water, gravity, terrain, and spatial context unless the text explicitly establishes a stylized exception.',
@@ -866,6 +911,13 @@ export function formatDirectorPhysicalReadabilityRules(): string {
     '- composition preserves the intended narrative meaning',
     '- continuity supports the scene without overriding it',
     '- the scene is immediately understandable without contradictory visual cues',
+  ].join('\n');
+}
+
+export function formatContactGeometryWriterRule(): string {
+  return [
+    'Object-contact actions require explicit physical staging in sceneVisual.cameraComposition.characters[].description: body position beside or in front of the fixed object, exact hand/arm/shoulder/face/body contact point, and the named handle, surface, window, door, panel, control, or affected object.',
+    'Character body placement stays close enough for natural contact, with the contact point visibly connected to the intended fixed object.',
   ].join('\n');
 }
 
@@ -939,6 +991,7 @@ export function formatDirectorImagePromptRules(): string {
     '',
     'SCENE FORMULA:',
     '- For each illustration, build sceneVisual as a clear visual combination of: subject + key visual traits + outfit + emotion + action + setting.',
+    `- ${formatSceneVisualStagingDeltaRule('sceneVisual.setting')}`,
     '- Put emotion and action where they are visible: expression, posture, gesture, gaze, and interaction with props or other characters.',
     '',
     'FROZEN MOMENT ONLY:',
@@ -1058,14 +1111,15 @@ export function formatDirectorWardrobeContract(params: { imagesPerStory: number 
   const n = params.imagesPerStory;
   const multi = n > 1;
   return [
-    'CRITICAL - Wardrobe JSON (same priority as environmentId — each character in the shot must cite outfits[].id):',
+    'CRITICAL - Wardrobe JSON (same priority as environmentId — each character row cites outfits[].id, but detailed wardrobe is human-only):',
     `- Your response includes "outfits" (array) and exactly ${n} illustration object(s). Each illustration's sceneVisual.cameraComposition.characters MUST be a non-empty array; EVERY row includes required fields name, description, and outfitId (non-empty string referencing outfits[].id).`,
     '- INVALID: any character row without outfitId, or an empty characters array. Same strictness as environmentId.',
     '- WORK ORDER (for EACH illustration):',
     '  1) List who is in the shot in sceneVisual.cameraComposition.characters (name + description for pose/action).',
     '  2) Ensure outfits[] has a row { id, characterName, description } for every outfitId you will cite.',
     "  3) On EACH character row, set outfitId = EXACT outfits[].id for this anchor moment (same spelling as in outfits[].characterName for that row's name).",
-    '- Humans: if default/reference clothes still fit the scene, outfits[].description may be exactly "natural appearance". Otherwise use detailed wardrobe-only English. Creatures/animals: outfits[].description "natural appearance" — still set outfitId on every character row.',
+    '- Child/person/human characters: if default/reference clothes still fit the scene, outfits[].description may be exactly "natural appearance". Otherwise use detailed wardrobe-only English.',
+    '- Animals, imaginary creatures, objects, vehicles, and environmental beings: outfits[].description must be exactly "natural appearance" — still set outfitId on every character row as a technical binding, but do not write garment text for them.',
     '- outfits[].description is GARMENTS ONLY. Never mention mannequins, dolls, wooden bodies, articulated limbs, hinge joints, peg joints, seam segmentation, blank heads, or display-figure anatomy.',
     '- Reuse the same outfitId across illustrations when the story keeps the same look; new id when clothes change.',
     '- SELF-CHECK: every character in the shot has outfitId set. Do not omit a co-star (e.g. second parent in the same boat).',
@@ -1168,6 +1222,12 @@ export function formatEnvironmentRules(): string {
 const SPATIAL_POSITION_RULE =
   'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
 
+export function formatSceneVisualStagingDeltaRule(
+  fieldName = 'sceneVisual.setting'
+): string {
+  return `${fieldName} must be a visual staging delta, not a plot summary: write 1-2 compact English sentences with concrete visible details beyond the environment plate: visible object state, material/color/light, hand/paw contact, body posture, gaze/expression, and foreground/background placement. If a fixed artifact reference is visible, include its REF_OBJ_* label plus 2-4 visible traits from the artifact description; avoid vague wording like "the object is now resting".`;
+}
+
 /**
  * Scene visual description rules (setting + cameraComposition + lighting).
  * Full version includes synchronization rules and good/bad examples.
@@ -1256,16 +1316,16 @@ export function formatSceneVisualRules(opts?: {
 }
 
 /**
- * Max 3 active characters per scene constraint.
+ * Target and hard cap: 1-3 active characters per scene illustration.
  */
 export function formatCharactersPerSceneRules(): string {
   return [
-    'CRITICAL - Characters Per Scene (max 3 active):',
-    '- Each scene should have AT MOST 3 characters physically present and actively participating in the action.',
-    '- If the story has more than 3 characters, rotate them: some characters go to another room, leave on an errand, stay behind, or arrive later. Write the plot so that each scene naturally focuses on 1-3 characters.',
+    `CRITICAL - Characters Per Scene (maximum ${MAX_SCENE_IMAGE_CHARACTERS} per illustration):`,
+    `- Each scene should have AT MOST ${TARGET_SCENE_IMAGE_CHARACTERS} characters physically present and actively participating in the action.`,
+    `- If the story has more than ${TARGET_SCENE_IMAGE_CHARACTERS} characters, rotate them: some characters go to another room, leave on an errand, stay behind, or arrive later. Write the plot so that each scene naturally focuses on 1-${TARGET_SCENE_IMAGE_CHARACTERS} characters.`,
     '- The protagonist (main child character) should be in almost every scene.',
     '- Other characters can be briefly MENTIONED (heard from another room, just left, remembered in dialogue) but should NOT be described as physically present and performing actions in the scene.',
-    '- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum 3.',
+    `- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum ${MAX_SCENE_IMAGE_CHARACTERS}. If more characters are present in the story beat, include the child/protagonist plus the two most important supporting characters for this illustration.`,
     '- Use EXACT character names as defined in the story',
     '- Structured JSON requires at least one cameraComposition.characters row with name, description, and outfitId. Design scenes so the illustrated moment includes at least one present character; pure scenery-only beats are not supported by the schema.',
   ].join('\n');

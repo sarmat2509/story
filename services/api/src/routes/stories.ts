@@ -357,7 +357,7 @@ const AudioGenerationSchema = z.object({
 });
 
 const GenerateFromPhotosSchema = z.object({
-  photos: z.array(z.string().url().min(1)).min(1).max(5),
+  photos: z.array(z.string().trim().min(1)).min(1).max(5),
   ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
   scenario: z.string(),
   language: LocaleSchema,

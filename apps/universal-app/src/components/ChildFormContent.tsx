@@ -358,6 +358,15 @@ export function ChildFormContent({
                   });
                 }
               },
+              onError: (error) => {
+                const message = getLocalizedApiError(
+                  t,
+                  error,
+                  'child_form.analysis_failed_message'
+                );
+                setErrors({ submit: message });
+                Alert.alert(t('child_form.analysis_failed_title'), message);
+              },
             }
           );
         });
@@ -375,6 +384,7 @@ export function ChildFormContent({
     i18n.language,
     isInline,
     photos,
+    t,
   ]);
 
   useEffect(() => {

@@ -6,7 +6,9 @@ import {
   getEnvironmentImageCacheRepository,
   getFeedbackRepository,
   getGraphicNovelRepository,
+  getImageValidationRepository,
   getOutfitPlateCacheRepository,
+  getSceneRepository,
   getStoryDirectorSceneRepository,
   getStoryEnvironmentCacheRepository,
   getStoryOutfitPlateCacheRepository,
@@ -25,18 +27,23 @@ import {
   listImageValidationsForStory,
 } from './imageValidationQueryService';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from './aiUsageService';
-import { normalizeOutfitPlateCharacterKey } from './outfitPlateService';
+import {
+  isPregeneratedOutfitPlateCatalogSource,
+  normalizeOutfitPlateCharacterKey,
+  requestedOutfitTextMatches,
+} from './outfitPlateService';
 import { incrementLandingRenderVersion } from '../ssr/storyCache';
 import { incrementPublicPageRenderVersion } from '../ssr/publicPageCache';
 import { getUserSubscription } from './planService';
 import { getUsageForPeriod } from './usageEventsService';
 import { readVendorStylePromptEnFromGenerationParams } from './ttsProsodyTaggingService';
-import type { Asset, AudioAsset } from '../db/schema';
+import type { Asset, AudioAsset, ImageValidationResultRow, NewAsset } from '../db/schema';
 import type { ImageValidationResult } from '../ai/types';
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { clearStoryAudioData, type ClearStoryAudioResult } from './storyAudioCleanupService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { computeValidationScore } from './storyOrchestrationService';
+import { refreshStoryCoverAssetForScene } from './storyCoverService';
 import { logger } from '../utils/logger';
 
 const PUBLIC_PRICING_CONFIG_RESOURCES = new Set<AdminConfigResource>([
@@ -73,25 +80,251 @@ function resolveAdminValidationScore(row: {
   validationStatus?: string | null;
   result: unknown;
 }): number | null {
-  if (typeof row.validationScore === 'number' && Number.isFinite(row.validationScore)) {
-    return row.validationScore;
-  }
   if (row.validationStatus === 'provider_blocked') {
     return null;
   }
-  if (!isStoredImageValidationResult(row.result)) {
-    return null;
+  if (typeof row.validationScore === 'number' && Number.isFinite(row.validationScore)) {
+    return row.validationScore;
+  }
+  if (isStoredImageValidationResult(row.result)) {
+    try {
+      return computeValidationScore(row.result);
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to compute admin image validation score');
+    }
+  }
+  return null;
+}
+
+type AdminValidationUsageEvent = {
+  provider: string;
+  operation: string;
+  model: string | null;
+  inputUnits: number | null;
+  outputUnits: number | null;
+  costUsd: number | null;
+  durationMs: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+  matchedDeltaMs?: number;
+};
+
+type AdminValidationUsageSummary = {
+  provider: string;
+  operation: string;
+  model: string | null;
+  inputUnits: number | null;
+  outputUnits: number | null;
+  costUsd: number | null;
+  durationMs: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  matchedDeltaMs: number;
+  eventCount: number;
+  operations: string[];
+};
+
+function usageNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function usageString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function usageMetadataMatchesValidation(
+  event: AdminValidationUsageEvent,
+  row: ImageValidationResultRow
+): boolean {
+  const metadata = event.metadata;
+  if (!metadata) return false;
+  if (usageString(metadata.usageTarget) !== 'image_validation') return false;
+
+  const subjectType = usageString(metadata.subjectType);
+  if (subjectType && subjectType !== row.subjectType) return false;
+
+  const attempt = usageNumber(metadata.attempt);
+  if (attempt != null && attempt !== row.attempt) return false;
+
+  const sceneIndex = usageNumber(metadata.sceneIndex);
+  if (sceneIndex != null && sceneIndex !== row.sceneIndex) return false;
+
+  const pageNumber = usageNumber(metadata.pageNumber);
+  if (row.pageNumber != null && pageNumber != null && pageNumber !== row.pageNumber) return false;
+
+  const panelIndex = usageNumber(metadata.panelIndex);
+  if (row.panelIndex != null && panelIndex != null && panelIndex !== row.panelIndex) return false;
+
+  const panelId = usageString(metadata.panelId);
+  if (row.panelId && panelId && panelId !== row.panelId) return false;
+
+  if (row.subjectType === 'graphic_novel_panel') {
+    return pageNumber === row.pageNumber && panelIndex === row.panelIndex;
   }
 
-  try {
-    return computeValidationScore(row.result);
-  } catch (error) {
-    logger.warn({ err: error }, 'Failed to compute fallback admin image validation score');
-    return null;
+  return sceneIndex === row.sceneIndex && attempt === row.attempt;
+}
+
+function isImageValidationUsageEvent(event: AdminValidationUsageEvent): boolean {
+  return event.operation.startsWith('image_validation');
+}
+
+function selectValidationUsageEvents(
+  row: ImageValidationResultRow,
+  events: AdminValidationUsageEvent[]
+): AdminValidationUsageEvent[] {
+  const validationEvents = events.filter((event) => {
+    if (!isImageValidationUsageEvent(event)) return false;
+    if (row.visionModel && event.model && event.model !== row.visionModel) return false;
+    const deltaMs = Math.abs(event.createdAt.getTime() - row.createdAt.getTime());
+    return deltaMs <= 5 * 60 * 1000;
+  });
+  const metadataMatches = validationEvents.filter((event) =>
+    usageMetadataMatchesValidation(event, row)
+  );
+  if (metadataMatches.length > 0) return metadataMatches;
+
+  const previousEvents = validationEvents.filter(
+    (event) => event.createdAt.getTime() <= row.createdAt.getTime()
+  );
+  const fallbackPool = previousEvents.length > 0 ? previousEvents : validationEvents;
+  if (fallbackPool.length === 0) return [];
+
+  return [
+    fallbackPool.reduce((best, event) => {
+      const bestDelta = Math.abs(best.createdAt.getTime() - row.createdAt.getTime());
+      const eventDelta = Math.abs(event.createdAt.getTime() - row.createdAt.getTime());
+      return eventDelta < bestDelta ? event : best;
+    }),
+  ];
+}
+
+function singleOrMultiple(values: Array<string | null>, multipleLabel: string): string | null {
+  const unique = [...new Set(values.filter((value): value is string => !!value))];
+  if (unique.length === 0) return null;
+  return unique.length === 1 ? unique[0] : multipleLabel;
+}
+
+function sumNullable(values: Array<number | null>): number | null {
+  const present = values.filter((value): value is number => typeof value === 'number');
+  if (present.length === 0) return null;
+  return present.reduce((sum, value) => sum + value, 0);
+}
+
+function serializeAdminValidationUsage(
+  row: ImageValidationResultRow,
+  events: AdminValidationUsageEvent[]
+): AdminValidationUsageSummary | null {
+  const selected = selectValidationUsageEvents(row, events);
+  if (selected.length === 0) return null;
+
+  const operations = [...new Set(selected.map((event) => event.operation))];
+  const firstCreatedAt = selected.reduce((earliest, event) =>
+    event.createdAt.getTime() < earliest.createdAt.getTime() ? event : earliest
+  ).createdAt;
+  const minDeltaMs = Math.min(
+    ...selected.map((event) =>
+      event.matchedDeltaMs != null
+        ? event.matchedDeltaMs
+        : Math.abs(event.createdAt.getTime() - row.createdAt.getTime())
+    )
+  );
+  const costUsd = sumNullable(selected.map((event) => event.costUsd));
+
+  return {
+    provider: singleOrMultiple(selected.map((event) => event.provider), 'multiple') ?? 'n/a',
+    operation:
+      selected.length === 1 ? selected[0].operation : `${selected.length} image_validation passes`,
+    model: singleOrMultiple(selected.map((event) => event.model), 'multiple'),
+    inputUnits: sumNullable(selected.map((event) => event.inputUnits)),
+    outputUnits: sumNullable(selected.map((event) => event.outputUnits)),
+    costUsd: costUsd != null ? Math.round(costUsd * 1e8) / 1e8 : null,
+    durationMs: sumNullable(selected.map((event) => event.durationMs)),
+    metadata: {
+      matchMode: selected.some((event) => usageMetadataMatchesValidation(event, row))
+        ? 'metadata'
+        : 'nearest',
+      events: selected.map((event) => ({
+        provider: event.provider,
+        operation: event.operation,
+        model: event.model,
+        inputUnits: event.inputUnits,
+        outputUnits: event.outputUnits,
+        costUsd: event.costUsd,
+        durationMs: event.durationMs,
+        metadata: event.metadata,
+        createdAt: event.createdAt.toISOString(),
+      })),
+    },
+    createdAt: firstCreatedAt.toISOString(),
+    matchedDeltaMs: Math.round(minDeltaMs),
+    eventCount: selected.length,
+    operations,
+  };
+}
+
+function isRejectedValidationStoragePath(storagePath: string): boolean {
+  return storagePath.split('/').includes('rejected');
+}
+
+function validationDeduplicationKey(row: ImageValidationResultRow): string {
+  return [
+    row.storyId,
+    row.sceneIndex,
+    row.attempt,
+    row.validationStatus ?? '',
+    row.visionModel ?? '',
+    resolveAdminValidationScore(row) ?? 'null',
+  ].join('|');
+}
+
+function hideRejectedBestOfFailedValidationDuplicates(
+  rows: ImageValidationResultRow[]
+): ImageValidationResultRow[] {
+  const acceptedKeys = new Set(
+    rows
+      .filter((row) => !isRejectedValidationStoragePath(row.imageStoragePath))
+      .map(validationDeduplicationKey)
+  );
+
+  return rows.filter((row) => {
+    if (!isRejectedValidationStoragePath(row.imageStoragePath)) return true;
+    return !acceptedKeys.has(validationDeduplicationKey(row));
+  });
+}
+
+export class AdminValidationApplyError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number = 400
+  ) {
+    super(message);
+    this.name = 'AdminValidationApplyError';
   }
 }
 
 type AdminImageTargetKind = 'scene' | 'graphic_novel_page' | 'none';
+
+type AdminSceneValidationCandidateScore = {
+  row: ImageValidationResultRow;
+  score: number;
+};
+
+type AdminSceneValidationCandidateSummary = {
+  id: string;
+  attempt: number;
+  imageStoragePath: string;
+  score: number;
+  validationStatus: string;
+  missingCharacters: string[];
+  selected: boolean;
+  createdAt: string;
+};
 
 type AdminStorySceneSource = {
   sceneId?: unknown;
@@ -121,6 +354,10 @@ function adminImageValidationImageUrl(validationId: string): string {
   return `/api/v1/admin/image-validations/${validationId}/image`;
 }
 
+function publicAssetUrl(storagePath: string): string {
+  return `/api/v1/assets/${storagePath}`;
+}
+
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
@@ -131,15 +368,109 @@ function normalizeAssetPath(value: unknown): string | null {
   return raw.replace(/^\/api\/v1\/assets\//, '');
 }
 
+function inferImageMimeType(storagePath: string): string {
+  const normalized = storagePath.toLowerCase().split('?')[0];
+  if (normalized.endsWith('.png')) return 'image/png';
+  if (normalized.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+function missingCharacterNames(row: ImageValidationResultRow): string[] {
+  if (!isStoredImageValidationResult(row.result)) return [];
+  return row.result.characters
+    .filter((character) => character.found === false)
+    .map((character) => character.name)
+    .filter((name) => typeof name === 'string' && name.trim().length > 0);
+}
+
+function compareAdminSceneValidationCandidates(
+  left: AdminSceneValidationCandidateScore,
+  right: AdminSceneValidationCandidateScore,
+  currentImageStoragePath: string | null
+): AdminSceneValidationCandidateScore {
+  if (left.score !== right.score) return left.score > right.score ? left : right;
+
+  const leftStoragePath = normalizeAssetPath(left.row.imageStoragePath) ?? left.row.imageStoragePath;
+  const rightStoragePath =
+    normalizeAssetPath(right.row.imageStoragePath) ?? right.row.imageStoragePath;
+  const leftIsCurrent = leftStoragePath === currentImageStoragePath;
+  const rightIsCurrent = rightStoragePath === currentImageStoragePath;
+  if (leftIsCurrent !== rightIsCurrent) return leftIsCurrent ? left : right;
+
+  const leftRejected = isRejectedValidationStoragePath(left.row.imageStoragePath);
+  const rightRejected = isRejectedValidationStoragePath(right.row.imageStoragePath);
+  if (leftRejected !== rightRejected) return leftRejected ? right : left;
+
+  return left.row.createdAt.getTime() >= right.row.createdAt.getTime() ? left : right;
+}
+
+async function ensureAssetForAdminSceneValidationCandidate(params: {
+  row: ImageValidationResultRow;
+  sceneDbId: string;
+  score: number;
+}): Promise<Asset> {
+  const storagePath = normalizeAssetPath(params.row.imageStoragePath) ?? params.row.imageStoragePath;
+  const assetRepo = getAssetRepository();
+  const existing = await assetRepo.findByStoragePath(storagePath);
+
+  if (existing) {
+    if (existing.storyId !== params.row.storyId || existing.assetType !== 'image') {
+      throw new AdminValidationApplyError('Validation image is linked to an incompatible asset', 409);
+    }
+    if (existing.sceneId && existing.sceneId !== params.sceneDbId) {
+      throw new AdminValidationApplyError('Validation image asset belongs to another scene', 409);
+    }
+
+    const patch: Partial<NewAsset> = {};
+    if (!existing.sceneId) patch.sceneId = params.sceneDbId;
+    if (!existing.storageUrl) patch.storageUrl = publicAssetUrl(storagePath);
+    if (existing.status !== 'completed') patch.status = 'completed';
+    if (Object.keys(patch).length > 0) {
+      await assetRepo.update(existing.id, patch);
+      return { ...existing, ...patch };
+    }
+    return existing;
+  }
+
+  let imageBuffer: Buffer;
+  try {
+    imageBuffer = await getAssetStorageService().getAssetByPath(storagePath);
+  } catch (error) {
+    throw new AdminValidationApplyError('Validation image file not found in storage', 404);
+  }
+
+  return assetRepo.create({
+    storyId: params.row.storyId,
+    sceneId: params.sceneDbId,
+    assetType: 'image',
+    storagePath,
+    storageUrl: publicAssetUrl(storagePath),
+    signedUrl: null,
+    signedUrlExpiresAt: null,
+    mimeType: inferImageMimeType(storagePath),
+    fileSizeBytes: imageBuffer.length,
+    generationParams: {
+      kind: 'admin_applied_validation_candidate',
+      source: 'image_validation_results',
+      validationId: params.row.id,
+      validationAttempt: params.row.attempt,
+      validationScore: params.score,
+      validationStatus: params.row.validationStatus,
+      createdFromRejectedCandidate: isRejectedValidationStoragePath(storagePath),
+    },
+    status: 'completed',
+  });
+}
+
 function objectOrNull(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
 
-function omitFullTextPrompt(value: unknown): unknown {
+function sanitizeAdminManifest(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(omitFullTextPrompt);
+    return value.map(sanitizeAdminManifest);
   }
   if (!value || typeof value !== 'object') {
     return value;
@@ -147,15 +478,19 @@ function omitFullTextPrompt(value: unknown): unknown {
 
   const sanitized: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (key === 'fullTextPrompt') continue;
-    sanitized[key] = omitFullTextPrompt(child);
+    if (key === 'base64Data' || key === 'imageData' || key === 'b64_json') {
+      sanitized[key] = '[omitted binary payload]';
+      continue;
+    }
+    sanitized[key] = sanitizeAdminManifest(child);
   }
   return sanitized;
 }
 
 function buildAdminImageRequestManifest(
   generationParams: unknown,
-  imageStoragePath: string | null
+  imageStoragePath: string | null,
+  layoutJson?: unknown
 ): Record<string, unknown> | null {
   const params = objectOrNull(generationParams);
   if (!params) return null;
@@ -163,7 +498,9 @@ function buildAdminImageRequestManifest(
   const manifestKey = (manifest: Record<string, unknown>) =>
     [
       manifest.operation,
+      manifest.operationType,
       manifest.mode,
+      manifest.providerRequestId,
       manifest.providerInteractionId,
       manifest.previousInteractionId,
     ]
@@ -178,15 +515,31 @@ function buildAdminImageRequestManifest(
       ? [objectOrNull(params.imageRequestManifest)!]
       : [];
   const repairRequestManifest = objectOrNull(params.repairRequestManifest);
+  const isEditRequestManifest = (manifest: Record<string, unknown>): boolean => {
+    const operation = String(manifest.operation ?? '').toLowerCase();
+    const operationType = String(manifest.operationType ?? '').toLowerCase();
+    return operationType === 'edit' || operation.includes('edit') || operation.includes('repair');
+  };
   if (
     repairRequestManifest &&
     !requestManifests.some((item) => manifestKey(item) === manifestKey(repairRequestManifest))
   ) {
     requestManifests.push(repairRequestManifest);
   }
+  const editRequestManifests = requestManifests.filter(isEditRequestManifest);
+  const initialRequestManifests = requestManifests.filter((item) => !isEditRequestManifest(item));
 
   const references = Array.isArray(params.referenceImages) ? params.referenceImages : [];
-  if (requestManifests.length === 0 && references.length === 0) return null;
+  const hasBubbleVisionAnalysis = !!objectOrNull(params.bubbleVisionAnalysis);
+  const hasLayoutJson = !!objectOrNull(layoutJson);
+  if (
+    requestManifests.length === 0 &&
+    references.length === 0 &&
+    !hasBubbleVisionAnalysis &&
+    !hasLayoutJson
+  ) {
+    return null;
+  }
 
   const artRepair = objectOrNull(params.artValidationRepair);
   return {
@@ -208,11 +561,24 @@ function buildAdminImageRequestManifest(
     validationRepairProviderInteractionId: params.validationRepairProviderInteractionId ?? null,
     selectedAttempt: artRepair?.selectedAttempt ?? null,
     selectedScore: artRepair?.selectedScore ?? null,
+    renderingMode: params.renderingMode ?? null,
+    layoutMode: params.layoutMode ?? null,
+    requestedPanelCount: params.requestedPanelCount ?? null,
+    planningLayoutId: params.planningLayoutId ?? null,
+    templateFamily: params.templateFamily ?? null,
+    panelImageSize: params.panelImageSize ?? null,
+    panelImageGeneration: sanitizeAdminManifest(params.panelImageGeneration ?? null),
+    bubblePlacement: sanitizeAdminManifest(params.bubblePlacement ?? null),
+    bubbleVisionAnalysis: sanitizeAdminManifest(params.bubbleVisionAnalysis ?? null),
+    artOnlyImageStoragePath: params.artOnlyImageStoragePath ?? null,
+    layoutJson: sanitizeAdminManifest(layoutJson ?? null),
     referenceCount: params.referenceCount ?? references.length,
     characterReferenceCount: params.characterReferenceCount ?? null,
     objectReferenceCount: params.objectReferenceCount ?? null,
-    requests: omitFullTextPrompt(requestManifests),
-    references: omitFullTextPrompt(references),
+    initialRequests: sanitizeAdminManifest(initialRequestManifests),
+    editRequests: sanitizeAdminManifest(editRequestManifests),
+    requests: sanitizeAdminManifest(requestManifests),
+    references: sanitizeAdminManifest(references),
   };
 }
 
@@ -595,6 +961,11 @@ export async function listAdminImageValidations(params: { limit: number; offset:
       id: row.id,
       storyId: row.storyId,
       sceneIndex: row.sceneIndex,
+      subjectType: row.subjectType,
+      pageNumber: row.pageNumber,
+      panelIndex: row.panelIndex,
+      panelId: row.panelId,
+      cropRect: row.cropRect,
       attempt: row.attempt,
       imageStoragePath: row.imageStoragePath,
       imageUrl: adminImageValidationImageUrl(row.id),
@@ -614,8 +985,8 @@ export async function getAdminImageValidation(id: string) {
   const row = await getImageValidationById(id);
   if (!row) return null;
 
-  const [matchedUsage, story] = await Promise.all([
-    getAiUsageRepository().findNearestImageValidationUsage({
+  const [usageCandidates, story] = await Promise.all([
+    getAiUsageRepository().listImageValidationUsageCandidates({
       storyId: row.storyId,
       model: row.visionModel,
       createdAt: row.createdAt,
@@ -652,6 +1023,11 @@ export async function getAdminImageValidation(id: string) {
     imageTargetKind: target.imageTargetKind,
     graphicNovelPageNumber: target.graphicNovelPageNumber,
     mixedStoryScreenOrder: target.mixedStoryScreenOrder,
+    subjectType: row.subjectType,
+    pageNumber: row.pageNumber,
+    panelIndex: row.panelIndex,
+    panelId: row.panelId,
+    cropRect: row.cropRect,
     attempt: row.attempt,
     imageStoragePath: row.imageStoragePath,
     imageUrl: adminImageValidationImageUrl(row.id),
@@ -661,22 +1037,114 @@ export async function getAdminImageValidation(id: string) {
     requestManifest: row.requestManifest,
     providerError: row.providerError,
     result: row.result,
-    usage: matchedUsage
-      ? {
-          provider: matchedUsage.provider,
-          operation: matchedUsage.operation,
-          model: matchedUsage.model,
-          inputUnits: matchedUsage.inputUnits,
-          outputUnits: matchedUsage.outputUnits,
-          costUsd:
-            matchedUsage.costUsd != null ? Math.round(matchedUsage.costUsd * 1e8) / 1e8 : null,
-          durationMs: matchedUsage.durationMs,
-          metadata: matchedUsage.metadata,
-          createdAt: matchedUsage.createdAt.toISOString(),
-          matchedDeltaMs: matchedUsage.matchedDeltaMs,
-        }
-      : null,
+    usage: serializeAdminValidationUsage(row, usageCandidates),
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function applyBestAdminSceneImageValidationCandidate(id: string) {
+  const anchor = await getImageValidationById(id);
+  if (!anchor) {
+    throw new AdminValidationApplyError('Validation not found', 404);
+  }
+
+  const story = await getStoryRepository().findById(anchor.storyId);
+  if (!story) {
+    throw new AdminValidationApplyError('Story not found', 404);
+  }
+
+  const metadata = (story.metadata ?? {}) as { storyFormat?: unknown };
+  const storyFormat = typeof metadata.storyFormat === 'string' ? metadata.storyFormat : null;
+  if (storyFormat === 'graphic_novel' || storyFormat === 'mixed_story') {
+    throw new AdminValidationApplyError(
+      'Best score apply is only available for regular story scene validations',
+      400
+    );
+  }
+
+  const scene = await getSceneRepository().findByStoryAndSceneId(anchor.storyId, anchor.sceneIndex);
+  if (!scene) {
+    throw new AdminValidationApplyError('Scene not found for validation', 404);
+  }
+
+  const currentImageStoragePath = normalizeAssetPath(scene.imageUrl) ?? scene.imageUrl ?? null;
+  const rows = await getImageValidationRepository().listAllByStoryId(anchor.storyId);
+  const scoredCandidates = rows
+    .filter((row) => row.sceneIndex === anchor.sceneIndex)
+    .filter((row) => row.validationStatus !== 'provider_blocked')
+    .map((row): AdminSceneValidationCandidateScore | null => {
+      const score = resolveAdminValidationScore(row);
+      return score == null ? null : { row, score };
+    })
+    .filter((candidate): candidate is AdminSceneValidationCandidateScore => candidate != null);
+
+  if (scoredCandidates.length === 0) {
+    throw new AdminValidationApplyError('No scored validation candidates found for scene', 404);
+  }
+
+  const best = scoredCandidates.reduce((selected, candidate) =>
+    compareAdminSceneValidationCandidates(selected, candidate, currentImageStoragePath)
+  );
+  const bestStoragePath =
+    normalizeAssetPath(best.row.imageStoragePath) ?? best.row.imageStoragePath;
+  const selectedAsset = await ensureAssetForAdminSceneValidationCandidate({
+    row: best.row,
+    sceneDbId: scene.id,
+    score: best.score,
+  });
+  const changed = currentImageStoragePath !== bestStoragePath;
+
+  if (changed) {
+    await getSceneRepository().update(scene.id, {
+      imageUrl: bestStoragePath,
+    });
+  }
+
+  await refreshStoryCoverAssetForScene(anchor.storyId, scene.id, selectedAsset.id);
+
+  const candidates: AdminSceneValidationCandidateSummary[] = scoredCandidates
+    .map((candidate) => ({
+      id: candidate.row.id,
+      attempt: candidate.row.attempt,
+      imageStoragePath:
+        normalizeAssetPath(candidate.row.imageStoragePath) ?? candidate.row.imageStoragePath,
+      score: candidate.score,
+      validationStatus: candidate.row.validationStatus,
+      missingCharacters: missingCharacterNames(candidate.row),
+      selected: candidate.row.id === best.row.id,
+      createdAt: candidate.row.createdAt.toISOString(),
+    }))
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      if (left.attempt !== right.attempt) return left.attempt - right.attempt;
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    });
+
+  logger.info(
+    {
+      storyId: anchor.storyId,
+      sceneIndex: anchor.sceneIndex,
+      validationId: id,
+      selectedValidationId: best.row.id,
+      selectedScore: best.score,
+      previousImageStoragePath: currentImageStoragePath,
+      selectedImageStoragePath: bestStoragePath,
+      changed,
+    },
+    'Admin applied best scene validation candidate'
+  );
+
+  return {
+    storyId: anchor.storyId,
+    sceneIndex: anchor.sceneIndex,
+    previousImageStoragePath: currentImageStoragePath,
+    selectedValidationId: best.row.id,
+    selectedAttempt: best.row.attempt,
+    selectedScore: best.score,
+    selectedImageStoragePath: bestStoragePath,
+    selectedAssetId: selectedAsset.id,
+    compared: candidates,
+    changed,
   };
 }
 
@@ -754,6 +1222,17 @@ function serializeAdminMapTileAsset(asset: Asset | null) {
   };
 }
 
+function readAdminTextValidation(policyChecks: unknown): Record<string, unknown> | null {
+  if (!policyChecks || typeof policyChecks !== 'object' || Array.isArray(policyChecks)) {
+    return null;
+  }
+  const value = (policyChecks as Record<string, unknown>).textValidation;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 export async function listAdminDirectorScenes(storyId: string) {
   const story = await getStoryRepository().findById(storyId);
   if (!story) return null;
@@ -774,6 +1253,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     mapTile?: unknown;
     mapTileAssetId?: unknown;
   };
+  const textValidation = readAdminTextValidation(story.policyChecks);
   const storyFormat = typeof metadata.storyFormat === 'string' ? metadata.storyFormat : null;
   const mapTileAssetId =
     typeof metadata.mapTileAssetId === 'string' && metadata.mapTileAssetId.trim()
@@ -787,6 +1267,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     validationsResult,
     costUsdRaw,
     costBreakdown,
+    aiUsageEvents,
     cacheStats,
     finalAudio,
     mapTileAssetById,
@@ -799,6 +1280,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     listImageValidationsForStory(storyId, 500, 0),
     getStoryCost(storyId),
     getStoryCostBreakdown(storyId),
+    getAiUsageRepository().listByStoryId(storyId),
     getStoryCacheStats(storyId),
     assetRepo.findFinalCompletedAudioByStoryId(storyId),
     mapTileAssetId ? assetRepo.findById(mapTileAssetId) : Promise.resolve(null),
@@ -823,12 +1305,24 @@ export async function listAdminDirectorScenes(storyId: string) {
     environmentImageUrlById.set(mapping.storyEnvironmentId, `/api/v1/assets/${cache.storagePath}`);
   }
 
-  const outfitImageUrlByKey = new Map<string, string>();
+  const outfitImageByKey = new Map<
+    string,
+    {
+      imageUrl: string;
+      requestedOutfitText: string | null;
+      cacheOutfitText: string;
+    }
+  >();
   const outfitCacheById = new Map(outfitCaches.map((item) => [item.id, item]));
   for (const mapping of storyOutfitMappings) {
     const cache = outfitCacheById.get(mapping.cacheId);
-    if (!cache || outfitImageUrlByKey.has(mapping.characterKey)) continue;
-    outfitImageUrlByKey.set(mapping.characterKey, `/api/v1/assets/${cache.storagePath}`);
+    if (!cache || outfitImageByKey.has(mapping.characterKey)) continue;
+    if (!isPregeneratedOutfitPlateCatalogSource(cache.catalogSource)) continue;
+    outfitImageByKey.set(mapping.characterKey, {
+      imageUrl: `/api/v1/assets/${cache.storagePath}`,
+      requestedOutfitText: mapping.requestedOutfitText ?? null,
+      cacheOutfitText: cache.outfitText,
+    });
   }
   const graphicNovelPages = await loadAdminGraphicNovelPages(storyId, storyFormat);
   const pageTargets = buildGraphicNovelPageTargets({
@@ -836,6 +1330,9 @@ export async function listAdminDirectorScenes(storyId: string) {
     storyScenes,
     pages: graphicNovelPages,
   });
+  const visibleValidationRows = hideRejectedBestOfFailedValidationDuplicates(
+    validationsResult.items
+  );
   const sceneImageBySceneIndex = new Map<number, (typeof completedSceneImages)[number]>();
   for (const image of completedSceneImages) {
     if (image.sceneNumber == null || sceneImageBySceneIndex.has(image.sceneNumber)) continue;
@@ -1001,6 +1498,7 @@ export async function listAdminDirectorScenes(storyId: string) {
       storyFormat,
       mapTile: metadata.mapTile ?? null,
       mapTileAsset: serializeAdminMapTileAsset(mapTileAsset),
+      textValidation,
       createdAt: story.createdAt.toISOString(),
     },
     storyScenes: storyScenes
@@ -1022,7 +1520,8 @@ export async function listAdminDirectorScenes(storyId: string) {
           : stringOrNull(graphicNovelPage?.imageUrl);
         const imageRequestManifest = buildAdminImageRequestManifest(
           sceneImage?.generationParams ?? graphicNovelPage?.generationParams,
-          imageStoragePath
+          imageStoragePath,
+          graphicNovelPage?.layoutJson
         );
         return {
           sceneIndex,
@@ -1050,7 +1549,7 @@ export async function listAdminDirectorScenes(storyId: string) {
       isBlockAnchor: item.isBlockAnchor,
       createdAt: item.createdAt.toISOString(),
     })),
-    validations: validationsResult.items.map((row) => {
+    validations: visibleValidationRows.map((row) => {
       const target = resolveAdminValidationTarget({
         storyFormat,
         sceneIndex: row.sceneIndex,
@@ -1065,6 +1564,11 @@ export async function listAdminDirectorScenes(storyId: string) {
         imageTargetKind: target.imageTargetKind,
         graphicNovelPageNumber: target.graphicNovelPageNumber,
         mixedStoryScreenOrder: target.mixedStoryScreenOrder,
+        subjectType: row.subjectType,
+        pageNumber: row.pageNumber,
+        panelIndex: row.panelIndex,
+        panelId: row.panelId,
+        cropRect: row.cropRect,
         attempt: row.attempt,
         imageStoragePath: row.imageStoragePath,
         imageUrl: adminImageValidationImageUrl(row.id),
@@ -1074,6 +1578,7 @@ export async function listAdminDirectorScenes(storyId: string) {
         requestManifest: row.requestManifest,
         providerError: row.providerError,
         result: row.result,
+        usage: serializeAdminValidationUsage(row, aiUsageEvents),
         createdAt: row.createdAt.toISOString(),
       };
     }),
@@ -1106,13 +1611,21 @@ export async function listAdminDirectorScenes(storyId: string) {
       const exactKey =
         normalizedCharacterName && item.id ? `${normalizedCharacterName}::${item.id}` : '';
       const fallbackKey = normalizedCharacterName || '';
+      const currentDescription = item.description ?? '';
+      const exactImage = exactKey ? outfitImageByKey.get(exactKey) : null;
+      const fallbackImage = fallbackKey ? outfitImageByKey.get(fallbackKey) : null;
+      const matchingImage = [exactImage, fallbackImage].find((candidate) => {
+        if (!candidate) return false;
+        return (
+          requestedOutfitTextMatches(candidate.requestedOutfitText, currentDescription) ||
+          (candidate.requestedOutfitText == null &&
+            requestedOutfitTextMatches(candidate.cacheOutfitText, currentDescription))
+        );
+      });
 
       return {
         ...item,
-        imageUrl:
-          (exactKey ? outfitImageUrlByKey.get(exactKey) : null) ??
-          (fallbackKey ? outfitImageUrlByKey.get(fallbackKey) : null) ??
-          null,
+        imageUrl: matchingImage?.imageUrl ?? null,
       };
     }),
     audio: {

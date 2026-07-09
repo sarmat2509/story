@@ -16,6 +16,7 @@
 
 import './loadEnvForScripts';
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Pool } from 'pg';
@@ -25,7 +26,10 @@ import config from '../config';
 import { getImageDomainService } from '../services/aiService';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
-import { runProductImageValidation } from '../domain/image/imageValidationRun';
+import {
+  runProductImageValidation,
+  runSegmentedProductImageValidation,
+} from '../domain/image/imageValidationRun';
 import { computeValidationScore } from '../services/storyOrchestrationService';
 import {
   buildImageEditSystemInstruction,
@@ -33,6 +37,7 @@ import {
   type ImageEditRepairIssue,
   type ImageEditRepairIssueKind,
 } from '../prompts/image/ImageEditPrompt';
+import type { ImageValidationIdentitySource } from '../prompts/image/ImageValidationPrompt';
 import type { SceneVisual } from '../services/types';
 import type { ImageValidationResult } from '../ai/types';
 import type { ITextProvider } from '../providers/base/ITextProvider';
@@ -43,12 +48,15 @@ const API_ROOT = path.resolve(__dirname, '../..');
 const UPLOADS_ROOT = path.join(API_ROOT, 'uploads');
 
 type IdentityRefMode = 'turnaround' | 'front';
+type ValidatorMode = 'segmented' | 'compact';
 
 type Args = {
   validationId: string;
   showPrompts: boolean;
   editRepair: boolean;
   identityRefMode: IdentityRefMode;
+  validatorMode: ValidatorMode;
+  useStoredReferences: boolean;
   replaceHeadForHair: boolean;
   forceHeadRepair: boolean;
   hairCropReference: boolean;
@@ -83,13 +91,73 @@ type StoryScene = {
 
 type ValidationReferenceImage = {
   characterName: string;
-  imageData: string;
+  imageData?: string;
+  fileUri?: string;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
-  referenceKind: 'identity' | 'outfit_plate' | 'hairstyle_crop';
+  referenceKind: 'identity' | 'hairstyle_crop';
+  identitySource?: ImageValidationIdentitySource;
   source: string;
-  outfitId?: string;
-  outfitText?: string;
   environmentId?: string;
+};
+
+type StoredValidationReferenceManifest = {
+  imageIndex?: number;
+  characterName?: string;
+  referenceKind?: string;
+  identitySource?: ImageValidationIdentitySource;
+  mimeType?: string;
+  delivery?: 'file_uri' | 'inline_base64' | string;
+  sha256?: string;
+};
+
+type StoredValidationManifest = {
+  validationSystemInstruction?: string;
+  operation?: string;
+  mode?: string;
+  includeLayoutChecks?: boolean;
+  includeBubbleChecks?: boolean;
+  imageOrder?: string[];
+  generatedImage?: {
+    sha256?: string;
+    mimeType?: string;
+    width?: number;
+    height?: number;
+    originalWidth?: number;
+    originalHeight?: number;
+    resized?: boolean;
+  };
+  references?: StoredValidationReferenceManifest[];
+};
+
+type ManifestReferenceCheck = {
+  imageIndex?: number;
+  characterName?: string;
+  referenceKind?: string;
+  expectedSha256?: string;
+  actualSha256?: string;
+  expectedMimeType?: string;
+  actualMimeType?: string;
+  expectedDelivery?: string;
+  actualDelivery?: string;
+  source?: string;
+  matched: boolean;
+  candidates?: Array<{
+    source: string;
+    sha256?: string;
+    mimeType?: string;
+    delivery: string;
+  }>;
+};
+
+type ManifestImageCheck = {
+  expectedSha256?: string;
+  actualSha256?: string;
+  expectedMimeType?: string;
+  actualMimeType?: string;
+  width?: number;
+  height?: number;
+  resized?: boolean;
+  matched: boolean;
 };
 
 function parseArgs(): Args {
@@ -98,6 +166,8 @@ function parseArgs(): Args {
   let showPrompts = false;
   let editRepair = false;
   let identityRefMode: IdentityRefMode = 'turnaround';
+  let validatorMode: ValidatorMode = 'segmented';
+  let useStoredReferences = true;
   let replaceHeadForHair = false;
   let forceHeadRepair = false;
   let hairCropReference = false;
@@ -111,6 +181,18 @@ function parseArgs(): Args {
       showPrompts = true;
     } else if (arg === '--edit-repair') {
       editRepair = true;
+    } else if ((arg === '--validator' || arg === '--validation-flow') && argv[i + 1]) {
+      const value = argv[++i];
+      if (value !== 'segmented' && value !== 'compact') {
+        throw new Error(`Invalid --validator value "${value}". Expected "segmented" or "compact".`);
+      }
+      validatorMode = value;
+    } else if (arg === '--segmented-validator') {
+      validatorMode = 'segmented';
+    } else if (arg === '--compact-validator' || arg === '--legacy-validator') {
+      validatorMode = 'compact';
+    } else if (arg === '--no-stored-references') {
+      useStoredReferences = false;
     } else if (arg === '--replace-head-for-hair' || arg === '--head-repair') {
       replaceHeadForHair = true;
     } else if (arg === '--force-head-repair') {
@@ -133,6 +215,8 @@ function parseArgs(): Args {
     showPrompts,
     editRepair,
     identityRefMode,
+    validatorMode,
+    useStoredReferences,
     replaceHeadForHair,
     forceHeadRepair,
     hairCropReference,
@@ -159,10 +243,15 @@ function extractStoragePath(value: string): string {
   const trimmed = value.trim();
   const apiAssetMarker = '/api/v1/assets/';
   const markerIndex = trimmed.indexOf(apiAssetMarker);
-  if (markerIndex >= 0) return trimmed.slice(markerIndex + apiAssetMarker.length);
-  if (trimmed.startsWith('uploads/')) return trimmed.slice('uploads/'.length);
-  if (/^(development|production|test)\//.test(trimmed)) return trimmed;
-  return trimmed;
+  const storagePath =
+    markerIndex >= 0
+      ? trimmed.slice(markerIndex + apiAssetMarker.length)
+      : trimmed.startsWith('uploads/')
+        ? trimmed.slice('uploads/'.length)
+        : trimmed;
+  const withoutQuery = storagePath.split('?')[0];
+  if (/^(development|production|test|llm_turnaround_cache)\//.test(withoutQuery)) return withoutQuery;
+  return withoutQuery;
 }
 
 function localUploadPath(storagePathOrUrl: string): string | null {
@@ -210,6 +299,93 @@ async function readImage(storagePathOrUrl: string): Promise<{
 
 function normalizeName(name: string): string {
   return stripCharacterIdFromName(name).trim().toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function parseStoredValidationManifest(value: unknown): StoredValidationManifest | null {
+  if (!isRecord(value)) return null;
+  return value as StoredValidationManifest;
+}
+
+function normalizeVisionMimeType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
+  const normalized = mimeType.trim().toLowerCase();
+  if (normalized === 'image/jpg' || normalized === 'image/jpeg') return 'image/jpeg';
+  if (normalized === 'image/webp') return 'image/webp';
+  if (normalized === 'image/gif') return 'image/gif';
+  return 'image/png';
+}
+
+function sha256Short(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+}
+
+async function prepareImageForValidationManifest(
+  buffer: Buffer,
+  mimeType: string,
+  maxSide: number
+): Promise<{
+  buffer: Buffer;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+  width?: number;
+  height?: number;
+  originalWidth?: number;
+  originalHeight?: number;
+  resized: boolean;
+}> {
+  const normalizedMimeType = normalizeVisionMimeType(mimeType);
+  const metadata = await sharp(buffer, { animated: false }).rotate().metadata();
+  const originalWidth = metadata.width;
+  const originalHeight = metadata.height;
+
+  if (
+    !originalWidth ||
+    !originalHeight ||
+    maxSide <= 0 ||
+    Math.max(originalWidth, originalHeight) <= maxSide
+  ) {
+    return {
+      buffer,
+      mimeType: normalizedMimeType,
+      width: originalWidth,
+      height: originalHeight,
+      originalWidth,
+      originalHeight,
+      resized: false,
+    };
+  }
+
+  let pipeline = sharp(buffer, { animated: false }).rotate().resize({
+    width: maxSide,
+    height: maxSide,
+    fit: 'inside',
+    withoutEnlargement: true,
+  });
+
+  let outputMimeType = normalizedMimeType;
+  if (normalizedMimeType === 'image/jpeg') {
+    pipeline = pipeline.jpeg({ quality: 85, mozjpeg: true });
+  } else if (normalizedMimeType === 'image/webp') {
+    pipeline = pipeline.webp({ quality: 85 });
+  } else {
+    pipeline = pipeline.png({ compressionLevel: 9 });
+    outputMimeType = 'image/png';
+  }
+
+  const resizedBuffer = await pipeline.toBuffer();
+  const resizedMeta = await sharp(resizedBuffer, { animated: false }).metadata();
+
+  return {
+    buffer: resizedBuffer,
+    mimeType: outputMimeType,
+    width: resizedMeta.width,
+    height: resizedMeta.height,
+    originalWidth,
+    originalHeight,
+    resized: true,
+  };
 }
 
 function kindForCharacter(type: string): 'human' | 'animal' | 'imaginary' {
@@ -285,7 +461,9 @@ async function buildReferenceImages(
     const char = characters.find((c) => normalizeName(c.name) === normalizeName(name));
     if (!char) continue;
 
-    const sourceUrl = turnaroundUrl(char, identityRefMode) || referencePhotoUrl(char);
+    const turnaround = turnaroundUrl(char, identityRefMode);
+    const photo = referencePhotoUrl(char);
+    const sourceUrl = turnaround || photo;
     if (!sourceUrl) continue;
 
     const image = await readImage(sourceUrl);
@@ -294,6 +472,7 @@ async function buildReferenceImages(
       imageData: image.buffer.toString('base64'),
       mimeType: image.mimeType,
       referenceKind: 'identity',
+      identitySource: turnaround ? 'turnaround' : 'reference_photo',
       source: image.source,
     });
   }
@@ -301,95 +480,273 @@ async function buildReferenceImages(
   return refs;
 }
 
-async function buildOutfitPlateReferenceImages(params: {
-  pool: Pool;
-  storyId: string;
-  scene: StoryScene;
-}): Promise<ValidationReferenceImage[]> {
+async function buildReferenceImagesFromGenerationParams(
+  generationParams: unknown,
+  expectedNames: string[]
+): Promise<ValidationReferenceImage[]> {
+  if (!isRecord(generationParams) || !Array.isArray(generationParams.referenceImages)) {
+    return [];
+  }
+
   const refs: ValidationReferenceImage[] = [];
-  const characterOutfitIds = params.scene.characterOutfitIds;
-  if (!characterOutfitIds || Object.keys(characterOutfitIds).length === 0) return refs;
+  const expectedNameSet = new Set(expectedNames.map(normalizeName));
+  const rawRefs = generationParams.referenceImages.filter(isRecord);
 
-  for (const [characterName, outfitId] of Object.entries(characterOutfitIds)) {
-    if (!outfitId?.trim() || /^o_.*natural/i.test(outfitId)) continue;
+  for (const raw of rawRefs) {
+    const characterName =
+      typeof raw.characterName === 'string' ? raw.characterName.trim() : '';
+    if (!characterName || !expectedNameSet.has(normalizeName(characterName))) continue;
 
-    const characterKey = `${normalizeName(characterName)}::${outfitId.trim()}`;
-    const exactEnvironmentQuery = params.scene.environmentId
-      ? await params.pool.query(
-          `
-            select sop.story_environment_id, opc.storage_path, opc.outfit_text
-            from story_outfit_plate_cache sop
-            join outfit_plate_cache opc on opc.id = sop.cache_id
-            where sop.story_id = $1
-              and sop.character_key = $2
-              and sop.story_environment_id = $3
-            order by sop.created_at desc
-            limit 1
-          `,
-          [params.storyId, characterKey, params.scene.environmentId]
-        )
-      : { rows: [] };
-    const fallbackQuery =
-      exactEnvironmentQuery.rows[0] ||
-      (
-        await params.pool.query(
-          `
-            select sop.story_environment_id, opc.storage_path, opc.outfit_text
-            from story_outfit_plate_cache sop
-            join outfit_plate_cache opc on opc.id = sop.cache_id
-            where sop.story_id = $1
-              and sop.character_key = $2
-            order by sop.created_at desc
-            limit 1
-          `,
-          [params.storyId, characterKey]
-        )
-      ).rows[0];
-    const row = fallbackQuery as
-      | {
-          story_environment_id: string;
-          storage_path: string;
-          outfit_text: string;
-        }
-      | undefined;
-    if (!row?.storage_path) continue;
+    const source = typeof raw.source === 'string' ? raw.source : undefined;
+    const type = typeof raw.type === 'string' ? raw.type : undefined;
+    const isIdentityReference =
+      source === 'character_outfit_turnaround' ||
+      source === 'imaginary_friend' ||
+      source === 'child_reference' ||
+      source === 'character_reference' ||
+      type === 'dressed_turnaround_reference';
+    if (!isIdentityReference) continue;
 
-    const image = await readImage(row.storage_path);
+    const base64 =
+      typeof raw.base64 === 'string'
+        ? raw.base64
+        : typeof raw.base64Data === 'string'
+          ? raw.base64Data
+          : undefined;
+    const storagePath =
+      typeof raw.storagePath === 'string' && raw.storagePath.trim()
+        ? raw.storagePath.trim()
+        : undefined;
+    const url =
+      typeof raw.url === 'string' && raw.url.trim() && raw.url.trim() !== 'unknown'
+        ? raw.url.trim()
+        : undefined;
+    const fileUri =
+      typeof raw.fileUri === 'string' && raw.fileUri.trim() ? raw.fileUri.trim() : undefined;
+    const declaredMimeType =
+      typeof raw.mimeType === 'string' ? normalizeVisionMimeType(raw.mimeType) : undefined;
+
+    let imageData = base64;
+    let mimeType = declaredMimeType;
+    let sourceLabel = storagePath || url || fileUri || `generation_params:${characterName}`;
+
+    if (!imageData && (storagePath || url)) {
+      const image = await readImage(storagePath || url || '');
+      imageData = image.buffer.toString('base64');
+      mimeType = declaredMimeType || image.mimeType;
+      sourceLabel = image.source;
+    }
+
+    if (!imageData || !mimeType) continue;
+
+    const identitySource: ImageValidationIdentitySource =
+      source === 'character_outfit_turnaround' || type === 'dressed_turnaround_reference'
+        ? 'dressed_turnaround'
+        : 'turnaround';
+
     refs.push({
       characterName,
-      imageData: image.buffer.toString('base64'),
-      mimeType: image.mimeType,
-      referenceKind: 'outfit_plate',
-      source: image.source,
-      outfitId,
-      outfitText: row.outfit_text,
-      environmentId: row.story_environment_id,
+      imageData,
+      fileUri,
+      mimeType,
+      referenceKind: 'identity',
+      identitySource,
+      source: sourceLabel,
     });
   }
 
   return refs;
+}
+
+async function prepareReferenceManifestCheck(ref: ValidationReferenceImage): Promise<{
+  sha256?: string;
+  mimeType?: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+}> {
+  if (!ref.imageData) return {};
+  const prepared = await prepareImageForValidationManifest(
+    Buffer.from(ref.imageData, 'base64'),
+    ref.mimeType,
+    config.image.validationReferenceMaxSide
+  );
+  return {
+    sha256: sha256Short(prepared.buffer),
+    mimeType: prepared.mimeType,
+  };
+}
+
+async function buildGeneratedImageManifestCheck(params: {
+  imageData: Buffer;
+  mimeType: string;
+  manifest: StoredValidationManifest | null;
+  strict: boolean;
+}): Promise<ManifestImageCheck | null> {
+  const expected = params.manifest?.generatedImage;
+  if (!expected?.sha256) return null;
+
+  const prepared = await prepareImageForValidationManifest(
+    params.imageData,
+    params.mimeType,
+    config.image.validationSceneMaxSide
+  );
+  const check: ManifestImageCheck = {
+    expectedSha256: expected.sha256,
+    actualSha256: sha256Short(prepared.buffer),
+    expectedMimeType: expected.mimeType,
+    actualMimeType: prepared.mimeType,
+    width: prepared.width,
+    height: prepared.height,
+    resized: prepared.resized,
+    matched: expected.sha256 === sha256Short(prepared.buffer),
+  };
+
+  if (params.strict && !check.matched) {
+    throw new Error(
+      `Stored generated image hash mismatch: expected ${check.expectedSha256}, got ${check.actualSha256}`
+    );
+  }
+
+  return check;
+}
+
+async function alignReferencesToStoredManifest(params: {
+  candidates: ValidationReferenceImage[];
+  manifest: StoredValidationManifest | null;
+  strict: boolean;
+}): Promise<{ refs: ValidationReferenceImage[]; checks: ManifestReferenceCheck[] }> {
+  const storedRefs = params.manifest?.references
+    ?.filter((ref) => (ref.referenceKind ?? 'identity') === 'identity')
+    .slice()
+    .sort((a, b) => (a.imageIndex ?? 0) - (b.imageIndex ?? 0));
+
+  if (!storedRefs?.length) {
+    if (params.strict) {
+      throw new Error('Stored validation request_manifest.references is missing; cannot replay exact refs.');
+    }
+    return { refs: params.candidates, checks: [] };
+  }
+
+  const used = new Set<number>();
+  const refs: ValidationReferenceImage[] = [];
+  const checks: ManifestReferenceCheck[] = [];
+
+  for (const stored of storedRefs) {
+    const candidateIndexes = params.candidates
+      .map((candidate, index) => ({ candidate, index }))
+      .filter(({ candidate, index }) => {
+        if (used.has(index)) return false;
+        if (candidate.referenceKind !== 'identity') return false;
+        if (!stored.characterName) return true;
+        return normalizeName(candidate.characterName) === normalizeName(stored.characterName);
+      });
+
+    const preparedCandidates = await Promise.all(
+      candidateIndexes.map(async ({ candidate, index }) => {
+        const prepared = await prepareReferenceManifestCheck(candidate);
+        return {
+          candidate,
+          index,
+          sha256: prepared.sha256,
+          mimeType: prepared.mimeType,
+          delivery: candidate.fileUri ? 'file_uri' : 'inline_base64',
+        };
+      })
+    );
+
+    const expectedMime = stored.mimeType ? normalizeVisionMimeType(stored.mimeType) : undefined;
+    const selected =
+      preparedCandidates.find((item) => {
+        const shaMatches = stored.sha256 ? item.sha256 === stored.sha256 : true;
+        const mimeMatches = expectedMime ? item.mimeType === expectedMime : true;
+        const deliveryMatches = stored.delivery ? item.delivery === stored.delivery : true;
+        return shaMatches && mimeMatches && deliveryMatches;
+      }) ??
+      preparedCandidates.find((item) => {
+        const shaMatches = stored.sha256 ? item.sha256 === stored.sha256 : true;
+        const mimeMatches = expectedMime ? item.mimeType === expectedMime : true;
+        return shaMatches && mimeMatches;
+      });
+
+    if (!selected) {
+      checks.push({
+        imageIndex: stored.imageIndex,
+        characterName: stored.characterName,
+        referenceKind: stored.referenceKind ?? 'identity',
+        expectedSha256: stored.sha256,
+        expectedMimeType: expectedMime,
+        expectedDelivery: stored.delivery,
+        matched: false,
+        candidates: preparedCandidates.map((item) => ({
+          source: item.candidate.source,
+          sha256: item.sha256,
+          mimeType: item.mimeType,
+          delivery: item.delivery,
+        })),
+      });
+      continue;
+    }
+
+    used.add(selected.index);
+    const aligned: ValidationReferenceImage = {
+      ...selected.candidate,
+      characterName: stored.characterName || selected.candidate.characterName,
+      referenceKind: 'identity',
+      identitySource: stored.identitySource || selected.candidate.identitySource,
+    };
+    if (stored.delivery === 'inline_base64') {
+      delete aligned.fileUri;
+    }
+
+    const actualDelivery = aligned.fileUri ? 'file_uri' : 'inline_base64';
+    refs.push(aligned);
+    checks.push({
+      imageIndex: stored.imageIndex,
+      characterName: stored.characterName,
+      referenceKind: stored.referenceKind ?? 'identity',
+      expectedSha256: stored.sha256,
+      actualSha256: selected.sha256,
+      expectedMimeType: expectedMime,
+      actualMimeType: selected.mimeType,
+      expectedDelivery: stored.delivery,
+      actualDelivery,
+      source: aligned.source,
+      matched:
+        (!stored.sha256 || selected.sha256 === stored.sha256) &&
+        (!expectedMime || selected.mimeType === expectedMime) &&
+        (!stored.delivery || actualDelivery === stored.delivery),
+    });
+  }
+
+  const failedChecks = checks.filter((check) => !check.matched);
+  if (params.strict && failedChecks.length > 0) {
+    throw new Error(
+      `Could not reconstruct stored validation references: ${JSON.stringify(failedChecks, null, 2)}`
+    );
+  }
+
+  return { refs, checks };
 }
 
 function buildEditReferenceImages(refs: ValidationReferenceImage[]) {
-  return refs.map((ref) => ({
-    base64Data: ref.imageData,
-    mimeType: ref.mimeType,
-    characterName: ref.characterName,
-    source: ref.source,
-    referenceKind: ref.referenceKind === 'outfit_plate' ? ('object' as const) : ('character' as const),
-    instructionText:
-      ref.referenceKind === 'outfit_plate'
-        ? 'CLOTHES SOURCE. Use only the clothing and accessories from this reference. Do not use this image for face, hair, body, age, silhouette, pose, background, or scene layout. Do not draw the mannequin.'
-        : ref.referenceKind === 'hairstyle_crop'
+  return refs
+    .filter((ref): ref is ValidationReferenceImage & { imageData: string } => Boolean(ref.imageData))
+    .map((ref) => ({
+      base64Data: ref.imageData,
+      mimeType: ref.mimeType,
+      characterName: ref.characterName,
+      source: ref.source,
+      referenceKind: 'character' as const,
+      instructionText:
+        ref.referenceKind === 'hairstyle_crop'
           ? 'HAIRSTYLE SOURCE. Use this enlarged crop only for hairstyle structure and hair color zoning: hairline, parting, braids, ponytail/bun placement, natural/base-color regions, dyed/accent-color regions, and streak placement. Do not use this crop for clothing, body, pose, background, or scene layout.'
-        : 'PERSON SOURCE. Use this reference only for identity traits listed in the validator issues: hairstyle, face/head identity, age read, body proportions, silhouette, skin and hair palette, and stable marks.',
-  }));
+          : 'FULL CHARACTER REFERENCE. Use this image as the replacement source for the entire visible character, including identity and visible clothing/accessories.',
+    }));
 }
 
 async function createHairstyleCropReference(
   ref: ValidationReferenceImage
 ): Promise<ValidationReferenceImage | null> {
   try {
+    if (!ref.imageData) return null;
     const input = Buffer.from(ref.imageData, 'base64');
     const meta = await sharp(input, { animated: false }).rotate().metadata();
     if (!meta.width || !meta.height) return null;
@@ -545,8 +902,8 @@ async function buildTargetedEditRepairPlan(
   let selectedRaw = refs.filter((ref) => {
     const needs = needsByName.get(normalizeName(ref.characterName));
     if (!needs) return false;
-    if (ref.referenceKind === 'outfit_plate') return needs.outfit;
-    return needs.identity;
+    if (ref.referenceKind === 'hairstyle_crop') return needs.identity;
+    return needs.identity || needs.outfit;
   });
 
   const needsHairDetail = issues.some((issue) => issue.kind === 'hair' || issue.kind === 'head');
@@ -607,7 +964,6 @@ function buildExpectedCharacters(
       speciesSubtype: char?.subtype || undefined,
       // Current validator uses reference images as primary identity ground truth.
       description: hasRef ? undefined : char ? characterDescription(char) : name,
-      expectedOutfitForScene: undefined,
     };
   });
 }
@@ -658,6 +1014,19 @@ function writeJson(filePath: string, value: unknown) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
+function validationReferencePayload(refs: ValidationReferenceImage[]) {
+  return refs
+    .filter((ref) => ref.referenceKind === 'identity')
+    .map((ref) => ({
+      characterName: ref.characterName,
+      imageData: ref.imageData,
+      fileUri: ref.fileUri,
+      mimeType: ref.mimeType,
+      referenceKind: 'identity' as const,
+      identitySource: ref.identitySource,
+    }));
+}
+
 async function validateImage(params: {
   primary: ITextProvider;
   fallback?: ITextProvider;
@@ -670,31 +1039,38 @@ async function validateImage(params: {
   sceneIndex: number;
   attempt: number;
   operation: string;
+  validatorMode: ValidatorMode;
+  includeLayoutChecks?: boolean;
+  includeBubbleChecks?: boolean;
   usage: UsageMetadata[];
 }) {
-  const result = await runProductImageValidation(
-    params.primary,
-    {
-      imageData: params.imageData,
-      mimeType: params.mimeType,
-      expectedCharacters: params.expectedCharacters,
-      sceneVisual: params.sceneVisual,
-      referenceImages: params.refs,
-      logContext: {
-        storyId: params.storyId,
-        sceneId: params.sceneIndex,
-        attempt: params.attempt,
-      },
-      onUsage: (event) => params.usage.push(event),
+  const input = {
+    imageData: params.imageData,
+    mimeType: params.mimeType,
+    expectedCharacters: params.expectedCharacters,
+    sceneVisual: params.sceneVisual,
+    referenceImages: validationReferencePayload(params.refs),
+    includeLayoutChecks: params.includeLayoutChecks,
+    includeBubbleChecks: params.includeBubbleChecks,
+    logContext: {
+      storyId: params.storyId,
+      sceneId: params.sceneIndex,
+      attempt: params.attempt,
     },
-    {
-      visionModel: config.ai.validationModel,
-      fallbackTextProvider: params.fallback,
-      fallbackVisionModel: config.ai.openaiValidationModel,
-      operation: params.operation,
-      recordModeration: false,
-    }
-  );
+    onUsage: (event: UsageMetadata) => params.usage.push(event),
+  };
+  const options = {
+    visionModel: config.ai.validationModel,
+    fallbackTextProvider: params.fallback,
+    fallbackVisionModel: config.ai.openaiValidationModel,
+    operation: params.operation,
+    recordModeration: false,
+  };
+
+  const result =
+    params.validatorMode === 'segmented'
+      ? await runSegmentedProductImageValidation(params.primary, input, options)
+      : await runProductImageValidation(params.primary, input, options);
   const referenceNames = new Set(params.refs.map((ref) => normalizeName(ref.characterName)));
   return {
     result,
@@ -718,7 +1094,8 @@ async function main() {
     const validationRow = (
       await pool.query(
         `
-          select id, story_id, scene_index, attempt, image_storage_path, validation_score, vision_model
+          select id, story_id, scene_index, attempt, image_storage_path, validation_score, vision_model,
+                 request_manifest
           from image_validation_results
           where id = $1
         `,
@@ -733,6 +1110,7 @@ async function main() {
           image_storage_path: string;
           validation_score: number | null;
           vision_model: string | null;
+          request_manifest: unknown;
         }
       | undefined;
 
@@ -778,19 +1156,56 @@ async function main() {
     const characters = mergeCharacterRows(dbCharacters, storyRow.metadata);
 
     const targetImage = await readImage(validationRow.image_storage_path);
+    const storedManifest = parseStoredValidationManifest(validationRow.request_manifest);
+    const generatedImageManifestCheck = await buildGeneratedImageManifestCheck({
+      imageData: targetImage.buffer,
+      mimeType: targetImage.mimeType,
+      manifest: storedManifest,
+      strict: args.useStoredReferences,
+    });
     const expectedNames =
       typeof scene.sceneVisual.cameraComposition === 'string'
         ? []
         : scene.sceneVisual.cameraComposition.characters.map((char) => char.name);
-    const identityRefs = await buildReferenceImages(characters, expectedNames, args.identityRefMode);
-    const outfitPlateRefs = await buildOutfitPlateReferenceImages({
-      pool,
-      storyId: validationRow.story_id,
-      scene,
-    });
-    const refs = [...identityRefs, ...outfitPlateRefs];
+
+    const assetRow = (
+      await pool.query(
+        `
+          select generation_params
+          from assets
+          where story_id = $1 and storage_path = $2
+          order by created_at desc
+          limit 1
+        `,
+        [validationRow.story_id, extractStoragePath(validationRow.image_storage_path)]
+      )
+    ).rows[0] as { generation_params: unknown } | undefined;
+    const deliveredIdentityRefs = await buildReferenceImagesFromGenerationParams(
+      assetRow?.generation_params,
+      expectedNames
+    );
+    const currentCharacterRefs = await buildReferenceImages(
+      characters,
+      expectedNames,
+      args.identityRefMode
+    );
+    const candidateRefs = [...deliveredIdentityRefs, ...currentCharacterRefs];
+    const alignedRefs = args.useStoredReferences
+      ? await alignReferencesToStoredManifest({
+          candidates: candidateRefs,
+          manifest: storedManifest,
+          strict: true,
+        })
+      : { refs: currentCharacterRefs, checks: [] };
+    const refs = alignedRefs.refs;
     const referenceNames = new Set(refs.map((ref) => normalizeName(ref.characterName)));
     const expectedCharacters = buildExpectedCharacters(scene.sceneVisual, characters, referenceNames);
+    const includeLayoutChecks = storedManifest?.includeLayoutChecks === true;
+    const includeBubbleChecks = storedManifest?.includeBubbleChecks !== false;
+    const beforeValidationOperation =
+      args.validatorMode === 'segmented'
+        ? storedManifest?.operation || 'image_validation_segmented'
+        : 'image_validation_problem_recheck';
 
     const geminiKey = config.ai.geminiApiKey || process.env.GOOGLE_API_KEY || '';
     if (!geminiKey) {
@@ -826,8 +1241,21 @@ async function main() {
             imageSource: targetImage.source,
           },
           validator: {
+            mode: args.validatorMode,
             primaryModel: config.ai.validationModel,
             fallbackModel: fallback ? config.ai.openaiValidationModel : null,
+            useStoredReferences: args.useStoredReferences,
+            storedManifestOperation: storedManifest?.operation ?? null,
+            storedManifestMode: storedManifest?.mode ?? null,
+            includeLayoutChecks,
+            includeBubbleChecks,
+          },
+          manifestReplay: {
+            generatedImage: generatedImageManifestCheck,
+            referenceChecks: alignedRefs.checks,
+            candidateReferenceCount: candidateRefs.length,
+            deliveredReferenceCount: deliveredIdentityRefs.length,
+            currentCharacterReferenceCount: currentCharacterRefs.length,
           },
           editRepair: args.editRepair
             ? {
@@ -846,8 +1274,10 @@ async function main() {
             imageIndex: i + 2,
             characterName: ref.characterName,
             referenceKind: ref.referenceKind,
-            outfitId: ref.outfitId,
+            identitySource: ref.identitySource,
             mimeType: ref.mimeType,
+            delivery: ref.fileUri ? 'file_uri' : 'inline_base64',
+            hasFileUri: Boolean(ref.fileUri),
             source: ref.source,
           })),
         },
@@ -867,7 +1297,10 @@ async function main() {
       storyId: validationRow.story_id,
       sceneIndex: validationRow.scene_index,
       attempt: validationRow.attempt,
-      operation: 'image_validation_problem_recheck',
+      operation: beforeValidationOperation,
+      validatorMode: args.validatorMode,
+      includeLayoutChecks,
+      includeBubbleChecks,
       usage,
     });
 
@@ -875,7 +1308,7 @@ async function main() {
     console.log(JSON.stringify({ computedScore: before.computedScore, ...summarizeResult(before.result) }, null, 2));
 
     const manifest = before.result.requestManifest as
-      | { attempts?: Array<Record<string, unknown>> }
+      | { attempts?: Array<Record<string, unknown>>; passes?: Array<Record<string, unknown>> }
       | undefined;
     if (manifest?.attempts) {
       console.log('\n--- Attempt manifest ---');
@@ -889,6 +1322,10 @@ async function main() {
           2
         )
       );
+    }
+    if (manifest?.passes) {
+      console.log('\n--- Segmented pass manifest ---');
+      console.log(JSON.stringify(manifest.passes, null, 2));
     }
 
     if (usage.length > 0) {
@@ -913,7 +1350,8 @@ async function main() {
       selectedReferences: repairPlan.rawReferences.map((ref) => ({
         characterName: ref.characterName,
         referenceKind: ref.referenceKind,
-        outfitId: ref.outfitId,
+        identitySource: ref.identitySource,
+        delivery: ref.fileUri ? 'file_uri' : 'inline_base64',
         source: ref.source,
       })),
       manifest: repairPlan.manifest,
@@ -949,7 +1387,13 @@ async function main() {
       storyId: validationRow.story_id,
       sceneIndex: validationRow.scene_index,
       attempt: validationRow.attempt + 1,
-      operation: 'image_validation_problem_recheck_after_edit',
+      operation:
+        args.validatorMode === 'segmented'
+          ? `${beforeValidationOperation}_after_edit`
+          : 'image_validation_problem_recheck_after_edit',
+      validatorMode: args.validatorMode,
+      includeLayoutChecks,
+      includeBubbleChecks,
       usage: afterUsage,
     });
 
@@ -979,14 +1423,31 @@ async function main() {
           format: edited.format,
         },
       },
+      validator: {
+        mode: args.validatorMode,
+        useStoredReferences: args.useStoredReferences,
+        storedManifestOperation: storedManifest?.operation ?? null,
+        storedManifestMode: storedManifest?.mode ?? null,
+        includeLayoutChecks,
+        includeBubbleChecks,
+      },
+      manifestReplay: {
+        generatedImage: generatedImageManifestCheck,
+        referenceChecks: alignedRefs.checks,
+        candidateReferenceCount: candidateRefs.length,
+        deliveredReferenceCount: deliveredIdentityRefs.length,
+        currentCharacterReferenceCount: currentCharacterRefs.length,
+      },
       before: { computedScore: before.computedScore, ...summarizeResult(before.result) },
       after: { computedScore: after.computedScore, ...summarizeResult(after.result) },
       references: refs.map((ref, i) => ({
         imageIndex: i + 2,
         characterName: ref.characterName,
         referenceKind: ref.referenceKind,
-        outfitId: ref.outfitId,
+        identitySource: ref.identitySource,
         mimeType: ref.mimeType,
+        delivery: ref.fileUri ? 'file_uri' : 'inline_base64',
+        hasFileUri: Boolean(ref.fileUri),
         source: ref.source,
       })),
       repairPlan: {
@@ -994,7 +1455,7 @@ async function main() {
         selectedReferences: repairPlan.rawReferences.map((ref) => ({
           characterName: ref.characterName,
           referenceKind: ref.referenceKind,
-          outfitId: ref.outfitId,
+          identitySource: ref.identitySource,
           source: ref.source,
         })),
         manifest: repairPlan.manifest,

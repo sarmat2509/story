@@ -518,6 +518,311 @@ function testVisionPlacementAvoidsBubbleOverlap(): void {
   assert.equal(bubbles[1].overflow, false);
 }
 
+function testVisionPlacementAvoidsOverlapInNarrowPanel(): void {
+  const script = samplePageScript();
+  script.panels[0].dialogue = [
+    {
+      speaker: 'Aydragon',
+      text: 'The tree waited until someone showed care for its mystery.',
+    },
+    {
+      speaker: 'Petal',
+      text: 'Only a kind action can stop this sad whisper.',
+    },
+  ];
+  script.panels[0].visual.sceneVisual.cameraComposition = {
+    shot: 'narrow vertical two-shot, eye level',
+    characters: [
+      {
+        name: 'Aydragon',
+        position: 'lower_left_foreground',
+        anchor: { x: 0.23, y: 0.62 },
+        speechTarget: { x: 0.23, y: 0.52 },
+        description: 'lower left creature speaking from the tree root',
+      },
+      {
+        name: 'Petal',
+        position: 'lower_center_foreground',
+        anchor: { x: 0.5, y: 0.71 },
+        speechTarget: { x: 0.5, y: 0.62 },
+        description: 'small fairy hovering near the creature',
+      },
+    ],
+  };
+
+  const page = planGraphicNovelLayouts({ ageGroup: '6-8', pages: [script], randomSource: fixedRandom })[0];
+  page.panels[0].templatePanel.rect = {
+    x: 0.673177,
+    y: 0.464355,
+    width: 0.306641,
+    height: 0.520508,
+  };
+
+  const result = applyGraphicNovelBubbleVisionLayout(page, {
+    panels: [{
+      panelIndex: 1,
+      panelId: 'p1-1',
+      detectedCharacters: [
+        {
+          name: 'Aydragon',
+          mouthCenter: { x: 0.23, y: 0.525 },
+          faceCenter: { x: 0.23, y: 0.515 },
+          headCenter: { x: 0.23, y: 0.515 },
+          confidence: 1,
+        },
+        {
+          name: 'Petal',
+          mouthCenter: { x: 0.5, y: 0.62 },
+          faceCenter: { x: 0.5, y: 0.61 },
+          headCenter: { x: 0.5, y: 0.61 },
+          confidence: 1,
+        },
+      ],
+      emptyZones: [
+        {
+          x: 0.65,
+          y: 0.1,
+          width: 0.3,
+          height: 0.3,
+          confidence: 0.8,
+          description: 'upper right tree background',
+        },
+        {
+          x: 0.05,
+          y: 0.1,
+          width: 0.3,
+          height: 0.2,
+          confidence: 0.7,
+          description: 'upper left tree background',
+        },
+      ],
+      occupiedZones: [
+        {
+          x: 0.05,
+          y: 0.45,
+          width: 0.35,
+          height: 0.75,
+          confidence: 1,
+          kind: 'character',
+          description: 'Aydragon body',
+        },
+        {
+          x: 0.4,
+          y: 0.48,
+          width: 0.35,
+          height: 0.75,
+          confidence: 1,
+          kind: 'character',
+          description: 'Petal body',
+        },
+      ],
+    }],
+  });
+
+  const bubbles = result.page.panels[0].bubbles;
+  assert.equal(overlapArea(bubbles[0].rect, bubbles[1].rect), 0, 'narrow panel bubbles should not overlap');
+  assert.ok(
+    Math.abs(rectCenter(bubbles[0].rect).y - rectCenter(bubbles[1].rect).y) > 0.045,
+    'narrow panel bubbles should be vertically separated when they cannot fit side-by-side'
+  );
+}
+
+function testVisionPlacementPreservesVerticalTargetOrder(): void {
+  const script = samplePageScript();
+  script.panels[0].dialogue = [
+    { speaker: 'Mira', text: 'The glow starts up here.' },
+    { speaker: 'Leo', text: 'And the trail continues below.' },
+  ];
+  script.panels[0].visual.sceneVisual.cameraComposition = {
+    shot: 'vertical two-shot, eye level',
+    characters: [
+      {
+        name: 'Mira',
+        position: 'upper_right_foreground',
+        anchor: { x: 0.72, y: 0.42 },
+        speechTarget: { x: 0.72, y: 0.26 },
+        description: 'upper right, speaking from near the tree branches',
+      },
+      {
+        name: 'Leo',
+        position: 'lower_right_foreground',
+        anchor: { x: 0.72, y: 0.82 },
+        speechTarget: { x: 0.72, y: 0.64 },
+        description: 'lower right, answering from below Mira',
+      },
+    ],
+  };
+
+  const page = planGraphicNovelLayouts({ ageGroup: '6-8', pages: [script], randomSource: fixedRandom })[0];
+  const result = applyGraphicNovelBubbleVisionLayout(page, {
+    panels: [{
+      panelIndex: 1,
+      panelId: 'p1-1',
+      detectedCharacters: [
+        {
+          name: 'Mira',
+          mouthCenter: { x: 0.72, y: 0.26 },
+          faceCenter: { x: 0.72, y: 0.22 },
+          headCenter: { x: 0.72, y: 0.18 },
+          confidence: 0.98,
+        },
+        {
+          name: 'Leo',
+          mouthCenter: { x: 0.72, y: 0.64 },
+          faceCenter: { x: 0.72, y: 0.6 },
+          headCenter: { x: 0.72, y: 0.56 },
+          confidence: 0.98,
+        },
+      ],
+      emptyZones: [
+        {
+          x: 0.05,
+          y: 0.04,
+          width: 0.7,
+          height: 0.2,
+          confidence: 0.96,
+          description: 'upper clear space near the upper speaker',
+        },
+        {
+          x: 0.05,
+          y: 0.7,
+          width: 0.72,
+          height: 0.22,
+          confidence: 0.96,
+          description: 'lower clear space near the lower speaker',
+        },
+      ],
+      occupiedZones: [
+        {
+          x: 0.56,
+          y: 0.16,
+          width: 0.34,
+          height: 0.34,
+          confidence: 0.95,
+          kind: 'character',
+          description: 'Mira upper body and face',
+        },
+        {
+          x: 0.56,
+          y: 0.54,
+          width: 0.34,
+          height: 0.36,
+          confidence: 0.95,
+          kind: 'character',
+          description: 'Leo lower body and face',
+        },
+      ],
+    }],
+  });
+
+  const bubbles = result.page.panels[0].bubbles;
+  assert.ok(bubbles[0].tailTo && bubbles[1].tailTo, 'both bubbles should have vision targets');
+  assert.ok(bubbles[0].tailTo!.y < bubbles[1].tailTo!.y, 'test fixture targets must be vertically ordered');
+  assert.ok(
+    rectCenter(bubbles[0].rect).y < rectCenter(bubbles[1].rect).y,
+    'bubble vertical order should match target vertical order instead of crossing tails'
+  );
+  assert.equal(overlapArea(bubbles[0].rect, bubbles[1].rect), 0, 'grouped placement should avoid overlaps');
+}
+
+function testVisionPlacementPreservesHorizontalTargetOrder(): void {
+  const script = samplePageScript();
+  script.panels[0].dialogue = [
+    { speaker: 'Mira', text: 'I will check the left side.' },
+    { speaker: 'Leo', text: 'I will watch the right side.' },
+  ];
+  script.panels[0].visual.sceneVisual.cameraComposition = {
+    shot: 'wide two-shot, eye level',
+    characters: [
+      {
+        name: 'Mira',
+        position: 'left_foreground',
+        anchor: { x: 0.22, y: 0.68 },
+        speechTarget: { x: 0.22, y: 0.38 },
+        description: 'foreground left, speaking toward the center',
+      },
+      {
+        name: 'Leo',
+        position: 'right_foreground',
+        anchor: { x: 0.78, y: 0.68 },
+        speechTarget: { x: 0.78, y: 0.38 },
+        description: 'foreground right, replying toward the center',
+      },
+    ],
+  };
+
+  const page = planGraphicNovelLayouts({ ageGroup: '6-8', pages: [script], randomSource: fixedRandom })[0];
+  const result = applyGraphicNovelBubbleVisionLayout(page, {
+    panels: [{
+      panelIndex: 1,
+      panelId: 'p1-1',
+      detectedCharacters: [
+        {
+          name: 'Mira',
+          mouthCenter: { x: 0.22, y: 0.38 },
+          faceCenter: { x: 0.22, y: 0.32 },
+          headCenter: { x: 0.22, y: 0.26 },
+          confidence: 0.98,
+        },
+        {
+          name: 'Leo',
+          mouthCenter: { x: 0.78, y: 0.38 },
+          faceCenter: { x: 0.78, y: 0.32 },
+          headCenter: { x: 0.78, y: 0.26 },
+          confidence: 0.98,
+        },
+      ],
+      emptyZones: [
+        {
+          x: 0.04,
+          y: 0.04,
+          width: 0.36,
+          height: 0.26,
+          confidence: 0.96,
+          description: 'clear space above left speaker',
+        },
+        {
+          x: 0.6,
+          y: 0.04,
+          width: 0.36,
+          height: 0.26,
+          confidence: 0.96,
+          description: 'clear space above right speaker',
+        },
+      ],
+      occupiedZones: [
+        {
+          x: 0.12,
+          y: 0.28,
+          width: 0.24,
+          height: 0.62,
+          confidence: 0.95,
+          kind: 'character',
+          description: 'Mira body',
+        },
+        {
+          x: 0.64,
+          y: 0.28,
+          width: 0.24,
+          height: 0.62,
+          confidence: 0.95,
+          kind: 'character',
+          description: 'Leo body',
+        },
+      ],
+    }],
+  });
+
+  const bubbles = result.page.panels[0].bubbles;
+  assert.ok(bubbles[0].tailTo && bubbles[1].tailTo, 'both bubbles should have vision targets');
+  assert.ok(bubbles[0].tailTo!.x < bubbles[1].tailTo!.x, 'test fixture targets must be horizontally ordered');
+  assert.ok(
+    rectCenter(bubbles[0].rect).x < rectCenter(bubbles[1].rect).x,
+    'bubble horizontal order should match target horizontal order instead of crossing tails'
+  );
+  assert.equal(overlapArea(bubbles[0].rect, bubbles[1].rect), 0, 'grouped placement should avoid overlaps');
+}
+
 function testCaptionDoesNotShrinkToTinyVisionEmptyZone(): void {
   const script = samplePageScript();
   script.panels[0].dialogue = [];
@@ -770,7 +1075,7 @@ function testWidePanelKeepsSecondLeftSpeakerBubbleNearOwnCharacter(): void {
   );
 }
 
-function testNarrowFreeLayoutPanelKeepsSpeakerBubbleNearOwnCharacter(): void {
+function testNarrowDetectedPanelKeepsSpeakerBubbleNearOwnCharacter(): void {
   const script = samplePageScript();
   script.panels[0].dialogue = [
     { speaker: 'Tik', text: 'I am ready to listen to the old stone.' },
@@ -924,7 +1229,7 @@ function testBubbleMatchesSpeakerByMultilingualAlias(): void {
   );
 }
 
-function testFreeLayoutUsesDetectedPanelBounds(): void {
+function testDetectedPanelBoundsOverrideTemplateRects(): void {
   const page = planGraphicNovelLayouts({ ageGroup: '6-8', pages: [samplePageScript()], randomSource: fixedRandom })[0];
   const detectedBounds = {
     x: 0.08,
@@ -951,7 +1256,7 @@ function testFreeLayoutUsesDetectedPanelBounds(): void {
         width: 0.3,
         height: 0.12,
         confidence: 0.9,
-        description: 'open sky inside actual first free-layout panel',
+        description: 'open sky inside actual first detected panel',
       }],
     }],
   }, { useDetectedPanelBounds: true });
@@ -963,14 +1268,14 @@ function testFreeLayoutUsesDetectedPanelBounds(): void {
   assert.equal(result.placementSummary.coordinateSpace, 'page');
   assert.ok(
     bubble.rect.y >= detectedBounds.y && bubble.rect.y + bubble.rect.height <= detectedBounds.y + detectedBounds.height,
-    'bubble should be placed inside the detected free-layout panel bounds'
+    'bubble should be placed inside the detected panel bounds'
   );
   assert.ok(bubble.tailTo, 'speech bubble should keep a target mapped through detected panel bounds');
   assert.ok(Math.abs(bubble.tailTo!.x - 0.5) < 0.02);
   assert.ok(Math.abs(bubble.tailTo!.y - 0.29) < 0.02);
 }
 
-function testFreeLayoutSplitsOnePlannedPanelAcrossPhysicalPanels(): void {
+function testDetectedPanelBoundsSplitOnePlannedPanelAcrossPhysicalPanels(): void {
   const script = samplePageScript();
   script.panels[0].dialogue = [
     { speaker: 'Mira', text: 'I see the clue on the left!' },
@@ -1071,7 +1376,7 @@ function testFreeLayoutSplitsOnePlannedPanelAcrossPhysicalPanels(): void {
   assert.ok(Math.abs(leoBubble.tailTo!.x - 0.74) < 0.02);
 }
 
-function testFreeLayoutTrimsOverlappingDetectedPanelBounds(): void {
+function testDetectedPanelBoundsTrimOverlappingPanels(): void {
   const script = samplePageScript();
   script.panels[1].dialogue = [{ speaker: 'Mira', text: 'The lower clue is here.' }];
   const page = planGraphicNovelLayouts({ ageGroup: '6-8', pages: [script], randomSource: fixedRandom })[0];
@@ -1128,6 +1433,51 @@ function testFreeLayoutTrimsOverlappingDetectedPanelBounds(): void {
   );
 }
 
+function testPanelLocalVisionCoordinatesMapToWholePage(): void {
+  const script = samplePageScript();
+  script.panels[1].dialogue = [{ speaker: 'Mira', text: 'I see it too!' }];
+  const page = planGraphicNovelLayouts({ ageGroup: '4-5', pages: [script], randomSource: fixedRandom })[0];
+  const panelRect = page.panels[1].templatePanel.rect;
+  const result = applyGraphicNovelBubbleVisionLayout(page, {
+    panels: [{
+      panelIndex: 2,
+      panelId: 'p1-2',
+      detectedCharacters: [{
+        name: 'Mira',
+        mouthCenter: { x: 0.5, y: 0.4 },
+        faceCenter: { x: 0.5, y: 0.35 },
+        headCenter: { x: 0.5, y: 0.3 },
+        confidence: 0.98,
+      }],
+      occupiedZones: [{
+        x: 0.42,
+        y: 0.25,
+        width: 0.16,
+        height: 0.3,
+        confidence: 0.9,
+        kind: 'character',
+      }],
+      emptyZones: [{
+        x: 0.05,
+        y: 0.05,
+        width: 0.35,
+        height: 0.2,
+        confidence: 0.9,
+      }],
+    }],
+  });
+
+  const bubble = result.page.panels[1].bubbles[0];
+  assert.ok(bubble.tailTo, 'panel 2 bubble should receive a vision-derived target');
+  assert.ok(Math.abs(bubble.tailTo!.x - (panelRect.x + panelRect.width * 0.5)) < 0.02);
+  assert.ok(Math.abs(bubble.tailTo!.y - (panelRect.y + panelRect.height * 0.4)) < 0.02);
+  assert.notEqual(
+    Math.round(bubble.tailTo!.y * 1000) / 1000,
+    0.4,
+    'panel-local y=0.4 should be transformed into whole-page coordinates'
+  );
+}
+
 export async function runGraphicNovelBubbleVisionPlannerTests(): Promise<void> {
   testBubbleMovesToVisionEmptyZoneNearMouth();
   testBubblePrefersExpandedEmptyZoneOverCharacterBody();
@@ -1135,15 +1485,19 @@ export async function runGraphicNovelBubbleVisionPlannerTests(): Promise<void> {
   testBubbleUsesOccupiedZonesWhenEmptyZonesAreUnavailable();
   testBubbleAvoidsAllDetectedCharactersNotOnlySpeaker();
   testVisionPlacementAvoidsBubbleOverlap();
+  testVisionPlacementAvoidsOverlapInNarrowPanel();
+  testVisionPlacementPreservesVerticalTargetOrder();
+  testVisionPlacementPreservesHorizontalTargetOrder();
   testCaptionDoesNotShrinkToTinyVisionEmptyZone();
   testVisionPlacementClearsStaleBubbleOverflow();
   testWidePanelKeepsLeftSpeakerBubbleOnLeftSide();
   testWidePanelKeepsSecondLeftSpeakerBubbleNearOwnCharacter();
-  testNarrowFreeLayoutPanelKeepsSpeakerBubbleNearOwnCharacter();
+  testNarrowDetectedPanelKeepsSpeakerBubbleNearOwnCharacter();
   testBubbleMatchesSpeakerByMultilingualAlias();
-  testFreeLayoutUsesDetectedPanelBounds();
-  testFreeLayoutSplitsOnePlannedPanelAcrossPhysicalPanels();
-  testFreeLayoutTrimsOverlappingDetectedPanelBounds();
+  testDetectedPanelBoundsOverrideTemplateRects();
+  testDetectedPanelBoundsSplitOnePlannedPanelAcrossPhysicalPanels();
+  testDetectedPanelBoundsTrimOverlappingPanels();
+  testPanelLocalVisionCoordinatesMapToWholePage();
 }
 
 if (require.main === module) {

@@ -16,7 +16,7 @@ export interface ReferenceImage {
   fileUri?: string; // Provider file URI (alternative to base64Data — avoids inline payload)
   mimeType?: string; // MIME type if using base64Data (e.g., 'image/jpeg', 'image/png')
   characterName?: string; // Optional label for the reference
-  /** Gemini 3.1 image: identity refs vs object refs (environment, outfit plate) for logging / limits */
+  /** Gemini 3.1 image: identity refs vs object refs (for example environment refs) for logging / limits */
   referenceKind?: 'character' | 'object';
   /** Stable prompt binding id, e.g. REF_CH_EMILIIA_A1B2C3, used alongside Image N. */
   referenceBindingId?: string;
@@ -29,18 +29,31 @@ export interface ReferenceImage {
   subjectType?: 'SUBJECT_TYPE_PERSON' | 'SUBJECT_TYPE_PRODUCT' | 'SUBJECT_TYPE_ANIMAL';
 }
 
+export type ImageAspectRatio =
+  | '1:1'
+  | '16:9'
+  | '9:16'
+  | '4:3'
+  | '3:4'
+  | '2:3'
+  | '3:2'
+  | '4:5'
+  | '5:4'
+  | '21:9';
+
 /**
  * Image generation request parameters
  * Aligned with Imagen 3 API capabilities
  */
 export interface GenerateImageRequest {
   prompt: string;
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  aspectRatio?: ImageAspectRatio;
+  imageSize?: '512' | '0.5K' | '1K' | '2K' | '4K' | string;
   referenceImages?: ReferenceImage[]; // For character consistency (capability model only)
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow'; // Control person generation (lowercase as per API)
   systemInstruction?: string; // Static context (style, characters) set once per story, separate from per-scene prompt
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
-  operation?: string; // Usage callback: 'image_generate' | 'image_edit' | 'image_environment' | 'image_outfit_plate'
+  operation?: string; // Usage callback operation, e.g. 'image_generate', 'image_edit', 'image_environment', 'graphic_novel_template_panel_generate'
   // REMOVED (not supported by Imagen 3):
   // - negativePrompt (include in prompt text instead)
   // - width, height (use aspectRatio)
@@ -59,8 +72,10 @@ export interface GeneratedImage {
   height: number;
   format: 'png' | 'jpeg' | 'webp';
   revisedPrompt?: string; // Some providers modify the prompt
-  /** Provider-specific stateful generation id, e.g. Gemini Interactions id. */
+  /** Legacy provider-specific generation id retained for old assets/debug scripts. */
   providerInteractionId?: string;
+  /** Sanitized provider request manifest for admin/debug UI. */
+  requestManifest?: Record<string, unknown>;
   // REMOVED: seed (Imagen 3 doesn't support deterministic generation)
 }
 
@@ -73,11 +88,10 @@ export interface EditImageRequest {
   originalImage: Buffer;           // The image to edit
   originalMimeType: string;        // MIME type of the original image
   editInstructions: string;        // What to fix (built from validation feedback)
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  aspectRatio?: ImageAspectRatio;
+  imageSize?: '512' | '0.5K' | '1K' | '2K' | '4K' | string;
   referenceImages?: ReferenceImage[]; // Character references for consistency
   systemInstruction?: string;      // Static context (style, characters)
-  /** Continue a provider-side image interaction when supported. */
-  previousInteractionId?: string;
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
   operation?: string; // Operation name for usage callback (e.g. 'image_edit')
@@ -149,7 +163,7 @@ export interface ImageBatchRequest {
   customId: string; // e.g. story_{storyId}_scene_{sceneId} for result mapping
   prompt: string;
   systemInstruction?: string;
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  aspectRatio?: ImageAspectRatio;
 }
 
 /** Batch job created by createImageBatch */

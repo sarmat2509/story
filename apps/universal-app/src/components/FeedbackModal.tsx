@@ -331,13 +331,22 @@ export function FeedbackModal({
 
       if (result.canceled || !result.assets[0]) return;
 
-      const uri = result.assets[0].uri;
+      const asset = result.assets[0];
+      const uri = asset.uri;
       setScreenshotUri(uri);
       setIsAutoCaptured(false);
       setIsUploadingScreenshot(true);
 
       try {
-        const uploaded = await uploadPhoto(uri, 'feedback');
+        const uploaded = await uploadPhoto(
+          {
+            uri,
+            file: asset.file,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          },
+          'feedback'
+        );
         setScreenshotStoragePath(uploaded.storagePath || null);
       } catch {
         Alert.alert(t('common.error'), 'Failed to upload screenshot. Please try again.');

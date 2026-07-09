@@ -120,6 +120,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
               storyArtifactSelection: params.metadata.storyArtifactSelection,
             }),
             ...((params.metadata as any).seoDescription && { seoDescription: (params.metadata as any).seoDescription }),
+            ...((params.metadata as any).directorDebug && { directorDebug: (params.metadata as any).directorDebug }),
             textGenerationTimeMs: params.metadata.textGenerationTimeMs,
             validationTimeMs: params.metadata.validationTimeMs,
             sceneCount: params.metadata.sceneCount,
@@ -138,6 +139,9 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           policyChecks: {
             outlineValidated: true,
             textValidated: true,
+            ...((params.metadata as any).textValidation && {
+              textValidation: (params.metadata as any).textValidation,
+            }),
             timestamp: new Date().toISOString(),
           },
         },
@@ -266,6 +270,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
             storyArtifactSelection: params.metadata.storyArtifactSelection,
           }),
           ...((params.metadata as any).seoDescription && { seoDescription: (params.metadata as any).seoDescription }),
+          ...((params.metadata as any).directorDebug && { directorDebug: (params.metadata as any).directorDebug }),
           textGenerationTimeMs: params.metadata.textGenerationTimeMs,
           validationTimeMs: params.metadata.validationTimeMs,
           sceneCount: params.metadata.sceneCount,
@@ -284,6 +289,9 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         policyChecks: {
           outlineValidated: true,
           textValidated: true,
+          ...((params.metadata as any).textValidation && {
+            textValidation: (params.metadata as any).textValidation,
+          }),
           timestamp: new Date().toISOString()
         },
         isPublished: false,
@@ -491,8 +499,12 @@ function buildInitialCharacterExclusionFingerprints(characters: CharacterData[])
   const fingerprints = new Set<string>();
   for (const c of characters) {
     if (!c?.name || typeof c.name !== 'string') continue;
-    fingerprints.add(normalizeCharacterName(c.name));
-    fingerprints.add(crossScriptIdentityKey(c.name));
+    const names = [c.name, (c as any).canonicalName, ...((c as any).nameAliases || [])];
+    for (const name of names) {
+      if (!name || typeof name !== 'string') continue;
+      fingerprints.add(normalizeCharacterName(name));
+      fingerprints.add(crossScriptIdentityKey(name));
+    }
   }
   return fingerprints;
 }

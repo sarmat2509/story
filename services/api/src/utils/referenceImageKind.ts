@@ -15,7 +15,8 @@ export function inferReferenceKind(ref: ReferenceKindInput): ReferenceImageKind 
   if (
     ref.type === 'imaginary' ||
     ref.type === 'child_reference' ||
-    ref.type === 'character_reference'
+    ref.type === 'character_reference' ||
+    ref.type === 'dressed_turnaround_reference'
   ) {
     return 'character';
   }

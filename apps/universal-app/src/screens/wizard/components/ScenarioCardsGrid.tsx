@@ -46,6 +46,8 @@ const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
   scary_stories: 'ghost',
   expeditions_world_travel: 'geography',
   macro_scifi: 'robot',
+  sports_competitions: 'sports',
+  science_facts: 'science-facts',
 };
 
 function getTopicImageUri(scenarioId: string | null) {

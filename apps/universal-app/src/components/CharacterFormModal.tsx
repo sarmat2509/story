@@ -24,6 +24,7 @@ import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 import { getWebOrigin } from '@/utils/webRuntime';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 /** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
 function toBaseLocale(locale: string | undefined): string {
@@ -50,6 +51,38 @@ function toAbsoluteAssetUrl(url: string): string {
       ? `/api/v1/assets/${withoutQuery.slice(1)}`
       : `/api/v1/assets/${withoutQuery}`;
   return `${base}${assetPath}`;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const objectValue = value as Record<string, unknown>;
+    return `{${Object.keys(objectValue)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(objectValue[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeReferencePhotoUrls(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+  return stableJson(
+    value
+      .map((photo) =>
+        photo && typeof photo === 'object' && typeof (photo as { url?: unknown }).url === 'string'
+          ? toAbsoluteAssetUrl((photo as { url: string }).url)
+          : null
+      )
+      .filter((url): url is string => Boolean(url))
+  );
 }
 import { storage } from '@/utils/storage';
 import {
@@ -122,6 +155,33 @@ interface Props {
     personality?: any;
     turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
   };
+}
+
+function shouldRegenerateCharacterModel(
+  initialData: Props['initialData'] | undefined,
+  data: {
+    description?: string | null;
+    referencePhotos?: unknown;
+  }
+): boolean {
+  if (!initialData) return false;
+
+  if (
+    data.description !== undefined &&
+    normalizeText(data.description) !== normalizeText(initialData.description)
+  ) {
+    return true;
+  }
+
+  if (
+    data.referencePhotos !== undefined &&
+    normalizeReferencePhotoUrls(data.referencePhotos) !==
+      normalizeReferencePhotoUrls(initialData.referencePhotos)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 const CATEGORY_TYPES = [
@@ -789,21 +849,44 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       return;
     }
 
-    // Submit: hide form modal, show dedicated saving modal
-    setIsSubmittingOverlay(true);
-    try {
-      if (characterId) {
-        const { referencePhotos: _rp, ...updateData } = result.data;
-        await updateCharacter.mutateAsync({ id: characterId, data: updateData });
-      } else {
-        await createCharacter.mutateAsync(result.data);
+    const submitValidatedCharacter = async (validatedData: typeof result.data) => {
+      // Submit: hide form modal, show dedicated saving modal
+      setIsSubmittingOverlay(true);
+      try {
+        if (characterId) {
+          await updateCharacter.mutateAsync({ id: characterId, data: validatedData });
+        } else {
+          await createCharacter.mutateAsync(validatedData);
+        }
+        onClose();
+      } catch (error) {
+        console.error('Failed to save character:', error);
+        setIsSubmittingOverlay(false);
+        setErrors({ submit: getLocalizedApiError(t, error, 'character_form.save_failed') });
       }
-      onClose();
-    } catch (error) {
-      console.error('Failed to save character:', error);
-      setIsSubmittingOverlay(false);
-      setErrors({ submit: t('character_form.save_failed') });
+    };
+
+    if (characterId && shouldRegenerateCharacterModel(initialData, result.data)) {
+      Alert.alert(
+        t('character_form.regeneration_confirm_title'),
+        t('character_form.regeneration_confirm_message'),
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+          },
+          {
+            text: t('character_form.regeneration_confirm_button'),
+            onPress: () => {
+              void submitValidatedCharacter(result.data);
+            },
+          },
+        ]
+      );
+      return;
     }
+
+    await submitValidatedCharacter(result.data);
   };
 
   return (

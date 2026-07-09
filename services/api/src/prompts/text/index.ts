@@ -32,11 +32,14 @@ export {
 export { buildContinuationPromptPlain } from './ContinuationPrompt';
 export {
   buildGraphicNovelPrompt,
+  buildGraphicNovelPageRepairPrompt,
   buildGraphicNovelSafetyFallbackPrompt,
   graphicNovelPanelCountRange,
   graphicNovelPanelDensityRequirement,
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
+  GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS,
+  GRAPHIC_NOVEL_PAGE_REPAIR_SCHEMA,
   GRAPHIC_NOVEL_SCRIPT_SCHEMA,
   GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
 } from './GraphicNovelPrompt';
@@ -50,3 +53,4 @@ export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { ValidationPromptParams, BatchValidationPromptParams } from './ValidationPrompt';
 export type { BatchRegenerationPromptParams } from './RegenerationPrompt';
 export type { ContinuationPromptParams } from './ContinuationPrompt';
+export type { VisualCharacterReferenceLabel } from '../visualReferenceLabels';

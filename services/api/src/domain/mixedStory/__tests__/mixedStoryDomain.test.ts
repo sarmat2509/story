@@ -349,6 +349,71 @@ async function testRejectsPlaceholderComicBubble() {
   );
 }
 
+async function testAllowsReferenceLabelsOnlyInVisualFields() {
+  const raw = rawScript(3);
+  const firstComic = raw.readingBlocks[0];
+  assert.strictEqual(firstComic.kind, 'comic');
+  firstComic.panels[0].visual.primaryRead = 'REF_CH_MIRA_ABC123 finds the clue';
+  firstComic.panels[0].visual.sceneVisual.setting =
+    'REF_CH_MIRA_ABC123 kneels beside the glowing clue';
+  const composition = firstComic.panels[0].visual.sceneVisual.cameraComposition;
+  assert.notStrictEqual(composition, 'string');
+  if (typeof composition !== 'string') {
+    composition.characters[0].description =
+      'left foreground, REF_CH_MIRA_ABC123 reaches toward the clue with clear focus';
+  }
+
+  const { script } = normalizeMixedStoryScript({
+    raw,
+    spec: STATIC_SPEC,
+    sceneCount: 8,
+    comicSceneIds: getIllustrationBlockStartSceneIds(8, 3),
+    comicBlockCount: 3,
+  });
+
+  const normalizedFirstComic = script.readingBlocks[0];
+  assert.strictEqual(normalizedFirstComic.kind, 'comic');
+  assert.match(normalizedFirstComic.panels[0].visual.primaryRead, /REF_CH_MIRA_ABC123/);
+}
+
+async function testRejectsReferenceLabelsInReadableMixedText() {
+  const raw = rawScript(3);
+  raw.title = 'REF_CH_MIRA_ABC123 Adventure';
+  raw.description = 'A story about REF_CH_MIRA_ABC123.';
+  const firstComic = raw.readingBlocks[0];
+  assert.strictEqual(firstComic.kind, 'comic');
+  firstComic.panels[0].dialogue[0].speaker = 'REF_CH_MIRA_ABC123';
+  firstComic.panels[0].dialogue[0].text = 'REF_CH_MIRA_ABC123 says hello.';
+  firstComic.panels[0].caption = 'REF_CH_MIRA_ABC123 smiles.';
+  const firstProse = raw.readingBlocks[1];
+  assert.strictEqual(firstProse.kind, 'prose');
+  firstProse.text = 'REF_CH_MIRA_ABC123 walks along the path with courage.';
+
+  assert.throws(
+    () =>
+      normalizeMixedStoryScript({
+        raw,
+        spec: STATIC_SPEC,
+        sceneCount: 8,
+        comicSceneIds: getIllustrationBlockStartSceneIds(8, 3),
+        comicBlockCount: 3,
+      }),
+    (error) =>
+      error instanceof MixedStoryScriptValidationError &&
+      error.issues.some((issue) => issue.path === 'title') &&
+      error.issues.some((issue) => issue.path === 'description') &&
+      error.issues.some((issue) => issue.path.includes('.dialogue[0].speaker')) &&
+      error.issues.some((issue) => issue.path.includes('.dialogue[0].text')) &&
+      error.issues.some((issue) => issue.path.includes('.caption')) &&
+      error.issues.some((issue) => issue.path.includes('prose:2')) &&
+      error.issues.every(
+        (issue) =>
+          !issue.message.includes('REF_CH') ||
+          issue.message.includes('Readable mixed-story text')
+      )
+  );
+}
+
 async function testComicPanelCountUsesGraphicNovelAgeRules() {
   const sceneCount = 8;
   const comicBlockCount = 3;
@@ -426,7 +491,7 @@ async function testMixedWriterRetriesInvalidScript() {
   );
 }
 
-async function testMixedUsesFreeLayoutGraphicNovelPages() {
+async function testMixedUsesTemplateGraphicNovelPages() {
   const sceneCount = 8;
   const comicBlockCount = 3;
   const comicSceneIds = getIllustrationBlockStartSceneIds(sceneCount, comicBlockCount);
@@ -446,7 +511,7 @@ async function testMixedUsesFreeLayoutGraphicNovelPages() {
   assert.strictEqual(plannedPages.length, comicBlockCount);
   for (const page of plannedPages) {
     assert.deepStrictEqual(page.pageSize, GRAPHIC_NOVEL_PAGE_SIZE);
-    assert.strictEqual(page.template.templateFamily, 'free_layout');
+    assert.strictEqual(page.template.templateFamily, 'graphic_novel_page');
     assert.ok(page.template.panelCount >= 4, 'age 6-8 mixed comic pages use dense graphic-novel layouts');
   }
 }
@@ -464,9 +529,11 @@ async function main() {
   await testRejectsComicTextWithoutPanels();
   await testRejectsOffTopicOrWrongLanguageProse();
   await testRejectsPlaceholderComicBubble();
+  await testAllowsReferenceLabelsOnlyInVisualFields();
+  await testRejectsReferenceLabelsInReadableMixedText();
   await testComicPanelCountUsesGraphicNovelAgeRules();
   await testMixedWriterRetriesInvalidScript();
-  await testMixedUsesFreeLayoutGraphicNovelPages();
+  await testMixedUsesTemplateGraphicNovelPages();
   await testMixedSkipsOrdinaryImageBatch();
   console.log('mixedStoryDomain tests passed');
 }

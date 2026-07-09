@@ -1,6 +1,6 @@
 /**
  * Unit tests for buildExpectedCharactersForValidation (3-way characterKind,
- * speciesSubtype, NFC name matching, outfit-for-human-only).
+ * speciesSubtype, NFC name matching, visual wardrobe-check eligibility).
  *
  * Regression coverage for "hamster sent to validator as HUMAN" issue.
  *
@@ -28,19 +28,31 @@ function sceneWith(names: string[]): SceneData {
 
 function testHumanMapping() {
   const scene = sceneWith(['Emma']);
-  const chars = [{ name: 'Emma', type: 'person' } as CharacterData];
-  const out = buildExpectedCharactersForValidation(scene, chars, [], { Emma: 'yellow dress' });
+  const chars = [{ id: 'char-1', name: 'Emma', type: 'person', source: 'user_provided' } as CharacterData];
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
   assert.strictEqual(out.length, 1);
   assert.strictEqual(out[0].characterKind, 'human');
-  assert.strictEqual(out[0].expectedOutfitForScene, 'yellow dress');
+  assert.strictEqual(out[0].validateOutfit, true);
 }
 
 function testChildMapping() {
   const scene = sceneWith(['Kiddo']);
-  const chars = [{ name: 'Kiddo', type: 'child' } as CharacterData];
-  const out = buildExpectedCharactersForValidation(scene, chars, [], { Kiddo: 'raincoat' });
+  const chars = [
+    { id: 'child-1', name: 'Kiddo', type: 'child', source: 'child_profile' } as CharacterData,
+  ];
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
   assert.strictEqual(out[0].characterKind, 'human');
-  assert.strictEqual(out[0].expectedOutfitForScene, 'raincoat');
+  assert.strictEqual(out[0].validateOutfit, true);
+}
+
+function testLlmGeneratedHumanDoesNotValidateOutfit() {
+  const scene = sceneWith(['Guide']);
+  const chars = [
+    { name: 'Guide', type: 'person', source: 'llm_generated' } as CharacterData,
+  ];
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+  assert.strictEqual(out[0].characterKind, 'human');
+  assert.strictEqual(out[0].validateOutfit, false);
 }
 
 function testAnimalMapping_HamsterRegression() {
@@ -54,11 +66,7 @@ function testAnimalMapping_HamsterRegression() {
   assert.strictEqual(out.length, 1);
   assert.strictEqual(out[0].characterKind, 'animal');
   assert.strictEqual(out[0].speciesSubtype, 'hamster');
-  assert.strictEqual(
-    out[0].expectedOutfitForScene,
-    undefined,
-    'Animals must not receive expectedOutfitForScene (wardrobe is a human concept)'
-  );
+  assert.strictEqual(out[0].validateOutfit, false);
 }
 
 function testImaginaryMapping() {
@@ -69,7 +77,7 @@ function testImaginaryMapping() {
   const out = buildExpectedCharactersForValidation(scene, chars, []);
   assert.strictEqual(out[0].characterKind, 'imaginary');
   assert.strictEqual(out[0].speciesSubtype, 'dragon');
-  assert.strictEqual(out[0].expectedOutfitForScene, undefined);
+  assert.strictEqual(out[0].validateOutfit, false);
 }
 
 function testUnknownTypeFallbacks() {
@@ -98,7 +106,28 @@ function testIdSuffixInCompositionMatches() {
   const chars = [{ name: 'Emma', type: 'child' } as CharacterData];
   const out = buildExpectedCharactersForValidation(scene, chars, []);
   assert.strictEqual(out[0].characterKind, 'human');
+  assert.strictEqual(out[0].validateOutfit, true);
   assert.strictEqual(out[0].name, 'Emma [ID: abc-123]');
+}
+
+function testValidationDescriptionStripsWardrobeText() {
+  const scene = sceneWith(['Emilia']);
+  const chars = [
+    {
+      name: 'Emilia',
+      type: 'child',
+      source: 'child_profile',
+      descriptionEn:
+        'Emilia has round green eyes, rosy cheeks, and long brown hair in a ponytail. She wears a dark floral bomber jacket, black crop top, patterned pants, and white sneakers.',
+    } as unknown as CharacterData,
+  ];
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+  assert.match(out[0].description || '', /round green eyes/);
+  assert.match(out[0].description || '', /long brown hair/);
+  assert.doesNotMatch(
+    out[0].description || '',
+    /bomber|jacket|crop top|pants|sneakers/i
+  );
 }
 
 function testNfcNfdNameMatching() {
@@ -123,9 +152,11 @@ function testNfcNfdNameMatching() {
 
 testHumanMapping();
 testChildMapping();
+testLlmGeneratedHumanDoesNotValidateOutfit();
 testAnimalMapping_HamsterRegression();
 testImaginaryMapping();
 testUnknownTypeFallbacks();
 testIdSuffixInCompositionMatches();
+testValidationDescriptionStripsWardrobeText();
 testNfcNfdNameMatching();
 console.log('buildExpectedCharactersForValidation tests passed');

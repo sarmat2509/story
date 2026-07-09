@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Image,
+  Modal,
   Platform,
   ScrollView,
   type ImageStyle,
@@ -93,6 +94,44 @@ function formatValidationScore(score: number | null, status?: string): string {
 
 type Tone = 'neutral' | 'success' | 'warning' | 'danger';
 
+type CharacterBBox = {
+  found?: boolean;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+  confidence?: number;
+  visibility?: string | null;
+  notes?: string | null;
+};
+
+type CharacterCropRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type CharacterBBoxModalTarget = {
+  characterName: string;
+  bbox: CharacterBBox;
+  cropRect: CharacterCropRect | null;
+  source: 'result' | 'manifest';
+};
+
+type CharacterBBoxCardContext = {
+  getBBoxTarget: (character: Record<string, unknown>) => CharacterBBoxModalTarget | null;
+  onOpenBBox: (target: CharacterBBoxModalTarget) => void;
+};
+
+const BBOX_PALETTE = [
+  { border: '#2563eb', fill: 'rgba(37, 99, 235, 0.24)' },
+  { border: '#dc2626', fill: 'rgba(220, 38, 38, 0.22)' },
+  { border: '#16a34a', fill: 'rgba(22, 163, 74, 0.22)' },
+  { border: '#9333ea', fill: 'rgba(147, 51, 234, 0.22)' },
+  { border: '#ea580c', fill: 'rgba(234, 88, 12, 0.22)' },
+];
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -129,6 +168,132 @@ function omitKeys(value: unknown, keys: string[]): unknown {
   const record = asRecord(value);
   if (!record) return value;
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
+}
+
+function finiteNumber(value: unknown): number | null {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function normalizeCharacterNameForLookup(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLocaleLowerCase() : '';
+}
+
+function readCharacterBBox(value: unknown): CharacterBBox | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const xMin = finiteNumber(record.xMin);
+  const yMin = finiteNumber(record.yMin);
+  const xMax = finiteNumber(record.xMax);
+  const yMax = finiteNumber(record.yMax);
+  if (xMin == null || yMin == null || xMax == null || yMax == null) return null;
+  if (xMax <= xMin || yMax <= yMin) return null;
+  const confidence = finiteNumber(record.confidence);
+  return {
+    found: typeof record.found === 'boolean' ? record.found : undefined,
+    xMin: Math.max(0, Math.min(1000, xMin)),
+    yMin: Math.max(0, Math.min(1000, yMin)),
+    xMax: Math.max(0, Math.min(1000, xMax)),
+    yMax: Math.max(0, Math.min(1000, yMax)),
+    confidence: confidence == null ? undefined : Math.max(0, Math.min(100, confidence)),
+    visibility: typeof record.visibility === 'string' ? record.visibility : null,
+    notes: typeof record.notes === 'string' ? record.notes : null,
+  };
+}
+
+function readCharacterCropRect(value: unknown): CharacterCropRect | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const left = finiteNumber(record.left);
+  const top = finiteNumber(record.top);
+  const width = finiteNumber(record.width);
+  const height = finiteNumber(record.height);
+  if (left == null || top == null || width == null || height == null) return null;
+  if (width <= 0 || height <= 0) return null;
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function findNamedRecord(items: unknown, name: string): Record<string, unknown> | null {
+  const normalizedName = normalizeCharacterNameForLookup(name);
+  if (!normalizedName) return null;
+  return (
+    asArray(items)
+      .map(asRecord)
+      .find((record) => normalizeCharacterNameForLookup(record?.name) === normalizedName) ?? null
+  );
+}
+
+function findCharacterCropManifestRecord(
+  items: unknown,
+  name: string
+): Record<string, unknown> | null {
+  const normalizedName = normalizeCharacterNameForLookup(name);
+  if (!normalizedName) return null;
+  return (
+    asArray(items)
+      .map(asRecord)
+      .find(
+        (record) => normalizeCharacterNameForLookup(record?.characterName) === normalizedName
+      ) ?? null
+  );
+}
+
+function characterBBoxTargetFromValidation(
+  character: Record<string, unknown>,
+  requestManifest: unknown
+): CharacterBBoxModalTarget | null {
+  const characterName = typeof character.name === 'string' ? character.name : null;
+  if (!characterName) return null;
+
+  const directBBox = readCharacterBBox(character.characterBoundingBox);
+  const directCropRect = readCharacterCropRect(character.characterCropRect);
+  if (directBBox) {
+    return {
+      characterName,
+      bbox: directBBox,
+      cropRect: directCropRect,
+      source: 'result',
+    };
+  }
+
+  const manifest = asRecord(requestManifest);
+  const boxRecord = findNamedRecord(manifest?.characterBoundingBoxes, characterName);
+  const bbox = readCharacterBBox(boxRecord);
+  if (!bbox) return null;
+
+  const cropRecord = findCharacterCropManifestRecord(manifest?.characterCrops, characterName);
+  return {
+    characterName,
+    bbox,
+    cropRect: readCharacterCropRect(cropRecord?.cropRect),
+    source: 'manifest',
+  };
+}
+
+function bboxPaletteForName(name: string) {
+  let hash = 0;
+  for (const char of name) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return BBOX_PALETTE[hash % BBOX_PALETTE.length];
+}
+
+function percentStyleValue(value: number): `${number}%` {
+  return `${value}%` as `${number}%`;
+}
+
+function bboxPercentStyle(bbox: CharacterBBox) {
+  return {
+    left: percentStyleValue(bbox.xMin / 10),
+    top: percentStyleValue(bbox.yMin / 10),
+    width: percentStyleValue((bbox.xMax - bbox.xMin) / 10),
+    height: percentStyleValue((bbox.yMax - bbox.yMin) / 10),
+  };
 }
 
 function getToneStyle(tone: Tone) {
@@ -260,6 +425,7 @@ function AuthenticatedAdminImagePreview({
       try {
         const token = await storage.getAuthToken();
         const response = await fetch(url, {
+          cache: 'no-store',
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -308,6 +474,182 @@ function AuthenticatedAdminImagePreview({
   return <Image source={{ uri: resolvedUrl }} style={style} resizeMode={resizeMode} />;
 }
 
+function CharacterBBoxModal({
+  target,
+  imageUrl,
+  onClose,
+}: {
+  target: CharacterBBoxModalTarget | null;
+  imageUrl: string | null;
+  onClose: () => void;
+}) {
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const visible = !!target;
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    setResolvedUrl(null);
+    setFailed(false);
+    setImageSize(null);
+
+    if (!visible || !imageUrl) {
+      return () => undefined;
+    }
+
+    if (Platform.OS !== 'web' || imageUrl.startsWith('blob:') || imageUrl.startsWith('data:')) {
+      setResolvedUrl(imageUrl);
+      return () => undefined;
+    }
+
+    const load = async () => {
+      try {
+        const token = await storage.getAuthToken();
+        const response = await fetch(imageUrl, {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) {
+          throw new Error(`Image request failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setResolvedUrl(objectUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [imageUrl, visible]);
+
+  useEffect(() => {
+    if (!resolvedUrl) return;
+    let cancelled = false;
+    Image.getSize(
+      resolvedUrl,
+      (width, height) => {
+        if (!cancelled && width > 0 && height > 0) {
+          setImageSize({ width, height });
+        }
+      },
+      () => {
+        if (!cancelled) setImageSize(null);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedUrl]);
+
+  const palette = target ? bboxPaletteForName(target.characterName) : BBOX_PALETTE[0];
+  const aspectRatio = imageSize ? imageSize.width / imageSize.height : 1;
+  const bboxStyle = target ? bboxPercentStyle(target.bbox) : null;
+  const cropLabel = target?.cropRect
+    ? `${target.cropRect.left},${target.cropRect.top} ${target.cropRect.width}x${target.cropRect.height}`
+    : 'n/a';
+  const bboxLabel = target
+    ? `${Math.round(target.bbox.xMin)},${Math.round(target.bbox.yMin)} - ${Math.round(
+        target.bbox.xMax
+      )},${Math.round(target.bbox.yMax)}`
+    : 'n/a';
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.bboxModalBackdrop}>
+        <View style={styles.bboxModalCard}>
+          <View style={styles.bboxModalHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Ionicons name="scan-outline" size={18} color={theme.colors.interactive.primary} />
+              <View style={styles.cardTitleBlock}>
+                <Text style={styles.cardTitle}>{target?.characterName ?? 'BBox'}</Text>
+                <Text style={styles.cardSummary}>
+                  {target?.source === 'result' ? 'stored on character row' : 'from request manifest'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.bboxModalCloseButton} onPress={onClose}>
+              <Ionicons name="close" size={18} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.bboxImageFrame, { aspectRatio }]}>
+            {resolvedUrl && target && bboxStyle ? (
+              <>
+                <Image
+                  source={{ uri: resolvedUrl }}
+                  style={StyleSheet.absoluteFillObject}
+                  resizeMode="contain"
+                />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.bboxOverlay,
+                    bboxStyle,
+                    { borderColor: palette.border, backgroundColor: palette.fill },
+                  ]}
+                />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.bboxOverlayLabel,
+                    {
+                      left: bboxStyle.left,
+                      top: bboxStyle.top,
+                      backgroundColor: palette.border,
+                    },
+                  ]}
+                >
+                  <Text style={styles.bboxOverlayLabelText}>{target.characterName}</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.previewImageEmpty}>
+                <Ionicons
+                  name={failed ? 'alert-circle-outline' : 'image-outline'}
+                  size={28}
+                  color={theme.colors.text.secondary}
+                />
+                <Text style={styles.valueText}>
+                  {failed ? 'Image unavailable' : 'Loading image...'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.infoGrid}>
+            <InfoPill label="BBox 0..1000" value={bboxLabel} />
+            <InfoPill label="Visibility" value={target?.bbox.visibility ?? 'n/a'} />
+            <InfoPill label="Confidence" value={target?.bbox.confidence ?? 'n/a'} />
+            <InfoPill label="Crop px" value={cropLabel} />
+          </View>
+          {target?.bbox.notes ? (
+            <View style={styles.feedbackBox}>
+              <Text style={styles.feedbackLabel}>BBOX NOTES</Text>
+              <Text style={styles.feedbackText}>{target.bbox.notes}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function parseNumberedSummary(value: string): Array<{ marker: string; text: string }> {
   const matches = Array.from(value.matchAll(/\((\d+)\)\s*([^]+?)(?=\s*\(\d+\)\s*|$)/g));
   if (matches.length === 0) {
@@ -341,7 +683,11 @@ function SummaryList({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-function renderCharacterCards(characters: unknown[], keyPrefix: string): React.ReactNode {
+function renderCharacterCards(
+  characters: unknown[],
+  keyPrefix: string,
+  bboxContext?: CharacterBBoxCardContext
+): React.ReactNode {
   return (
     <ScrollView
       horizontal
@@ -353,18 +699,42 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
           character && typeof character === 'object' && !Array.isArray(character)
             ? Object.entries(character as Record<string, unknown>)
             : [['value', character]];
+        const characterRecord = asRecord(character);
+        const bboxTarget = characterRecord ? bboxContext?.getBBoxTarget(characterRecord) : null;
         const identitySummary = entries.find(([key]) => key === 'identityComparisonSummary')?.[1];
 
         return (
           <View key={`${keyPrefix}-${index}`} style={styles.characterCard}>
-            <Text style={styles.characterCardTitle}>
-              {typeof (character as Record<string, unknown>)?.name === 'string'
-                ? String((character as Record<string, unknown>).name).toUpperCase()
-                : `CHARACTER ${index + 1}`}
-            </Text>
+            <View style={styles.characterCardHeader}>
+              <Text style={styles.characterCardTitle}>
+                {typeof (character as Record<string, unknown>)?.name === 'string'
+                  ? String((character as Record<string, unknown>).name).toUpperCase()
+                  : `CHARACTER ${index + 1}`}
+              </Text>
+              {bboxTarget ? (
+                <TouchableOpacity
+                  style={styles.bboxButton}
+                  activeOpacity={0.82}
+                  onPress={() => bboxContext?.onOpenBBox(bboxTarget)}
+                >
+                  <Ionicons
+                    name="scan-outline"
+                    size={14}
+                    color={theme.colors.interactive.primary}
+                  />
+                  <Text style={styles.bboxButtonText}>BBox</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <View style={styles.valueGroup}>
               {entries
-                .filter(([key]) => key !== 'name' && key !== 'identityComparisonSummary')
+                .filter(
+                  ([key]) =>
+                    key !== 'name' &&
+                    key !== 'identityComparisonSummary' &&
+                    key !== 'characterBoundingBox' &&
+                    key !== 'characterCropRect'
+                )
                 .map(([key, entry]) =>
                   isScalarValue(entry) ? (
                     <View key={`${keyPrefix}-${index}-${key}`} style={styles.booleanFieldRow}>
@@ -608,7 +978,9 @@ export default function AdminValidationDetailScreen() {
   const query = useAdminImageValidation(id);
   const regenerateMutation = useAdminRegenerateSceneImage();
   const regenerateGraphicNovelPageMutation = useAdminRegenerateGraphicNovelPageImage();
+  const [bboxTarget, setBboxTarget] = useState<CharacterBBoxModalTarget | null>(null);
   const item = query.data;
+  const validationImageUrl = formatAdminImageUrl(item?.imageUrl);
   const isGraphicPageValidation =
     item?.imageTargetKind === 'graphic_novel_page' ||
     item?.storyFormat === 'graphic_novel' ||
@@ -790,7 +1162,11 @@ export default function AdminValidationDetailScreen() {
               icon="people-outline"
               summary={`${resultCharacters.length} checked`}
             >
-              {renderCharacterCards(resultCharacters, 'validation-result-characters')}
+              {renderCharacterCards(resultCharacters, 'validation-result-characters', {
+                getBBoxTarget: (character) =>
+                  characterBBoxTargetFromValidation(character, item.requestManifest),
+                onOpenBBox: setBboxTarget,
+              })}
             </DetailCard>
           ) : null}
 
@@ -799,15 +1175,17 @@ export default function AdminValidationDetailScreen() {
               title="Provider Usage"
               icon="speedometer-outline"
               defaultExpanded={false}
-              summary={`${item.usage.provider} · ${item.usage.operation} · matched ${item.usage.matchedDeltaMs} ms`}
+              summary={`${item.usage.provider} · ${item.usage.operation} · ${item.usage.eventCount} event(s) · matched ${item.usage.matchedDeltaMs} ms`}
             >
               <View style={styles.infoGrid}>
                 <InfoPill label="Provider" value={item.usage.provider} />
                 <InfoPill label="Operation" value={item.usage.operation} />
+                <InfoPill label="Usage events" value={item.usage.eventCount} />
+                <InfoPill label="Operations" value={item.usage.operations.join(', ')} />
                 <InfoPill label="Input units" value={item.usage.inputUnits ?? 'n/a'} />
                 <InfoPill label="Output units" value={item.usage.outputUnits ?? 'n/a'} />
                 <InfoPill
-                  label="Cost"
+                  label="Total cost"
                   value={item.usage.costUsd != null ? `$${item.usage.costUsd.toFixed(8)}` : 'n/a'}
                 />
                 <InfoPill label="Created" value={new Date(item.usage.createdAt).toLocaleString()} />
@@ -836,6 +1214,12 @@ export default function AdminValidationDetailScreen() {
           </DetailCard>
         </ScrollView>
       ) : null}
+
+      <CharacterBBoxModal
+        target={bboxTarget}
+        imageUrl={validationImageUrl}
+        onClose={() => setBboxTarget(null)}
+      />
     </AdminLayout>
   );
 }
@@ -984,6 +1368,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  bboxModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.54)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  bboxModalCard: {
+    width: '100%',
+    maxWidth: 980,
+    maxHeight: '92%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    padding: 14,
+    gap: 12,
+  },
+  bboxModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  bboxModalCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
+  bboxImageFrame: {
+    width: '100%',
+    maxHeight: 620,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
+  bboxOverlay: {
+    position: 'absolute',
+    borderWidth: 3,
+  },
+  bboxOverlayLabel: {
+    position: 'absolute',
+    marginTop: -22,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  bboxOverlayLabelText: {
+    color: theme.colors.text.inverse,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
   },
   sectionStack: {
     gap: 12,
@@ -1233,11 +1677,36 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.light,
     gap: 8,
   },
+  characterCardHeader: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   characterCardTitle: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '700',
     color: theme.colors.interactive.primary,
     letterSpacing: 0,
+  },
+  bboxButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#f9a8d4',
+    backgroundColor: '#fdf2f8',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  bboxButtonText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: theme.colors.interactive.primary,
   },
   summaryListBox: {
     marginTop: 4,

@@ -30,6 +30,7 @@ const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   stories_per_month: 'story_created',
   mixed_stories_per_month: 'story_created',
   graphic_novels_per_month: 'graphic_novel_created',
+  characters_per_month: 'character_generated',
   audio_stories_per_month: 'audio_synthesized',
 };
 
@@ -107,7 +108,8 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
           slug === 'stories_per_month' ||
           slug === 'mixed_stories_per_month' ||
           slug === 'audio_stories_per_month' ||
-          slug === 'graphic_novels_per_month'
+          slug === 'graphic_novels_per_month' ||
+          slug === 'characters_per_month'
         ) {
           row.plan_limit = planLimit;
           row.bundle_bonus = bundleBonusQty;

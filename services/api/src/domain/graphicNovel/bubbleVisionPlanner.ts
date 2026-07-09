@@ -1,4 +1,4 @@
-import config from '../../config';
+import config, { getValidationTextModelOverride } from '../../config';
 import sharp from 'sharp';
 import { measureGraphicNovelBubbleTextBox } from './bubbleTextSizing';
 import { GRAPHIC_NOVEL_PAGE_SIZE, pageSizeForGraphicNovelPage } from './layoutPlanner';
@@ -58,6 +58,13 @@ export interface GraphicNovelBubbleVisionAnalysis {
   panels: GraphicNovelBubbleVisionPanel[];
 }
 
+export type GraphicNovelBubbleVisionPanelImage = {
+  panelIndex: number;
+  panelId?: string;
+  imageData: Buffer;
+  mimeType?: 'image/png' | 'image/jpeg' | 'image/webp';
+};
+
 export interface GraphicNovelBubbleVisionLayoutResult {
   page: PlannedGraphicNovelPage;
   placementSummary: {
@@ -78,6 +85,9 @@ const OVERLAP_EPSILON = 0.000001;
 const IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX = 100;
 const IDEAL_BUBBLE_DISTANCE_TOLERANCE_PX = 24;
 const MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX = 150;
+const MIN_BUBBLE_GAP_PX = 14;
+const MAX_GROUPED_BUBBLE_CANDIDATES = 36;
+const MAX_GROUPED_BUBBLE_BEAM_STATES = 256;
 type PageSize = { width: number; height: number };
 
 interface BubbleCandidate {
@@ -97,6 +107,18 @@ interface ScoredBubbleCandidate extends BubbleCandidate {
 interface AvoidRect extends Rect {
   weight: number;
 }
+
+type BubblePlacementParams = {
+  bubble: BubbleGeometry;
+  panel: PlannedGraphicNovelPanel;
+  target?: VisionPoint;
+  placed: BubbleGeometry[];
+  emptyZones: Rect[];
+  avoidRects: AvoidRect[];
+  pageSize?: PageSize;
+  textSizing?: GraphicNovelBubbleTextSizing;
+  preferSpeakerDistanceLimit?: boolean;
+};
 
 export type AnalysisCoordinateSpace = 'panel' | 'page';
 
@@ -148,7 +170,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           panelBounds: {
             type: 'object',
             nullable: true,
-            description: 'Actual visible panel rectangle in page-relative 0..1 coordinates. Required when analyzing a full free-layout page.',
+            description: 'Actual visible panel rectangle in page-relative 0..1 coordinates. Required when analyzing a full page with detected panel bounds.',
             required: ['x', 'y', 'width', 'height'],
             properties: {
               x: { type: 'number', minimum: 0, maximum: 1 },
@@ -159,7 +181,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           },
           detectedCharacters: {
             type: 'array',
-            description: 'Visible named characters in this panel, with face/head/mouth points in 0..1 coordinates. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates.',
+            description: 'Visible named characters in this panel, with face/head/mouth points in 0..1 coordinates. Panel-image analysis uses panel-relative coordinates; detected full-page analysis uses page-relative coordinates.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -200,7 +222,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           },
           occupiedZones: {
             type: 'array',
-            description: 'Actual visible occupied/no-cover zones: character bodies, faces, hands, important props, and main action. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates.',
+            description: 'Actual visible occupied/no-cover zones: character bodies, faces, hands, important props, and main action. Panel-image analysis uses panel-relative coordinates; detected full-page analysis uses page-relative coordinates.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -222,7 +244,7 @@ export const GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA: JsonSchema = {
           },
           emptyZones: {
             type: 'array',
-            description: 'Optional actual visually empty/simple-background zones suitable for server-rendered rounded speech bubbles. Panel-crop analysis uses panel-relative coordinates; free-layout full-page analysis uses page-relative coordinates. Use [] if unsure.',
+            description: 'Optional actual visually empty/simple-background zones suitable for server-rendered rounded speech bubbles. Panel-image analysis uses panel-relative coordinates; detected full-page analysis uses page-relative coordinates. Use [] if unsure.',
             items: {
               type: 'object',
               additionalProperties: false,
@@ -275,6 +297,21 @@ function overlapArea(a: Rect, b: Rect): number {
   const width = Math.max(0, Math.min(rectRight(a), rectRight(b)) - Math.max(a.x, b.x));
   const height = Math.max(0, Math.min(rectBottom(a), rectBottom(b)) - Math.max(a.y, b.y));
   return width * height;
+}
+
+function expandRectByPx(
+  rect: Rect,
+  padPx: number,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+): Rect {
+  const padX = padPx / pageSize.width;
+  const padY = padPx / pageSize.height;
+  return {
+    x: rect.x - padX,
+    y: rect.y - padY,
+    width: rect.width + padX * 2,
+    height: rect.height + padY * 2,
+  };
 }
 
 function rectContainsPoint(rect: Rect, point: VisionPoint): boolean {
@@ -448,12 +485,12 @@ function buildBubbleVisionPrompt(
   const detectPanelBounds = options.detectPanelBounds === true;
   const panelBoundsInstructions = detectPanelBounds
     ? [
-        '- The page may use a model-chosen free layout. Do not assume any old preset rectangles or planned panel count.',
+        '- Detect actual physical panel rectangles from the page image. Do not assume old preset rectangles or planned panel count.',
         '- Return one item for every actual visible physical panel and set panelBounds: the visible panel rectangle in full-page coordinates from 0 to 1.',
         '- For each physical panel, set plannedPanelIndex and plannedPanelId to the planned panel it best represents.',
         '- If the artwork split one planned panel into two or more physical panels, return each physical panel separately and give all of them the same plannedPanelIndex/plannedPanelId.',
         '- Match physical panels to planned panels using expected characters, visual read, dialogue speakers, and visible action. Reading order is only a tie-breaker.',
-        '- For free-layout full-page analysis, return ALL coordinates in full-page coordinates from 0 to 1: panelBounds, character face/head/mouth points, occupiedZones, and emptyZones.',
+        '- For detected full-page analysis, return ALL coordinates in full-page coordinates from 0 to 1: panelBounds, character face/head/mouth points, occupiedZones, and emptyZones.',
         '- Do not return panel-relative coordinates in this mode.',
       ].join('\n')
     : [
@@ -1479,7 +1516,15 @@ function scoreCandidate(params: {
   for (const placedBubble of placed) {
     const overlap = overlapArea(rect, placedBubble.rect);
     if (overlap > OVERLAP_EPSILON) {
-      score += 1800 + (overlap / bubbleArea) * 12000;
+      score += 120000 + (overlap / bubbleArea) * 800000;
+      continue;
+    }
+    const gapOverlap = overlapArea(
+      expandRectByPx(rect, MIN_BUBBLE_GAP_PX / 2, pageSize),
+      expandRectByPx(placedBubble.rect, MIN_BUBBLE_GAP_PX / 2, pageSize)
+    );
+    if (gapOverlap > OVERLAP_EPSILON) {
+      score += 7000 + (gapOverlap / bubbleArea) * 60000;
     }
   }
 
@@ -1612,17 +1657,7 @@ function weightedAvoidOverlapRatio(rect: Rect, avoidRects: AvoidRect[]): number 
   return weightedOverlap / area;
 }
 
-function placeBubble(params: {
-  bubble: BubbleGeometry;
-  panel: PlannedGraphicNovelPanel;
-  target?: VisionPoint;
-  placed: BubbleGeometry[];
-  emptyZones: Rect[];
-  avoidRects: AvoidRect[];
-  pageSize?: PageSize;
-  textSizing?: GraphicNovelBubbleTextSizing;
-  preferSpeakerDistanceLimit?: boolean;
-}): BubbleGeometry {
+function scoreBubbleCandidates(params: BubblePlacementParams): ScoredBubbleCandidate[] {
   const {
     bubble,
     panel,
@@ -1648,7 +1683,7 @@ function placeBubble(params: {
       : []),
   ];
 
-  const scored: ScoredBubbleCandidate[] = candidates
+  return candidates
     .map((candidate) => ({
       ...candidate,
       overlapWithPlaced: overlapWithPlaced(candidate.rect, placed),
@@ -1672,7 +1707,13 @@ function placeBubble(params: {
       }),
     }))
     .sort((a, b) => a.score - b.score);
+}
 
+function selectBubbleCandidate(
+  scored: ScoredBubbleCandidate[],
+  target: VisionPoint | undefined,
+  preferSpeakerDistanceLimit: boolean
+): ScoredBubbleCandidate | undefined {
   const nearTargetCandidates = target && preferSpeakerDistanceLimit
     ? scored.filter((candidate) =>
         (candidate.distanceFromTargetPx ?? Infinity) <= MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX
@@ -1692,7 +1733,14 @@ function placeBubble(params: {
     scored.find((candidate) => !candidate.overflow) ??
     scored.find((candidate) => candidate.overlapWithPlaced <= OVERLAP_EPSILON) ??
     scored[0];
+  return selected;
+}
 
+function bubbleWithSelectedCandidate(
+  bubble: BubbleGeometry,
+  selected: ScoredBubbleCandidate | undefined,
+  target: VisionPoint | undefined
+): BubbleGeometry {
   return {
     ...bubble,
     rect: selected?.rect ?? bubble.rect,
@@ -1701,6 +1749,198 @@ function placeBubble(params: {
       false,
     tailTo: bubble.kind === 'caption' ? undefined : target ?? bubble.tailTo,
   };
+}
+
+function placeBubble(params: BubblePlacementParams): BubbleGeometry {
+  const scored = scoreBubbleCandidates(params);
+  const selected = selectBubbleCandidate(
+    scored,
+    params.target,
+    params.preferSpeakerDistanceLimit ?? false
+  );
+  return bubbleWithSelectedCandidate(params.bubble, selected, params.target);
+}
+
+function groupedCandidateOverlapPenalty(
+  candidate: ScoredBubbleCandidate,
+  selectedCandidates: ScoredBubbleCandidate[],
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+): number {
+  const area = Math.max(rectArea(candidate.rect), OVERLAP_EPSILON);
+  return selectedCandidates.reduce((sum, selected) => {
+    const overlap = overlapArea(candidate.rect, selected.rect);
+    if (overlap > OVERLAP_EPSILON) {
+      return sum + 120000 + (overlap / area) * 800000;
+    }
+    const gapOverlap = overlapArea(
+      expandRectByPx(candidate.rect, MIN_BUBBLE_GAP_PX / 2, pageSize),
+      expandRectByPx(selected.rect, MIN_BUBBLE_GAP_PX / 2, pageSize)
+    );
+    if (gapOverlap <= OVERLAP_EPSILON) return sum;
+    return sum + 9000 + (gapOverlap / area) * 80000;
+  }, 0);
+}
+
+function groupedTargetOrderPenalty(params: {
+  previousItem: BubblePlacementParams;
+  previousCandidate: ScoredBubbleCandidate;
+  currentItem: BubblePlacementParams;
+  currentCandidate: ScoredBubbleCandidate;
+  panelRect: Rect;
+  pageSize: PageSize;
+}): number {
+  const {
+    previousItem,
+    previousCandidate,
+    currentItem,
+    currentCandidate,
+    panelRect,
+    pageSize,
+  } = params;
+  if (!previousItem.target || !currentItem.target) return 0;
+
+  const targetDeltaPx = {
+    x: (currentItem.target.x - previousItem.target.x) * pageSize.width,
+    y: (currentItem.target.y - previousItem.target.y) * pageSize.height,
+  };
+  const previousCenter = rectCenter(previousCandidate.rect);
+  const currentCenter = rectCenter(currentCandidate.rect);
+  const bubbleDeltaPx = {
+    x: (currentCenter.x - previousCenter.x) * pageSize.width,
+    y: (currentCenter.y - previousCenter.y) * pageSize.height,
+  };
+  const minSeparationPx = Math.max(
+    38,
+    Math.min(panelRect.width * pageSize.width, panelRect.height * pageSize.height) * 0.07
+  );
+  let penalty = 0;
+
+  const targetVertical = Math.abs(targetDeltaPx.y);
+  const targetHorizontal = Math.abs(targetDeltaPx.x);
+  if (targetVertical >= minSeparationPx && targetVertical >= targetHorizontal * 0.72) {
+    if (targetDeltaPx.y * bubbleDeltaPx.y < 0) {
+      penalty += 5200 + Math.abs(targetDeltaPx.y - bubbleDeltaPx.y) * 18;
+    } else if (Math.abs(bubbleDeltaPx.y) < minSeparationPx * 0.35) {
+      penalty += 700;
+    }
+  }
+
+  if (targetHorizontal >= minSeparationPx && targetHorizontal >= targetVertical * 0.9) {
+    if (targetDeltaPx.x * bubbleDeltaPx.x < 0) {
+      penalty += 3800 + Math.abs(targetDeltaPx.x - bubbleDeltaPx.x) * 11;
+    }
+  }
+
+  return penalty;
+}
+
+function groupedTargetSidePenalty(
+  item: BubblePlacementParams,
+  candidate: ScoredBubbleCandidate,
+  panelRect: Rect,
+  pageSize: PageSize
+): number {
+  if (!item.target || item.bubble.kind === 'caption') return 0;
+  const panelCenterX = panelRect.x + panelRect.width / 2;
+  const sideMargin = Math.min(panelRect.width * 0.12, 0.055);
+  const targetOffset = item.target.x - panelCenterX;
+  const candidateOffset = rectCenter(candidate.rect).x - panelCenterX;
+  if (Math.abs(targetOffset) < sideMargin) return 0;
+  if (targetOffset * candidateOffset >= 0) return 0;
+
+  const crossPx = (Math.abs(candidateOffset) + Math.abs(targetOffset)) * pageSize.width;
+  return 2600 + crossPx * 18;
+}
+
+function groupedBubbleCandidates(params: BubblePlacementParams): ScoredBubbleCandidate[] {
+  const scored = scoreBubbleCandidates(params);
+  if (scored.length === 0) return [];
+  const nearTargetCandidates = params.target && params.preferSpeakerDistanceLimit
+    ? scored.filter((candidate) =>
+        (candidate.distanceFromTargetPx ?? Infinity) <= MAX_BUBBLE_DISTANCE_FROM_SPEAKER_PX * 1.65
+      )
+    : scored;
+  const source = nearTargetCandidates.length > 0 ? nearTargetCandidates : scored;
+  return source.slice(0, MAX_GROUPED_BUBBLE_CANDIDATES);
+}
+
+function placeBubbleGroup(items: BubblePlacementParams[]): BubbleGeometry[] {
+  if (items.length <= 1 || items.filter((item) => item.target && item.bubble.kind !== 'caption').length <= 1) {
+    const placed = [...(items[0]?.placed ?? [])];
+    return items.map((item) => {
+      const placedBubble = placeBubble({ ...item, placed });
+      placed.push(placedBubble);
+      return placedBubble;
+    });
+  }
+
+  const pageSize = items[0]?.pageSize ?? GRAPHIC_NOVEL_PAGE_SIZE;
+  const panelRect = items[0]?.panel.templatePanel.rect;
+  if (!panelRect) {
+    return items.map(placeBubble);
+  }
+
+  const candidateLists = items.map(groupedBubbleCandidates);
+  if (candidateLists.some((list) => list.length === 0)) {
+    const placed = [...(items[0]?.placed ?? [])];
+    return items.map((item) => {
+      const placedBubble = placeBubble({ ...item, placed });
+      placed.push(placedBubble);
+      return placedBubble;
+    });
+  }
+
+  type GroupState = {
+    candidates: ScoredBubbleCandidate[];
+    score: number;
+  };
+
+  let states: GroupState[] = [{ candidates: [], score: 0 }];
+
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    const nextStates: GroupState[] = [];
+    for (const state of states) {
+      for (const candidate of candidateLists[itemIndex]) {
+        let score =
+          state.score +
+          candidate.score +
+          groupedCandidateOverlapPenalty(candidate, state.candidates, pageSize) +
+          groupedTargetSidePenalty(item, candidate, panelRect, pageSize);
+        for (let previousIndex = 0; previousIndex < state.candidates.length; previousIndex += 1) {
+          score += groupedTargetOrderPenalty({
+            previousItem: items[previousIndex],
+            previousCandidate: state.candidates[previousIndex],
+            currentItem: item,
+            currentCandidate: candidate,
+            panelRect,
+            pageSize,
+          });
+        }
+        nextStates.push({
+          candidates: [...state.candidates, candidate],
+          score,
+        });
+      }
+    }
+    states = nextStates
+      .sort((left, right) => left.score - right.score)
+      .slice(0, MAX_GROUPED_BUBBLE_BEAM_STATES);
+  }
+
+  const selected = states[0];
+  if (!selected || selected.candidates.length !== items.length) {
+    const placed = [...(items[0]?.placed ?? [])];
+    return items.map((item) => {
+      const placedBubble = placeBubble({ ...item, placed });
+      placed.push(placedBubble);
+      return placedBubble;
+    });
+  }
+
+  return items.map((item, index) =>
+    bubbleWithSelectedCandidate(item.bubble, selected.candidates[index], item.target)
+  );
 }
 
 export function applyGraphicNovelBubbleVisionLayout(
@@ -1734,7 +1974,7 @@ export function applyGraphicNovelBubbleVisionLayout(
       );
       const placementPanel = resolved.panel;
       if (resolved.panelBoundsUsed) panelsWithDetectedBounds += 1;
-      const bubbles = panel.bubbles.map((bubble) => {
+      const preparedBubbles = panel.bubbles.map((bubble, bubbleIndex) => {
         const bubblePanelAnalysis = options.useDetectedPanelBounds === true
           ? findPanelAnalysisForBubble(analysis, panel, panelIndex, bubble, page, coordinateSpace)
           : panelAnalysis;
@@ -1764,7 +2004,6 @@ export function applyGraphicNovelBubbleVisionLayout(
         const placedKey = options.useDetectedPanelBounds === true
           ? panelAnalysisKey(bubblePanelAnalysis, panelIndex)
           : `planned:${panelIndex + 1}`;
-        const placed = placedByPanelKey.get(placedKey) ?? [];
         const targetResult = findCharacterTarget(
           bubblePanelAnalysis,
           bubble,
@@ -1776,25 +2015,55 @@ export function applyGraphicNovelBubbleVisionLayout(
         const placementZones = bubble.kind === 'caption' ? visionEmptyZones : occupiedPlacementZones;
         const preferSpeakerDistanceLimit =
           bubble.kind !== 'caption' && !!placementTarget;
-        const placedBubble = placeBubble({
-          bubble,
-          panel: bubblePlacementPanel,
-          target: placementTarget,
-          placed,
-          emptyZones: placementZones,
-          avoidRects,
-          pageSize,
-          textSizing: page.bubbleTextSizing,
-          preferSpeakerDistanceLimit,
-        });
-        placed.push(placedBubble);
-        placedByPanelKey.set(placedKey, placed);
-        bubblesPlaced += 1;
-        if (targetResult.hasVisionTarget) bubblesWithVisionTargets += 1;
-        if (bubblePanelAnalysis?.emptyZones?.length) bubblesWithVisionEmptyZones += 1;
-        if (bubblePanelAnalysis?.occupiedZones?.length) bubblesWithVisionOccupiedZones += 1;
-        return placedBubble;
+        return {
+          bubbleIndex,
+          placedKey,
+          bubblePanelAnalysis,
+          targetResult,
+          params: {
+            bubble,
+            panel: bubblePlacementPanel,
+            target: placementTarget,
+            placed: [] as BubbleGeometry[],
+            emptyZones: placementZones,
+            avoidRects,
+            pageSize,
+            textSizing: page.bubbleTextSizing,
+            preferSpeakerDistanceLimit,
+          },
+        };
       });
+
+      const preparedByPlacedKey = new Map<string, typeof preparedBubbles>();
+      for (const prepared of preparedBubbles) {
+        const group = preparedByPlacedKey.get(prepared.placedKey) ?? [];
+        group.push(prepared);
+        preparedByPlacedKey.set(prepared.placedKey, group);
+      }
+
+      const bubbles: BubbleGeometry[] = [];
+      for (const [placedKey, group] of preparedByPlacedKey) {
+        const placed = placedByPanelKey.get(placedKey) ?? [];
+        const placedGroup = placeBubbleGroup(
+          group.map((prepared) => ({
+            ...prepared.params,
+            placed,
+          }))
+        );
+        placed.push(...placedGroup);
+        placedByPanelKey.set(placedKey, placed);
+        group.forEach((prepared, groupIndex) => {
+          const placedBubble = placedGroup[groupIndex];
+          bubbles[prepared.bubbleIndex] = placedBubble;
+        });
+      }
+
+      for (const prepared of preparedBubbles) {
+        bubblesPlaced += 1;
+        if (prepared.targetResult.hasVisionTarget) bubblesWithVisionTargets += 1;
+        if (prepared.bubblePanelAnalysis?.emptyZones?.length) bubblesWithVisionEmptyZones += 1;
+        if (prepared.bubblePanelAnalysis?.occupiedZones?.length) bubblesWithVisionOccupiedZones += 1;
+      }
 
       return {
         ...placementPanel,
@@ -1828,7 +2097,7 @@ export async function analyzeGraphicNovelBubbleVision(params: {
   onUsage?: (usage: UsageMetadata) => void;
 }): Promise<GraphicNovelBubbleVisionAnalysis> {
   return params.textProvider.generateStructured<GraphicNovelBubbleVisionAnalysis>({
-    model: config.ai.validationModel || config.ai.geminiVisionModel,
+    model: getValidationTextModelOverride() ?? config.ai.geminiVisionModel,
     temperature: 0,
     maxTokens: 6000,
     operation: 'graphic_novel_bubble_vision',
@@ -1850,7 +2119,7 @@ export async function analyzeGraphicNovelBubbleVision(params: {
       mimeType: params.mimeType,
       data: params.imageData.toString('base64'),
       instructionText: params.detectPanelBounds
-        ? 'Finished free-layout art-only graphic novel page image. Detect actual panel rectangles, visible characters, occupied no-cover zones, and optional empty zones.'
+        ? 'Finished art-only graphic novel page image. Detect actual panel rectangles, visible characters, occupied no-cover zones, and optional empty zones.'
         : 'Finished art-only graphic novel page image. Analyze visible characters, occupied no-cover zones, and optional empty zones inside the panels.',
     }],
   });
@@ -1897,7 +2166,7 @@ export async function analyzeGraphicNovelBubbleVisionByPanelCrops(params: {
       .png()
       .toBuffer();
     const analysis = await params.textProvider.generateStructured<GraphicNovelBubbleVisionAnalysis>({
-      model: config.ai.validationModel || config.ai.geminiVisionModel,
+      model: getValidationTextModelOverride() ?? config.ai.geminiVisionModel,
       temperature: 0,
       maxTokens: 2500,
       operation: 'graphic_novel_bubble_vision_panel_crop',
@@ -1930,6 +2199,61 @@ export async function analyzeGraphicNovelBubbleVisionByPanelCrops(params: {
       }),
       panelIndex: panelIndex + 1,
       panelId: params.page.panels[panelIndex].script.panelId,
+    });
+  }
+
+  return { panels };
+}
+
+export async function analyzeGraphicNovelBubbleVisionPanelImages(params: {
+  textProvider: ITextProvider;
+  page: PlannedGraphicNovelPage;
+  panelImages: GraphicNovelBubbleVisionPanelImage[];
+  onUsage?: (usage: UsageMetadata) => void;
+}): Promise<GraphicNovelBubbleVisionAnalysis> {
+  const panels: GraphicNovelBubbleVisionPanel[] = [];
+
+  for (const panelImage of params.panelImages) {
+    const panelIndex = panelImage.panelIndex - 1;
+    const plannedPanel = params.page.panels[panelIndex];
+    if (!plannedPanel) continue;
+
+    const normalizedImage = await sharp(panelImage.imageData).png().toBuffer();
+    const analysis = await params.textProvider.generateStructured<GraphicNovelBubbleVisionAnalysis>({
+      model: getValidationTextModelOverride() ?? config.ai.geminiVisionModel,
+      temperature: 0,
+      maxTokens: 2500,
+      operation: 'graphic_novel_bubble_vision_panel_image',
+      onUsage: params.onUsage,
+      systemInstruction: [
+        'You are a precise comic panel vision layout analyzer.',
+        'Return only structured JSON matching the schema.',
+        'Use the image pixels as source of truth for character face/head/mouth positions and occupied no-cover zones.',
+        'The image is one finished panel image only; do not infer or invent other panels.',
+      ].join(' '),
+      prompt: buildSinglePanelBubbleVisionPrompt(params.page, panelIndex),
+      schema: GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA,
+      imageData: [{
+        mimeType: 'image/png',
+        data: normalizedImage.toString('base64'),
+        instructionText: `Finished art-only panel ${panelImage.panelIndex}. Analyze visible characters, occupied no-cover zones, and optional empty zones inside this panel only.`,
+      }],
+    });
+
+    const panelAnalysis = analysis.panels.find((panel) =>
+      panel.panelIndex === panelImage.panelIndex ||
+      panel.panelId === plannedPanel.script.panelId ||
+      (panelImage.panelId ? panel.panelId === panelImage.panelId : false)
+    ) ?? analysis.panels[0];
+
+    panels.push({
+      ...(panelAnalysis || {
+        detectedCharacters: [],
+        occupiedZones: [],
+        emptyZones: [],
+      }),
+      panelIndex: panelImage.panelIndex,
+      panelId: plannedPanel.script.panelId,
     });
   }
 

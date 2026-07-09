@@ -37,6 +37,7 @@ import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useChildren } from '@/api/children';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { isServerAssetUrl } from '@/utils/assetUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
@@ -52,6 +53,8 @@ type ChildAgeData = {
 interface PhotoObject {
   url: string;
   uploadedAt: string;
+  storagePath?: string;
+  isUploading?: boolean;
   fileKey?: string;
   [key: string]: unknown;
 }
@@ -206,10 +209,21 @@ export default function InstantWizardScreen() {
         photo_count: photos.length,
       });
 
-      // Extract URLs from photo objects
       const photoUrls = photos
-        .map((photo) => (typeof photo === 'string' ? photo : photo.url))
+        .filter((photo) => !photo.isUploading && isServerAssetUrl(photo.url))
+        .map((photo) => photo.url)
         .filter((u): u is string => !!u);
+
+      if (photoUrls.length === 0) {
+        setIsGenerating(false);
+        Alert.alert(
+          t('common.error') || 'Error',
+          t('instant_wizard.photos_required', {
+            defaultValue: 'Add at least one photo before generating a story.',
+          })
+        );
+        return;
+      }
 
       const payload = {
         photos: photoUrls,
@@ -279,7 +293,11 @@ export default function InstantWizardScreen() {
     }
   };
 
-  const canGenerate = storyLanguage;
+  const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
+  const readyPhotoCount = photos.filter(
+    (photo) => !photo.isUploading && isServerAssetUrl(photo.url)
+  ).length;
+  const canGenerate = Boolean(storyLanguage) && readyPhotoCount > 0 && !hasUploadingPhotos;
   const selectedScenarioName =
     themesData?.scenarioCards?.find((scenario) => scenario.id === scenarioCardId)?.name ??
     t('instant_wizard.default_theme', { defaultValue: 'Free theme' });
@@ -314,15 +332,25 @@ export default function InstantWizardScreen() {
             <AnimatedSection delay={80} trigger={enterKey}>
               <View style={styles.surfaceSection}>
                 <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
-                <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
+                <Text style={styles.sectionDescription}>
+                  {t('instant_wizard.photos_description')}
+                </Text>
                 <PhotoUploadGrid
                   photos={photos.map((p) => ({
                     url: p.url,
                     uploadedAt: p.uploadedAt || new Date().toISOString(),
-                    isUploading: (p as { isUploading?: boolean }).isUploading,
+                    storagePath: p.storagePath,
+                    isUploading: p.isUploading,
                   }))}
                   onPhotosChange={(newPhotos) =>
-                    setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))
+                    setPhotos(
+                      newPhotos.map((p) => ({
+                        url: p.url,
+                        uploadedAt: p.uploadedAt,
+                        storagePath: p.storagePath,
+                        isUploading: p.isUploading,
+                      }))
+                    )
                   }
                   maxPhotos={5}
                   photoType="character"
@@ -432,36 +460,36 @@ export default function InstantWizardScreen() {
           </AnimatedSection>
         </View>
 
-      {/* Generation Progress Modal */}
-      <GenerationProgressModal
-        visible={isGenerating}
-        requestId={requestId ?? undefined}
-        status={storyStatus?.status || 'pending'}
-        progress={storyStatus?.progress || 0}
-        progressData={storyStatus?.progressData}
-        errorMessage={storyStatus?.errorMessage ?? undefined}
-        onRetry={handleRetry}
-        onClose={handleCloseModal}
-        onReport={storyStatus?.status === 'failed' ? () => setShowFeedbackModal(true) : undefined}
-      />
+        {/* Generation Progress Modal */}
+        <GenerationProgressModal
+          visible={isGenerating}
+          requestId={requestId ?? undefined}
+          status={storyStatus?.status || 'pending'}
+          progress={storyStatus?.progress || 0}
+          progressData={storyStatus?.progressData}
+          errorMessage={storyStatus?.errorMessage ?? undefined}
+          onRetry={handleRetry}
+          onClose={handleCloseModal}
+          onReport={storyStatus?.status === 'failed' ? () => setShowFeedbackModal(true) : undefined}
+        />
 
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="wizard"
-      />
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="wizard"
+        />
 
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
-        periodEndFormatted={periodEndFormatted}
-      />
-      <GenerationErrorModal
-        visible={generationErrorMessage !== null}
-        message={generationErrorMessage}
-        onClose={() => setGenerationErrorMessage(null)}
-      />
+        <PaywallModal
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
+          periodEndFormatted={periodEndFormatted}
+        />
+        <GenerationErrorModal
+          visible={generationErrorMessage !== null}
+          message={generationErrorMessage}
+          onClose={() => setGenerationErrorMessage(null)}
+        />
       </ScrollView>
     </LinearGradient>
   );

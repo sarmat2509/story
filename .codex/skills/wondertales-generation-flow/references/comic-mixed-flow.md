@@ -15,7 +15,7 @@ Both `graphic_novel` and `mixed_story` use:
 - `services/api/src/services/graphicNovelOrchestrationService.ts`
 - `graphic_novel_projects`, `graphic_novel_pages`, `graphic_novel_panels`
 - complex image route from `getComplexImageDomainService()`
-- full-page art generation
+- predefined template panel image generation and composition
 - `html_overlay` text rendering in app
 - `StoryViewerScreen.tsx` graphic novel hooks when `story.metadata.storyFormat` is `graphic_novel` or `mixed_story`
 
@@ -91,14 +91,15 @@ Domain:
 
 1. Builds environment reference images.
 2. Builds character reference images.
-3. Builds outfit plate references.
-4. Calls `generateGraphicNovelPageFreeLayout`.
-5. Saves art-only debug image.
-6. Validates page art with `validateGraphicNovelRenderedPage`.
-7. Optionally repairs art using edit-repair if below threshold.
-8. Applies vision bubble placement and stores final image/bubble overlay.
-9. Persists validation results.
-10. Updates `graphic_novel_pages` and optionally creates cover candidate.
+3. Builds dressed character references when a scene-specific outfit is needed.
+4. Generates each template panel crop independently with `generateGraphicNovelPanelCrop`.
+5. Composes panel crops into the predefined page template.
+6. Saves art-only debug image.
+7. Validates each panel crop with `validateGraphicNovelRenderedPage`.
+8. Optionally repairs failed panel crops and recomposes the page.
+9. Applies vision bubble placement from the validated panel images and stores final image/bubble overlay.
+10. Persists panel validation results.
+11. Updates `graphic_novel_pages` and optionally creates cover candidate.
 
 Page rendering uses complex provider config:
 

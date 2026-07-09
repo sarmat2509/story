@@ -19,8 +19,8 @@ function testBindingIdDoesNotDependOnImageIndex(): void {
   const second = referenceBindingIdFor({ ...baseRef, imageIndex: 5 });
 
   assert.equal(first, second);
-  assert.equal(referenceBindingLabel({ ...baseRef, imageIndex: 1 }), `${first} / Image 1`);
-  assert.equal(referenceBindingLabel({ ...baseRef, imageIndex: 5 }), `${first} / Image 5`);
+  assert.equal(referenceBindingLabel({ ...baseRef, imageIndex: 1 }), first);
+  assert.equal(referenceBindingLabel({ ...baseRef, imageIndex: 5 }), first);
 }
 
 function testBindingIdUsesStoragePathForUniqueness(): void {

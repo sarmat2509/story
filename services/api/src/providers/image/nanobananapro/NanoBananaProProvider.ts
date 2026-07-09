@@ -83,6 +83,7 @@ export class NanoBananaProProvider implements IImageProvider {
       systemInstructionLength: request.systemInstruction?.length || 0,
       aspectRatio: request.aspectRatio,
       model: this.model,
+      imageSize: request.imageSize,
     }, 'Generating image with Nano Banana Pro - Full Request Details');
     
     try {
@@ -95,6 +96,7 @@ export class NanoBananaProProvider implements IImageProvider {
         aspectRatio: request.aspectRatio,
         systemInstruction: request.systemInstruction,
         personGeneration: request.personGeneration,
+        imageSize: request.imageSize,
         promptLength: request.prompt.length,
         referenceCount: request.referenceImages?.length || 0,
         operationType: 'generate',
@@ -121,50 +123,38 @@ export class NanoBananaProProvider implements IImageProvider {
       referenceCount: request.referenceImages?.length || 0,
       aspectRatio: request.aspectRatio,
       model: this.model,
-      hasPreviousInteractionId: !!request.previousInteractionId,
-      previousInteractionId: request.previousInteractionId ?? null,
+      imageSize: request.imageSize,
     }, 'Editing image with Nano Banana Pro - Image Edit Request');
 
     try {
-      // Build the full edit payload for the non-conversational fallback path.
       const referenceParts = await this.buildReferenceParts(request.referenceImages);
-      const fallbackParts: any[] = [...referenceParts];
 
-      const originalImageInstruction = request.operation === 'graphic_novel_page_edit'
-        ? 'SOURCE COMIC PAGE TO EDIT: preserve the existing page aspect, visible panel count, panel borders, gutters, and composition while applying the requested corrections.'
-        : 'FAILED SCENE ILLUSTRATION TO REPAIR: use this image for composition, pose intent, background, lighting, and art style continuity only. ' +
-          'Do not use it as the source of truth for any character face, hairstyle, body identity, or outfit detail that the edit instructions identify as wrong.';
+      const isGraphicNovelPageEdit = request.operation?.startsWith('graphic_novel_page') === true;
+      const originalImageInstruction = isGraphicNovelPageEdit
+        ? 'The next image is SOURCE_IMAGE: the comic page to edit. Preserve the existing page aspect, visible panel count, panel borders, gutters, and composition while applying the requested corrections.'
+        : 'The next image is SOURCE_IMAGE: the failed scene illustration to repair. Use this image for composition, pose intent, background, lighting, and art style continuity. ' +
+          'Use the attached character references as the source of truth for any character face, hairstyle, body identity, or appearance detail that the edit instructions identify as wrong.';
 
-      fallbackParts.push({ text: originalImageInstruction });
-
-      // Add the original generated image that needs editing.
-      fallbackParts.push({
+      const parts: any[] = [];
+      parts.push({ text: originalImageInstruction });
+      parts.push({
         inlineData: {
           mimeType: request.originalMimeType,
           data: request.originalImage.toString('base64'),
         },
       });
-
-      // Add edit instructions last
-      fallbackParts.push({ text: request.editInstructions });
-
-      // For Gemini Interactions multi-turn edits, previous_interaction_id already
-      // points at the prior generated image/context. Send labeled references but
-      // do not resend the failed generated image.
-      const interactionParts = request.previousInteractionId
-        ? [...referenceParts, { text: request.editInstructions }]
-        : fallbackParts;
+      parts.push(...referenceParts);
+      parts.push({ text: request.editInstructions });
 
       return await this.callGeminiImageAPI({
-        parts: interactionParts,
-        fallbackParts,
+        parts,
         aspectRatio: request.aspectRatio,
         systemInstruction: request.systemInstruction,
         personGeneration: request.personGeneration,
+        imageSize: request.imageSize,
         promptLength: request.editInstructions.length,
         referenceCount: request.referenceImages?.length || 0,
         operationType: 'edit',
-        previousInteractionId: request.previousInteractionId,
         onUsage: request.onUsage,
         operation: request.operation ?? 'image_edit',
       });
@@ -204,11 +194,8 @@ export class NanoBananaProProvider implements IImageProvider {
       }))
     }, 'Adding reference images to request (interleaved mode)');
 
-    for (const refImage of referenceImages) {
-      // Interleave: place instruction text immediately before its image
-      if (refImage.instructionText) {
-        parts.push({ text: refImage.instructionText });
-      }
+    for (const [index, refImage] of referenceImages.entries()) {
+      parts.push({ text: this.buildReferenceLabel(refImage, index) });
 
       // Prefer fileUri (Files API) over inline base64 to reduce payload
       if (refImage.fileUri) {
@@ -246,6 +233,42 @@ export class NanoBananaProProvider implements IImageProvider {
     }
 
     return parts;
+  }
+
+  private buildReferenceLabel(refImage: ReferenceImage, index: number): string {
+    const instructionText = refImage.instructionText?.trim();
+    if (instructionText) {
+      return this.normalizeReferenceInstructionText(instructionText);
+    }
+
+    const label = refImage.referenceBindingId || `REFERENCE_IMAGE_${index + 1}`;
+    const kind =
+      refImage.referenceKind === 'object'
+        ? 'an object or environment reference'
+        : 'a character reference';
+    const name = refImage.characterName ? ` for "${refImage.characterName}"` : '';
+    return `The next image is ${label}: ${kind}${name}.`;
+  }
+
+  private normalizeReferenceInstructionText(instructionText: string): string {
+    const text = instructionText.trim();
+    if (/^the next image is\b/i.test(text)) {
+      return text;
+    }
+
+    const match = text.match(/^([^:]+):\s*(.+)$/s);
+    if (!match) {
+      return `The next image is ${text.replace(/\.+$/, '')}.`;
+    }
+
+    const id = match[1].trim();
+    const description = match[2].trim().replace(/\.+$/, '');
+    const article = /^(?:a|an|the)\b/i.test(description)
+      ? ''
+      : /^[aeiou]/i.test(description)
+        ? 'an '
+        : 'a ';
+    return `The next image is ${id}: ${article}${description}.`;
   }
 
   private resolveReferenceMimeType(refImage: ReferenceImage, fallback = 'image/png'): string {
@@ -286,10 +309,10 @@ export class NanoBananaProProvider implements IImageProvider {
     aspectRatio?: string;
     systemInstruction?: string;
     personGeneration?: string;
+    imageSize?: string;
     promptLength: number;
     referenceCount: number;
     operationType: 'generate' | 'edit';
-    previousInteractionId?: string;
     onUsage?: (u: UsageMetadata) => void;
     operation?: string;
   }): Promise<GeneratedImage> {
@@ -299,10 +322,10 @@ export class NanoBananaProProvider implements IImageProvider {
       aspectRatio,
       systemInstruction,
       personGeneration,
+      imageSize,
       promptLength,
       referenceCount,
       operationType,
-      previousInteractionId,
       onUsage,
       operation: op,
     } = params;
@@ -315,23 +338,25 @@ export class NanoBananaProProvider implements IImageProvider {
       aspectRatio,
       systemInstruction,
       personGeneration,
+      imageSize,
       promptLength,
       referenceCount,
       operationType,
-      previousInteractionId,
+      operation: op,
     });
-    const fallbackRequestDiagnostics = fallbackParts
+    const generateContentRequestDiagnostics = fallbackParts
       ? this.buildRequestDiagnostics({
           providerRequestId,
           parts: fallbackParts,
           aspectRatio,
           systemInstruction,
           personGeneration,
+          imageSize,
           promptLength,
           referenceCount,
           operationType,
-          previousInteractionId,
-        })
+          operation: op,
+      })
       : requestDiagnostics;
 
     // Log full request structure (untruncated for debugging)
@@ -368,12 +393,10 @@ export class NanoBananaProProvider implements IImageProvider {
       aspectRatio,
       model: this.model,
       operationType,
-      hasPreviousInteractionId: !!previousInteractionId,
-      previousInteractionId: previousInteractionId ?? null,
       diagnostics: requestDiagnostics,
       ...(fallbackParts && {
         fallbackPartsCount: fallbackParts.length,
-        fallbackDiagnostics: fallbackRequestDiagnostics,
+        generateContentDiagnostics: generateContentRequestDiagnostics,
       }),
     }, `Calling Gemini API for image ${operationType}`);
 
@@ -408,58 +431,34 @@ export class NanoBananaProProvider implements IImageProvider {
       }, 'Could not count tokens (non-critical)');
     }
 
-    try {
-      return await this.callGeminiInteractionsImageAPI({
-        providerRequestId,
-        parts,
-        aspectRatio,
-        systemInstruction,
-        promptLength,
-        referenceCount,
-        operationType,
-        previousInteractionId,
-        onUsage,
-        operation: op,
-      });
-    } catch (interactionError) {
-      logger.warn({
-        providerRequestId,
-        errorDiagnostics: this.extractApiErrorDiagnostics(interactionError),
-        requestDiagnostics,
-        fallbackRequestDiagnostics,
-        model: this.model,
-        operationType,
-        hasPreviousInteractionId: !!previousInteractionId,
-        previousInteractionId: previousInteractionId ?? null,
-      }, 'Gemini Interactions image call failed — falling back to generateContent');
-    }
-
     const generateContentConfig = {
       ...(systemInstruction && { systemInstruction }),
       responseModalities: [Modality.IMAGE, Modality.TEXT],
       imageConfig: {
         ...(aspectRatio && { aspectRatio }),
-        imageSize: config.nanoBanana?.imageSize || '1K',
+        imageSize: imageSize || config.nanoBanana?.imageSize || '1K',
         ...(personGeneration && this.supportsPersonGeneration() && {
           personGeneration: this.mapPersonGeneration(personGeneration),
         }),
       },
     };
 
+    const generateContentRequest = {
+      model: this.model,
+      contents: [{ role: 'user', parts: generateContentParts }],
+      config: generateContentConfig,
+    };
+
     let response: Awaited<ReturnType<typeof this.client.models.generateContent>>;
     try {
-      response = await this.client.models.generateContent({
-        model: this.model,
-        contents: [{ role: 'user', parts: generateContentParts }],
-        config: generateContentConfig,
-      });
+      response = await this.client.models.generateContent(generateContentRequest);
     } catch (generateContentError) {
       logger.error({
         providerRequestId,
         model: this.model,
         operationType,
         errorDiagnostics: this.extractApiErrorDiagnostics(generateContentError),
-        requestDiagnostics: fallbackRequestDiagnostics,
+        requestDiagnostics: generateContentRequestDiagnostics,
         generateContentConfig: this.sanitizeForLog(generateContentConfig),
       }, 'Gemini generateContent image call failed');
       throw generateContentError;
@@ -552,7 +551,7 @@ export class NanoBananaProProvider implements IImageProvider {
           `1) Prompt too long (current: ${promptLength} chars), ` +
           `2) Too many or incompatible reference images (current: ${referenceCount}; for gemini-3.1-flash-image use separate character vs object caps — see IMAGE_MAX_CHARACTER_REFERENCE_IMAGES / IMAGE_MAX_OBJECT_REFERENCE_IMAGES), ` +
           `3) Unsupported content in prompt. ` +
-          `Try simplifying the prompt or reducing object references (environment / outfit plates) first.`
+          `Try simplifying the prompt or reducing object references first.`
         );
       }
 
@@ -612,7 +611,7 @@ export class NanoBananaProProvider implements IImageProvider {
     const imageData = Buffer.from(imagePart.inlineData.data!, 'base64');
 
     // Calculate dimensions from aspect ratio
-    const dimensions = this.calculateDimensions(aspectRatio);
+    const dimensions = this.calculateDimensions(aspectRatio, imageSize);
 
     // Determine format from mime type
     const mimeType = imagePart.inlineData.mimeType || 'image/png';
@@ -634,10 +633,10 @@ export class NanoBananaProProvider implements IImageProvider {
       thoughtsTokenCount?: number;
       candidatesTokenCountDetails?: { thoughtTokenCount?: number };
     } | undefined;
-    if (onUsage && usageMeta) {
-      const inputUnits = usageMeta.promptTokenCount ?? 0;
-      const thoughtTokens = usageMeta.thoughtsTokenCount ?? usageMeta.candidatesTokenCountDetails?.thoughtTokenCount ?? 0;
-      const imageTokens = this.getOutputImageTokens();
+    if (onUsage) {
+      const inputUnits = usageMeta?.promptTokenCount ?? 0;
+      const thoughtTokens = usageMeta?.thoughtsTokenCount ?? usageMeta?.candidatesTokenCountDetails?.thoughtTokenCount ?? 0;
+      const imageTokens = this.getOutputImageTokens(imageSize);
       onUsage({
         provider: 'gemini',
         operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),
@@ -654,163 +653,11 @@ export class NanoBananaProProvider implements IImageProvider {
       width: dimensions.width,
       height: dimensions.height,
       format,
-    };
-  }
-
-  /**
-   * Gemini Interactions API is the only Gemini path that supports
-   * previous_interaction_id. When a previous id is available, edit calls use a
-   * conversational turn instead of resending the failed image.
-   */
-  private async callGeminiInteractionsImageAPI(params: {
-    providerRequestId: string;
-    parts: any[];
-    aspectRatio?: string;
-    systemInstruction?: string;
-    promptLength: number;
-    referenceCount: number;
-    operationType: 'generate' | 'edit';
-    previousInteractionId?: string;
-    onUsage?: (u: UsageMetadata) => void;
-    operation?: string;
-  }): Promise<GeneratedImage> {
-    const {
-      providerRequestId,
-      parts,
-      aspectRatio,
-      systemInstruction,
-      promptLength,
-      referenceCount,
-      operationType,
-      previousInteractionId,
-      onUsage,
-      operation: op,
-    } = params;
-
-    const interactionInput = this.convertPartsToInteractionInput(parts);
-    const responseFormat: Record<string, unknown> = {
-      type: 'image',
-      mime_type: 'image/jpeg',
-      ...(aspectRatio && { aspect_ratio: aspectRatio }),
-      image_size: config.nanoBanana?.imageSize || '1K',
-    };
-
-    logger.info({
-      providerRequestId,
-      model: this.model,
-      operationType,
-      inputCount: interactionInput.length,
-      inputSummary: this.summarizeInteractionInput(interactionInput),
-      responseFormat,
-      hasSystemInstruction: !!systemInstruction,
-      systemInstructionLength: systemInstruction?.length ?? 0,
-      hasPreviousInteractionId: !!previousInteractionId,
-      previousInteractionId: previousInteractionId ?? null,
-    }, 'Calling Gemini Interactions image API');
-
-    const interaction = await (this.client as unknown as {
-      interactions: {
-        create: (params: Record<string, unknown>) => Promise<Record<string, any>>;
-      };
-    }).interactions.create({
-      model: this.model,
-      input: interactionInput,
-      stream: false,
-      store: true,
-      response_format: responseFormat,
-      ...(systemInstruction && { system_instruction: systemInstruction }),
-      ...(previousInteractionId && { previous_interaction_id: previousInteractionId }),
-    });
-
-    logger.info({
-      providerRequestId,
-      interactionId: interaction.id,
-      previousInteractionId: previousInteractionId ?? null,
-      status: interaction.status,
-      model: interaction.model ?? this.model,
-      outputCount: Array.isArray(interaction.outputs) ? interaction.outputs.length : 0,
-      usage: interaction.usage ?? null,
-      operationType,
-    }, `Received response from Gemini Interactions API (${operationType})`);
-
-    if (interaction.status && interaction.status !== 'completed') {
-      throw new Error(`Gemini Interactions image ${operationType} did not complete. Status: ${interaction.status}`);
-    }
-
-    const outputParts = [
-      ...this.flattenInteractionOutputs(interaction.output_image ?? interaction.outputImage),
-      ...this.flattenInteractionOutputs(interaction.outputs),
-      ...this.flattenInteractionSteps(interaction.steps),
-    ];
-    const textOutputs = outputParts.filter((part) => this.getInteractionText(part));
-    if (textOutputs.length > 0) {
-      const modelText = textOutputs.map((part) => this.getInteractionText(part)).filter(Boolean).join('\n');
-      logger.info({
-        textPartsCount: textOutputs.length,
-        modelText: modelText.substring(0, 500),
-        fullLength: modelText.length,
-        operationType,
-      }, `Interactions model returned text alongside ${operationType === 'edit' ? 'edited' : 'generated'} image`);
-    }
-
-    const imageOutput = outputParts.find((part) => this.getInteractionImageData(part) || this.getInteractionImageUri(part));
-    if (!imageOutput) {
-      logger.error({
-        interactionId: interaction.id,
-        status: interaction.status,
-        outputCount: outputParts.length,
-        outputTypes: outputParts.map((part) => part?.type ?? Object.keys(part ?? {})),
-        promptLength,
-        referenceCount,
-        operationType,
-      }, 'No image data in Gemini Interactions output');
-      throw new Error('No image data in Gemini Interactions output');
-    }
-
-    const imageDataBase64 = this.getInteractionImageData(imageOutput);
-    const imageUri = this.getInteractionImageUri(imageOutput);
-    const imageData = imageDataBase64
-      ? Buffer.from(imageDataBase64, 'base64')
-      : await this.downloadImage(imageUri!);
-
-    const dimensions = this.calculateDimensions(aspectRatio);
-    const mimeType = this.getInteractionImageMimeType(imageOutput) || 'image/png';
-    const format = this.getFormatFromMimeType(mimeType);
-
-    logger.info({
-      interactionId: interaction.id,
-      previousInteractionId: previousInteractionId ?? null,
-      imageSize: imageData.length,
-      mimeType,
-      width: dimensions.width,
-      height: dimensions.height,
-      operationType,
-    }, `Image ${operationType === 'edit' ? 'edited' : 'generated'} successfully via Interactions`);
-
-    const usage = interaction.usage as {
-      total_input_tokens?: number;
-      total_output_tokens?: number;
-      total_tokens?: number;
-      total_thought_tokens?: number;
-    } | undefined;
-    if (onUsage && usage) {
-      onUsage({
-        provider: 'gemini',
-        operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),
-        model: this.model,
-        inputUnits: usage.total_input_tokens ?? 0,
-        thoughtTokens: usage.total_thought_tokens ?? 0,
-        imageTokens: this.getOutputImageTokens(),
-      });
-    }
-
-    return {
-      imageData,
-      mimeType,
-      width: dimensions.width,
-      height: dimensions.height,
-      format,
-      providerInteractionId: typeof interaction.id === 'string' ? interaction.id : undefined,
+      requestManifest: {
+        ...generateContentRequestDiagnostics,
+        endpointUsed: 'generateContent',
+        modelRequest: this.buildGenerateContentModelRequest(generateContentRequest),
+      },
     };
   }
 
@@ -820,15 +667,20 @@ export class NanoBananaProProvider implements IImageProvider {
     aspectRatio?: string;
     systemInstruction?: string;
     personGeneration?: string;
+    imageSize?: string;
     promptLength: number;
     referenceCount: number;
     operationType: 'generate' | 'edit';
-    previousInteractionId?: string;
+    operation?: string;
   }): Record<string, unknown> {
     const { parts } = params;
     const fileUriParts = parts.filter((part) => part?.fileData);
     const inlineImageParts = parts.filter((part) => part?.inlineData);
     const textParts = parts.filter((part) => typeof part?.text === 'string');
+    const fullTextPrompt = textParts
+      .map((part) => part.text)
+      .filter((text): text is string => typeof text === 'string' && text.length > 0)
+      .join('\n\n');
     const unsupportedPartIndexes = parts
       .map((part, index) =>
         part?.text || part?.inlineData || part?.fileData ? null : { index, keys: Object.keys(part ?? {}) }
@@ -838,10 +690,15 @@ export class NanoBananaProProvider implements IImageProvider {
 
     return {
       providerRequestId: params.providerRequestId,
+      provider: 'gemini',
       model: this.model,
+      operation: params.operation ?? (params.operationType === 'edit' ? 'image_edit' : 'image_generate'),
       operationType: params.operationType,
-      endpointPlan: 'interactions first, generateContent fallback',
+      mode: params.operationType,
+      endpointPlan: 'generateContent',
       promptLength: params.promptLength,
+      fullTextPromptLength: fullTextPrompt.length,
+      fullTextPrompt,
       referenceCount: params.referenceCount,
       partsCount: parts.length,
       textPartsCount: textParts.length,
@@ -864,15 +721,14 @@ export class NanoBananaProProvider implements IImageProvider {
         textPreview: part.text.slice(0, 240),
       })),
       aspectRatio: params.aspectRatio ?? null,
-      imageSize: config.nanoBanana?.imageSize || '1K',
+      imageSize: params.imageSize || config.nanoBanana?.imageSize || '1K',
       hasSystemInstruction: !!params.systemInstruction,
       systemInstructionLength: params.systemInstruction?.length ?? 0,
+      systemInstruction: params.systemInstruction ?? null,
       personGenerationRequested: params.personGeneration ?? null,
       personGenerationSent: maybePersonGenerationSent
         ? this.mapPersonGeneration(params.personGeneration!)
         : null,
-      hasPreviousInteractionId: !!params.previousInteractionId,
-      previousInteractionId: params.previousInteractionId ?? null,
       invalidArgumentHints: this.inferInvalidArgumentHints({
         referenceCount: params.referenceCount,
         fileUriPartsCount: fileUriParts.length,
@@ -884,29 +740,45 @@ export class NanoBananaProProvider implements IImageProvider {
     };
   }
 
-  private summarizeInteractionInput(input: any[]): Array<Record<string, unknown>> {
-    return input.map((part, index) => {
-      if (part?.type === 'text') {
-        return {
-          index,
-          type: 'text',
-          textLength: typeof part.text === 'string' ? part.text.length : null,
-          textPreview: typeof part.text === 'string' ? part.text.slice(0, 160) : null,
-        };
+  private buildGenerateContentModelRequest(request: {
+    model: string;
+    contents: Array<{ role: string; parts: any[] }>;
+    config: Record<string, unknown>;
+  }): Record<string, unknown> {
+    return {
+      endpoint: 'models.generateContent',
+      model: request.model,
+      input: request.contents.flatMap((content) =>
+        this.convertPartsToInteractionInput(content.parts).map((part) =>
+          this.sanitizeModelInputPart(part)
+        )
+      ),
+      config: this.sanitizeForLog(request.config),
+    };
+  }
+
+  private sanitizeModelInputPart(part: any): Record<string, unknown> {
+    if (part?.type === 'text') {
+      return {
+        type: 'text',
+        text: typeof part.text === 'string' ? part.text : '',
+      };
+    }
+
+    if (part?.type === 'image') {
+      const sanitized: Record<string, unknown> = {
+        type: 'image',
+        mime_type: part.mime_type ?? 'image/png',
+      };
+      if (typeof part.uri === 'string') sanitized.uri = part.uri;
+      if (typeof part.data === 'string') {
+        sanitized.data = '[omitted base64 image payload]';
+        sanitized.dataLength = part.data.length;
       }
-      if (part?.type === 'image') {
-        return {
-          index,
-          type: 'image',
-          mimeType: part.mime_type ?? null,
-          hasUri: typeof part.uri === 'string',
-          uriSummary: this.summarizeUri(part.uri),
-          hasInlineData: typeof part.data === 'string',
-          inlineDataLength: typeof part.data === 'string' ? part.data.length : null,
-        };
-      }
-      return { index, type: part?.type ?? 'unknown', keys: Object.keys(part ?? {}) };
-    });
+      return sanitized;
+    }
+
+    return this.sanitizeForLog(part) as Record<string, unknown>;
   }
 
   private inferInvalidArgumentHints(params: {
@@ -1008,6 +880,13 @@ export class NanoBananaProProvider implements IImageProvider {
         result[key] = `[base64/string ${item.length} chars]`;
         continue;
       }
+      if (
+        (normalizedKey === 'systeminstruction' || normalizedKey === 'system_instruction') &&
+        typeof item === 'string'
+      ) {
+        result[key] = item;
+        continue;
+      }
       result[key] = this.sanitizeForLog(item, depth + 1);
     }
     return result;
@@ -1048,74 +927,8 @@ export class NanoBananaProProvider implements IImageProvider {
           mime_type: part.fileData.mimeType || 'image/png',
         };
       }
-      throw new Error(`Unsupported Gemini part for Interactions input at index ${index}`);
+      throw new Error(`Unsupported Gemini image input part at index ${index}`);
     });
-  }
-
-  private flattenInteractionOutputs(outputs: unknown): any[] {
-    if (outputs && !Array.isArray(outputs)) {
-      return this.flattenInteractionOutputs([outputs]);
-    }
-
-    if (!Array.isArray(outputs)) {
-      return [];
-    }
-
-    return outputs.flatMap((output: any) => {
-      if (Array.isArray(output?.parts)) {
-        return output.parts;
-      }
-      return [output];
-    });
-  }
-
-  private flattenInteractionSteps(steps: unknown): any[] {
-    if (!Array.isArray(steps)) {
-      return [];
-    }
-
-    return steps.flatMap((step: any) => [
-      ...this.flattenInteractionOutputs(step?.content),
-      ...this.flattenInteractionOutputs(step?.summary),
-      ...this.flattenInteractionOutputs(step?.output),
-    ]);
-  }
-
-  private getInteractionText(output: any): string | undefined {
-    if (!output || typeof output !== 'object') {
-      return undefined;
-    }
-    return typeof output.text === 'string' ? output.text : undefined;
-  }
-
-  private getInteractionImageData(output: any): string | undefined {
-    if (!output || typeof output !== 'object') {
-      return undefined;
-    }
-    if (typeof output.data === 'string') return output.data;
-    if (typeof output.inlineData?.data === 'string') return output.inlineData.data;
-    if (typeof output.inline_data?.data === 'string') return output.inline_data.data;
-    return undefined;
-  }
-
-  private getInteractionImageUri(output: any): string | undefined {
-    if (!output || typeof output !== 'object') {
-      return undefined;
-    }
-    if (typeof output.uri === 'string') return output.uri;
-    if (typeof output.fileData?.fileUri === 'string') return output.fileData.fileUri;
-    if (typeof output.file_data?.file_uri === 'string') return output.file_data.file_uri;
-    return undefined;
-  }
-
-  private getInteractionImageMimeType(output: any): string | undefined {
-    if (!output || typeof output !== 'object') {
-      return undefined;
-    }
-    return output.mime_type
-      || output.mimeType
-      || output.inlineData?.mimeType
-      || output.inline_data?.mime_type;
   }
 
   private isGemini31FlashImageFamily(): boolean {
@@ -1129,9 +942,9 @@ export class NanoBananaProProvider implements IImageProvider {
    * Estimate returned dimensions from Gemini image_size + aspect ratio.
    * Used for metadata only; the generated image bytes remain the source of truth.
    */
-  private calculateDimensions(aspectRatio?: string): { width: number; height: number } {
+  private calculateDimensions(aspectRatio?: string, imageSizeOverride?: string): { width: number; height: number } {
     const normalizedAspectRatio = aspectRatio || '16:9';
-    const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
+    const imageSize = (imageSizeOverride || config.nanoBanana?.imageSize || '1K').toUpperCase();
 
     if (this.isGemini31FlashImageFamily()) {
       const dimensionsByImageSize: Record<string, Record<string, { width: number; height: number }>> = {
@@ -1201,7 +1014,7 @@ export class NanoBananaProProvider implements IImageProvider {
         },
       };
       const sizeKey =
-        imageSize === '0.5K' || imageSize === '512PX'
+        imageSize === '0.5K' || imageSize === '512' || imageSize === '512PX'
           ? '512'
           : imageSize === '2K' || imageSize === '4K'
             ? imageSize
@@ -1241,12 +1054,12 @@ export class NanoBananaProProvider implements IImageProvider {
     return 'png'; // Default
   }
 
-  private getOutputImageTokens(): number {
+  private getOutputImageTokens(imageSizeOverride?: string): number {
     if (this.model.includes('gemini-2.5-flash-image')) {
       return 1290;
     }
 
-    const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
+    const imageSize = (imageSizeOverride || config.nanoBanana?.imageSize || '1K').toUpperCase();
     if (this.isGemini31FlashImageFamily()) {
       if (imageSize === '0.5K' || imageSize === '512' || imageSize === '512PX') return 747;
       if (imageSize === '2K') return 1680;

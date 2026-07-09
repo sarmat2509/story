@@ -5,6 +5,7 @@
 
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 import { CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA } from './schemas';
+import { MAX_SCENE_IMAGE_CHARACTERS } from './sceneCharacterLimits';
 
 export const MAP_TILE_BRIEF_SCHEMA: JsonSchema = {
   type: 'object',
@@ -53,7 +54,7 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         },
         required: ['id', 'name', 'description'],
       },
-      description: 'All distinct locations in the story. Wardrobe is NOT here — use outfits[] and sceneVisual.cameraComposition.characters[].outfitId on each illustration.',
+      description: 'All distinct locations in the story. Wardrobe is NOT here — use outfits[] and sceneVisual.cameraComposition.characters[].outfitId on each illustration. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance.',
     },
     outfits: {
       type: 'array',
@@ -71,13 +72,13 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
           description: {
             type: 'string',
             description:
-              'WARDROBE ONLY IN ENGLISH: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Use exactly "natural appearance" when the character keeps their default/reference clothes for this scene. Creatures/animals: "natural appearance".',
+              'WARDROBE ONLY IN ENGLISH for child/person/human characters: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Use exactly "natural appearance" when the human character keeps their default/reference clothes for this scene. Animals, imaginary creatures, objects, vehicles, and environmental beings: exactly "natural appearance".',
           },
         },
         required: ['id', 'characterName', 'description'],
       },
       description:
-        'Canonical wardrobe definitions. Build rows for every character that appears in any illustration\'s cameraComposition; each distinct look gets its own id. If a character keeps their default/reference clothes and those clothes fit the scene, description may be exactly "natural appearance". Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
+        'Canonical wardrobe definitions. Build rows for every outfitId cited by illustration cameraComposition rows. Detailed wardrobe descriptions are only for child/person/human characters; non-human character rows use exactly "natural appearance" as technical bindings. If a human character keeps their default/reference clothes and those clothes fit the scene, description may be exactly "natural appearance". Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
     },
     mapTile: {
       type: 'object',
@@ -124,9 +125,10 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
                   characters: {
                     type: 'array',
                     minItems: 1,
+                    maxItems: MAX_SCENE_IMAGE_CHARACTERS,
                     items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
                     description:
-                      'Who is in the shot; each row MUST include outfitId referencing outfits[]. Character descriptions must support primaryRead instead of creating a competing focal action.',
+                      `Who is in the shot; maximum ${MAX_SCENE_IMAGE_CHARACTERS} characters. Each row MUST include outfitId referencing outfits[]. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance. Character descriptions must support primaryRead instead of creating a competing focal action.`,
                   },
                 },
                 required: ['shot', 'characters'],
@@ -139,7 +141,7 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         required: ['environmentId', 'primaryRead', 'sceneVisual'],
       },
       description:
-        'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId). The story reward map tile is top-level mapTile, not inside illustrations.',
+        'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId); detailed wardrobe applies only to child/person/human characters, while non-human rows use natural appearance. The story reward map tile is top-level mapTile, not inside illustrations.',
     },
   },
   required: ['characters', 'environments', 'outfits', 'mapTile', 'illustrations'],

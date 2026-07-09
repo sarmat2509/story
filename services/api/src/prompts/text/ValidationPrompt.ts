@@ -23,34 +23,7 @@ export interface BatchValidationPromptParams {
   reservedCharacters?: ReservedCharacter[];
 }
 
-export const TEXT_VALIDATION_CACHE_KEY = 'text_validation_rules_v2';
-
-function compactCameraComposition(cameraComposition: unknown): string {
-  if (!cameraComposition || typeof cameraComposition !== 'object') return '';
-  const cam = cameraComposition as {
-    shot?: unknown;
-    characters?: Array<{ name?: unknown; description?: unknown; outfitId?: unknown }>;
-  };
-  const normalized = {
-    ...(typeof cam.shot === 'string' && cam.shot.trim() ? { shot: cam.shot.trim() } : {}),
-    ...(Array.isArray(cam.characters) && cam.characters.length > 0
-      ? {
-          characters: cam.characters
-            .map((char) => ({
-              ...(typeof char?.name === 'string' && char.name.trim() ? { name: char.name.trim() } : {}),
-              ...(typeof char?.description === 'string' && char.description.trim()
-                ? { description: char.description.trim() }
-                : {}),
-              ...(typeof char?.outfitId === 'string' && char.outfitId.trim()
-                ? { outfitId: char.outfitId.trim() }
-                : {}),
-            }))
-            .filter((char) => Object.keys(char).length > 0),
-        }
-      : {}),
-  };
-  return Object.keys(normalized).length > 0 ? JSON.stringify(normalized) : '';
-}
+export const TEXT_VALIDATION_CACHE_KEY = 'text_validation_rules_v3';
 
 function formatReservedCharacters(characters?: ReservedCharacter[]): string {
   const rows = (characters || [])
@@ -105,8 +78,7 @@ Core validation rules:
 - Flag only real issues.
 - The last scene must end positively with hope and resolution.
 - Other scenes should progress the story appropriately.
-- If cameraComposition is present, it must list all physically present characters.
-- If text clearly includes a present character missing from cameraComposition.characters, return correctedCameraComposition.
+- Validate only the story prose and policy/identity rules. Do not infer, complete, rewrite, or repair illustration character rosters, cameraComposition, sceneVisual, or Director metadata.
 - If RESERVED CHARACTER IDENTITY VALIDATION is provided in the runtime prompt, enforce it.
 
 Output contract:
@@ -116,24 +88,18 @@ Output contract:
       "sceneId": <number>,
       "violations": [
         {
-          "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear",
+          "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear",
           "severity": "critical" | "high" | "medium",
           "message": "Clear explanation",
           "suggestion": "How to fix (optional)"
         }
-      ],
-      "correctedCameraComposition": null or {
-        "shot": "...",
-        "characters": [{ "name": "...", "description": "...", "outfitId": "optional_existing_id_if_known" }]
-      }
+      ]
     }
   ]
 }
 
 Use categories:
-"content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".
-
-Use EXACT character names in correctedCameraComposition.`;
+"content_policy" | "age_inappropriate" | "emotional_tone" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".`;
 }
 
 export function buildValidationPrompt(params: ValidationPromptParams): string {
@@ -142,8 +108,6 @@ export function buildValidationPrompt(params: ValidationPromptParams): string {
     policyProfile: policy,
     scenarioCardId,
   });
-  const sceneVisual = (sceneText as any).sceneVisual;
-  const compactCamera = compactCameraComposition(sceneVisual?.cameraComposition);
 
   return `Validate this children's story scene for age-appropriateness and narrative safety.
 
@@ -161,26 +125,21 @@ CORE VALIDATION RULES:
 - ${isLastScene
     ? 'This last scene must end positively with hope and resolution.'
     : 'This scene should progress the story appropriately.'}
-- If cameraComposition is present, it must list all physically present characters.
-- If text clearly includes a present character missing from cameraComposition.characters, return correctedCameraComposition.
+- Validate only the story prose and policy/identity rules. Do not infer, complete, rewrite, or repair illustration character rosters, cameraComposition, sceneVisual, or Director metadata.
 ${formatCharacterIdentityValidationRules(reservedCharacters)}
 
 SCENE:
 TEXT: ${sceneText.text}
-${compactCamera ? `CAMERA: ${compactCamera}` : ''}
 
 OUTPUT CONTRACT:
 {
   "sceneId": ${sceneText.sceneId},
   "isValid": true,
-  "violations": [],
-  "correctedCameraComposition": null
+  "violations": []
 }
 
 If invalid, set "isValid" to false and include violations using categories:
-"content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".
-
-Use EXACT character names in correctedCameraComposition. Preserve existing outfitId when camera data already provides it.`;
+"content_policy" | "age_inappropriate" | "emotional_tone" | "reserved_character_identity_conflict" | "reserved_name_reused_for_new_entity" | "character_identity_unclear".`;
 }
 
 export function buildBatchValidationRuntimePrompt(params: BatchValidationPromptParams): string {
@@ -193,12 +152,9 @@ export function buildBatchValidationRuntimePrompt(params: BatchValidationPromptP
   const scenesBlock = scenes
     .map((scene, idx) => {
       const isLastScene = idx === scenes.length - 1;
-      const sceneVisual = (scene as any).sceneVisual;
-      const compactCamera = compactCameraComposition(sceneVisual?.cameraComposition);
       return [
         `SCENE ${scene.sceneId} | last=${isLastScene ? 'yes' : 'no'}`,
         `TEXT: ${scene.text}`,
-        compactCamera ? `CAMERA: ${compactCamera}` : '',
       ]
         .filter(Boolean)
         .join('\n');

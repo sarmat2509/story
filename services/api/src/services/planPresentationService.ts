@@ -48,6 +48,30 @@ export interface PlanFeaturePresentationRow {
   category: string;
 }
 
+const DEFAULT_CHARACTERS_PER_MONTH_BY_PLAN: Record<string, number> = {
+  free: 3,
+  silver: 10,
+  golden: 15,
+  fairyworld: 20,
+};
+
+function addDefaultCharacterFeature(planSlug: string, featuresMap: Record<string, PresentedPlanFeature>): void {
+  if (featuresMap.characters_per_month) {
+    return;
+  }
+
+  const limit = DEFAULT_CHARACTERS_PER_MONTH_BY_PLAN[planSlug];
+  if (typeof limit !== 'number') {
+    return;
+  }
+
+  featuresMap.characters_per_month = {
+    name: 'Character Generations Per Month',
+    value: { limit },
+    category: 'premium',
+  };
+}
+
 export function normalizePlanLocale(input?: string | null): Locale {
   const normalized = input?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
   return isValidLocale(normalized) && SUPPORTED_LOCALES.has(normalized) ? normalized : DEFAULT_LOCALE;
@@ -105,6 +129,7 @@ export function buildPresentedPlans(
         category: feature.category,
       };
     }
+    addDefaultCharacterFeature(plan.slug, featuresMap);
 
     const planTranslations = translations.get(plan.slug);
     const prices = {

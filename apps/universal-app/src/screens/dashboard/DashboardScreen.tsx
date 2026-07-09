@@ -30,6 +30,7 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { getLocalizedStoryTitle } from '@/utils/storyTitle';
 
 type ExtendedPressableState = {
   pressed: boolean;
@@ -96,6 +97,8 @@ export default function DashboardScreen() {
   const childrenCount = children.length;
   const featuredStory = stories[0];
   const featuredCover = featuredStory ? getStoryCover(featuredStory) : null;
+  const featuredStoryTitle = featuredStory ? getLocalizedStoryTitle(featuredStory.title, t) : '';
+  const quizCandidateTitle = quizCandidate ? getLocalizedStoryTitle(quizCandidate.title, t) : '';
   const shelfStories = stories.slice(featuredStory ? 1 : 0, featuredStory ? 7 : 6);
   const isLoading = storiesLoading || (!isChildSession && childrenLoading);
   const hasError = storiesError || (!isChildSession && childrenError);
@@ -214,11 +217,7 @@ export default function DashboardScreen() {
                   onPress={() => navigation.navigate('Wizard')}
                   accessibilityLabel={t('dashboard.actions.create_story')}
                   leading={
-                    <Ionicons
-                      name="sparkles-outline"
-                      size={20}
-                      color={theme.colors.text.inverse}
-                    />
+                    <Ionicons name="sparkles-outline" size={20} color={theme.colors.text.inverse} />
                   }
                   style={styles.primaryHeroAction}
                   size="md"
@@ -262,7 +261,7 @@ export default function DashboardScreen() {
                         </Text>
                       </View>
                       <Text style={styles.featuredTitle} numberOfLines={2}>
-                        {featuredStory.title}
+                        {featuredStoryTitle}
                       </Text>
                       <Text style={styles.featuredDescription} numberOfLines={2}>
                         {t('dashboard.featured_story_description', {
@@ -283,17 +282,15 @@ export default function DashboardScreen() {
                 ) : (
                   <View style={styles.featuredEmptyCard}>
                     <View style={styles.featuredEmptyBadge}>
-                      <Ionicons
-                        name="book-outline"
-                        size={18}
-                        color={modernColors.accentWarm}
-                      />
+                      <Ionicons name="book-outline" size={18} color={modernColors.accentWarm} />
                       <Text style={styles.featuredEmptyBadgeText}>
                         {t('dashboard.first_story_badge', { defaultValue: 'First story' })}
                       </Text>
                     </View>
                     <Text style={styles.featuredEmptyTitle}>
-                      {t('dashboard.first_story_title', { defaultValue: 'Nothing on the shelf yet' })}
+                      {t('dashboard.first_story_title', {
+                        defaultValue: 'Nothing on the shelf yet',
+                      })}
                     </Text>
                     <Text style={styles.featuredEmptyDescription}>
                       {t('dashboard.first_story_description', {
@@ -333,7 +330,7 @@ export default function DashboardScreen() {
                   </Text>
                   <Text style={styles.quizBannerText} numberOfLines={1}>
                     {t('dashboard.quiz_banner.body', {
-                      title: quizCandidate.title,
+                      title: quizCandidateTitle,
                       defaultValue: 'Take a story quiz and open a prize in "{{title}}".',
                     })}
                   </Text>
@@ -342,11 +339,7 @@ export default function DashboardScreen() {
                   <Text style={styles.quizBannerActionText}>
                     {t('dashboard.quiz_banner.cta', { defaultValue: 'Go to quiz' })}
                   </Text>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={16}
-                    color={theme.colors.primary[700]}
-                  />
+                  <Ionicons name="arrow-forward" size={16} color={theme.colors.primary[700]} />
                 </View>
               </Pressable>
             </AnimatedSection>
@@ -360,7 +353,8 @@ export default function DashboardScreen() {
                     <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
                     <Text style={styles.sectionHint}>
                       {t('dashboard.recent_stories_hint', {
-                        defaultValue: 'A curated shelf of the stories your family opened most recently.',
+                        defaultValue:
+                          'A curated shelf of the stories your family opened most recently.',
                       })}
                     </Text>
                   </View>

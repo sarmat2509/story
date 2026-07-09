@@ -19,6 +19,7 @@ import {
   extractChildProfileLimit,
   isChildProfileLimitError,
 } from './childProfileLimitService';
+import { buildCharacterDefaultOutfitPatch } from './defaultOutfitService';
 
 export {
   ChildProfileLimitError,
@@ -162,9 +163,20 @@ export async function syncChildProfileCharacter(profile: ChildProfile): Promise<
     includeInactive: true,
   });
   const data = childProfileToCharacterData(profile);
+  const defaultOutfitPatch = await buildCharacterDefaultOutfitPatch(
+    {
+      ...(existing ?? {}),
+      ...data,
+    },
+    existing,
+  );
+  const dataWithDefaultOutfit = {
+    ...data,
+    ...defaultOutfitPatch,
+  };
 
   if (existing) {
-    const { userId: _userId, ...updateData } = data;
+    const { userId: _userId, ...updateData } = dataWithDefaultOutfit;
     const updated = await characterRepo.update(existing.id, profile.userId, updateData);
     logger.info(
       {
@@ -179,7 +191,7 @@ export async function syncChildProfileCharacter(profile: ChildProfile): Promise<
 
   let created: Character;
   try {
-    created = await characterRepo.create(data);
+    created = await characterRepo.create(dataWithDefaultOutfit);
   } catch (error) {
     if (!isUniqueViolation(error)) {
       throw error;
@@ -190,7 +202,7 @@ export async function syncChildProfileCharacter(profile: ChildProfile): Promise<
     if (!racedCharacter) {
       throw error;
     }
-    const { userId: _userId, ...updateData } = data;
+    const { userId: _userId, ...updateData } = dataWithDefaultOutfit;
     created = await characterRepo.update(racedCharacter.id, profile.userId, updateData);
   }
   logger.info(

@@ -12,7 +12,7 @@ import { getGenerationCoefficients } from '../generationTimeService';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
 import { extractLlmCharactersFromText, handleRequestError } from './utilities';
 import { mergeCharacters, persistLlmCharacters, createStoryStub, enrichStoryRecord } from './storyRecords';
-import { validateStoryScenes } from './validation';
+import { validateStoryTextScenes } from './validation';
 import { saveStoryStubCheckpoint, saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
 import type { GenerateTextParams, GenerateTextResult } from './types';
 import type { CharacterData } from '../types';
@@ -159,7 +159,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     });
     
     // Validation (unified for both flows)
-    const validationResult = await validateStoryScenes({
+    const validationResult = await validateStoryTextScenes({
       requestId,
       userId: request.userId,
       storyId,
@@ -170,6 +170,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     
     const validatedText = validationResult.validatedText;
     const validationTimeMs = validationResult.validationTimeMs;
+    const textValidation = validationResult.textValidation;
     
     // Save validation checkpoint (standard flow saves it, continuation doesn't need separate checkpoint)
     if (generationType === 'standard') {
@@ -195,6 +196,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       metadata: {
         textGenerationTimeMs,
         validationTimeMs,
+        textValidation,
         sceneCount: validatedText.scenes.length,
         fullTextLength: validatedText.fullText?.length || 0,
         modelVersion: config.ai.modelVersion,
@@ -233,6 +235,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       selectedCharacters: selectedCharacters as CharacterData[],
       textGenerationTimeMs,
       validationTimeMs,
+      textValidation,
       storyId,
     };
     

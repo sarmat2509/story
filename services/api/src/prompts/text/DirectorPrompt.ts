@@ -16,7 +16,7 @@ export interface DirectorPromptParams {
   userCharacters: Array<{ id?: string; name: string }>;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v24';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v26';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
@@ -211,7 +211,7 @@ ${instructionBlock}
 OUTPUT JSON — order helps you satisfy dependencies: (1) characters, (2) outfits (define every id you will use), (3) environments (one row per unique environmentId referenced below), (4) mapTile (one story-level reward tile), (5) illustrations (length ${imagesPerStory}).
 mapTile MUST be top-level and singular with exactly two conceptual fields: requiredFeatures[] and description. It must combine key compatible visible landmarks from all planned illustrations, but must not choose geometry, orientation, connector sides, or exact placement.
 Each illustration MUST include: environmentId (string), primaryRead (short English focus phrase), sceneVisual (setting, cameraComposition with shot + characters[], lighting).
-Each cameraComposition.characters[] row MUST include: name, description, outfitId (exact outfits[].id for that character in this shot). Non-empty characters array; every person in the frame must have outfitId set — the schema enforces this like environmentId.
+Each cameraComposition.characters[] row MUST include: name, description, outfitId (exact outfits[].id for that character in this shot). Non-empty characters array; outfitId is a technical binding enforced like environmentId. Detailed wardrobe descriptions are only for child/person/human characters; animals, creatures, objects, vehicles, and environmental beings use "natural appearance".
 Wardrobe descriptions must match weather, season, and indoor/outdoor context of the anchor moment.
 All descriptions must be IN ENGLISH.
 

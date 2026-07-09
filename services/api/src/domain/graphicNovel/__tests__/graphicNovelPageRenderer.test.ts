@@ -4,10 +4,11 @@ import { GRAPHIC_NOVEL_PAGE_SIZE, planGraphicNovelLayouts } from '../layoutPlann
 import { buildGraphicNovelPageTextOverlay } from '../textOverlay';
 import {
   buildGraphicNovelImageRequestManifest,
-  buildGraphicNovelPageFreeLayoutInstructions,
-  buildGraphicNovelPageFreeLayoutSystemInstruction,
-  buildGraphicNovelPageValidationRepairInstructions,
+  buildGraphicNovelPanelCropInstructions,
+  buildGraphicNovelPanelCropSystemInstruction,
+  normalizeGraphicNovelPanelArtForTemplate,
   overlayGraphicNovelBubblesOnly,
+  overlayGraphicNovelPanelFrames,
 } from '../pageRenderer';
 import type { ReferenceImage } from '../../../providers/base/IImageProvider';
 import type { PlannedGraphicNovelPage } from '../types';
@@ -89,6 +90,17 @@ async function pixelAt(
   return [raw[index], raw[index + 1], raw[index + 2], raw[index + 3]];
 }
 
+async function pixelAtImage(
+  buffer: Buffer,
+  width: number,
+  x: number,
+  y: number
+): Promise<[number, number, number, number]> {
+  const raw = await sharp(buffer).ensureAlpha().raw().toBuffer();
+  const index = (y * width + x) * 4;
+  return [raw[index], raw[index + 1], raw[index + 2], raw[index + 3]];
+}
+
 function testHtmlTextOverlayCoordinates(): void {
   const page = samplePage();
   const overlay = buildGraphicNovelPageTextOverlay(page);
@@ -146,80 +158,70 @@ function testHtmlTextOverlaySeparatesRawArtifactText(): void {
   assert.equal(overlay.plainText.includes('{Star Key}'), false);
 }
 
-function testFreeLayoutInstructionsUseReferencesWithoutPresetSlots(): void {
+function testPanelCropInstructionsUseScenePrompt(): void {
   const page = samplePage();
-  page.outfits = [
-    {
-      id: 'o_mira_swimwear',
-      characterName: 'Mira',
-      description: 'age-appropriate blue swimwear, bare feet, no jacket',
-    },
-  ];
-  for (const panel of page.panels) {
-    const composition = panel.script.visual.sceneVisual.cameraComposition;
-    if (typeof composition !== 'string') {
-      composition.characters[0].outfitId = 'o_mira_swimwear';
-    }
-  }
-
-  const systemInstruction = buildGraphicNovelPageFreeLayoutSystemInstruction({
+  const systemInstruction = buildGraphicNovelPanelCropSystemInstruction({
     style: 'warm_3d',
-    panelCount: page.panels.length,
     ageGroup: '6-8',
   });
-  const prompt = buildGraphicNovelPageFreeLayoutInstructions(page, new Map(), [
-    {
-      base64Data: 'abc',
-      mimeType: 'image/png',
-      characterName: 'Mira',
-      referenceKind: 'character',
-      imageIndex: 1,
-      referenceBindingId: 'REF_CH_MIRA_TEST01',
-      instructionText: 'Image 1: IDENTITY SOURCE Subject A for "Mira". Character sheet.',
-    },
-    {
-      base64Data: 'outfit',
-      mimeType: 'image/png',
-      characterName: 'Mira',
-      referenceKind: 'object',
-      source: 'outfit_plate',
-      type: 'outfit_plate_reference',
-      imageIndex: 2,
-      referenceBindingId: 'REF_OUTFIT_MIRA_TEST02',
-      instructionText: 'Image 2: Outfit reference for "Mira".',
-    } as any,
-  ]);
+  const prompt = buildGraphicNovelPanelCropInstructions(page, 0, new Map(), [], {
+    style: 'warm_3d',
+    ageGroup: '6-8',
+  });
 
-  assert.doesNotMatch(systemInstruction, /exactly 2 comic panels/);
-  assert.doesNotMatch(systemInstruction, /No preset layout guide image is attached/);
-  assert.match(systemInstruction, /No text\. No speech bubbles\./);
-  assert.match(prompt, /Create a single comic page with exactly 2 panels/);
-  assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
-  assert.match(prompt, /REF_CH_MIRA_TEST01: character identity reference\./);
-  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02: outfit reference\./);
-  assert.match(prompt, /REFERENCE BINDING REGISTRY:/);
-  assert.match(prompt, /REF_CH_MIRA_TEST01 = character identity reference\./);
-  assert.match(prompt, /REF_OUTFIT_MIRA_TEST02 = outfit reference \(wardrobe only\)\./);
-  assert.match(prompt, /Characters:/);
-  assert.match(prompt, /- Setting: REF_CH_MIRA_TEST01 finds a glowing button\./);
-  assert.match(prompt, /  \* REF_CH_MIRA_TEST01: position left_foreground/);
-  assert.match(prompt, /outfit from REF_OUTFIT_MIRA_TEST02/);
-  assert.doesNotMatch(prompt, /\/ Image \d+/);
-  assert.doesNotMatch(prompt, /for "Mira"/);
-  assert.doesNotMatch(prompt, /Characters allowed in this panel/);
-  assert.doesNotMatch(prompt, /Page character refs not in this panel/);
-  assert.doesNotMatch(prompt, /Mira \/ REF_CH_MIRA_TEST01 \/ Image 1: position/);
-  assert.doesNotMatch(prompt, /outfit from REF_OUTFIT_MIRA_TEST02 \/ Image 2/);
-  assert.doesNotMatch(prompt, /outfit age-appropriate blue swimwear, bare feet, no jacket/);
-  assert.doesNotMatch(prompt, /color-coded/i);
-  assert.doesNotMatch(prompt, /\bslot\b/i);
-  assert.doesNotMatch(prompt, /PAGE TEMPLATE/i);
-  assert.doesNotMatch(prompt, /Fill this/);
+  assert.match(systemInstruction, /edge-to-edge/);
+  assert.match(prompt, /- Scene: Mira finds a glowing button/);
+  assert.match(prompt, /- Composition: medium shot, eye level/);
+  assert.doesNotMatch(prompt, /replacement comic panel crop/i);
+  assert.doesNotMatch(prompt, /artwork inside Panel/i);
+  assert.doesNotMatch(prompt, /wide image inside a white canvas/i);
+  assert.doesNotMatch(prompt, /letterboxing/i);
+  assert.doesNotMatch(prompt, /Panel 1:/);
+}
+
+async function testNormalizePanelArtTrimsLetterboxBeforeResize(): Promise<void> {
+  const art = await sharp({
+    create: {
+      width: 200,
+      height: 90,
+      channels: 4,
+      background: '#2c6ca3',
+    },
+  })
+    .png()
+    .toBuffer();
+  const letterboxed = await sharp({
+    create: {
+      width: 200,
+      height: 200,
+      channels: 4,
+      background: '#ffffff',
+    },
+  })
+    .composite([{ input: art, left: 0, top: 55 }])
+    .png()
+    .toBuffer();
+
+  const normalized = await normalizeGraphicNovelPanelArtForTemplate(letterboxed, {
+    width: 200,
+    height: 200,
+  });
+  const metadata = await sharp(normalized).metadata();
+  const top = await pixelAtImage(normalized, 200, 100, 4);
+  const bottom = await pixelAtImage(normalized, 200, 100, 195);
+
+  assert.equal(metadata.width, 200);
+  assert.equal(metadata.height, 200);
+  assert.ok(top[2] > 120 && top[0] < 80, 'top edge should be artwork, not white letterbox');
+  assert.ok(
+    bottom[2] > 120 && bottom[0] < 80,
+    'bottom edge should be artwork, not white letterbox'
+  );
 }
 
 function testImageRequestManifestOmitsCombinedFullTextPrompt(): void {
   const manifest = buildGraphicNovelImageRequestManifest({
-    operation: 'graphic_novel_page_free_layout_generate',
+    operation: 'graphic_novel_template_panel_generate',
     mode: 'generate',
     prompt: 'Create a page.',
     systemInstruction: 'No text. No speech bubbles.',
@@ -242,6 +244,47 @@ function testImageRequestManifestOmitsCombinedFullTextPrompt(): void {
   assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'fullTextPrompt'), false);
 }
 
+function testImageRequestManifestCarriesProviderRawRequest(): void {
+  const manifest = buildGraphicNovelImageRequestManifest({
+    operation: 'graphic_novel_template_panel_generate',
+    mode: 'generate',
+    prompt: 'Create a page.',
+    systemInstruction: 'No text. No speech bubbles.',
+    referenceImages: [],
+    providerRequestManifest: {
+      providerRequestId: 'gemini-img-test',
+      provider: 'gemini',
+      model: 'gemini-3.1-flash-image',
+      endpointUsed: 'generateContent',
+      fullTextPrompt: 'The next image is REF_CH_MIRA_TEST01.\n\nCreate a page.',
+      partsCount: 3,
+      modelRequest: {
+        endpoint: 'models.generateContent',
+        input: [
+          { type: 'text', text: 'The next image is REF_CH_MIRA_TEST01.' },
+          { type: 'image', data: '[omitted base64 image payload]' },
+          { type: 'text', text: 'Create a page.' },
+        ],
+        config: {
+          responseModalities: ['IMAGE', 'TEXT'],
+          imageConfig: { aspectRatio: '3:4' },
+        },
+      },
+    },
+  });
+
+  assert.equal(manifest.providerRequestId, 'gemini-img-test');
+  assert.equal(manifest.endpointUsed, 'generateContent');
+  assert.equal(manifest.fullTextPrompt, 'The next image is REF_CH_MIRA_TEST01.\n\nCreate a page.');
+  assert.equal((manifest.modelRequest as any).endpoint, 'models.generateContent');
+  assert.deepEqual(
+    (manifest.modelRequest as any).input.map((part: any) => part.type),
+    ['text', 'image', 'text']
+  );
+  assert.equal(manifest.prompt, 'Create a page.');
+  assert.equal(manifest.systemInstruction, 'No text. No speech bubbles.');
+}
+
 function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
   const page = samplePage();
   const environments = new Map([
@@ -255,7 +298,7 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
       },
     ],
   ]);
-  const prompt = buildGraphicNovelPageFreeLayoutInstructions(page, environments, [
+  const referenceImages: Array<ReferenceImage & { source?: string; type?: string }> = [
     {
       base64Data: 'env',
       mimeType: 'image/png',
@@ -268,10 +311,26 @@ function testEnvironmentReferenceSuppressesEnvironmentDescription(): void {
       instructionText:
         'Image 1: Environment reference for "Playroom". Reusable location structure.',
     },
-  ]);
+  ];
+  const systemInstruction = buildGraphicNovelPanelCropSystemInstruction({
+    style: 'warm_3d',
+    ageGroup: '6-8',
+    referenceImages,
+  });
+  const prompt = buildGraphicNovelPanelCropInstructions(page, 0, environments, referenceImages, {
+    style: 'warm_3d',
+    ageGroup: '6-8',
+  });
 
-  assert.match(prompt, /- Environment: REF_ENV_PLAYROOM_TEST01\./);
+  assert.match(systemInstruction, /MUST AVOID any kind of text/);
+  assert.doesNotMatch(systemInstruction, /Never render reference IDs/);
+  assert.doesNotMatch(prompt, /MUST AVOID any kind of text/);
+  assert.doesNotMatch(prompt, /REFERENCE INPUTS:/);
+  assert.doesNotMatch(prompt, /ATTACHED REFERENCE INPUTS:/);
+  assert.doesNotMatch(prompt, /REF_ENV_\* references are location sources/);
   assert.doesNotMatch(prompt, /long reusable playroom description/);
+  assert.doesNotMatch(prompt, /REFERENCE IMAGES TO FOLLOW/);
+  assert.doesNotMatch(prompt, /Image 1: Environment reference/);
 }
 
 async function testBubbleOnlyOverlayPreservesArtAndDrawsBubble(): Promise<void> {
@@ -306,85 +365,53 @@ async function testBubbleOnlyOverlayPreservesArtAndDrawsBubble(): Promise<void> 
   );
 }
 
-function testRepairInstructionsUseCompactValidatorFeedbackWithoutArtTarget(): void {
+async function testPanelFrameOverlayDrawsDeterministicPanelBorders(): Promise<void> {
   const page = samplePage();
-  const referenceImages: Array<ReferenceImage & { source?: string; type?: string }> = [
-    {
-      referenceKind: 'character',
-      characterName: 'Mira',
-      referenceBindingId: 'REF_CH_MIRA_ABC123',
+  const redBase = await sharp({
+    create: {
+      width: GRAPHIC_NOVEL_PAGE_SIZE.width,
+      height: GRAPHIC_NOVEL_PAGE_SIZE.height,
+      channels: 4,
+      background: '#ff0000',
     },
-    {
-      referenceKind: 'object',
-      source: 'outfit_plate',
-      type: 'outfit_plate_reference',
-      characterName: 'Mira',
-      referenceBindingId: 'REF_OUTFIT_MIRA_PLAY_DEF456',
-    },
-  ];
-  const prompt = buildGraphicNovelPageValidationRepairInstructions({
-    page,
-    score: 72,
-    validation: {
-      characterCount: 1,
-      expectedCharacterCount: 1,
-      characters: [
-        {
-          name: 'Mira',
-          characterKind: 'human',
-          found: true,
-          duplicated: false,
-          recognizableScore: 0.7,
-          faceMatchesReference: false,
-          hairMatchesReference: true,
-          ageReadMatchesReference: true,
-          proportionsMatchReference: true,
-          matchesColors: true,
-          matchesOutfit: false,
-          actualVisibleDescription: 'a blond girl in a blue dress',
-          sameOverallDesignRead: true,
-          silhouetteDriftSeverity: 'none',
-          issue: 'face and outfit do not match the references',
-          identityComparisonSummary: 'Face differs; outfit differs.',
-        },
-      ],
-      hasUnexpectedCharacters: false,
-      hasTextOrLetters: false,
-      hasRenderingArtifacts: false,
-      hasArtworkOutsidePanelBounds: true,
-      hasArtworkOverSpeechBubbles: false,
-      hasExtraPanelStructure: false,
-      layoutFeedback: 'art spills outside panel 1',
-      overallFeedback: 'repair panel bounds',
-    },
-    referenceImages,
-  });
+  })
+    .png()
+    .toBuffer();
 
-  assert.match(prompt, /Panel 1: REF_CH_MIRA_ABC123 is incorrect/);
-  assert.match(prompt, /currently visible: a blond girl in a blue dress/);
-  assert.match(prompt, /Use REF_CH_MIRA_ABC123 for identity and REF_OUTFIT_MIRA_PLAY_DEF456 for wardrobe/);
-  assert.match(prompt, /Keep repaired artwork inside the existing panel borders/);
-  assert.doesNotMatch(prompt, /ATTACHED REFERENCES/);
-  assert.doesNotMatch(prompt, /Use the attached reference images by these REF labels/);
-  assert.doesNotMatch(prompt, /REF_CH_MIRA_ABC123 = character identity reference/);
-  assert.doesNotMatch(prompt, /ART TARGET BY PANEL/);
-  assert.doesNotMatch(prompt, /Panel 1 bounds: x=/);
-  assert.doesNotMatch(prompt, /Camera:/);
-  assert.doesNotMatch(prompt, /Lighting:/);
-  assert.doesNotMatch(prompt, /color-coded/i);
-  assert.doesNotMatch(prompt, /\bslot\b/i);
-  assert.doesNotMatch(prompt, /guide color/i);
+  const framedImage = await overlayGraphicNovelPanelFrames(redBase, page);
+  const panelRect = page.panels[0].templatePanel.rect;
+  const borderPixel = await pixelAt(
+    framedImage,
+    Math.round(panelRect.x * GRAPHIC_NOVEL_PAGE_SIZE.width + 4),
+    Math.round(panelRect.y * GRAPHIC_NOVEL_PAGE_SIZE.height + 4)
+  );
+  const innerPixel = await pixelAt(
+    framedImage,
+    Math.round((panelRect.x + panelRect.width * 0.5) * GRAPHIC_NOVEL_PAGE_SIZE.width),
+    Math.round((panelRect.y + panelRect.height * 0.5) * GRAPHIC_NOVEL_PAGE_SIZE.height)
+  );
+
+  assert.ok(
+    borderPixel[0] < 40 && borderPixel[1] < 40 && borderPixel[2] < 40,
+    'panel frame should be composited as a black deterministic border'
+  );
+  assert.ok(
+    innerPixel[0] > 220 && innerPixel[1] < 80 && innerPixel[2] < 80,
+    'panel frame overlay should not alter panel artwork away from the border'
+  );
 }
 
 async function main(): Promise<void> {
   testHtmlTextOverlayCoordinates();
   testHtmlTextOverlayIncludesBubbleTextStyle();
   testHtmlTextOverlaySeparatesRawArtifactText();
-  testFreeLayoutInstructionsUseReferencesWithoutPresetSlots();
+  testPanelCropInstructionsUseScenePrompt();
   testImageRequestManifestOmitsCombinedFullTextPrompt();
+  testImageRequestManifestCarriesProviderRawRequest();
   testEnvironmentReferenceSuppressesEnvironmentDescription();
   await testBubbleOnlyOverlayPreservesArtAndDrawsBubble();
-  testRepairInstructionsUseCompactValidatorFeedbackWithoutArtTarget();
+  await testPanelFrameOverlayDrawsDeterministicPanelBorders();
+  await testNormalizePanelArtTrimsLetterboxBeforeResize();
   console.log('graphicNovelPageRenderer tests passed');
 }
 

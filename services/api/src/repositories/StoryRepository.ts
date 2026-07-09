@@ -826,7 +826,9 @@ export class StoryRepository {
       ...row,
       role: normalizeStoryCharacterRole(row.role),
     }));
-    await conn.insert(schema.storyCharacters).values(rows);
+    await conn.insert(schema.storyCharacters).values(rows).onConflictDoNothing({
+      target: [schema.storyCharacters.storyId, schema.storyCharacters.characterId],
+    });
   }
 
   async createStoryCharacter(
@@ -834,10 +836,15 @@ export class StoryRepository {
     tx?: NodePgDatabase<typeof schema>
   ): Promise<void> {
     const conn = tx || this.db;
-    await conn.insert(schema.storyCharacters).values({
-      ...data,
-      role: normalizeStoryCharacterRole(data.role),
-    });
+    await conn
+      .insert(schema.storyCharacters)
+      .values({
+        ...data,
+        role: normalizeStoryCharacterRole(data.role),
+      })
+      .onConflictDoNothing({
+        target: [schema.storyCharacters.storyId, schema.storyCharacters.characterId],
+      });
   }
 
   async findLinkedCharactersByStoryId(storyId: string): Promise<Array<{

@@ -5,6 +5,9 @@ import { requireAuth } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { isAllowedUserPhotoMimeType } from '../services/uploadValidationService';
+import { getChildPhotoValidationService } from '../services/aiService';
+import { recordUsage } from '../services/aiUsageService';
+import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -204,6 +207,18 @@ router.post('/photo', requireAuth, handlePhotoUpload, requireParentOrChildCharac
       });
     }
 
+    if (photoType === 'child') {
+      await getChildPhotoValidationService().assertBufferContainsHuman(
+        {
+          imageData: preprocessedBuffer,
+          mimeType: 'image/jpeg',
+          userId,
+          source: 'child_photo_upload',
+        },
+        { onUsage: (usage) => recordUsage(usage, { userId }) }
+      );
+    }
+
     // Upload to storage
     const result = await storageService.uploadUserPhoto({
       buffer: preprocessedBuffer,
@@ -231,6 +246,15 @@ router.post('/photo', requireAuth, handlePhotoUpload, requireParentOrChildCharac
       }
     });
   } catch (error) {
+    if (isChildPhotoValidationError(error)) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        code: error.code,
+        error: error.message,
+        index: error.index,
+      });
+    }
+
     logger.error({ error, userId: req.user?.id }, 'Photo upload failed');
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload photo';
     res.status(500).json({

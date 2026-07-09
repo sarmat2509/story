@@ -7,6 +7,7 @@ import {
 } from '../repositories';
 import {
   ENVIRONMENT_REFERENCE_CACHE_PREFIX,
+  buildImageSystemInstruction,
   buildEnvironmentImageCacheDescription,
   buildEnvironmentImagePrompt,
   isCurrentEnvironmentImageCacheDescription,
@@ -100,21 +101,46 @@ export async function getOrCreateEnvironmentImageCore(
     descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
   });
   if (similar) {
-    const buffer = await assetStorage.getAssetByPath(similar.storagePath);
-    await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
-    return {
-      base64: buffer.toString('base64'),
-      mimeType: imageMimeTypeFromPath(similar.storagePath),
-      storagePath: similar.storagePath,
-    };
+    const conflictingStoryEnvironment = (await storyEnvRepo.listByCacheId(similar.id)).find(
+      (row) => row.storyEnvironmentId !== storyEnvironmentId
+    );
+    if (conflictingStoryEnvironment) {
+      logger.info(
+        {
+          storyId,
+          storyEnvironmentId,
+          cacheId: similar.id,
+          conflictingStoryEnvironmentId: conflictingStoryEnvironment.storyEnvironmentId,
+          conflictingStoryId: conflictingStoryEnvironment.storyId,
+          score: similar.score.toFixed(3),
+        },
+        'Environment cache hit skipped because the cache belongs to a different environment id'
+      );
+    } else {
+      const buffer = await assetStorage.getAssetByPath(similar.storagePath);
+      await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
+      return {
+        base64: buffer.toString('base64'),
+        mimeType: imageMimeTypeFromPath(similar.storagePath),
+        storagePath: similar.storagePath,
+      };
+    }
   }
 
   try {
     const provider = deps.getEnvironmentImageProvider();
     const prompt = buildEnvironmentImagePrompt({ environment, scenarioCardId });
+    const systemInstruction = buildImageSystemInstruction({
+      style: 'storybook',
+      ageGroup: '6-8',
+      hasReferences: false,
+      hasEnvironmentReference: false,
+      scenarioCardId,
+    });
     const result = await provider.generateImage({
       prompt,
       aspectRatio: '16:9',
+      systemInstruction,
       onUsage: (usage) => deps.recordUsage(usage, { userId: userId ?? null, storyId }),
       operation: USAGE_OP_IMAGE_ENVIRONMENT,
     });

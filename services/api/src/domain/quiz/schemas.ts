@@ -666,7 +666,9 @@ export const storyQuizResponseSchema: JsonSchema = {
     activities: {
       type: 'array',
       minItems: 2,
-      maxItems: 10,
+      // Do not set `maxItems` here: Gemini 3 rejects this full nested activity
+      // schema with INVALID_ARGUMENT when the top-level activities array is capped.
+      // `validateStoryQuizPayload` still enforces the age-bucket activity limit.
       items: {
         type: 'object',
         required: [

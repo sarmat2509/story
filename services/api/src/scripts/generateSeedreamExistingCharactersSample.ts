@@ -333,11 +333,6 @@ async function main(): Promise<void> {
         name: 'Snowy Forest Clearing',
         description: visual.setting,
       },
-      characterOutfits: {
-        'Емілія': 'use the existing outfit from Image 4',
-        'Тік': 'natural appearance from Image 2',
-        'Snow Spirit': 'natural appearance from Image 3',
-      },
       hasEnvironmentImageRef: true,
     },
     { onUsage }
@@ -349,8 +344,7 @@ async function main(): Promise<void> {
     characterKind: ref.characterKind,
     speciesSubtype: ref.speciesSubtype,
     description: ref.description,
-    expectedOutfitForScene:
-      ref.characterKind === 'human' ? 'same outfit and identity as the existing turnaround sheet' : undefined,
+    validateOutfit: ref.characterKind === 'human',
   }));
   const validationRefs = validationReferenceImages(characterRefs);
   const validation = await imageDomain.validateGeneratedImage({
@@ -358,8 +352,6 @@ async function main(): Promise<void> {
     mimeType: image.mimeType,
     expectedCharacters,
     sceneVisual: visual,
-    sceneCharacterOutfitsText:
-      'Емілія: same outfit and identity as Image 4. Тік: natural appearance from Image 2. Snow Spirit: natural appearance from Image 3.',
     referenceImages: validationRefs,
     logContext: { storyId: 'seedream-existing-characters-sample', sceneId: 1 },
     onUsage,

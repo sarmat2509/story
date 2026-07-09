@@ -47,7 +47,10 @@ function testTextValidationPromptSplit() {
   assert.ok(runtime.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
   assert.ok(runtime.includes('reserved_name_reused_for_new_entity'));
-  assert.ok(runtime.includes('"shot":"wide"'));
+  assert.ok(!cached.includes('correctedCameraComposition'));
+  assert.ok(!cached.includes('camera_composition_incomplete'));
+  assert.ok(!runtime.includes('CAMERA:'));
+  assert.ok(!runtime.includes('"shot":"wide"'));
   assert.ok(runtime.includes('DB CONTENT POLICY TO ENFORCE:'));
   assert.ok(runtime.includes('no dangerous tool instructions'));
   assert.ok(!runtime.includes('Output contract'));
@@ -83,8 +86,10 @@ function testSingleSceneValidationPrompt() {
   assert.ok(prompt.includes('Mia waves to the owl.'));
   assert.ok(prompt.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
   assert.ok(prompt.includes('reserved_character_identity_conflict'));
-  assert.ok(prompt.includes('CAMERA:'));
-  assert.ok(prompt.includes('correctedCameraComposition'));
+  assert.ok(prompt.includes('Do not infer, complete, rewrite, or repair illustration character rosters'));
+  assert.ok(!prompt.includes('CAMERA:'));
+  assert.ok(!prompt.includes('correctedCameraComposition'));
+  assert.ok(!prompt.includes('camera_composition_incomplete'));
 }
 
 function testTextRegenerationPromptSplit() {
@@ -115,7 +120,7 @@ function testImageValidationPromptSplit() {
       {
         name: 'Mia [ID: 123]',
         characterKind: 'human',
-        expectedOutfitForScene: 'yellow raincoat',
+        validateOutfit: true,
       },
     ],
     sceneContext: 'forest path at dusk',
@@ -123,7 +128,7 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v11');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v18');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
   assert.ok(
     cached.content.includes(
@@ -134,32 +139,32 @@ function testImageValidationPromptSplit() {
     cached.content.includes('Do not fail faceMatchesReference for temporary emotion alone')
   );
   assert.ok(
-    cached.content.includes('HUMAN face and hair booleans must be independent')
+    cached.content.includes('set faceMatchesReference=null and say the face check was skipped')
+  );
+  assert.ok(
+    cached.content.includes('HUMAN face and hair fields must be independent')
   );
   assert.ok(
     cached.content.includes('explicitly mention face/head identity status separately from hairstyle status')
   );
   assert.ok(cached.content.includes('hair color zoning'));
   assert.ok(
-    cached.content.includes(
-      'If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth'
-    )
+    cached.content.includes('No separate outfit plate or text outfit description is used for final scene validation.')
   );
-  assert.ok(cached.content.includes('validate outfit primarily against that plate'));
-  assert.ok(cached.content.includes('identity reference/default clothes are the wardrobe ground truth'));
   assert.ok(
-    cached.content.includes('Do NOT list wardrobe differences inside identityComparisonSummary')
+    cached.content.includes('Validate outfit against the attached full-character visual reference.')
   );
   assert.ok(!cached.content.includes('forest path at dusk'));
   assert.ok(runtime.includes('forest path at dusk'));
-  assert.ok(runtime.includes('yellow raincoat'));
+  assert.ok(!runtime.includes('yellow raincoat'));
   assert.ok(runtime.includes('Image 2: identity reference for "Mia [ID: 123]"'));
   assert.ok(
     runtime.includes(
-      'For IDENTITY references: use them for identity and default clothing'
+      'For IDENTITY references: treat the attached image as the full visual character reference'
     )
   );
   assert.ok(runtime.includes('KIND=HUMAN'));
+  assert.ok(runtime.includes('WARDROBE_CHECK=enabled'));
 }
 
 testTextValidationPromptSplit();

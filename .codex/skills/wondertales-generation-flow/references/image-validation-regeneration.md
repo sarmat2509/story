@@ -28,19 +28,19 @@ Prompt builders:
 Reference inputs can include:
 
 - environment reference plates
-- character identity references or turnaround sheets
-- outfit plates
+- dressed character identity references or turnaround sheets
 - previous scene references
 - Files API URIs or inline base64
 
-`generateSceneImageWithReference` builds reference instructions, assigns image indices, resolves character outfits, composes scene visual with environment context, then calls the image domain.
+`generateSceneImageWithReference` builds reference instructions, assigns image indices, composes scene visual with environment context, then calls the image domain. Outfit text and outfit plates are resolved earlier into dressed turnaround references.
 
 ## Scene Image Routes
 
 - First pass usually uses simple route: `getImageDomainService()`.
 - Validation retry/fallback can use complex route: `getComplexImageDomainService()`.
 - Manual scene regeneration starts with complex route.
-- Environment and outfit references use the simple image route.
+- Environment references use the simple image route.
+- Outfit plates are internal to dressed turnaround generation and are not sent as final scene references.
 - Turnaround sheets use dedicated service in `turnaroundSheetService.ts`.
 
 Provider config is described in `wondertales-project-map/references/providers-runtime.md`.
@@ -53,7 +53,7 @@ Important facts:
 
 - `ImageDomainService.validateGeneratedImage` is a legacy method name and delegates to `validateGeneratedImageSegmented`.
 - `validateGeneratedImageSegmented` calls `runSegmentedProductImageValidation`.
-- It sends one generated image plus character identity/outfit references.
+- It sends one generated image plus full-character identity references.
 - It runs optional layout pass and per-character identity passes.
 - Request manifest records image order, reference metadata, model, pass data.
 - Results are scored by `computeValidationScore` in `storyOrchestrationService.ts`.
@@ -71,8 +71,7 @@ Inside `generateSceneImageWithReference`:
 - On low score, rejected images are saved detached for diagnostics.
 - If `IMAGE_VALIDATION_USE_EDIT_REPAIR=true`, it tries `editSceneImageUsingValidationFeedback`.
 - Edit repair builds a targeted repair plan:
-  - identity repair references only for characters needing identity repair
-  - outfit references only for characters needing outfit repair
+  - full-character visual references for characters needing identity or wardrobe repair
 - If edit repair fails, it falls back to full regeneration.
 - If every attempt scores below threshold, it selects the best scored attempt rather than blindly using the last.
 - Generated image safety can still block upload before asset creation.
@@ -129,11 +128,14 @@ Behavior:
 
 ## Comic Page Validation
 
-Comic page validation is not the same as scene segmented validation.
+Full comic page validation is not the same as scene segmented validation, but a single comic panel
+image/crop must use the same segmented validator contract as a regular story scene image.
 
 - Method: `ImageDomainService.validateGraphicNovelPagePanels`.
 - Runner: `runGraphicNovelPanelImageValidation`.
-- It sends the full comic page plus references in a single panel-array request.
+- For exactly one panel, it delegates to `runSegmentedProductImageValidation` and adapts the result
+  back into panel result shape.
+- For multiple panels, it sends the full comic page plus references in a single panel-array request.
 - It checks expected panel count, panel visual focus/setting, expected characters, extra structure, text/artifacts.
 - Art validation uses `includeLayoutChecks: true` and `includeBubbleChecks: false` before bubbles are overlaid.
 - Page repair threshold is `GRAPHIC_NOVEL_ART_REPAIR_THRESHOLD` in `graphicNovelOrchestrationService.ts`.

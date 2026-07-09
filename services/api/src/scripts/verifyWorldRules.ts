@@ -24,6 +24,10 @@ const EXPECTED_SCENARIOS = [
   'inventors',
   'jungle_adventures',
   'scary_stories',
+  'expeditions_world_travel',
+  'macro_scifi',
+  'sports_competitions',
+  'science_facts',
 ];
 
 const EXPECTED_RULES_PER_SCENARIO = 10;

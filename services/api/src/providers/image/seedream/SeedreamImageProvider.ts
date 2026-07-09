@@ -107,9 +107,9 @@ export class SeedreamImageProvider implements IImageProvider {
       base64Data: request.originalImage.toString('base64'),
       mimeType: request.originalMimeType,
       instructionText:
-        request.operation === 'graphic_novel_page_edit'
+        request.operation?.startsWith('graphic_novel_page') === true
           ? 'Image 1 is the source comic page to edit. Preserve the existing page aspect, visible panel count, panel borders, gutters, and bubble placement.'
-          : 'Image 1 is the generated scene that needs repair. Preserve the correct composition and style, but replace wrong character identity or outfit details with the reference images.',
+          : 'Image 1 is the generated scene that needs repair. Preserve the correct composition and style, but replace wrong character identity or appearance details with the reference images.',
       referenceKind: 'object',
     };
 
@@ -126,6 +126,34 @@ export class SeedreamImageProvider implements IImageProvider {
   private async generateSeedreamImage(params: SeedreamCallParams): Promise<GeneratedImage> {
     const refs = params.referenceImages || [];
     const size = this.mapSize(params.aspectRatio);
+    const requestManifest = {
+      provider: 'seedream',
+      model: this.model,
+      operation: params.operation,
+      operationType: params.operation.includes('edit') ? 'edit' : 'generate',
+      mode: params.operation.includes('edit') ? 'edit' : 'generate',
+      promptLength: params.prompt.length,
+      fullTextPromptLength: params.prompt.length,
+      fullTextPrompt: params.prompt,
+      systemInstructionLength: params.systemInstruction?.length ?? 0,
+      systemInstruction: params.systemInstruction ?? null,
+      referenceCount: refs.length,
+      aspectRatio: params.aspectRatio ?? null,
+      size,
+      outputFormat: this.effectiveOutputFormat(),
+      responseFormat: this.responseFormat,
+      referenceImages: refs.map((ref, index) => ({
+        index: index + 1,
+        characterName: ref.characterName ?? null,
+        referenceKind: ref.referenceKind ?? null,
+        source: (ref as { source?: string }).source ?? null,
+        type: (ref as { type?: string }).type ?? null,
+        storagePath: ref.storagePath ?? null,
+        hasFileUri: !!ref.fileUri,
+        hasBase64Data: !!ref.base64Data,
+        instructionText: ref.instructionText ?? null,
+      })),
+    };
 
     logger.info(
       {
@@ -211,6 +239,7 @@ export class SeedreamImageProvider implements IImageProvider {
         height: dimensions.height,
         format,
         revisedPrompt: item.revised_prompt,
+        requestManifest,
       };
     } catch (error: any) {
       const errorCode = error?.error?.code || error?.code;
@@ -416,7 +445,7 @@ export class SeedreamImageProvider implements IImageProvider {
   private mapSize(aspectRatio?: GenerateImageRequest['aspectRatio']): string {
     if (this.sizeOverride) return this.sizeOverride;
 
-    const sizeMap: Record<NonNullable<GenerateImageRequest['aspectRatio']>, string> = {
+    const sizeMap: Partial<Record<NonNullable<GenerateImageRequest['aspectRatio']>, string>> = {
       '1:1': '2048x2048',
       '16:9': '2560x1440',
       '9:16': '1440x2560',
@@ -424,7 +453,7 @@ export class SeedreamImageProvider implements IImageProvider {
       '3:4': '1728x2304',
     };
 
-    return sizeMap[aspectRatio || '16:9'];
+    return sizeMap[aspectRatio || '16:9'] ?? sizeMap['16:9']!;
   }
 
   private dimensionsFromSize(

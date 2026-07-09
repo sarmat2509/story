@@ -15,6 +15,8 @@ import type { ITextProvider } from '../../base/ITextProvider';
 import type {
   GenerateStructuredRequest,
   GenerateTextRequest,
+  ImageData,
+  MultimodalInputPart,
   StreamCallback,
 } from '../../base/JsonSchema';
 import { GeminiSchemaAdapter } from './GeminiSchemaAdapter';
@@ -72,6 +74,7 @@ export class GeminiTextProvider implements ITextProvider {
         temperature: request.temperature,
         hasImages: !!request.imageData,
         imageCount: request.imageData?.length || 0,
+        inputPartsCount: request.inputParts?.length || 0,
       },
       'Generating structured content with Gemini'
     );
@@ -87,6 +90,7 @@ export class GeminiTextProvider implements ITextProvider {
         model: modelName,
         hasImages: !!request.imageData,
         imageCount: request.imageData?.length || 0,
+        inputPartsCount: request.inputParts?.length || 0,
       },
       'Creating Gemini model for structured generation'
     );
@@ -104,37 +108,7 @@ export class GeminiTextProvider implements ITextProvider {
         );
       }
 
-      // Build content parts for Gemini (text + optional images)
-      const contentParts: any[] = [];
-
-      // Add images first if provided (for vision models)
-      // Supports both inline base64 and Files API URI references
-      if (request.imageData && request.imageData.length > 0) {
-        for (const image of request.imageData) {
-          if (image.instructionText?.trim()) {
-            contentParts.push({ text: image.instructionText.trim() });
-          }
-          if (image.fileUri) {
-            // Use Files API reference (avoids re-sending large base64 payloads)
-            contentParts.push({
-              fileData: {
-                fileUri: image.fileUri,
-                mimeType: image.mimeType,
-              },
-            });
-          } else {
-            contentParts.push({
-              inlineData: {
-                mimeType: image.mimeType,
-                data: image.data,
-              },
-            });
-          }
-        }
-      }
-
-      // Add text prompt
-      contentParts.push({ text: promptText });
+      const contentParts = this.buildContentParts(promptText, request.imageData, request.inputParts);
 
       // Call Gemini API with retry logic
       const result = await this.callGeminiWithRetry(() =>
@@ -241,6 +215,15 @@ export class GeminiTextProvider implements ITextProvider {
         }));
       }
 
+      await Promise.resolve(request.onRawResponse?.({
+        provider: 'gemini',
+        operation: request.operation ?? 'text_structured',
+        model: modelName,
+        responseText,
+        responseLength: responseText.length,
+        finishReason: candidate?.finishReason ?? null,
+      }));
+
       if (candidate?.finishReason === 'MAX_TOKENS') {
         const effectiveMaxOut = Math.min(98304, Math.max(request.maxTokens ?? 8192, 8192));
         logger.warn(
@@ -319,6 +302,48 @@ export class GeminiTextProvider implements ITextProvider {
         `Gemini structured generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  private buildContentParts(
+    promptText: string,
+    imageData?: ImageData[],
+    inputParts?: MultimodalInputPart[]
+  ): any[] {
+    if (inputParts && inputParts.length > 0) {
+      return inputParts.map((part) => this.toGeminiPart(part));
+    }
+
+    const contentParts: any[] = [];
+    if (imageData && imageData.length > 0) {
+      for (const image of imageData) {
+        if (image.instructionText?.trim()) {
+          contentParts.push({ text: image.instructionText.trim() });
+        }
+        contentParts.push(this.toGeminiPart({ ...image, type: 'image' }));
+      }
+    }
+    contentParts.push({ text: promptText });
+    return contentParts;
+  }
+
+  private toGeminiPart(part: MultimodalInputPart): any {
+    if (part.type === 'text') {
+      return { text: part.text };
+    }
+    if (part.fileUri) {
+      return {
+        fileData: {
+          fileUri: part.fileUri,
+          mimeType: part.mimeType,
+        },
+      };
+    }
+    return {
+      inlineData: {
+        mimeType: part.mimeType,
+        data: part.data || '',
+      },
+    };
   }
 
   /**

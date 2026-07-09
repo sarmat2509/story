@@ -29,6 +29,7 @@ export interface GenerateTextResult {
   selectedCharacters: CharacterData[];
   textGenerationTimeMs: number;
   validationTimeMs?: number;
+  textValidation?: TextValidationSummary;
   storyId: string;
 }
 
@@ -70,9 +71,11 @@ export interface CreateStoryParams {
     storyArtifactTitle?: string;
     storyArtifactImagePath?: string;
     storyArtifactSelection?: unknown;
+    directorDebug?: unknown;
     llmGeneratedCharacters?: any[];
     imageStyle?: string;
     mapTile?: unknown;
+    textValidation?: TextValidationSummary;
   };
   seriesData?: {
     seriesId: string;
@@ -108,4 +111,35 @@ export interface ValidateParams {
 export interface ValidateResult {
   validatedText: any;
   validationTimeMs: number;
+  textValidation: TextValidationSummary;
 }
+
+export type TextValidationAttemptPhase = 'initial' | 'revalidation';
+
+export type TextValidationAttemptRecord = {
+  sceneId: number;
+  attempt: number;
+  phase: TextValidationAttemptPhase;
+  durationMs: number;
+  isValid: boolean;
+  score: number;
+  result: {
+    sceneId: number;
+    isValid: boolean;
+    violations: Array<{ category: string; message: string; severity?: string; suggestion?: string }>;
+  };
+  rawResult: unknown;
+  rawManifest: Record<string, unknown> | null;
+};
+
+export type TextValidationSummary = {
+  version: 1;
+  status: 'passed' | 'failed';
+  score: number;
+  sceneCount: number;
+  attemptCount: number;
+  validationTimeMs: number;
+  passedSceneIds: number[];
+  failedSceneIds: number[];
+  attempts: TextValidationAttemptRecord[];
+};

@@ -3,9 +3,14 @@ import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { calculateGraphicNovelQuota } from '../graphicNovelQuotaService';
 import {
   buildGraphicNovelCoverPanelCrop,
+  augmentGraphicNovelPagesWithMentionedCharacters,
+  buildGraphicNovelCharacterAliasMap,
   buildGraphicNovelTextManifest,
   buildGraphicNovelGenerationStatus,
   getGraphicNovelStoryCharacterLinks,
+  extractLlmCharactersFromComicScript,
+  graphicNovelPanelNeedsStoryArtifactReference,
+  selectGraphicNovelPanelReferenceImagesForGeneration,
   selectGraphicNovelCoverPanel,
   shouldCompleteGraphicNovelRequestAfterPage,
 } from '../graphicNovelOrchestrationService';
@@ -358,6 +363,288 @@ function testGraphicNovelStoryCharacterLinksMatchStorybookFlow(): void {
   ]);
 }
 
+function testComicScriptExtractsLlmRobotCharacter(): void {
+  const llmCharacters = extractLlmCharactersFromComicScript({
+    initialCharacters: [{ name: 'Emilia', type: 'child' } as any],
+    script: {
+      title: 'Robot Helper',
+      description: 'A comic page',
+      language: 'en',
+      characters: [
+        {
+          name: 'Copper Bot',
+          type: 'object',
+          description: 'A small friendly copper robot with round glowing eyes and jointed arms.',
+        },
+        {
+          name: 'Emilia',
+          type: 'human',
+          description: 'Preselected child, should not be persisted as an LLM character.',
+        },
+      ],
+      environments: [],
+      pages: [
+        {
+          pageNumber: 1,
+          pageRole: 'opening',
+          panels: [
+            {
+              panelId: 'p1-1',
+              dialogue: [{ speaker: 'Copper Bot', text: 'I can light the way!' }],
+              thoughts: [],
+              visual: {
+                environmentId: 'env',
+                primaryRead: 'Copper Bot opens a glowing hatch',
+                sceneVisual: {
+                  setting: 'A small copper robot named REF_CH_COPPER_BOT rolls beside Emilia near a moonlit door.',
+                  lighting: 'warm glow',
+                  cameraComposition: {
+                    shot: 'medium shot',
+                    characters: [
+                      { name: 'Emilia', description: 'watching the helper' },
+                      {
+                        name: 'Copper Bot',
+                        description:
+                          'small round copper robot, glowing blue eyes, tiny wheels, hinged arms',
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(llmCharacters.length, 1);
+  assert.equal(llmCharacters[0].name, 'Copper Bot');
+  assert.equal(llmCharacters[0].type, 'object');
+  assert.match(llmCharacters[0].description, /copper robot/i);
+  assert.doesNotMatch(llmCharacters[0].description, /REF_CH_/);
+}
+
+function testMentionedLlmComicCharacterIsAddedToPanelComposition(): void {
+  const [page] = planGraphicNovelLayouts({
+    ageGroup: '6-8',
+    outfits: [
+      {
+        id: 'out_griffin',
+        characterName: 'Малюк-Грифон',
+        description: 'natural appearance',
+      },
+    ],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'action',
+        panels: [
+          {
+            panelId: 'p1-1',
+            dialogue: [{ speaker: 'Emilia', text: 'Look, he is coming down!' }],
+            thoughts: [],
+            caption: 'The little friend gathers courage.',
+            visual: {
+              environmentId: 'env_square',
+              primaryRead: 'The small griffin hops down the stone steps.',
+              sceneVisual: {
+                setting: 'The small griffin is hopping down from the tower ledge to the square.',
+                lighting: 'Soft shadows in the square',
+                cameraComposition: {
+                  shot: 'Long shot',
+                  characters: [
+                    {
+                      name: 'Emilia',
+                      position: 'left_foreground',
+                      description: 'Peering from behind a bench, whispering to Dogikhant.',
+                      outfitId: 'out_emilia',
+                    },
+                    {
+                      name: 'Dogikhant',
+                      position: 'right_foreground',
+                      description: 'Staying low to the ground, watching the griffin.',
+                      outfitId: 'out_dogikhant',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          {
+            panelId: 'p1-2',
+            dialogue: [],
+            thoughts: [],
+            visual: {
+              environmentId: 'env_square',
+              primaryRead: 'Emilia watches the griffin from a safe distance.',
+              sceneVisual: {
+                setting: 'The small griffin sits on the cobblestones, looking lost.',
+                lighting: 'Warm sunset glow',
+                cameraComposition: {
+                  shot: 'Medium shot',
+                  characters: [
+                    {
+                      name: 'Малюк-Грифон',
+                      position: 'center_midground',
+                      description: 'sitting on the cobblestones, head tilted',
+                      outfitId: 'out_griffin',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const characters = [
+    {
+      name: 'Малюк-Грифон',
+      type: 'creature',
+      description:
+        'A small fantasy creature with golden feathers and tiny wings. The small griffin sits on cobblestones.',
+      nameAliases: ['Малюк-Грифон'],
+    },
+  ] as any;
+  const aliases = buildGraphicNovelCharacterAliasMap(characters);
+  const [augmented] = augmentGraphicNovelPagesWithMentionedCharacters({
+    pages: [{ ...page, characterAliases: aliases }],
+    characters,
+    aliases,
+    outfits: [
+      {
+        id: 'out_griffin',
+        characterName: 'Малюк-Грифон',
+        description: 'natural appearance',
+      },
+    ],
+  });
+
+  const composition = augmented.panels[0].script.visual.sceneVisual.cameraComposition;
+  assert.notEqual(typeof composition, 'string');
+  if (typeof composition !== 'string') {
+    const griffin = composition.characters.find((character) => character.name === 'Малюк-Грифон');
+    assert.ok(griffin, 'mentioned LLM character is added to panel composition');
+    assert.equal(griffin.outfitId, 'out_griffin');
+  }
+  assert.ok(
+    aliases['Малюк-Грифон'].some((alias) => alias.toLowerCase() === 'small griffin'),
+    'alias map includes English visual subject phrase'
+  );
+}
+
+function testStoryArtifactReferenceIsTriggeredByCompositionRefLabel(): void {
+  const refId = 'REF_OBJ_VESELKOVA_LUSOCHKA_142FD9';
+  const page = planGraphicNovelLayouts({
+    ageGroup: '6-8',
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'closing',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'closing',
+            dialogue: [],
+            thoughts: [],
+            visual: {
+              environmentId: 'env_beach',
+              primaryRead: `${refId} close to heart`,
+              sceneVisual: {
+                setting: 'The sun paints the clouds gold and orange.',
+                lighting: 'warm sunset',
+                cameraComposition: {
+                  shot: 'medium wide shot',
+                  characters: [
+                    {
+                      name: 'Емілія',
+                      position: 'center_foreground',
+                      description: `Holding ${refId} close to her heart, smiling warmly.`,
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(
+    graphicNovelPanelNeedsStoryArtifactReference(page[0].panels[0], {
+      id: 'artifact-1',
+      artifactCode: 'rainbow-scale',
+      title: 'Веселкова лусочка',
+      description: 'Одна крупная радужная чешуйка с фиолетово-зеленым переливом.',
+      imagePath: 'artifact/rainbow-scale.png',
+      storagePath: 'artifact/rainbow-scale.png',
+      referenceBindingId: refId,
+    }),
+    true,
+    'REF_OBJ label in composition is enough to pass the story artifact reference image'
+  );
+}
+
+function testPanelReferenceSelectionFiltersBeforeBucketLimit(): void {
+  const characters = [
+    {
+      id: 'emilia-id',
+      name: 'Емілія',
+      canonicalName: 'Емілія',
+      nameAliases: ['Emilia'],
+      referenceBindingId: 'REF_CH_EMILIYA_6AC078',
+    },
+    {
+      id: 'gromik-id',
+      name: 'Громик',
+      canonicalName: 'Громик',
+      referenceBindingId: 'REF_CH_GROMIK_C909E6',
+    },
+    { id: 'keyki-id', name: 'Кейкі', referenceBindingId: 'REF_CH_KEYKI_071EE9' },
+    {
+      id: 'pani-id',
+      name: 'Пані Пелюстка',
+      referenceBindingId: 'REF_CH_PANI_PELYUSTKA_4BCF4E',
+    },
+    { id: 'aydragon-id', name: 'Айдрагон', referenceBindingId: 'REF_CH_AYDRAGON_934A60' },
+  ] as any;
+
+  const characterReferences = characters.map((character: any) => ({
+    characterName: character.name,
+    characterId: character.id,
+    referenceKind: 'character' as const,
+    source: 'character_reference',
+    type: 'character_reference',
+    isTurnaround: true,
+    storagePath: `${character.id}.png`,
+    base64Data: 'aW1hZ2U=',
+    mimeType: 'image/png',
+    referenceBindingId: character.referenceBindingId,
+  }));
+
+  const selected = selectGraphicNovelPanelReferenceImagesForGeneration({
+    storyId: 'story-1',
+    pageNumber: 3,
+    environmentReferences: [],
+    characterReferences,
+    expectedCharacters: [
+      { name: 'Емілія', characterKind: 'human', validateOutfit: false },
+      { name: 'Громик', characterKind: 'imaginary', validateOutfit: false },
+    ],
+    characters,
+  });
+
+  const characterLabels = selected
+    .filter((ref) => ref.referenceKind === 'character')
+    .map((ref) => ref.referenceBindingId)
+    .sort();
+
+  assert.deepEqual(characterLabels, ['REF_CH_EMILIYA_6AC078', 'REF_CH_GROMIK_C909E6']);
+}
+
 function main(): void {
   testWizardPayloadContract();
   testGraphicNovelQuotaCalculation();
@@ -369,6 +656,10 @@ function main(): void {
   testCoverPanelCropMatchesStoryThumbnailRatioAndCharacters();
   testCoverPanelCropPrioritizesHeadWhenBodyCannotFit();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
+  testComicScriptExtractsLlmRobotCharacter();
+  testMentionedLlmComicCharacterIsAddedToPanelComposition();
+  testStoryArtifactReferenceIsTriggeredByCompositionRefLabel();
+  testPanelReferenceSelectionFiltersBeforeBucketLimit();
   console.log('graphicNovelFlowContracts tests passed');
 }
 

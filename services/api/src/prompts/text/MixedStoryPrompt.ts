@@ -4,27 +4,38 @@ import {
   formatContinuationLocationMemory,
   formatContinuationOutfitMemory,
   formatContinuationStoryContext,
+  formatContactGeometryWriterRule,
   formatContentPolicySection,
   formatReferenceGroundedCharacterRules,
+  formatSceneVisualStagingDeltaRule,
   formatStoryTitleSection,
   formatStructuredEnvironmentRules,
   formatStructuredOutfitRules,
   formatStructuredSpeakerNameRules,
   formatStructuredStoryInputSection,
+  structuredCameraCharacterOutfitIdJsonSchema,
+  structuredOutfitsJsonSchema,
   type ContinuationPromptContext,
 } from '../helpers';
 import {
   closingArtifactRules,
+  comicPanelCameraVarietyRules,
   dialogueRhythmRules,
   ageRules,
   graphicNovelPanelCountRange,
   graphicNovelCharacterList,
+  graphicNovelVisualReferenceLabelSection,
   panelDensityRules,
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
   GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
   thoughtBubbleRules,
 } from './GraphicNovelPrompt';
+import type { VisualCharacterReferenceLabel } from '../visualReferenceLabels';
+
+const MIXED_STORY_PANEL_VISUAL_STAGING_RULE = formatSceneVisualStagingDeltaRule(
+  'visual.sceneVisual.setting'
+);
 
 function mixedComicPanelRule(ageGroup: string): string {
   const range = graphicNovelPanelCountRange(ageGroup);
@@ -41,9 +52,19 @@ export function buildMixedStoryPrompt(params: {
   validationFeedback?: string[];
   isContinuation?: boolean;
   continuationContext?: ContinuationPromptContext;
+  visualReferenceLabels?: VisualCharacterReferenceLabel[];
+  visualArtifactReferenceLabel?: string;
 }): string {
-  const { spec, sceneCount, comicSceneIds, comicBlockCount, isContinuation, continuationContext } =
-    params;
+  const {
+    spec,
+    sceneCount,
+    comicSceneIds,
+    comicBlockCount,
+    isContinuation,
+    continuationContext,
+    visualReferenceLabels,
+    visualArtifactReferenceLabel,
+  } = params;
   const expectedReadingBlockCount = sceneCount;
   const continuationSections =
     isContinuation && continuationContext
@@ -99,6 +120,8 @@ OUTPUT:
 - Comic blocks MUST NOT include prose text fields; use panel dialogue, thoughts, or captions for all readable comic text.
 - Prose blocks use kind="prose", sceneIds[] with exactly one non-anchor scene id, and text.
 - Prose blocks MUST NOT include panels[].
+- Create characters[] only for newly invented named story characters/helpers/creatures that are not listed in CHARACTERS.
+- Create outfits[] once for comic visual wardrobe bindings. Detailed wardrobe rows are only for child/person/human characters; non-human characters use "natural appearance".
 - Do not merge prose scenes. If two prose scenes fall between comic anchors, return two prose readingBlocks.
 - Every prose block should be one friendly paragraph, not a wall of text.
 - The display order and audio order must be exactly readingBlocks[] order.
@@ -124,15 +147,24 @@ CONTINUITY:
 
 ${formatStructuredStoryInputSection(spec, { includeIllustrationStyle: true })}
 
+${formatStructuredOutfitRules({ includeChangeRules: true })}
+
 ${formatContentPolicySection(spec)}
 
 ${continuationSections}
 
 CLOSING ARTIFACT:
-${closingArtifactRules(spec)}
+${closingArtifactRules(
+  spec,
+  visualArtifactReferenceLabel ? { referenceId: visualArtifactReferenceLabel } : undefined
+)}
 
 COMIC PAGE STRUCTURE:
 - Each comic block is a full comic page like the graphic novel mode, not a horizontal strip.
+- If a comic/prose block introduces a newly invented named helper/creature/object character, add it to top-level characters[] with type and a stable visual description for turnaround generation. Do not include preselected CHARACTERS there.
+- If a newly invented named helper/creature/object is the main subject of visual.primaryRead, appears in visual.sceneVisual.setting, is watched/reacted to by others, or performs the panel action, it MUST be included in that panel visual.sceneVisual.cameraComposition.characters[] even when it is not speaking.
+- Do not write a panel where primaryRead/setting says "the small creature/griffin/robot/etc." is doing the action while cameraComposition.characters[] lists only observers. Add the named character row too.
+- characters[].description must be natural-language visual identity text only. Do not use REF_CH_* labels, internal IDs, panel action, or temporary scene state there.
 - Reuse the same age-specific panel density rules as graphic novel mode:
 ${ageRules(spec.ageGroup)}
 ${panelDensityRules(spec.ageGroup, comicBlockCount)}
@@ -141,10 +173,14 @@ ${panelDensityRules(spec.ageGroup, comicBlockCount)}
 - Keep each comic page readable as a 3:4 page with panel rows/columns chosen later by the server.
 - panelId must be stable and unique, like "m1-1" for mixed comic page 1 panel 1.
 - visual.environmentId must match environments[].id.
-- visual.primaryRead: short English phrase, 3-10 words, naming the main visual read.
+- visual.primaryRead: short English phrase, 3-10 words, naming the main visual read. Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside visual text.
 - visual.sceneVisual.setting, cameraComposition.shot, cameraComposition.characters, and lighting must describe ONE moment.
-- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters.
-- Every visual.sceneVisual.cameraComposition.characters[] item must include position and outfitId.
+- ${MIXED_STORY_PANEL_VISUAL_STAGING_RULE}
+${comicPanelCameraVarietyRules()}
+- The main acted-on subject of primaryRead/setting counts as a visible character when it is a named story helper, creature, animal, robot, object, or person. Include it in cameraComposition.characters[] even if it is not speaking.
+- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside visual text.
+- Every visual.sceneVisual.cameraComposition.characters[] item must include position.
+- Every visual.sceneVisual.cameraComposition.characters[] item must include outfitId. Detailed wardrobe rows are only for child/person/human characters; non-human characters use a natural-appearance binding.
 - Do not output coordinates or bubble placement metadata. The server derives exact bubble placement.
 
 COMIC TEXT COMPLEXITY:
@@ -169,7 +205,7 @@ PROSE TEXT:
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
-${formatStructuredOutfitRules()}
+${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
 
 ${formatStructuredSpeakerNameRules()}
 
@@ -185,6 +221,29 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
     title: { type: 'string' },
     description: { type: 'string' },
     language: { type: 'string' },
+    characters: {
+      type: 'array',
+      description:
+        'Only newly invented named story characters/helpers/creatures that are not preselected CHARACTERS. Omit or return [] when there are none.',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          type: {
+            type: 'string',
+            enum: ['human', 'animal', 'creature', 'object'],
+          },
+          description: {
+            type: 'string',
+            description:
+              'Stable visual identity description in English for turnaround generation: body form, materials/colors, distinctive marks, readable age/species/object type. No REF labels, internal IDs, scene action, or temporary state.',
+          },
+          role: { type: 'string' },
+          personality: { type: 'string' },
+        },
+        required: ['name', 'type', 'description'],
+      },
+    },
     environments: {
       type: 'array',
       minItems: 1,
@@ -198,19 +257,7 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
         required: ['id', 'name', 'description'],
       },
     },
-    outfits: {
-      type: 'array',
-      minItems: 1,
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', minLength: 1 },
-          characterName: { type: 'string', minLength: 1 },
-          description: { type: 'string', minLength: 1 },
-        },
-        required: ['id', 'characterName', 'description'],
-      },
-    },
+    outfits: structuredOutfitsJsonSchema(),
     readingBlocks: {
       type: 'array',
       minItems: 1,
@@ -279,15 +326,27 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                   type: 'object',
                   properties: {
                     environmentId: { type: 'string' },
-                    primaryRead: { type: 'string' },
+                    primaryRead: {
+                      type: 'string',
+                      description:
+                        'Short English focus phrase. Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.',
+                    },
                     sceneVisual: {
                       type: 'object',
                       properties: {
-                        setting: { type: 'string' },
+                        setting: {
+                          type: 'string',
+                          description:
+                            `Scene-specific additions in English. ${MIXED_STORY_PANEL_VISUAL_STAGING_RULE} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.`,
+                        },
                         cameraComposition: {
                           type: 'object',
                           properties: {
-                            shot: { type: 'string' },
+                            shot: {
+                              type: 'string',
+                              description:
+                                'Shot scale, viewpoint/angle, and environment slice in English. Examples: wide establishing shot of the full location, left-side view of door and steps, right-side view along railing and sea, central close-up on the story object, extreme close-up on hands/face/detail. Vary shot scale and angle across panels on the same comic page; do not write only "medium shot".',
+                            },
                             characters: {
                               type: 'array',
                               items: {
@@ -295,8 +354,12 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                                 properties: {
                                   name: { type: 'string' },
                                   position: { type: 'string' },
-                                  description: { type: 'string' },
-                                  outfitId: { type: 'string' },
+                                  description: {
+                                    type: 'string',
+                                    description:
+                                      `Placement, pose, expression, gaze, gesture, and interaction for this exact panel. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.`,
+                                  },
+                                  outfitId: structuredCameraCharacterOutfitIdJsonSchema(),
                                 },
                                 required: ['name', 'position', 'description', 'outfitId'],
                               },

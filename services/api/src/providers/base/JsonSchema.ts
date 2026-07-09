@@ -53,11 +53,30 @@ export interface ImageData {
   instructionText?: string;
 }
 
+export type MultimodalInputPart =
+  | { type: 'text'; text: string }
+  | {
+      type: 'image';
+      mimeType: ImageData['mimeType'];
+      data?: string;
+      fileUri?: string;
+    };
+
 export interface PromptCacheConfig {
   key: string;
   content: string;
   ttlSeconds?: number;
   displayName?: string;
+}
+
+export interface StructuredRawResponse {
+  provider: string;
+  operation: string;
+  model: string;
+  responseText: string;
+  responseLength: number;
+  finishReason?: string | null;
+  durationMs?: number;
 }
 
 /**
@@ -73,10 +92,16 @@ export interface GenerateStructuredRequest<T = any> {
   maxTokens?: number;
   topP?: number;
   topK?: number;
+  /**
+   * Exact ordered multimodal input. When set, providers send these parts as the
+   * user content instead of rebuilding from prompt + imageData.
+   */
+  inputParts?: MultimodalInputPart[];
   imageData?: ImageData[]; // For vision models (Gemini Vision, GPT-4 Vision, etc.)
   cachedPrefix?: PromptCacheConfig; // Optional stable prefix for provider-side prompt caching
   relaxedSafety?: boolean; // Use ultra-relaxed safety settings (for photo analysis)
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  onRawResponse?: (response: StructuredRawResponse) => void | Promise<void>; // Optional full provider response hook for diagnostics
   operation?: string; // Operation name for usage callback (e.g. 'text_structured', 'validateScene')
 }
 

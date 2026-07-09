@@ -61,6 +61,13 @@ export interface GraphicNovelScript {
   title: string;
   description: string;
   language: string;
+  characters?: Array<{
+    name: string;
+    type: string;
+    description: string;
+    role?: string;
+    personality?: string;
+  }>;
   environments: StoryEnvironment[];
   outfits?: StoryOutfitRow[];
   pages: GraphicNovelPageScript[];
@@ -82,7 +89,7 @@ export interface GraphicNovelPageTemplate {
   id: string;
   aspectRatio: '3:4' | '2:1';
   pageSize?: { width: number; height: number };
-  templateFamily?: 'free_layout';
+  templateFamily?: 'graphic_novel_page' | 'mixed_story_strip';
   panelCount: number;
   panels: GraphicNovelPanelTemplate[];
   readingOrder: string[];

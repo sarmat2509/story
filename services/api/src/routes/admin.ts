@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import fs from 'fs/promises';
 import path from 'path';
+import sharp from 'sharp';
 import { FEEDBACK_CATEGORIES, FEEDBACK_TOPICS } from '@wondertales/shared';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
@@ -9,6 +10,8 @@ import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } fro
 import {
   createAdminConfigItem,
   deleteAdminConfigItem,
+  applyBestAdminSceneImageValidationCandidate,
+  AdminValidationApplyError,
   getAdminDashboard,
   listAdminFeedback,
   getAdminImageValidation,
@@ -241,6 +244,80 @@ function getMimeTypeForFile(filePath: string): string {
     '.gif': 'image/gif',
   };
   return mimeTypes[ext] || 'application/octet-stream';
+}
+
+function panelCropRect(value: unknown): { left: number; top: number; width: number; height: number } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const left = Number(record.left);
+  const top = Number(record.top);
+  const width = Number(record.width);
+  const height = Number(record.height);
+  if (![left, top, width, height].every((item) => Number.isFinite(item))) return null;
+  if (width <= 0 || height <= 0) return null;
+  return {
+    left: Math.max(0, Math.round(left)),
+    top: Math.max(0, Math.round(top)),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
+async function cropImageData(
+  imageData: Buffer,
+  cropRect: { left: number; top: number; width: number; height: number }
+): Promise<Buffer | null> {
+  const metadata = await sharp(imageData).metadata();
+  const imageWidth = metadata.width ?? 0;
+  const imageHeight = metadata.height ?? 0;
+  if (imageWidth <= 0 || imageHeight <= 0) {
+    return null;
+  }
+
+  const tolerancePx = 2;
+  if (
+    cropRect.left < 0 ||
+    cropRect.top < 0 ||
+    cropRect.left + cropRect.width > imageWidth + tolerancePx ||
+    cropRect.top + cropRect.height > imageHeight + tolerancePx
+  ) {
+    return null;
+  }
+
+  const left = Math.max(0, Math.min(cropRect.left, imageWidth - 1));
+  const top = Math.max(0, Math.min(cropRect.top, imageHeight - 1));
+  const width = Math.min(cropRect.width, imageWidth - left);
+  const height = Math.min(cropRect.height, imageHeight - top);
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return sharp(imageData)
+    .extract({ left, top, width, height })
+    .png()
+    .toBuffer();
+}
+
+async function cropAdminValidationImageIfNeeded(
+  row: NonNullable<Awaited<ReturnType<typeof getImageValidationById>>>,
+  imageData: Buffer
+): Promise<{ imageData: Buffer; mimeType: string }> {
+  if (row.subjectType !== 'graphic_novel_panel') {
+    return { imageData, mimeType: getMimeTypeForFile(row.imageStoragePath) };
+  }
+
+  const cropRect = panelCropRect(row.cropRect);
+  if (!cropRect) {
+    return { imageData, mimeType: getMimeTypeForFile(row.imageStoragePath) };
+  }
+
+  const cropped = await cropImageData(imageData, cropRect);
+  if (!cropped) return { imageData, mimeType: getMimeTypeForFile(row.imageStoragePath) };
+
+  return {
+    imageData: cropped,
+    mimeType: 'image/png',
+  };
 }
 
 async function resolveMapTileMaskImagePath(maskId: string): Promise<string | null> {
@@ -1140,9 +1217,10 @@ router.get('/image-validations/:id/image', async (req: Request, res: Response) =
       });
     }
 
-    res.setHeader('Content-Type', getMimeTypeForFile(row.imageStoragePath));
-    res.setHeader('Cache-Control', 'private, max-age=86400');
-    return res.send(imageData);
+    const image = await cropAdminValidationImageIfNeeded(row, imageData);
+    res.setHeader('Content-Type', image.mimeType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.send(image.imageData);
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Admin image validation image failed');
     return res.status(500).json({
@@ -1183,6 +1261,44 @@ router.get('/image-validations/:id', async (req: Request, res: Response) => {
     });
   }
 });
+
+router.post(
+  '/image-validations/:id/apply-best-scene-image',
+  async (req: Request, res: Response) => {
+    try {
+      const parsedParams = ValidationIdParamsSchema.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid params',
+          details: parsedParams.error.flatten(),
+        });
+      }
+
+      const data = await applyBestAdminSceneImageValidationCandidate(parsedParams.data.id);
+      return res.json({
+        status: 'success',
+        data,
+      });
+    } catch (error) {
+      if (error instanceof AdminValidationApplyError) {
+        return res.status(error.statusCode).json({
+          status: 'error',
+          message: error.message,
+        });
+      }
+
+      logger.error(
+        { err: error, userId: req.user?.id, validationId: req.params.id },
+        'Admin apply best scene image validation candidate failed'
+      );
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to apply best validation candidate',
+      });
+    }
+  }
+);
 
 router.post('/stories/:storyId/audio/reset', async (req: Request, res: Response) => {
   try {

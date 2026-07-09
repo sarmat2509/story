@@ -320,6 +320,8 @@ const linking: any = {
           AdminUsers: 'users',
           AdminValidations: 'validations',
           AdminValidationDetail: 'validations/:id',
+          AdminImageGenerationDetail:
+            'stories/:storyId/scenes/:sceneIndex/generations/:generationIndex',
           AdminScenes: 'scenes',
         },
       },

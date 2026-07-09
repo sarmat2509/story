@@ -12,7 +12,13 @@
 
 import OpenAI from 'openai';
 import type { ITextProvider } from '../../base/ITextProvider';
-import type { GenerateStructuredRequest, GenerateTextRequest, StreamCallback } from '../../base/JsonSchema';
+import type {
+  GenerateStructuredRequest,
+  GenerateTextRequest,
+  ImageData,
+  MultimodalInputPart,
+  StreamCallback,
+} from '../../base/JsonSchema';
 import { OpenAISchemaAdapter } from './OpenAISchemaAdapter';
 import { logger } from '../../../utils/logger';
 
@@ -54,6 +60,19 @@ export class OpenAITextProvider implements ITextProvider {
     return { max_tokens: maxTokens };
   }
 
+  private temperatureParam(
+    modelName: string,
+    temperature: number | undefined,
+    defaultTemperature: number
+  ): Record<string, number> {
+    const normalized = modelName.trim().toLowerCase();
+    if (normalized === 'gpt-5' || normalized.startsWith('gpt-5-')) {
+      return {};
+    }
+
+    return { temperature: temperature ?? defaultTemperature };
+  }
+
   /**
    * Generate structured JSON response using OpenAI
    * Implements ITextProvider.generateStructured
@@ -71,6 +90,7 @@ export class OpenAITextProvider implements ITextProvider {
       temperature: request.temperature,
       hasImages: !!request.imageData,
       imageCount: request.imageData?.length || 0,
+      inputPartsCount: request.inputParts?.length || 0,
       promptLength: effectivePrompt.length,
       promptCacheKey,
     }, 'Generating structured content with OpenAI');
@@ -80,7 +100,11 @@ export class OpenAITextProvider implements ITextProvider {
 
     try {
       // Build message content (text + optional images for vision)
-      const content = this.buildMessageContent(effectivePrompt, request.imageData);
+      const content = this.buildMessageContent(
+        effectivePrompt,
+        request.imageData,
+        request.inputParts
+      );
       const messages: Array<any> = request.systemInstruction?.trim()
         ? [
             { role: 'system', content: request.systemInstruction.trim() },
@@ -93,7 +117,7 @@ export class OpenAITextProvider implements ITextProvider {
         return await this.client.chat.completions.create({
           model: modelName,
           messages,
-          temperature: request.temperature ?? 0.9,
+          ...this.temperatureParam(modelName, request.temperature, 0.9),
           ...this.tokenLimitParam(modelName, request.maxTokens),
           ...(request.topP && { top_p: request.topP }),
           ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
@@ -138,6 +162,16 @@ export class OpenAITextProvider implements ITextProvider {
       if (!responseText) {
         throw new Error('OpenAI returned empty response');
       }
+
+      await Promise.resolve(request.onRawResponse?.({
+        provider: 'openai',
+        operation: request.operation ?? 'text_structured',
+        model: modelName,
+        responseText,
+        responseLength: responseText.length,
+        finishReason: finishReason ?? null,
+        durationMs: duration,
+      }));
 
       logger.debug({
         responseLength: responseText.length,
@@ -223,7 +257,7 @@ export class OpenAITextProvider implements ITextProvider {
         return await this.client.chat.completions.create({
           model: this.model,
           messages: [{ role: 'user', content: effectivePrompt }],
-          temperature: request.temperature ?? 0.7,
+          ...this.temperatureParam(this.model, request.temperature, 0.7),
           ...this.tokenLimitParam(this.model, request.maxTokens),
           ...(request.topP && { top_p: request.topP }),
           ...(request.stopSequences && { stop: request.stopSequences }),
@@ -267,7 +301,7 @@ export class OpenAITextProvider implements ITextProvider {
       const stream = await this.client.chat.completions.create({
         model: this.model,
         messages: [{ role: 'user', content: request.prompt }],
-        temperature: request.temperature ?? 0.7,
+        ...this.temperatureParam(this.model, request.temperature, 0.7),
         ...(request.maxTokens && { max_tokens: request.maxTokens }),
         ...(request.topP && { top_p: request.topP }),
         stream: true,
@@ -298,8 +332,13 @@ export class OpenAITextProvider implements ITextProvider {
    */
   private buildMessageContent(
     prompt: string,
-    imageData?: Array<{ mimeType: string; data: string; instructionText?: string }>
+    imageData?: ImageData[],
+    inputParts?: MultimodalInputPart[]
   ): string | Array<any> {
+    if (inputParts && inputParts.length > 0) {
+      return inputParts.map((part) => this.toOpenAIContentPart(part));
+    }
+
     if (!imageData || imageData.length === 0) {
       return prompt;
     }
@@ -315,10 +354,11 @@ export class OpenAITextProvider implements ITextProvider {
           text: image.instructionText.trim(),
         });
       }
+      const imageUrl = this.buildImageDataUrl(image);
       content.push({
         type: 'image_url',
         image_url: {
-          url: `data:${image.mimeType};base64,${image.data}`,
+          url: imageUrl,
           detail: 'high',
         },
       });
@@ -331,6 +371,40 @@ export class OpenAITextProvider implements ITextProvider {
     });
 
     return content;
+  }
+
+  private toOpenAIContentPart(part: MultimodalInputPart): any {
+    if (part.type === 'text') {
+      return {
+        type: 'text',
+        text: part.text,
+      };
+    }
+    return {
+      type: 'image_url',
+      image_url: {
+        url: this.buildImageDataUrl(part),
+        detail: 'high',
+      },
+    };
+  }
+
+  private buildImageDataUrl(image: { mimeType: string; data?: string; fileUri?: string }): string {
+    const data = image.data?.trim();
+    if (!data) {
+      throw new Error(
+        image.fileUri
+          ? 'OpenAI vision requires inline base64 image data; provider fileUri cannot be reused'
+          : 'OpenAI vision requires inline base64 image data'
+      );
+    }
+
+    const dataUrlMatch = data.match(/^data:([^;,]+);base64,(.+)$/i);
+    if (dataUrlMatch) {
+      return `data:${dataUrlMatch[1]};base64,${dataUrlMatch[2].trim()}`;
+    }
+
+    return `data:${image.mimeType};base64,${data}`;
   }
 
   /**

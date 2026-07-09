@@ -10,6 +10,7 @@ import {
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
   GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
+  type VisualCharacterReferenceLabel,
 } from '../../prompts/text';
 import type { ContinuationPromptContext } from '../../prompts/helpers';
 import type {
@@ -29,6 +30,7 @@ import type {
 const MIXED_STORY_MAX_OUTPUT_TOKENS = 48000;
 const MIXED_STORY_SCRIPT_ATTEMPTS = 2;
 const FALLBACK_ENVIRONMENT_ID = 'env_main';
+type OutfitKind = 'natural' | 'everyday' | 'swimwear';
 
 const GENERIC_PLACEHOLDER_SPEAKERS = new Set([
   'hero',
@@ -56,7 +58,7 @@ const OFF_TOPIC_PROSE_PATTERNS = [
   /key takeaways/i,
 ];
 
-type OutfitKind = 'natural' | 'everyday' | 'swimwear';
+const VISUAL_REFERENCE_LABEL_PATTERN = /\bREF_CH_[A-Z0-9_]+_[A-Z0-9]{6}\b/i;
 
 export class MixedStoryScriptValidationError extends Error {
   constructor(public readonly issues: MixedStoryScriptValidationIssue[]) {
@@ -115,43 +117,6 @@ function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string 
     .toString('hex')
     .slice(0, 10);
   return `o_${hex}_${kind}`;
-}
-
-function isHumanStoryCharacter(spec: StorySpec, characterName: string): boolean {
-  const lower = characterName.trim().toLowerCase();
-  const match = (spec.characters || []).find(
-    (character) =>
-      String(character.name || '')
-        .trim()
-        .toLowerCase() === lower
-  );
-  const type = String(match?.type || '').toLowerCase();
-  return ['child', 'person', 'human', 'adult', 'parent'].includes(type);
-}
-
-function isSwimmingPanel(panel: GraphicNovelPanelScript): boolean {
-  const text = [
-    panel.visual?.primaryRead,
-    panel.visual?.sceneVisual?.setting,
-    typeof panel.visual?.sceneVisual?.cameraComposition === 'object'
-      ? panel.visual.sceneVisual.cameraComposition.shot
-      : panel.visual?.sceneVisual?.cameraComposition,
-    ...(panel.dialogue || []).map((line) => line.text),
-    ...(panel.thoughts || []).map((line) => line.text),
-    panel.caption,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(
-    text
-  );
-}
-
-function isSwimwearDescription(description: string): boolean {
-  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(
-    description
-  );
 }
 
 function ensureOutfit(
@@ -229,13 +194,9 @@ function withRequiredPanelCharacters(
 }
 
 function withOutfitIds(
-  panel: GraphicNovelPanelScript,
-  spec: StorySpec,
   outfits: Map<string, StoryOutfitRow>,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  void panel;
-  void spec;
   return characters.map((character) => {
     const characterName = character.name || 'Character';
     const existing = character.outfitId?.trim();
@@ -327,6 +288,21 @@ function hasOffTopicProseContamination(value: string): boolean {
   return OFF_TOPIC_PROSE_PATTERNS.some((pattern) => pattern.test(value));
 }
 
+function containsVisualReferenceLabel(value: unknown): boolean {
+  return VISUAL_REFERENCE_LABEL_PATTERN.test(String(value || ''));
+}
+
+function addReadableTextReferenceLabelIssue(
+  issues: MixedStoryScriptValidationIssue[],
+  path: string
+): void {
+  issues.push({
+    path,
+    message:
+      'Readable mixed-story text must use story character names, not REF_CH_* visual reference labels.',
+  });
+}
+
 function hasExcessiveWhitespace(value: string): boolean {
   const newlineCount = (value.match(/\n/g) || []).length;
   return newlineCount > 4 || /\n\s*\n\s*\n/.test(value);
@@ -367,6 +343,9 @@ function validateProseText(params: {
       message: 'Prose block contains off-topic external-document contamination.',
     });
   }
+  if (containsVisualReferenceLabel(normalized)) {
+    addReadableTextReferenceLabelIssue(issues, path);
+  }
   return normalized;
 }
 
@@ -392,9 +371,15 @@ function repairLine(
       message: `Comic line uses generic placeholder speaker "${rawSpeaker}".`,
     });
   }
+  if (containsVisualReferenceLabel(rawSpeaker)) {
+    addReadableTextReferenceLabelIssue(issues, `${path}.speaker`);
+  }
   if (!textSource) {
     issues.push({ path: `${path}.text`, message: 'Comic dialogue/thought line is missing text.' });
     return null;
+  }
+  if (containsVisualReferenceLabel(textSource)) {
+    addReadableTextReferenceLabelIssue(issues, `${path}.text`);
   }
   if (!textMatchesExpectedLanguage(textSource, spec.language)) {
     issues.push({
@@ -429,10 +414,9 @@ function normalizePanelVisual(params: {
   panel: GraphicNovelPanelScript;
   panelIndex: number;
   environments: StoryEnvironment[];
-  spec: StorySpec;
   outfits: Map<string, StoryOutfitRow>;
 }): GraphicNovelPanelVisual {
-  const { panel, panelIndex, environments, spec, outfits } = params;
+  const { panel, panelIndex, environments, outfits } = params;
   const environmentIds = new Set(environments.map((environment) => environment.id));
   const fallbackEnvId = environments[0]?.id || FALLBACK_ENVIRONMENT_ID;
   const source = panel.visual;
@@ -442,8 +426,6 @@ function normalizePanelVisual(params: {
       : fallbackEnvId;
   const cameraComposition = source?.sceneVisual?.cameraComposition;
   const characters = withOutfitIds(
-    panel,
-    spec,
     outfits,
     withRequiredPanelCharacters(panel, legacyCharacters(panel))
   );
@@ -492,6 +474,9 @@ function normalizePanel(params: {
     .filter((line): line is GraphicNovelLine => Boolean(line));
   const rawCaption = typeof panel.caption === 'string' ? panel.caption.trim() : '';
   const caption = rawCaption ? trimToLimit(rawCaption, GRAPHIC_NOVEL_CAPTION_MAX_CHARS) : undefined;
+  if (rawCaption && containsVisualReferenceLabel(rawCaption)) {
+    addReadableTextReferenceLabelIssue(issues, `${path}.caption`);
+  }
   if (rawCaption && !textMatchesExpectedLanguage(rawCaption, spec.language)) {
     issues.push({
       path: `${path}.caption`,
@@ -549,7 +534,7 @@ function normalizePanel(params: {
     dialogue,
     thoughts,
     caption,
-    visual: normalizePanelVisual({ panel, panelIndex, environments, spec, outfits }),
+    visual: normalizePanelVisual({ panel, panelIndex, environments, outfits }),
     charactersPresent: Array.isArray(panel.charactersPresent) ? panel.charactersPresent : undefined,
   };
 }
@@ -696,6 +681,12 @@ function validateNormalizedMixedStoryScript(params: {
       path: 'language',
       message: `Script language ${script.language} does not match requested language ${spec.language}.`,
     });
+  }
+  if (containsVisualReferenceLabel(script.title)) {
+    addReadableTextReferenceLabelIssue(issues, 'title');
+  }
+  if (containsVisualReferenceLabel(script.description)) {
+    addReadableTextReferenceLabelIssue(issues, 'description');
   }
 
   const comicBlocks = script.readingBlocks.filter((block) => block.kind === 'comic');
@@ -903,6 +894,7 @@ export function normalizeMixedStoryScript(params: {
     title: raw.title || 'Mixed Story',
     description: raw.description || 'A child-friendly mixed prose and comic story.',
     language: raw.language || spec.language,
+    characters: Array.isArray(raw.characters) ? raw.characters : [],
     environments,
     outfits: [...outfits.values()],
     readingBlocks,
@@ -957,6 +949,8 @@ export class MixedStoryDomainService {
     comicBlockCount: number;
     isContinuation?: boolean;
     continuationContext?: ContinuationPromptContext;
+    visualReferenceLabels?: VisualCharacterReferenceLabel[];
+    visualArtifactReferenceLabel?: string;
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<{
     script: MixedStoryScript;

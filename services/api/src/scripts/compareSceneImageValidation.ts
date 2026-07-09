@@ -1,23 +1,24 @@
 /**
- * Run the same image validation pipeline as production (buildImageValidationPrompt + IMAGE_VALIDATION_SCHEMA,
- * image order: scene then turnaround refs, temperature 0.2, relaxedSafety) against two text providers for comparison.
+ * Run the same image validation pipeline as production against one or both text providers.
+ * Supports the current segmented validator and the older full-scene validator.
  *
  * Usage: GEMINI_API_KEY + OPENAI_API_KEY. From repo root:
  *   npx tsx services/api/src/scripts/compareSceneImageValidation.ts --pack services/api/src/scripts/packs/....json
  * From services/api: npx tsx src/scripts/compareSceneImageValidation.ts --pack src/scripts/packs/....json
  * From repo root: pnpm compare:image-validation -- --pack src/scripts/packs/....json
+ * Gemini-only segmented current path:
+ *   pnpm compare:image-validation -- --pack src/scripts/packs/....json --mode segmented --provider gemini
  *
  * pack.json — image paths relative to services/api (uploads/...):
  * {
  *   "sceneImage": "uploads/development/USER_ID/STORY_ID/image/ASSET.jpg",
- *   "sceneCharacterOutfitsText": "optional, same as image pipeline",
  *   "sceneVisual": {
  *     "setting": "English delta text",
  *     "lighting": "English",
  *     "cameraComposition": { "shot": "...", "characters": [{ "name": "Емілія", "description": "...", "outfitId": "o_x" }] }
  *   },
  *   "expectedCharacters": [
- *     { "name": "Емілія", "characterKind": "human", "description": "optional", "expectedOutfitForScene": "optional" },
+ *     { "name": "Емілія", "characterKind": "human", "description": "optional", "validateOutfit": true },
  *     { "name": "Флеш", "characterKind": "imaginary", "description": "optional" },
  *     { "name": "Хом'як", "characterKind": "animal", "speciesSubtype": "hamster" }
  *   ],
@@ -43,7 +44,10 @@ import path from 'path';
 import config from '../config';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
-import { runProductImageValidation } from '../domain/image/imageValidationRun';
+import {
+  runProductImageValidation,
+  runSegmentedProductImageValidation,
+} from '../domain/image/imageValidationRun';
 import type { SceneVisual } from '../services/types';
 
 /** services/api — directory that contains uploads/ (independent of process.cwd()) */
@@ -58,15 +62,20 @@ type PackExpectedCharacter = {
   /** Legacy: older packs only knew human vs imaginary. */
   isImaginary?: boolean;
   description?: string;
-  expectedOutfitForScene?: string;
+  validateOutfit?: boolean;
 };
 
 type Pack = {
   sceneImage: string;
-  sceneCharacterOutfitsText?: string;
   sceneVisual: SceneVisual;
   expectedCharacters: PackExpectedCharacter[];
   references: Array<{ characterName: string; path: string }>;
+};
+
+type Args = {
+  pack: string;
+  mode: 'full' | 'segmented';
+  provider: 'gemini' | 'openai' | 'both';
 };
 
 function normalizePackExpected(c: PackExpectedCharacter): {
@@ -74,7 +83,7 @@ function normalizePackExpected(c: PackExpectedCharacter): {
   characterKind: 'human' | 'animal' | 'imaginary';
   speciesSubtype?: string;
   description?: string;
-  expectedOutfitForScene?: string;
+  validateOutfit?: boolean;
 } {
   const kind: 'human' | 'animal' | 'imaginary' =
     c.characterKind ?? (c.isImaginary ? 'imaginary' : 'human');
@@ -83,7 +92,7 @@ function normalizePackExpected(c: PackExpectedCharacter): {
     characterKind: kind,
     speciesSubtype: c.speciesSubtype,
     description: c.description,
-    expectedOutfitForScene: c.expectedOutfitForScene,
+    validateOutfit: c.validateOutfit === true,
   };
 }
 
@@ -108,12 +117,26 @@ function readImageResolved(
   return { buf: fs.readFileSync(resolved), mime: mimeFromExt(resolved) };
 }
 
-function parseArgs(): { pack: string } {
+function parseArgs(): Args {
   const argv = process.argv.slice(2);
   let pack = '';
+  let mode: Args['mode'] = 'full';
+  let provider: Args['provider'] = 'both';
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--pack' && argv[i + 1]) {
       pack = argv[++i];
+    } else if (argv[i] === '--mode' && argv[i + 1]) {
+      const value = argv[++i];
+      if (value !== 'full' && value !== 'segmented') {
+        throw new Error('--mode must be "full" or "segmented"');
+      }
+      mode = value;
+    } else if (argv[i] === '--provider' && argv[i + 1]) {
+      const value = argv[++i];
+      if (value !== 'gemini' && value !== 'openai' && value !== 'both') {
+        throw new Error('--provider must be "gemini", "openai", or "both"');
+      }
+      provider = value;
     }
   }
   if (!pack) {
@@ -122,7 +145,7 @@ function parseArgs(): { pack: string } {
         '  (from repo root) or cd services/api && npx tsx src/scripts/compareSceneImageValidation.ts --pack ...'
     );
   }
-  return { pack };
+  return { pack, mode, provider };
 }
 
 function resolvePackFilePath(packPath: string): string {
@@ -137,7 +160,7 @@ function resolvePackFilePath(packPath: string): string {
 }
 
 async function main() {
-  const { pack: packPath } = parseArgs();
+  const { pack: packPath, mode, provider } = parseArgs();
   const resolvedPack = resolvePackFilePath(packPath);
   const raw = JSON.parse(fs.readFileSync(resolvedPack, 'utf-8')) as Pack;
 
@@ -156,7 +179,6 @@ async function main() {
     mimeType: scene.mime,
     expectedCharacters: raw.expectedCharacters.map(normalizePackExpected),
     sceneVisual: raw.sceneVisual,
-    sceneCharacterOutfitsText: raw.sceneCharacterOutfitsText,
     referenceImages,
   };
 
@@ -167,7 +189,7 @@ async function main() {
       'Missing Gemini API key. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env.local (repo root) or export in shell.'
     );
   }
-  if (!openaiKey) {
+  if ((provider === 'openai' || provider === 'both') && !openaiKey) {
     throw new Error('Missing OPENAI_API_KEY in .env.local (repo root) or export in shell.');
   }
 
@@ -176,25 +198,31 @@ async function main() {
   const openaiModel = process.env.COMPARE_OPENAI_MODEL || 'gpt-4o';
 
   const gemini = new GeminiTextProvider(geminiKey, config.ai.modelVersion);
-  const openai = new OpenAITextProvider(openaiKey, config.ai.openaiModel);
+  const runValidation =
+    mode === 'segmented' ? runSegmentedProductImageValidation : runProductImageValidation;
 
-  console.log('--- Gemini (same validator pipeline) ---', { model: geminiModel });
-  const geminiResult = await runProductImageValidation(gemini, input, {
-    visionModel: geminiModel,
-    operation: 'image_validation_script_gemini',
-  });
-  console.log(JSON.stringify(geminiResult, null, 2));
-
-  console.log('\n--- OpenAI (same validator pipeline) ---', { model: openaiModel });
-  try {
-    const openaiResult = await runProductImageValidation(openai, input, {
-      visionModel: openaiModel,
-      operation: 'image_validation_script_openai',
+  if (provider === 'gemini' || provider === 'both') {
+    console.log('--- Gemini validator pipeline ---', { mode, model: geminiModel });
+    const geminiResult = await runValidation(gemini, input, {
+      visionModel: geminiModel,
+      operation: `image_validation_script_${mode}_gemini`,
     });
-    console.log(JSON.stringify(openaiResult, null, 2));
-  } catch (e) {
-    console.error('OpenAI run failed (schema/vision/model):', e instanceof Error ? e.message : e);
-    process.exitCode = 1;
+    console.log(JSON.stringify(geminiResult, null, 2));
+  }
+
+  if (provider === 'openai' || provider === 'both') {
+    const openai = new OpenAITextProvider(openaiKey, config.ai.openaiModel);
+    console.log('\n--- OpenAI validator pipeline ---', { mode, model: openaiModel });
+    try {
+      const openaiResult = await runValidation(openai, input, {
+        visionModel: openaiModel,
+        operation: `image_validation_script_${mode}_openai`,
+      });
+      console.log(JSON.stringify(openaiResult, null, 2));
+    } catch (e) {
+      console.error('OpenAI run failed (schema/vision/model):', e instanceof Error ? e.message : e);
+      process.exitCode = 1;
+    }
   }
 }
 

@@ -21,15 +21,11 @@ function buildArtifactEmbeddingText(artifact: {
   title: string;
   description: string;
   semanticTags: string[];
-  scenarioAffinities: string[];
 }): string {
   return [
     `Story keepsake artifact: ${artifact.title}`,
     `Visual identity: ${artifact.description}`,
     artifact.semanticTags.length > 0 ? `Semantic tags: ${artifact.semanticTags.join(', ')}` : '',
-    artifact.scenarioAffinities.length > 0
-      ? `Best-fit story scenarios: ${artifact.scenarioAffinities.join(', ')}`
-      : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -56,7 +52,6 @@ async function seedStoryArtifactEmbeddings(): Promise<void> {
       title: artifact.title,
       description: artifact.description,
       semanticTags: artifact.semanticTags || [],
-      scenarioAffinities: artifact.scenarioAffinities || [],
     });
     const embedding = await generateEmbedding(text);
     await repo.updateEmbedding({

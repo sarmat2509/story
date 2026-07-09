@@ -1,6 +1,5 @@
 {
   "sceneImage": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/1cdc96f9-2407-4c4c-9cbc-c40bee7f39e8/image/4e9963ec-5051-4956-8282-b3734d96b2e6.jpg",
-  "sceneCharacterOutfitsText": "CHARACTER OUTFITS: Емілія: Floral bomber jacket with colorful embroidery, casual sneakers (outfit o_emilia_bomber_sneakers). Флеш: natural appearance. Сяйвик: natural appearance.",
   "sceneVisual": {
     "setting": "Outside the porthole, a gigantic glass-sphere ship drifts in space: a transparent orb filled with dense jungle-like greenery, visible as a huge green mass with tangled silhouettes. The orb catches distant starlight with soft reflections on the glass. Inside the cabin, a few tiny floating dust motes shimmer in the light, watercolor-soft and gentle.",
     "lighting": "Soft, cool starlight entering through the porthole from the left, creating gentle bluish highlights on faces and cabin panels; the distant star's glow makes the glass-sphere ship shimmer with translucent reflections; overall watercolor wash with subtle paper texture and no harsh shadows.",
@@ -29,20 +28,17 @@
     {
       "name": "Флеш",
       "isImaginary": true,
-      "description": "Round yellow body with small green spots; zigzag lightning tail; white eyes red pupils; red mane; wooden stick with leaves; short limbs",
-      "expectedOutfitForScene": "natural appearance"
+      "description": "Round yellow body with small green spots; zigzag lightning tail; white eyes red pupils; red mane; wooden stick with leaves; short limbs"
     },
     {
       "name": "Сяйвик",
       "isImaginary": true,
-      "description": "Small light-blue fluffy spark creature; large round head; white antennae with balls; translucent wings; short limbs",
-      "expectedOutfitForScene": "natural appearance"
+      "description": "Small light-blue fluffy spark creature; large round head; white antennae with balls; translucent wings; short limbs"
     },
     {
       "name": "Емілія",
       "isImaginary": false,
-      "description": "Young girl (7–9); light skin; freckles; rainbow braids / multicolor hair; expressive face",
-      "expectedOutfitForScene": "Floral bomber jacket with colorful embroidery, casual sneakers"
+      "description": "Young girl (7–9); light skin; freckles; rainbow braids / multicolor hair; expressive face"
     }
   ],
   "references": [

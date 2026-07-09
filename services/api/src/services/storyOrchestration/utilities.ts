@@ -11,6 +11,11 @@ import {
 import { normalizeCharacterName } from '../../utils/characterNormalization';
 import { stripAllTags, stripCharacterIds } from '../../utils/audioTags';
 import { flattenCameraComposition } from '../types';
+import {
+  getSceneVisualCharacterCount,
+  limitSceneVisualCharacters,
+  MAX_SCENE_IMAGE_CHARACTERS,
+} from '../../domain/story/sceneCharacterLimits';
 
 /**
  * Extract character ID from name string like "Mokhovyk [ID: uuid]"
@@ -57,8 +62,9 @@ export async function createSceneRecords(
 ): Promise<void> {
   await Promise.all(
     text.scenes.map(scene => {
+      const sceneVisual = limitSceneVisualCharacters(scene.sceneVisual);
       // Strip [ID: uuid] from cameraComposition character names before normalization
-      const cam = scene.sceneVisual?.cameraComposition;
+      const cam = sceneVisual?.cameraComposition;
       if (cam && typeof cam !== 'string' && Array.isArray(cam.characters)) {
         for (const ch of cam.characters) {
           if (ch.name) ch.name = stripCharacterIds(ch.name);
@@ -76,8 +82,8 @@ export async function createSceneRecords(
         storyId,
         sceneId: scene.sceneId,
         text: cleanText,
-        visualPrompt: scene.sceneVisual 
-          ? JSON.stringify(scene.sceneVisual) 
+        visualPrompt: sceneVisual
+          ? JSON.stringify(sceneVisual)
           : (scene.visualPrompt ?? ''),
         charactersPresent: normalizedCharacters,
       };
@@ -198,7 +204,8 @@ export function mergeDirectorIntoText(
       sceneVisual: any;
     }>;
   },
-  imagesPerStory: number
+  imagesPerStory: number,
+  options?: { preferredCharacterNames?: string[] }
 ): any {
   const sceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
   const blockSize = Math.ceil(plainText.scenes.length / imagesPerStory) || 1;
@@ -208,8 +215,27 @@ export function mergeDirectorIntoText(
     const anchor = sceneIds[i];
     const sceneEnd = Math.min(anchor + blockSize - 1, plainText.scenes.length);
     const ill = directorResult.illustrations[i];
+    const sceneVisual = limitSceneVisualCharacters(
+      ill?.sceneVisual,
+      MAX_SCENE_IMAGE_CHARACTERS,
+      options?.preferredCharacterNames ?? [],
+    );
+    const originalCharacterCount = getSceneVisualCharacterCount(ill?.sceneVisual);
+    const limitedCharacterCount = getSceneVisualCharacterCount(sceneVisual);
+    if (originalCharacterCount > limitedCharacterCount) {
+      logger.warn(
+        {
+          illustrationIndex: i,
+          anchorSceneId: anchor,
+          originalCharacterCount,
+          limitedCharacterCount,
+          maxSceneImageCharacters: MAX_SCENE_IMAGE_CHARACTERS,
+        },
+        'Trimmed Director cameraComposition characters to scene image maximum'
+      );
+    }
     const outfitRecord =
-      cameraCompositionOutfitsToRecord(ill?.sceneVisual?.cameraComposition) ??
+      cameraCompositionOutfitsToRecord(sceneVisual?.cameraComposition) ??
       outfitBindingsToRecord(ill?.outfitBindings) ??
       (ill?.characterOutfitIds && Object.keys(ill.characterOutfitIds).length > 0
         ? { ...ill.characterOutfitIds }
@@ -225,7 +251,7 @@ export function mergeDirectorIntoText(
         if (ill.primaryRead) {
           (sc as any).primaryRead = ill.primaryRead;
         }
-        (sc as any).sceneVisual = ill.sceneVisual;
+        (sc as any).sceneVisual = sceneVisual;
       }
     }
   }

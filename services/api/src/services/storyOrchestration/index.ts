@@ -30,7 +30,7 @@ export {
 } from './storyRecords';
 
 // Export validation
-export { validateStoryScenes } from './validation';
+export { validateStoryTextScenes, validateStoryScenes } from './validation';
 
 // Export checkpoint management
 export { 

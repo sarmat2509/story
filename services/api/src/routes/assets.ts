@@ -312,6 +312,7 @@ router.get('/llm_turnaround_cache/:filename', async (req: Request, res: Response
  * Serve user photos (character, child, profile reference photos).
  * Auth: wt_session cookie (automatic from <img>) OR Bearer header (API clients).
  * Ownership check: session userId must match the userId in the URL path.
+ * Admin sessions may inspect user photos from the admin story/detail screens.
  */
 router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res: Response) => {
   try {
@@ -384,9 +385,8 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
       return res.status(401).json({ status: 'error', message: 'Session expired' });
     }
 
-    // Ownership check: URL userId must match authenticated user
-    // Admins may inspect feedback screenshots across users.
-    if (userId !== session.user.id && !(session.user.role === 'admin' && photoType === 'feedback')) {
+    // Ownership check: URL userId must match authenticated user, or an admin session.
+    if (userId !== session.user.id && session.user.role !== 'admin') {
       return res.status(403).json({ status: 'error', message: 'Access denied' });
     }
     
@@ -535,6 +535,27 @@ router.get('/*', async (req: Request, res: Response) => {
     ) {
       try {
         await sendPublicFile(res, assetPath);
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Asset file not found',
+        });
+      }
+    }
+
+    if (assetPath.startsWith('character_outfit_turnaround_cache/')) {
+      const session = await getAssetRequestSession(req);
+      if (!session) {
+        return sendAssetAccessDenied(res, {
+          allowed: false,
+          status: 401,
+          reason: 'authentication_required',
+        });
+      }
+
+      try {
+        await sendPrivateFile(res, assetPath);
         return;
       } catch {
         return res.status(404).json({

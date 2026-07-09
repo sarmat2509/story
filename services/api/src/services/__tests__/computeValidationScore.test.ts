@@ -17,9 +17,12 @@ type ScoringOverride = typeof config.image.validationScoring;
 
 const baseScoring: ScoringOverride = {
   recognizablePenalty: 20,
+  missingCharacterPenalty: 32,
   duplicatedPenalty: 15,
   matchesColorsPenalty: 10,
-  matchesOutfitPenalty: 10,
+  matchesOutfitPenalty: 20,
+  characterCountMismatchPenalty: 16,
+  characterCountMismatchMaxPenalty: 35,
   textPenalty: 5,
   unexpectedCharsPenalty: 3,
   artifactsPenalty: 10,
@@ -111,6 +114,43 @@ function testHumanHairDriftTriggersRepairBelowDefaultThreshold() {
   );
 }
 
+function testValidatedOutfitMismatchTriggersRepairBelowDefaultThreshold() {
+  const score = computeValidationScore(
+    makeResult({
+      matchesOutfit: false,
+      issue: 'floral skirt and missing cross-body bag differ from the reference wardrobe',
+    }),
+    {
+      expectedCharacters: [{ name: 'Emma', characterKind: 'human', validateOutfit: true }],
+      referenceNamesNormalized: new Set(['emma']),
+      validationReferenceImages: [{ characterName: 'Emma', mimeType: 'image/png' }],
+      scoringOverride: baseScoring,
+    }
+  );
+
+  assert.ok(
+    score <= 85,
+    `Validated outfit mismatch should trigger repair at default threshold 85; got ${score}`
+  );
+}
+
+function testOutfitMismatchIgnoredWhenWardrobeCheckDisabled() {
+  const score = computeValidationScore(
+    makeResult({
+      matchesOutfit: false,
+      issue: 'outfit differs, but this row does not request wardrobe validation',
+    }),
+    {
+      expectedCharacters: [{ name: 'Emma', characterKind: 'human', validateOutfit: false }],
+      referenceNamesNormalized: new Set(['emma']),
+      validationReferenceImages: [{ characterName: 'Emma', mimeType: 'image/png' }],
+      scoringOverride: baseScoring,
+    }
+  );
+
+  assert.strictEqual(score, 100, 'Outfit mismatch should not score when wardrobe check is disabled');
+}
+
 function testLayoutFailuresUseArtifactsPenalty() {
   const score = computeValidationScore(
     makeResult(
@@ -199,6 +239,63 @@ function testNonHumanWithRefAppliesEquallyToAnimalAndImaginary() {
   );
 }
 
+function testReportedNonHumanDriftPenalizedWithoutScoringContext() {
+  const result: ImageValidationResult = {
+    characterCount: 2,
+    expectedCharacterCount: 2,
+    characters: [
+      {
+        name: 'Бінбон',
+        characterKind: 'imaginary',
+        found: true,
+        duplicated: false,
+        recognizableScore: 0.7,
+        faceMatchesReference: null,
+        hairMatchesReference: null,
+        ageReadMatchesReference: null,
+        proportionsMatchReference: false,
+        matchesColors: true,
+        matchesOutfit: true,
+        sameOverallDesignRead: false,
+        silhouetteDriftSeverity: 'moderate',
+        issue: 'The character design deviates in head anatomy and body structure.',
+        identityComparisonSummary:
+          'Color palette matches, but the head anatomy and body structure differ.',
+      },
+      {
+        name: 'Стрекориб',
+        characterKind: 'imaginary',
+        found: true,
+        duplicated: false,
+        recognizableScore: 0.85,
+        faceMatchesReference: null,
+        hairMatchesReference: null,
+        ageReadMatchesReference: null,
+        proportionsMatchReference: true,
+        matchesColors: true,
+        matchesOutfit: true,
+        sameOverallDesignRead: true,
+        silhouetteDriftSeverity: 'mild',
+        issue: 'Missing third eye and tongue; antennae shape differs from reference.',
+        identityComparisonSummary:
+          'Overall species design is consistent, but visible biological anchors are missing.',
+      },
+    ],
+    hasUnexpectedCharacters: false,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    overallFeedback: '',
+  };
+
+  const score = computeValidationScore(result, { scoringOverride: baseScoring });
+
+  assert.strictEqual(
+    score,
+    42,
+    'Reported non-human identity drift must not be ignored when admin fallback scoring lacks reference context'
+  );
+}
+
 function testLeniencyCoversIdentityBooleansAndSilhouette() {
   // Scene brief with transient-form keywords + model reports identity drift mentioning
   // transparency. All identity booleans false + silhouette severe — leniency should
@@ -261,6 +358,95 @@ function testHamsterRegression() {
     score,
     100,
     'Animal vs animal with clean identity must score 100 — no kind-mismatch, no human-identity flags'
+  );
+}
+
+function testMissingCharactersStillRankFailedAttempts() {
+  const makeImaginary = (
+    name: string,
+    overrides: Partial<ImageValidationResult['characters'][0]> = {}
+  ): ImageValidationResult['characters'][0] => ({
+    name,
+    characterKind: 'imaginary',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'matches',
+    ...overrides,
+  });
+
+  const expectedCharacters = ['A', 'B', 'C', 'D', 'E'].map((name) => ({
+    name,
+    characterKind: 'imaginary' as const,
+  }));
+  const validationReferenceImages = expectedCharacters.map((character) => ({
+    characterName: character.name,
+    mimeType: 'image/png',
+  }));
+  const oneMissing: ImageValidationResult = {
+    characterCount: 4,
+    expectedCharacterCount: 5,
+    characters: [
+      makeImaginary('A'),
+      makeImaginary('B'),
+      makeImaginary('C'),
+      makeImaginary('D', { recognizableScore: 0.95 }),
+      makeImaginary('E', {
+        found: false,
+        recognizableScore: 0.2,
+        proportionsMatchReference: false,
+        matchesColors: false,
+        sameOverallDesignRead: false,
+        silhouetteDriftSeverity: 'severe',
+      }),
+    ],
+    hasUnexpectedCharacters: false,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    overallFeedback: '',
+  };
+  const twoMissing: ImageValidationResult = {
+    ...oneMissing,
+    characterCount: 3,
+    characters: oneMissing.characters.map((character) =>
+      character.name === 'B'
+        ? {
+            ...character,
+            found: false,
+            recognizableScore: 0.2,
+            proportionsMatchReference: false,
+            matchesColors: false,
+            sameOverallDesignRead: false,
+            silhouetteDriftSeverity: 'moderate',
+          }
+        : character
+    ),
+  };
+
+  const oneMissingScore = computeValidationScore(oneMissing, {
+    expectedCharacters,
+    validationReferenceImages,
+    scoringOverride: baseScoring,
+  });
+  const twoMissingScore = computeValidationScore(twoMissing, {
+    expectedCharacters,
+    validationReferenceImages,
+    scoringOverride: baseScoring,
+  });
+
+  assert.strictEqual(oneMissingScore, 51, 'One missing character should remain rankable');
+  assert.strictEqual(twoMissingScore, 3, 'Two missing characters should score lower');
+  assert.ok(
+    oneMissingScore > twoMissingScore,
+    `One missing character must rank above two missing characters (${oneMissingScore} vs ${twoMissingScore})`
   );
 }
 
@@ -342,11 +528,15 @@ testBaselineCleanResult();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();
+testValidatedOutfitMismatchTriggersRepairBelowDefaultThreshold();
+testOutfitMismatchIgnoredWhenWardrobeCheckDisabled();
 testLayoutFailuresUseArtifactsPenalty();
 testHumanWithRefOnlyWhenBothHuman();
 testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
+testReportedNonHumanDriftPenalizedWithoutScoringContext();
 testLeniencyCoversIdentityBooleansAndSilhouette();
 testHamsterRegression();
+testMissingCharactersStillRankFailedAttempts();
 testGeneratedImageSafetyAllowsValidatedOrDisabledImages();
 testGeneratedImageSafetyAllowsBestValidatedAttemptBelowThreshold();
 testGeneratedImageSafetyBlocksUnvalidatedImages();

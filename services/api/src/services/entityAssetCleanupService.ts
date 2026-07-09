@@ -33,6 +33,7 @@ export function normalizeAssetStoragePath(raw: string): string | null {
 export function shouldDeleteStoragePath(storagePath: string): boolean {
   if (!storagePath) return false;
   if (storagePath.startsWith('llm_turnaround_cache/')) return false;
+  if (storagePath.startsWith('character_outfit_turnaround_cache/')) return false;
   return true;
 }
 

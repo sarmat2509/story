@@ -38,6 +38,7 @@ function createDeps(
   options: {
     similar?: { id: string; storagePath: string; storageUrl?: string | null };
     storyMapping?: { cacheId: string } | null;
+    cacheMappings?: Array<{ storyId: string; storyEnvironmentId: string; cacheId: string }>;
   } = {}
 ) {
   return {
@@ -70,6 +71,10 @@ function createDeps(
       async getByStoryAndEnvId(storyId: string, storyEnvironmentId: string) {
         events.push(`storyEnv:get:${storyId}:${storyEnvironmentId}`);
         return options.storyMapping ?? null;
+      },
+      async listByCacheId(cacheId: string) {
+        events.push(`storyEnv:listByCache:${cacheId}`);
+        return options.cacheMappings ?? [];
       },
       async upsert(storyId: string, storyEnvironmentId: string, cacheId: string) {
         events.push(`storyEnv:upsert:${storyId}:${storyEnvironmentId}:${cacheId}`);
@@ -110,9 +115,32 @@ async function testVectorCacheHitSkipsGeneration() {
     'storyEnv:get:story-1:env_moon_garden',
     'embedding:true',
     `cache:findSimilar:1,0,0:0.91:${ENVIRONMENT_REFERENCE_CACHE_PREFIX}`,
+    'storyEnv:listByCache:cache-hit',
     'asset:get:environment-cache/cache-hit.png',
     'storyEnv:upsert:story-1:env_moon_garden:cache-hit',
   ]);
+}
+
+async function testVectorCacheHitIsSkippedWhenAnotherStoryEnvironmentUsesIt() {
+  const events: string[] = [];
+  const result = await getOrCreateEnvironmentImageCore(
+    createBaseRequest(events),
+    createDeps(events, {
+      similar: { id: 'shared-cache', storagePath: 'environment-cache/shared-cache.png' },
+      cacheMappings: [
+        {
+          storyId: 'story-1',
+          storyEnvironmentId: 'env_other_place',
+          cacheId: 'shared-cache',
+        },
+      ],
+    })
+  );
+
+  assert.match(result?.storagePath ?? '', /^environment-cache\/[a-f0-9-]+\.png$/);
+  assert.ok(events.includes('provider:generateImage'));
+  assert.equal(events.includes('asset:get:environment-cache/shared-cache.png'), false);
+  assert.equal(events.includes('storyEnv:upsert:story-1:env_moon_garden:shared-cache'), false);
 }
 
 async function testVectorSearchHappensBeforeGenerationOnMiss() {
@@ -131,6 +159,7 @@ async function testVectorSearchHappensBeforeGenerationOnMiss() {
 
 async function main() {
   await testVectorCacheHitSkipsGeneration();
+  await testVectorCacheHitIsSkippedWhenAnotherStoryEnvironmentUsesIt();
   await testVectorSearchHappensBeforeGenerationOnMiss();
   console.log('environmentReferenceImageService tests passed');
 }

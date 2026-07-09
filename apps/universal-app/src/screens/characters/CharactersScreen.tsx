@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { theme } from '@/theme';
-import { useCharacters, useDeleteCharacter } from '@/api/characters';
+import { useCharacterGenerationUsage, useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -43,6 +43,7 @@ export default function CharactersScreen() {
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const isChildSession = sessionMode === 'child';
   const { data: characters, isLoading, error } = useCharacters();
+  const { data: characterUsage } = useCharacterGenerationUsage(!isChildSession);
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
   const gap = theme.spacing[4];
@@ -71,6 +72,13 @@ export default function CharactersScreen() {
   );
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const deleteCharacter = useDeleteCharacter();
+  const characterQuotaExhausted =
+    !!characterUsage && characterUsage.limit >= 0 && characterUsage.remaining <= 0;
+  const characterQuotaText = characterUsage
+    ? characterQuotaExhausted
+      ? t('characters.character_quota_exhausted')
+      : t('characters.character_quota_remaining', { remaining: characterUsage.remaining })
+    : null;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -81,6 +89,9 @@ export default function CharactersScreen() {
   }, [isChildSession, navigation]);
 
   const handleAddCharacter = () => {
+    if (characterQuotaExhausted) {
+      return;
+    }
     setEditingCharacter(undefined);
     setIsModalVisible(true);
   };
@@ -181,8 +192,12 @@ export default function CharactersScreen() {
                 label={t('characters.add_character')}
                 onPress={handleAddCharacter}
                 leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
+                disabled={characterQuotaExhausted}
                 style={styles.addCharacterAction}
               />
+              {characterQuotaText && (
+                <Text style={styles.characterQuotaText}>{characterQuotaText}</Text>
+              )}
             </AnimatedSection>
           </>
         ) : (
@@ -194,8 +209,12 @@ export default function CharactersScreen() {
               <AppButton
                 label={t('characters.add_character')}
                 onPress={handleAddCharacter}
+                disabled={characterQuotaExhausted}
                 style={styles.emptyAction}
               />
+              {characterQuotaText && (
+                <Text style={styles.emptyQuotaText}>{characterQuotaText}</Text>
+              )}
             </View>
           </AnimatedSection>
         )}
@@ -251,6 +270,12 @@ const styles = StyleSheet.create({
   addCharacterAction: {
     marginTop: theme.spacing[6],
   },
+  characterQuotaText: {
+    marginTop: theme.spacing[2],
+    textAlign: 'center',
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
   grid: Platform.select({
     web: {
       display: 'grid' as any,
@@ -285,6 +310,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyAction: {},
+  emptyQuotaText: {
+    marginTop: theme.spacing[2],
+    textAlign: 'center',
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
   errorText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.status.error,

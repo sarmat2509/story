@@ -50,9 +50,11 @@ description: A short bedtime tale about a glowworm who shares her glow.
 class PlainOnlyStubTextProvider implements ITextProvider {
   public lastGenerateTextRequest: GenerateTextRequest | null = null;
 
+  constructor(private readonly fixture = PLAIN_LLM_FIXTURE) {}
+
   async generateText(request: GenerateTextRequest): Promise<string> {
     this.lastGenerateTextRequest = request;
-    return PLAIN_LLM_FIXTURE;
+    return this.fixture;
   }
 
   async generateStructured<T>(_request: GenerateStructuredRequest<T>): Promise<T> {
@@ -106,6 +108,17 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
     'plain Writer prompt must not include the old structured JSON contract'
   );
   assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
+}
+
+async function testGenerateTextPlainRejectsEmptyWriterOutput() {
+  const stub = new PlainOnlyStubTextProvider('title: Untitled\n\ndescription:');
+  const domain = new StoryDomainService(stub);
+
+  await assert.rejects(
+    () => domain.generateTextPlain(STATIC_STORY_SPEC),
+    /Writer returned no readable story scenes/,
+    'empty writer output must fail before validation/persistence'
+  );
 }
 
 async function testGenerateTextCompatibilityUsesPlainWriter() {
@@ -262,6 +275,26 @@ async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
   assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'validateScene');
 }
 
+async function testValidateSceneAllowsCustomUsageOperation() {
+  const stub = new BlockedValidationStubTextProvider();
+  const domain = new StoryDomainService(stub, stub, stub);
+
+  const result = await domain.validateScene(
+    {
+      sceneId: 2,
+      text: 'The writer scene needs validation.',
+    } as any,
+    STATIC_POLICY,
+    false,
+    undefined,
+    { operation: 'writer_text_validation' }
+  );
+
+  assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'writer_text_validation');
+  assert.strictEqual(result.requestManifest?.operation, 'writer_text_validation');
+  assert.strictEqual(result.validationScore, 0);
+}
+
 async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() {
   const stub = new BlockedValidationStubTextProvider();
   const domain = new StoryDomainService(stub, stub, stub);
@@ -287,10 +320,12 @@ async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() 
 
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
+  await testGenerateTextPlainRejectsEmptyWriterOutput();
   await testGenerateTextCompatibilityUsesPlainWriter();
   await testWriterPromptDoesNotExposeCharacterIds();
   await testContinuationWriterPromptDoesNotExposeIds();
   await testValidateSceneFailsClosedWhenProviderBlocksValidation();
+  await testValidateSceneAllowsCustomUsageOperation();
   await testValidateScenesBatchFailsClosedWhenProviderBlocksValidation();
   console.log('storyDomainTextGeneration tests OK');
 })().catch((err) => {

@@ -86,12 +86,6 @@ pnpm --filter wondertales-api exec tsx src/scripts/runGraphicNovelDiagnosticForS
 pnpm --filter wondertales-api exec tsx src/scripts/runGraphicNovelDiagnosticForStory.ts --story-id=<uuid> --stop-after-first-page
 ```
 
-For experimental free-layout graphic-novel page generation with outfit plates and normal references:
-
-```bash
-pnpm --filter wondertales-api exec tsx src/scripts/generateFreeLayoutGraphicNovelPage.ts --story-id=<uuid> --page=1 --panel-count=5 --prompt-only=true
-```
-
 If a validation investigation specifically needs outfit-plate references attached to a stored graphic-novel validation row, first check whether `recheckGraphicNovelValidationVariance.ts` now loads those references from saved page generation params. If it does not, extend that script; do not fall back to `recheckProblemImageValidation.ts` or ad hoc inline SQL.
 
 ## Story Diagnostics

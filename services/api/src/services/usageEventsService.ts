@@ -9,16 +9,25 @@ import { logger } from '../utils/logger';
 export type UsageEventType =
   | 'story_created'
   | 'graphic_novel_created'
+  | 'character_generated'
   | 'image_generated'
   | 'audio_synthesized'
   | 'story_quiz_generated'
   | 'plan_upgraded';
 
-export type UsageResourceType = 'story' | 'graphic_novel' | 'image' | 'audio' | 'quiz' | 'plan';
+export type UsageResourceType =
+  | 'story'
+  | 'graphic_novel'
+  | 'character'
+  | 'image'
+  | 'audio'
+  | 'quiz'
+  | 'plan';
 
 const EVENT_TO_RESOURCE: Record<UsageEventType, UsageResourceType> = {
   story_created: 'story',
   graphic_novel_created: 'graphic_novel',
+  character_generated: 'character',
   image_generated: 'image',
   audio_synthesized: 'audio',
   story_quiz_generated: 'quiz',

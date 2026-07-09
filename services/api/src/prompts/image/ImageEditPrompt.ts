@@ -29,9 +29,20 @@ export interface ImageEditRepairIssue {
   note: string;
 }
 
+export interface ImageEditSubjectReplacement {
+  characterName?: string;
+  referenceId?: string;
+  actualVisibleDescription?: string | null;
+  sceneSlotDescription?: string | null;
+  validatorNote?: string | null;
+  found?: boolean;
+  repairKinds?: ImageEditRepairIssueKind[];
+}
+
 export interface ImageEditRepairManifest {
   referenceMode: ImageEditRepairReferenceMode;
   issues: ImageEditRepairIssue[];
+  subjectReplacements?: ImageEditSubjectReplacement[];
 }
 
 export interface ImageEditPromptParams {
@@ -48,31 +59,85 @@ export interface ImageEditPromptParams {
 
 export function buildImageEditSystemInstruction(): string {
   return [
-    'You are a precise image-editing model for children\'s book illustrations.',
-    'Perform a surgical edit of the failed scene illustration.',
-    'Use attached reference images only according to their labels.',
-    'Preserve composition, background, lighting, pose intent, art style, and every element not listed in the validator issues.',
-    'Do not infer extra reference roles. Change only traits listed in the validator issues.',
+    "You edit children's book illustrations with precise, minimal changes.",
+    'Follow the numbered edit instructions exactly.',
+    'Use REF_* only to match attached reference images; never draw REF_* tokens.',
+    'MUST AVOID any kind of text.',
+    'Preserve composition, background, lighting, pose intent, style, and all unmentioned subjects.',
   ].join('\n');
 }
 
 function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string {
-  const issues = manifest.issues.length > 0
-    ? manifest.issues
-    : [{ kind: 'generic' as const, note: 'Visual mismatch with the selected reference.' }];
-  const actions = buildEditActionsForIssues(issues).map((action) => `- ${action}`).join('\n');
-  const notes = issues.map((issue) => `- ${issue.kind}: ${issue.note}`).join('\n');
+  const issues =
+    manifest.issues.length > 0
+      ? manifest.issues
+      : [{ kind: 'generic' as const, note: 'Visual mismatch with the selected reference.' }];
+  const replacementActions = (manifest.subjectReplacements ?? [])
+    .map(buildSubjectReplacementAction)
+    .filter((action): action is string => !!action);
+  const repairActions =
+    replacementActions.length > 0
+      ? [...replacementActions, ...buildNonSubjectEditActionsForIssues(issues)]
+      : buildEditActionsForIssues(issues);
+  const actions = [
+    ...repairActions,
+    'Preserve everything else in the image.',
+    'Add no unrelated new props or extra subjects.',
+  ]
+    .map((action, index) => `${index + 1}. ${action}`)
+    .join('\n');
+  const notes =
+    replacementActions.length > 0
+      ? ''
+      : `\n\nValidator notes:\n${issues.map((issue) => `- ${issue.kind}: ${issue.note}`).join('\n')}`;
 
-  return `Using the failed illustration as the base image, make only these edits:
-${actions}
+  return `Make these edits:
+${actions}${notes}`;
+}
 
-Validator notes:
-${notes}
+function buildSubjectReplacementAction(replacement: ImageEditSubjectReplacement): string | null {
+  const reference = replacement.referenceId?.trim()
+    ? replacement.referenceId.trim()
+    : 'the matching attached reference image';
+  const visible = visibleSubjectDescription(replacement.actualVisibleDescription);
+  const sceneSlot = compactPromptText(replacement.sceneSlotDescription);
 
-Keep everything else exactly the same.
-Do not add labels, captions, or any text.
+  if (replacement.found === false && !visible) {
+    return sceneSlot
+      ? `Add the full character from ${reference} to this scene slot: "${sceneSlot}".`
+      : `Add the full character from ${reference} to the expected scene slot.`;
+  }
 
-Generate the corrected illustration.`;
+  if (visible) {
+    return `Completely replace the visible subject described as "${visible}" with the full character from ${reference}.`;
+  }
+  if (sceneSlot) {
+    return `Completely replace the visible subject occupying this scene slot: "${sceneSlot}" with the full character from ${reference}.`;
+  }
+
+  return `Completely replace the mismatched visible subject for the expected character slot with the full character from ${reference}.`;
+}
+
+function compactPromptText(text: string | null | undefined): string | null {
+  const cleaned = text?.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  return cleaned.replace(/"/g, "'");
+}
+
+function visibleSubjectDescription(text: string | null | undefined): string | null {
+  const cleaned = compactPromptText(text);
+  if (!cleaned) return null;
+  return looksLikeValidationProblem(cleaned) ? null : cleaned;
+}
+
+function looksLikeValidationProblem(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (/^(missing|lacks?|does not|doesn't|not enough|incorrect|wrong|should|needs?|must)\b/.test(lower)) {
+    return true;
+  }
+  return /\b(missing|mismatch|does not match|doesn't match|differs from|should be|needs to|validator|reference|signature|not visible|not present)\b/.test(
+    lower
+  );
 }
 
 function buildEditActionsForIssues(issues: ImageEditRepairIssue[]): string[] {
@@ -94,6 +159,20 @@ function buildEditActionsForIssues(issues: ImageEditRepairIssue[]): string[] {
   return traitAction ? [traitAction, ...actions] : actions;
 }
 
+function buildNonSubjectEditActionsForIssues(issues: ImageEditRepairIssue[]): string[] {
+  const actions: string[] = [];
+  for (const issue of issues) {
+    if (isTraitRepairKind(issue.kind) || issue.kind === 'presence') {
+      continue;
+    }
+    const action = editActionForIssue(issue.kind);
+    if (!actions.includes(action)) {
+      actions.push(action);
+    }
+  }
+  return actions;
+}
+
 function isTraitRepairKind(kind: ImageEditRepairIssueKind): boolean {
   return (
     kind === 'face' ||
@@ -113,111 +192,22 @@ function buildCombinedTraitAction(kinds: Set<ImageEditRepairIssueKind>): string 
     return null;
   }
 
-  const changeTraits: string[] = [];
-  if (kinds.has('head')) {
-    changeTraits.push('head-and-hair identity');
-  } else if (kinds.has('face')) {
-    changeTraits.push('face/head identity');
-  }
-  if (!kinds.has('head') && kinds.has('hair')) {
-    changeTraits.push('hairstyle');
-  }
-  if (kinds.has('age')) {
-    changeTraits.push('age read');
-  }
-  if (kinds.has('body') || kinds.has('design') || kinds.has('silhouette')) {
-    changeTraits.push('body proportions and silhouette');
-  }
-  if (kinds.has('colors')) {
-    changeTraits.push('stable identity colors');
-  }
-  if (kinds.has('outfit')) {
-    changeTraits.push('clothing/accessories');
-  }
-
-  const preserveTraits: string[] = [];
-  if (!kinds.has('head') && !kinds.has('face')) {
-    preserveTraits.push('face/head identity');
-  }
-  if (!kinds.has('head') && !kinds.has('hair')) {
-    preserveTraits.push('hairstyle');
-  }
-  if (!kinds.has('outfit')) {
-    preserveTraits.push('clothing/accessories');
-  }
-  if (!kinds.has('body') && !kinds.has('design') && !kinds.has('silhouette')) {
-    preserveTraits.push('body proportions and silhouette');
-  }
-  if (!kinds.has('head') && !kinds.has('age')) {
-    preserveTraits.push('age read');
-  }
-  if (!kinds.has('head') && !kinds.has('colors')) {
-    preserveTraits.push('stable identity colors');
-  }
-
-  const sourceParts: string[] = [];
-  if ([...kinds].some((kind) => kind !== 'outfit')) {
-    sourceParts.push('the PERSON SOURCE for identity traits');
-  }
-  if (kinds.has('outfit')) {
-    sourceParts.push('the CLOTHES SOURCE for clothing/accessories');
-  }
-
-  return [
-    `Change only the ${formatList(changeTraits)} of the matching visible subject to match ${formatList(sourceParts)}.`,
-    ...buildTraitSpecificRequirements(kinds),
-    `Keep ${formatList([...preserveTraits, 'pose', 'style', 'lighting', 'composition', 'background'])} exactly the same.`,
-  ].join(' ');
-}
-
-function buildTraitSpecificRequirements(kinds: Set<ImageEditRepairIssueKind>): string[] {
-  const requirements: string[] = [];
-  if (kinds.has('head')) {
-    requirements.push(
-      'For head-and-hair identity, replace the entire visible head area from the PERSON SOURCE as one unit: head shape, face identity, ears, hairline, complete hairstyle, and hair color zoning. Keep the scene expression, gaze direction, and head angle from the failed illustration as much as possible without changing the source identity. Do not copy clothing, body, pose, or background from the PERSON SOURCE.'
-    );
-  }
-  if (kinds.has('hair')) {
-    requirements.push(
-      'For hairstyle, replace the current hair area with the exact complete hairstyle from the PERSON SOURCE; copy the whole hair arrangement and hair color zoning: which regions use natural/base color, which regions use dyed/accent colors, and how those colors are distributed across braids, ponytails, buns, bangs/front strands, roots, and loose sections. Do not spread accent colors into natural/base regions, lose accent colors in dyed regions, approximate, simplify, or invent a new hairstyle.'
-    );
-  }
-  if (kinds.has('face')) {
-    requirements.push(
-      'For face/head identity, copy the face and head design from the PERSON SOURCE as one whole identity. Do not rebuild it from separate facial features.'
-    );
-  }
-  if (kinds.has('outfit')) {
-    requirements.push(
-      'For clothing/accessories, use only the wardrobe from the CLOTHES SOURCE. Do not copy face, hair, body, pose, or mannequin shape from the clothing reference.'
-    );
-  }
-  return requirements;
-}
-
-function formatList(items: string[]): string {
-  if (items.length <= 1) {
-    return items[0] || '';
-  }
-  if (items.length === 2) {
-    return `${items[0]} and ${items[1]}`;
-  }
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+  return 'Replace the validator-flagged mismatched visible subject with the matching attached reference image.';
 }
 
 function editActionForIssue(kind: ImageEditRepairIssueKind): string {
   switch (kind) {
     case 'presence':
-      return 'Add only the missing expected subject from the selected visual reference, matching the existing style, lighting, and perspective. Keep the existing scene unchanged.';
+      return 'Add only the missing expected subject from the selected visual reference.';
     case 'duplicate':
-      return 'Remove only the duplicate copy of the same subject. Keep one correct instance and preserve the rest of the image exactly.';
+      return 'Remove only the duplicate copy of the same subject.';
     case 'unexpected':
-      return 'Remove only the unexpected extra subject. Preserve the intended subjects and the rest of the image exactly.';
+      return 'Remove only the unexpected extra subject.';
     case 'text':
-      return 'Remove only the visible text or lettering. Preserve the rest of the image exactly.';
+      return 'Remove only the visible text or lettering.';
     case 'generic':
     default:
-      return 'Change only the validator-reported visual mismatch using the selected reference. Preserve the rest of the image exactly.';
+      return 'Change only the validator-reported visual mismatch using the selected reference.';
   }
 }
 
@@ -226,7 +216,8 @@ function editActionForIssue(kind: ImageEditRepairIssueKind): string {
  * The resulting prompt is sent alongside the original image to get a corrected version.
  */
 export function buildImageEditPrompt(params: ImageEditPromptParams): string {
-  const { validationResult, sceneDescription, targetedRepairInstruction, targetedRepairManifest } = params;
+  const { validationResult, sceneDescription, targetedRepairInstruction, targetedRepairManifest } =
+    params;
   if (targetedRepairManifest) {
     return buildTargetedImageEditPrompt(targetedRepairManifest);
   }
@@ -275,7 +266,7 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
     }
     if (!character.matchesOutfit) {
       issues.push(
-        `- Character "${character.name}" has WRONG OUTFIT/ACCESSORIES. Change only clothing/accessories. Match the scene CHARACTER OUTFITS / expected wardrobe text exactly: same garment type, sleeve/collar/length, shoes, and accessories — not just similar colors. Do not alter this character's face, hairstyle, age read, body identity, or silhouette while changing wardrobe.`
+        `- Character "${character.name}" has WRONG CLOTHING/ACCESSORIES compared with the visual character reference. Replace the whole visible character with the matching labeled reference instead of using wardrobe text.`
       );
     }
     const human = character.characterKind === 'human';
@@ -287,14 +278,14 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
     if (character.faceMatchesReference === false) {
       issues.push(
         human
-          ? `- Character "${character.name}" (HUMAN): Face, head structure, and stable identifying traits do not match the turnaround reference. Align eyes, nose, mouth, cheeks, chin, and distinguishing marks with the reference — do not settle for a vague lookalike.`
+          ? `- Character "${character.name}" (HUMAN): Face, head structure, and stable identifying traits do not match the turnaround reference. Align eyes, nose, mouth, cheeks, chin, and distinguishing marks with the reference; avoid a vague lookalike.`
           : `- Character "${character.name}" (${kindLabel}): Muzzle/face, eyes, and expression do not match the creature reference (mane/fur/head markings as applicable).`
       );
     }
     if (character.hairMatchesReference === false) {
       issues.push(
         human
-          ? `- Character "${character.name}" (HUMAN): Visible hairstyle/hair does not match the identity reference. Restore the exact hairstyle structure from the identity reference, not an invented nearby version: hairline/parting, bangs/front locks, number and placement of braids/ponytails/buns, braid thickness, loose-vs-tied sections, length, side placement, and distinctive colored streak placement must match. Do not preserve the failed image's wrong simplified hairstyle. Do not redesign, re-braid, re-style, simplify, or beautify the hair. Wardrobe or palette must not substitute for correct hair.`
+          ? `- Character "${character.name}" (HUMAN): Visible hairstyle/hair does not match the identity reference. Restore the exact hairstyle structure from the identity reference, not an invented nearby version: hairline/parting, bangs/front locks, number and placement of braids/ponytails/buns, braid thickness, loose-vs-tied sections, length, side placement, and distinctive colored streak placement must match. Use the reference hairstyle instead of the failed image's wrong simplified hairstyle. Keep the hair faithful; avoid redesigning, re-braiding, re-styling, simplifying, or beautifying it. Wardrobe or palette must not substitute for correct hair.`
           : `- Character "${character.name}" (${kindLabel}): Head fur/mane/crown markings do not match the reference sheet.`
       );
     }
@@ -346,20 +337,16 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
   const expectedSummary = validationResult.characters.map((c) => c.name).join(', ');
   const referenceInstructions = targetedRepairInstruction
     ? `- ${targetedRepairInstruction}`
-    : `- Read each reference label before using the image. Follow the declarative source roles exactly: PERSON SOURCE images define the person; CLOTHES SOURCE images define clothing/accessories only.
-- If a character has both a PERSON SOURCE and a CLOTHES SOURCE, draw the person from the PERSON SOURCE wearing the clothing/accessories from the CLOTHES SOURCE. Do not visually merge them into a new character design.
-- PERSON SOURCE controls the exact locked identity: face, hairstyle structure, hair placement, age read, body proportions, silhouette, skin/hair palette, and stable marks.
-- CLOTHES SOURCE controls clothing/accessories only.
-- Outfit plates are mannequin/wardrobe references only. They must not define or override face, hair, age, body identity, or character likeness.
-- Applying an outfit plate means changing clothes on the exact same character. Only clothing/accessories should change. Do not redesign, re-braid, re-style, simplify, or otherwise alter the character's face, hair, age read, body identity, or silhouette because of an outfit plate.`;
+    : `- Use labeled character references as the source for requested character replacements.
+- For a wrong visible character, replace the whole visible character with the matching labeled reference.`;
 
   let prompt = `This children's book illustration has quality issues that need to be corrected.
 
 CRITICAL INSTRUCTIONS:
 - Attached images before the failed illustration are visual references. The final attached image is the failed scene illustration to repair.
 ${referenceInstructions}
-- The failed scene illustration preserves composition and correct background elements, but it is NOT source of truth for any character trait listed as wrong below. Replace incorrect face, hair, body identity, or wardrobe details from the labeled references.
-- Use visual references only for identity, outfit/wardrobe, object, and environment grounding as labeled.
+- The failed scene illustration preserves composition and correct background elements, but it is NOT source of truth for any character trait listed as wrong below. Replace incorrect characters from the labeled visual references.
+- Use labeled visual references for full-character identity, object, and environment grounding as labeled.
 - PRESERVE the overall composition, background, art style, color palette, and all correctly depicted elements.
 - ONLY fix the specific problems listed below.
 - Do NOT change the scene layout, camera angle, or lighting.

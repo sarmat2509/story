@@ -54,4 +54,11 @@ export class StoryEnvironmentCacheRepository {
       .from(schema.storyEnvironmentCache)
       .where(eq(schema.storyEnvironmentCache.storyId, storyId));
   }
+
+  async listByCacheId(cacheId: string): Promise<schema.StoryEnvironmentCache[]> {
+    return this.db
+      .select()
+      .from(schema.storyEnvironmentCache)
+      .where(eq(schema.storyEnvironmentCache.cacheId, cacheId));
+  }
 }

@@ -29,6 +29,7 @@ export class StoryOutfitPlateCacheRepository {
     storyEnvironmentId: string,
     characterKey: string,
     cacheId: string,
+    requestedOutfitText?: string | null,
   ): Promise<schema.StoryOutfitPlateCache> {
     const [row] = await this.db
       .insert(schema.storyOutfitPlateCache)
@@ -37,6 +38,7 @@ export class StoryOutfitPlateCacheRepository {
         storyEnvironmentId,
         characterKey,
         cacheId,
+        requestedOutfitText: requestedOutfitText?.trim() || null,
       })
       .onConflictDoUpdate({
         target: [
@@ -46,6 +48,7 @@ export class StoryOutfitPlateCacheRepository {
         ],
         set: {
           cacheId,
+          requestedOutfitText: requestedOutfitText?.trim() || null,
         },
       })
       .returning();

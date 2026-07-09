@@ -2,6 +2,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
 import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
+import type { Character } from '../db/schema';
 import { logger } from '../utils/logger';
 import {
   assertUserPhotoInputs,
@@ -12,6 +13,11 @@ import {
   assertStoryFromDrawingAccessForPhotos,
   isStoryFromDrawingAccessError,
 } from '../services/storyFromDrawingAccessService';
+import {
+  isCharacterQuotaError,
+  releaseManualCharacterQuotaReservation,
+  reserveManualCharacterQuota,
+} from '../services/characterQuotaService';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
@@ -66,6 +72,134 @@ function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1],
     featureSlug: error.featureSlug,
   });
   return true;
+}
+
+function sendCharacterQuotaError(res: Response, error: unknown): boolean {
+  if (!isCharacterQuotaError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    used: error.used,
+    remaining: error.remaining,
+    resetsAt: error.resetsAt,
+  });
+  return true;
+}
+
+async function releaseManualCharacterQuotaOnFailure(
+  userId: string,
+  reservationId: string | null,
+  childProfileId: string | null | undefined,
+  error: unknown
+): Promise<void> {
+  if (!reservationId) return;
+
+  try {
+    await releaseManualCharacterQuotaReservation(userId, reservationId, {
+      reason: 'generation_failed',
+      childProfileId: childProfileId ?? null,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  } catch (releaseError) {
+    logger.warn(
+      { err: releaseError, userId, reservationId },
+      'Failed to release manual character quota reservation after generation failure'
+    );
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const objectValue = value as Record<string, unknown>;
+    return `{${Object.keys(objectValue)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(objectValue[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function stableReferencePhotoUrls(value: unknown): string {
+  return stableJson(getReferencePhotoUrls(value));
+}
+
+function modelGenerationInputsChanged(
+  existing: Character,
+  data: Partial<{
+    description: string | null;
+    aiGeneratedDescription: string | null;
+    referencePhotos: unknown;
+  }>
+): boolean {
+  if (
+    data.description !== undefined &&
+    normalizeText(data.description) !== normalizeText(existing.description)
+  ) {
+    return true;
+  }
+  if (
+    data.aiGeneratedDescription !== undefined &&
+    normalizeText(data.aiGeneratedDescription) !== normalizeText(existing.aiGeneratedDescription)
+  ) {
+    return true;
+  }
+  if (
+    data.referencePhotos !== undefined &&
+    stableReferencePhotoUrls(data.referencePhotos) !== stableReferencePhotoUrls(existing.referencePhotos)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function generateManualCharacterTurnaround(character: Character, userId: string): Promise<void> {
+  const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
+  const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
+  const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
+  const aiDescription = character.aiGeneratedDescription
+    || (character as any).descriptionEn
+    || (character as any).appearance
+    || character.description
+    || undefined;
+
+  if (firstPhoto?.url) {
+    await generateTurnaroundSheetFromReference({
+      targetType: 'character',
+      targetId: character.id,
+      referencePhotoUrls: referencePhotos!.map(p => p.url!).filter(Boolean),
+      characterName: character.name,
+      userId,
+      aiDescription,
+    });
+    return;
+  }
+
+  if (aiDescription && aiDescription.trim().length > 0) {
+    await generateLlmCharacterTurnaround({
+      characterId: character.id,
+      userId,
+      characterName: character.name,
+      characterDescription: aiDescription.trim(),
+      useCache: character.isHidden,
+    });
+    return;
+  }
+
+  throw new Error('Character must have reference photos or description for turnaround');
 }
 
 // Initialize analysis service
@@ -255,6 +389,9 @@ router.get('/', requireAuth, requireParentOrScopedChildSession, async (req, res)
 
 // POST /api/v1/characters - Create character
 router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
+  let quotaReservationId: string | null = null;
+  let quotaReservationChildProfileId: string | null = null;
+
   try {
     const userId = req.user!.id;
     
@@ -320,6 +457,18 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
       hasPhotos: !!data.referencePhotos,
       photoCount: data.referencePhotos?.length || 0
     }, 'Character validation passed, creating character');
+
+    // Keep this route-level so story-generated hidden LLM characters do not consume manual quotas.
+    if (isTurnaroundSheetEnabled()) {
+      quotaReservationChildProfileId = data.childProfileId ?? null;
+      const quotaReservation = await reserveManualCharacterQuota(userId, {
+        childProfileId: quotaReservationChildProfileId,
+        source: req.sessionMode === 'child' ? 'child' : 'parent',
+        characterName: data.name,
+        characterType: data.type,
+      });
+      quotaReservationId = quotaReservation.reservationId;
+    }
     
     // Create character
     const character = await characterService.createCharacter(userId, data);
@@ -354,6 +503,12 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
             useCache: character.isHidden,
           });
         } else {
+          await releaseManualCharacterQuotaOnFailure(
+            userId,
+            quotaReservationId,
+            quotaReservationChildProfileId,
+            new Error('Character must have reference photos or description for turnaround')
+          );
           await characterService.deleteCharacter(character.id, userId);
           return res.status(400).json({
             status: 'error',
@@ -366,6 +521,12 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
           characterId: character.id,
           userId,
         }, 'Turnaround generation failed, rolling back character create');
+        await releaseManualCharacterQuotaOnFailure(
+          userId,
+          quotaReservationId,
+          quotaReservationChildProfileId,
+          turnaroundError
+        );
         await characterService.deleteCharacter(character.id, userId);
         return res.status(500).json({
           status: 'error',
@@ -387,6 +548,14 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendCharacterQuotaError(res, error)) return;
+
+    await releaseManualCharacterQuotaOnFailure(
+      req.user!.id,
+      quotaReservationId,
+      quotaReservationChildProfileId,
+      error
+    );
 
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
     res.status(500).json({
@@ -471,6 +640,9 @@ router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
 
 // PATCH /api/v1/characters/:id - Update character
 router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
+  let quotaReservationId: string | null = null;
+  let quotaReservationChildProfileId: string | null = null;
+
   try {
     const userId = req.user!.id;
     const { id } = req.params;
@@ -500,15 +672,92 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     }
     
     const data = validation.data;
+    const existing = await characterService.getCharacterById(id, userId);
+    if (!existing) {
+      return res.status(404).json({
+        status: 'error',
+        error: 'Character not found'
+      });
+    }
+
+    const incomingReferencePhotos = (data as { referencePhotos?: unknown }).referencePhotos;
+    const referencePhotosChanged =
+      incomingReferencePhotos !== undefined &&
+      stableReferencePhotoUrls(incomingReferencePhotos) !==
+        stableReferencePhotoUrls(existing.referencePhotos);
+
+    if (referencePhotosChanged) {
+      const referencePhotoUrls = getReferencePhotoUrls(incomingReferencePhotos);
+      assertUserPhotoInputs({
+        photos: referencePhotoUrls,
+        userId,
+        allowedPhotoTypes: ['character'],
+      });
+      await assertStoryFromDrawingAccessForPhotos({
+        userId,
+        photoCount: referencePhotoUrls.length,
+      });
+    }
+
+    const shouldRegenerateTurnaround =
+      isTurnaroundSheetEnabled() && modelGenerationInputsChanged(existing, data as any);
+
+    if (shouldRegenerateTurnaround) {
+      quotaReservationChildProfileId = existing.childProfileId ?? null;
+      const quotaReservation = await reserveManualCharacterQuota(userId, {
+        childProfileId: quotaReservationChildProfileId,
+        source: 'parent',
+        characterName: data.name ?? existing.name,
+        characterType: data.type ?? existing.type,
+      });
+      quotaReservationId = quotaReservation.reservationId;
+    }
     
     // Update character (ownership check happens in service)
     const character = await characterService.updateCharacter(id, userId, data);
+
+    if (shouldRegenerateTurnaround) {
+      try {
+        await generateManualCharacterTurnaround(character, userId);
+      } catch (turnaroundError) {
+        logger.error({
+          err: turnaroundError,
+          characterId: character.id,
+          userId,
+        }, 'Turnaround regeneration failed after character update');
+        await releaseManualCharacterQuotaOnFailure(
+          userId,
+          quotaReservationId,
+          quotaReservationChildProfileId,
+          turnaroundError
+        );
+        return res.status(500).json({
+          status: 'error',
+          error: 'Failed to regenerate character model',
+        });
+      }
+    }
+
+    const characterToReturn = shouldRegenerateTurnaround
+      ? await characterService.getCharacterById(id, userId)
+      : character;
     
     res.json({
       status: 'success',
-      character,
+      character: characterToReturn ?? character,
     });
   } catch (error: unknown) {
+    if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendCharacterQuotaError(res, error)) return;
+
+    await releaseManualCharacterQuotaOnFailure(
+      req.user!.id,
+      quotaReservationId,
+      quotaReservationChildProfileId,
+      error
+    );
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('not found')) {
       return res.status(404).json({

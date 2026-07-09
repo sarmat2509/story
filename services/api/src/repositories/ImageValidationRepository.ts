@@ -10,6 +10,11 @@ export interface InsertImageValidationInput {
   storyId: string;
   sceneIndex: number;
   attempt: number;
+  subjectType?: string;
+  pageNumber?: number | null;
+  panelIndex?: number | null;
+  panelId?: string | null;
+  cropRect?: Record<string, unknown> | null;
   imageStoragePath: string;
   validationScore: number | null;
   validationStatus?: string;
@@ -29,6 +34,11 @@ export class ImageValidationRepository {
         storyId: input.storyId,
         sceneIndex: input.sceneIndex,
         attempt: input.attempt,
+        subjectType: input.subjectType ?? 'scene_image',
+        pageNumber: input.pageNumber ?? null,
+        panelIndex: input.panelIndex ?? null,
+        panelId: input.panelId ?? null,
+        cropRect: input.cropRect ?? null,
         imageStoragePath: input.imageStoragePath,
         validationScore: input.validationScore,
         validationStatus: input.validationStatus ?? 'completed',

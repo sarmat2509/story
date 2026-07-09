@@ -13,7 +13,6 @@ export interface StoryArtifactApi {
   thumbnailUrl: string;
   imageUrl: string;
   semanticTags?: string[];
-  scenarioAffinities?: string[];
 }
 
 export interface CollectedStoryArtifactApi {

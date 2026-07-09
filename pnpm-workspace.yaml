@@ -10,7 +10,14 @@ overrides:
   iconv-lite: ^0.6.3
 
 onlyBuiltDependencies:
+  - onnxruntime-node
+  - protobufjs
   - sharp
 
 patchedDependencies:
   expo-localization@15.0.3: patches/expo-localization@15.0.3.patch
+
+allowBuilds:
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true

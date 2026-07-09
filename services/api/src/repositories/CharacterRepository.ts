@@ -10,6 +10,10 @@ export interface CharacterScopeOptions {
 export class CharacterRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
+  async transaction<T>(fn: (tx: NodePgDatabase<typeof schema>) => Promise<T>): Promise<T> {
+    return this.db.transaction(fn);
+  }
+
   async findByUserId(userId: string, type?: string, options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
     const conditions = [
       eq(schema.characters.userId, userId),
@@ -162,7 +166,7 @@ export class CharacterRepository {
 
   async updateAnalysis(
     id: string,
-    data: {
+    data: Partial<schema.NewCharacter> & {
       aiGeneratedDescription?: string;
       clothing?: unknown;
       distinctiveFeatures?: unknown;

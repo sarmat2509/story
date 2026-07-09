@@ -13,17 +13,26 @@ export interface UsageContext {
   storyId?: string | null;
   characterId?: string | null;
   childProfileId?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Distinct ai_usage_events.operation values; priced like scene image_generate */
 export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
 export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
+export const USAGE_OP_IMAGE_CHARACTER_OUTFIT_TURNAROUND =
+  'image_character_outfit_turnaround';
 export const USAGE_OP_IMAGE_MAP_TILE = 'image_map_tile';
 export const USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT = 'graphic_novel_page_edit';
 export const USAGE_OP_GRAPHIC_NOVEL_PAGE_ART_EDIT = 'graphic_novel_page_art_edit';
 export const USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE = 'graphic_novel_panel_art_generate';
-export const USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT =
-  'graphic_novel_page_validation_repair_edit';
+export const USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_GENERATE =
+  'graphic_novel_template_panel_generate';
+export const USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_REGENERATE =
+  'graphic_novel_template_panel_regenerate';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_REGENERATE =
+  'graphic_novel_panel_crop_validation_regenerate';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT =
+  'graphic_novel_panel_crop_validation_edit';
 
 /** Deferred TTS prosody LLM (`enrichDeferredProsodyForTtsChunk`); priced like text tokens (same provider/model). */
 export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
@@ -35,6 +44,7 @@ const TEXT_PRICED_OPERATIONS = new Set([
   'face_dedup',
   'image_validation',
   'validateScene',
+  'writer_text_validation',
   'regenerateScene',
   'director',
   'map_tile_brief',
@@ -60,11 +70,15 @@ function isImageGenerationPricedOperation(operation: string): boolean {
     operation === 'image_edit' ||
     operation === USAGE_OP_IMAGE_ENVIRONMENT ||
     operation === USAGE_OP_IMAGE_OUTFIT_PLATE ||
+    operation === USAGE_OP_IMAGE_CHARACTER_OUTFIT_TURNAROUND ||
     operation === USAGE_OP_IMAGE_MAP_TILE ||
     operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT ||
     operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_ART_EDIT ||
     operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE ||
-    operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT
+    operation === USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_GENERATE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_REGENERATE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_REGENERATE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT
   );
 }
 
@@ -218,6 +232,30 @@ export async function recordUsage(usage: UsageMetadata, context: UsageContext): 
         ? usage.effectiveInputUnits
         : Math.max(usage.inputUnits - (usage.cachedInputUnits ?? 0), 0);
     const repo = getAiUsageRepository();
+    const tokenMetadata =
+      usage.thoughtTokens != null ||
+      usage.imageTokens != null ||
+      usage.durationSeconds != null ||
+      usage.cachedInputUnits != null ||
+      usage.effectiveInputUnits != null ||
+      usage.cacheHit != null
+        ? {
+            thoughtTokens: usage.thoughtTokens,
+            imageTokens: usage.imageTokens,
+            durationSeconds: usage.durationSeconds,
+            cachedInputUnits: usage.cachedInputUnits,
+            effectiveInputUnits:
+              usage.effectiveInputUnits != null ? usage.effectiveInputUnits : billedInputUnits,
+            cacheHit: usage.cacheHit,
+          }
+        : null;
+    const metadata = {
+      ...(context.metadata ?? {}),
+      ...(tokenMetadata ?? {}),
+    };
+    const cleanMetadata = Object.fromEntries(
+      Object.entries(metadata).filter(([, value]) => value !== undefined)
+    );
 
     await repo.create({
       userId: context.userId ?? null,
@@ -231,23 +269,7 @@ export async function recordUsage(usage: UsageMetadata, context: UsageContext): 
       outputUnits: usage.outputUnits ?? null,
       costUsd: costUsd != null ? costUsd : null,
       durationMs: usage.durationMs ?? null,
-      metadata:
-        usage.thoughtTokens != null ||
-        usage.imageTokens != null ||
-        usage.durationSeconds != null ||
-        usage.cachedInputUnits != null ||
-        usage.effectiveInputUnits != null ||
-        usage.cacheHit != null
-          ? {
-              thoughtTokens: usage.thoughtTokens,
-              imageTokens: usage.imageTokens,
-              durationSeconds: usage.durationSeconds,
-              cachedInputUnits: usage.cachedInputUnits,
-              effectiveInputUnits:
-                usage.effectiveInputUnits != null ? usage.effectiveInputUnits : billedInputUnits,
-              cacheHit: usage.cacheHit,
-            }
-          : null,
+      metadata: Object.keys(cleanMetadata).length > 0 ? cleanMetadata : null,
     });
 
     logger.debug(
@@ -268,7 +290,23 @@ export async function recordUsage(usage: UsageMetadata, context: UsageContext): 
  * Get total cost for a story
  */
 export async function getStoryCost(storyId: string): Promise<number> {
-  return getAiUsageRepository().getStoryCost(storyId);
+  const events = await getAiUsageRepository().listByStoryId(storyId);
+  return events.reduce(
+    (sum, event) =>
+      sum +
+      (event.costUsd ??
+        estimateStoredUsageCostUsd({
+          provider: event.provider,
+          operation: event.operation,
+          model: event.model,
+          inputUnits: event.inputUnits,
+          outputUnits: event.outputUnits,
+          durationMs: event.durationMs,
+          metadata: event.metadata,
+        }) ??
+        0),
+    0
+  );
 }
 
 /**
@@ -283,7 +321,27 @@ export async function getStoryCostBreakdown(storyId: string): Promise<
     createdAt: Date;
   }>
 > {
-  return getAiUsageRepository().getStoryCostBreakdown(storyId);
+  const events = await getAiUsageRepository().listByStoryId(storyId);
+  return events
+    .map((event) => ({
+      provider: event.provider,
+      operation: event.operation,
+      model: event.model,
+      costUsd:
+        event.costUsd ??
+        estimateStoredUsageCostUsd({
+          provider: event.provider,
+          operation: event.operation,
+          model: event.model,
+          inputUnits: event.inputUnits,
+          outputUnits: event.outputUnits,
+          durationMs: event.durationMs,
+          metadata: event.metadata,
+        }) ??
+        0,
+      createdAt: event.createdAt,
+    }))
+    .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
 }
 
 export async function getStoryCacheStats(storyId: string): Promise<{

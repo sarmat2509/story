@@ -14,6 +14,14 @@ function getPathKey(url: string): string {
 function getOwnAssetPath(pathOrUrl: string): string | null {
   const withoutQuery = getPathKey(pathOrUrl);
 
+  if (
+    withoutQuery.startsWith('blob:') ||
+    withoutQuery.startsWith('file:') ||
+    withoutQuery.startsWith('data:')
+  ) {
+    return null;
+  }
+
   if (withoutQuery.startsWith('http://') || withoutQuery.startsWith('https://')) {
     try {
       const parsed = new URL(withoutQuery);

@@ -151,6 +151,12 @@ function summarizeBubblePlacement(page: PlannedGraphicNovelPage): Record<string,
   };
 }
 
+function bubblePlacementMode(placementSummary: Record<string, unknown>): string {
+  return placementSummary.coordinateSpace === 'page'
+    ? 'post_art_vision_detected_panel_bounds'
+    : 'post_art_vision_panel_coordinates';
+}
+
 function pushUniqueName(names: string[], value: unknown): void {
   const name = typeof value === 'string' ? stripCharacterIds(value).trim() : '';
   if (!name) return;
@@ -309,9 +315,7 @@ async function main(): Promise<void> {
         report.push({ pageNumber: page.pageNumber, skipped: true, reason: 'missing_saved_bubble_vision_analysis' });
         continue;
       }
-      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis, {
-        useDetectedPanelBounds: true,
-      });
+      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis);
       placedPage = applied.page;
       placementSummary = applied.placementSummary;
     } else {
@@ -370,7 +374,7 @@ async function main(): Promise<void> {
         artOnlyImageMimeType: raw.mimeType,
         reoverlayAt: new Date().toISOString(),
         bubblePlacement: {
-          mode: 'post_art_vision_full_page',
+          mode: bubblePlacementMode(placementSummary),
           ...placementSummary,
         },
         bubbleVisionAnalysis: analysis,
@@ -393,7 +397,7 @@ async function main(): Promise<void> {
       generationParams: {
         ...(generationParams || {}),
         bubblePlacement: {
-          mode: 'post_art_vision_full_page',
+          mode: bubblePlacementMode(placementSummary),
           ...placementSummary,
         },
         bubbleVisionAnalysis: analysis,

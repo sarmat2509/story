@@ -17,7 +17,6 @@ const imageProvider: IImageProvider = {
       width: 1344,
       height: 768,
       format: 'png',
-      providerInteractionId: 'interaction-edit-456',
     };
   },
 };
@@ -47,29 +46,28 @@ const validationResult: ImageValidationResult = {
   overallFeedback: 'Repair the face identity.',
 };
 
-async function testPreviousInteractionIdIsForwarded() {
+async function testEditImageDoesNotForwardPreviousInteractionId() {
   const service = new ImageDomainService(imageProvider);
   const result = await service.editSceneImage({
     originalImage: Buffer.from('original-image'),
     originalMimeType: 'image/png',
     validationResult,
-    previousInteractionId: 'interaction-generate-123',
     referenceImages: [
       {
         base64Data: Buffer.from('reference').toString('base64'),
         mimeType: 'image/png',
-        instructionText: 'PERSON SOURCE image.',
+        instructionText: 'REF_CH_HERO_TEST01: identity',
         referenceKind: 'character',
       },
     ],
   });
 
-  assert.equal(capturedEditRequest?.previousInteractionId, 'interaction-generate-123');
-  assert.equal(result.providerInteractionId, 'interaction-edit-456');
+  assert.equal((capturedEditRequest as any)?.previousInteractionId, undefined);
+  assert.equal(result.providerInteractionId, undefined);
 }
 
 async function main() {
-  await testPreviousInteractionIdIsForwarded();
+  await testEditImageDoesNotForwardPreviousInteractionId();
   console.log('ImageDomainServiceEditInteraction tests passed');
 }
 

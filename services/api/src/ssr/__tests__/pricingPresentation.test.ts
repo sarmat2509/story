@@ -24,6 +24,7 @@ const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
     'features.images_per_story_one': '{{value}} illustration in story',
     'features.images_per_story_other': '{{value}} illustrations in story',
     'features.images_per_story': '{{value}} illustrations in story',
+    'features.characters_per_month': 'Up to {{value}} character generations per month',
     'features.child_profiles_limit_unlimited': 'Unlimited child profiles',
     'features.premium_voices': 'Premium voices',
   };
@@ -41,6 +42,7 @@ const features = {
   story_from_drawing: { name: 'Story from drawing', value: { enabled: true }, category: 'creation' },
   image_quality: { name: 'Image quality', value: { selected: 'standard' }, category: 'media' },
   images_per_story: { name: 'Images per story', value: { limit: 3 }, category: 'usage' },
+  characters_per_month: { name: 'Characters per month', value: { limit: 10 }, category: 'usage' },
   child_profiles_limit: { name: 'Child profiles', value: { limit: null }, category: 'family' },
   premium_voices: { name: 'Premium voices', value: { enabled: false }, category: 'audio' },
 };
@@ -77,6 +79,7 @@ void (async function main() {
     sortPricingFeatureEntries(features).map(([slug]) => slug),
     [
       'images_per_story',
+      'characters_per_month',
       'graphic_novels_per_month',
       'mixed_stories_per_month',
       'child_profiles_limit',
@@ -99,7 +102,7 @@ void (async function main() {
         category: 'usage',
       },
     }).map(([slug]) => slug),
-    ['images_per_story', 'child_profiles_limit', 'graphic_novels_per_month', 'mixed_stories_per_month', 'premium_voices'],
+    ['images_per_story', 'characters_per_month', 'child_profiles_limit', 'graphic_novels_per_month', 'mixed_stories_per_month', 'premium_voices'],
     'comic and mixed access should remain visible as locked features on plans without access'
   );
 
@@ -205,6 +208,19 @@ void (async function main() {
     (fallbackPlans.find((plan) => plan.slug === 'fairyworld')?.features.stories_per_month.value as { limit: number }).limit,
     30,
     'static pricing fallback should preserve Story World story limit'
+  );
+  assert.deepStrictEqual(
+    fallbackPlans.map((plan) => [
+      plan.slug,
+      (plan.features.characters_per_month.value as { limit: number }).limit,
+    ]),
+    [
+      ['free', 3],
+      ['silver', 10],
+      ['golden', 15],
+      ['fairyworld', 20],
+    ],
+    'static pricing fallback should expose character generation limits'
   );
   assert.deepStrictEqual(
     fallbackPlans.map((plan) => [plan.slug, (plan.features.follow_narrator.value as { enabled: boolean }).enabled]),

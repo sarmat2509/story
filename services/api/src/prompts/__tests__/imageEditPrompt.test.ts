@@ -20,6 +20,7 @@ const validation: ImageValidationResult = {
       proportionsMatchReference: true,
       sameOverallDesignRead: false,
       silhouetteDriftSeverity: 'mild',
+      actualVisibleDescription: 'a girl with one thick side braid and safari clothes',
       issue: 'Face and hair drift from the reference.',
       identityComparisonSummary: 'Hair is a braid instead of the reference ponytail.',
     },
@@ -40,21 +41,30 @@ assert.match(prompt, /Lera is recognizable, but the face and hair need repair\./
 assert.match(prompt, /PER-CHARACTER VALIDATOR OUTPUT:/);
 assert.match(prompt, /"recognizableScore": 0\.7/);
 assert.match(prompt, /Hair is a braid instead of the reference ponytail\./);
-assert.match(prompt, /PERSON SOURCE images define the person/i);
-assert.match(prompt, /CLOTHES SOURCE images define clothing\/accessories only/i);
-assert.match(prompt, /draw the person from the PERSON SOURCE wearing the clothing\/accessories from the CLOTHES SOURCE/i);
-assert.match(prompt, /Only clothing\/accessories should change/i);
-assert.match(prompt, /Do not redesign, re-braid, re-style, simplify/i);
+assert.match(
+  prompt,
+  /Use labeled character references as the source for requested character replacements/i
+);
+assert.match(prompt, /replace the whole visible character with the matching labeled reference/i);
+assert.doesNotMatch(prompt, /PERSON SOURCE images define the person/i);
+assert.doesNotMatch(prompt, /CLOTHES SOURCE images define clothing\/accessories only/i);
+assert.doesNotMatch(
+  prompt,
+  /draw the person from the PERSON SOURCE wearing the clothing\/accessories from the CLOTHES SOURCE/i
+);
 assert.match(prompt, /failed scene illustration.*NOT source of truth/i);
 assert.match(prompt, /Restore the exact hairstyle structure from the identity reference/i);
 assert.match(prompt, /SETTING: classroom/);
 
 const systemInstruction = buildImageEditSystemInstruction();
-assert.match(systemInstruction, /Use attached reference images only according to their labels/);
-assert.doesNotMatch(systemInstruction, /\bif\b/i);
-assert.doesNotMatch(systemInstruction, /\bwhen\b/i);
-assert.doesNotMatch(systemInstruction, /\bor\b/i);
-assert.doesNotMatch(systemInstruction, /Do not add text|speech bubbles|captions/i);
+assert.match(systemInstruction, /Follow the numbered edit instructions exactly/);
+assert.match(systemInstruction, /Use REF_\* only to match attached reference images/);
+assert.match(systemInstruction, /never draw REF_\* tokens/);
+assert.match(systemInstruction, /MUST AVOID any kind of text/);
+assert.match(systemInstruction, /Preserve composition, background, lighting, pose intent, style/);
+assert.doesNotMatch(systemInstruction, /ABSOLUTE VISUAL TEXT BAN/);
+assert.doesNotMatch(systemInstruction, /Reference labels are internal control tokens only/);
+assert.doesNotMatch(systemInstruction, /Do not add/i);
 
 const targetedPrompt = buildImageEditPrompt({
   validationResult: {
@@ -80,20 +90,47 @@ const targetedPrompt = buildImageEditPrompt({
   targetedRepairManifest: {
     referenceMode: 'identity',
     issues: [{ kind: 'hair', note: 'Hair is a braid instead of the reference ponytail.' }],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        referenceId: 'REF_CH_LERA_TEST01',
+        actualVisibleDescription: 'a girl with one thick side braid and safari clothes',
+        validatorNote: 'Face and hair drift from the reference.',
+        found: true,
+        repairKinds: ['face', 'hair'],
+      },
+    ],
   },
 });
 
-assert.match(targetedPrompt, /Using the failed illustration as the base image, make only these edits:/);
-assert.match(targetedPrompt, /Validator notes:/);
-assert.match(targetedPrompt, /hair: Hair is a braid instead of the reference ponytail\./);
-assert.match(targetedPrompt, /Change only the hairstyle of the matching visible subject to match the PERSON SOURCE for identity traits/);
-assert.match(targetedPrompt, /hair color zoning/);
-assert.match(targetedPrompt, /natural\/base color/);
-assert.match(targetedPrompt, /dyed\/accent colors/);
-assert.match(targetedPrompt, /Do not spread accent colors into natural\/base regions/);
-assert.match(targetedPrompt, /Keep face\/head identity, clothing\/accessories, body proportions and silhouette, age read, stable identity colors, pose, style, lighting, composition, and background exactly the same/);
-assert.match(targetedPrompt, /Keep everything else exactly the same/);
-assert.match(targetedPrompt, /Do not add labels, captions, or any text\./);
+assert.match(targetedPrompt, /Make these edits:/);
+assert.match(
+  targetedPrompt,
+  /1\. Completely replace the visible subject described as "a girl with one thick side braid and safari clothes" with the full character from REF_CH_LERA_TEST01\./
+);
+assert.doesNotMatch(targetedPrompt, /Include the reference identity|Validator diagnosis/);
+assert.match(targetedPrompt, /2\. Preserve everything else in the image\./);
+assert.match(
+  targetedPrompt,
+  /3\. Add no unrelated new props or extra subjects\./
+);
+assert.doesNotMatch(targetedPrompt, /MUST AVOID any kind of text/);
+assert.doesNotMatch(targetedPrompt, /Add no text|labels|captions|symbols/);
+assert.doesNotMatch(
+  targetedPrompt,
+  /Keep the same scene slot|pose\/action intent|scale|lighting|art style|composition|background|every other character/
+);
+assert.doesNotMatch(targetedPrompt, /Keep everything else exactly the same/);
+assert.doesNotMatch(targetedPrompt, /Do not add labels, captions, or any text\./);
+assert.doesNotMatch(targetedPrompt, /Generate the corrected illustration/);
+assert.doesNotMatch(targetedPrompt, /Validator notes:/);
+assert.doesNotMatch(targetedPrompt, /hair: Hair is a braid instead of the reference ponytail\./);
+assert.doesNotMatch(targetedPrompt, /Change only/);
+assert.doesNotMatch(targetedPrompt, /PERSON SOURCE|CLOTHES SOURCE/);
+assert.doesNotMatch(
+  targetedPrompt,
+  /skin\/hair|hair color zoning|natural\/base color|dyed\/accent colors/i
+);
 assert.doesNotMatch(targetedPrompt, /REFERENCE USE/);
 assert.doesNotMatch(targetedPrompt, /IMAGE ORDER/);
 assert.doesNotMatch(targetedPrompt, /final attached image/i);
@@ -106,6 +143,41 @@ assert.doesNotMatch(targetedPrompt, /EXPECTED CHARACTERS/);
 assert.doesNotMatch(targetedPrompt, /VALIDATOR VERDICT/);
 assert.doesNotMatch(targetedPrompt, /SETTING|LIGHTING|CAMERA/);
 
+const multiReplacementPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'identity',
+    issues: [{ kind: 'face', note: 'Multiple visible subjects drifted.' }],
+    subjectReplacements: [
+      {
+        referenceId: 'REF_CH_EMILIA_C16C59',
+        actualVisibleDescription: 'a young girl with rainbow-colored hair',
+        found: true,
+      },
+      {
+        characterName: 'Флеш',
+        referenceId: 'REF_CH_FLESH_966AD7',
+        sceneSlotDescription: 'right side near the glowing tree roots, hovering with a bright tail',
+        found: true,
+      },
+    ],
+  },
+});
+
+assert.match(
+  multiReplacementPrompt,
+  /Completely replace the visible subject described as "a young girl with rainbow-colored hair" with the full character from REF_CH_EMILIA_C16C59\./
+);
+assert.match(
+  multiReplacementPrompt,
+  /Completely replace the visible subject occupying this scene slot: "right side near the glowing tree roots, hovering with a bright tail" with the full character from REF_CH_FLESH_966AD7\./
+);
+assert.doesNotMatch(
+  multiReplacementPrompt,
+  /every other character|composition|background|pose\/action intent/
+);
+assert.doesNotMatch(multiReplacementPrompt, /Validator notes:/);
+
 const combinedTraitPrompt = buildImageEditPrompt({
   validationResult: validation,
   targetedRepairManifest: {
@@ -114,15 +186,25 @@ const combinedTraitPrompt = buildImageEditPrompt({
       { kind: 'face', note: 'Face drifted from the source.' },
       { kind: 'hair', note: 'Hair drifted from the source.' },
     ],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        referenceId: 'REF_CH_LERA_TEST01',
+        actualVisibleDescription: 'a girl with one thick side braid',
+        found: true,
+      },
+    ],
   },
 });
 
-assert.match(combinedTraitPrompt, /Change only the face\/head identity and hairstyle of the matching visible subject to match the PERSON SOURCE for identity traits/);
-assert.doesNotMatch(combinedTraitPrompt, /Change only the face\/head identity[\s\S]*Change only the hairstyle/);
-assert.doesNotMatch(combinedTraitPrompt, /Keep face\/head identity/);
-assert.doesNotMatch(combinedTraitPrompt, /Keep hairstyle/);
-assert.match(combinedTraitPrompt, /face: Face drifted from the source\./);
-assert.match(combinedTraitPrompt, /hair: Hair drifted from the source\./);
+assert.match(
+  combinedTraitPrompt,
+  /Completely replace the visible subject described as "a girl with one thick side braid" with the full character from REF_CH_LERA_TEST01\./
+);
+assert.doesNotMatch(combinedTraitPrompt, /Change only/);
+assert.doesNotMatch(combinedTraitPrompt, /PERSON SOURCE|CLOTHES SOURCE/);
+assert.doesNotMatch(combinedTraitPrompt, /face: Face drifted from the source\./);
+assert.doesNotMatch(combinedTraitPrompt, /hair: Hair drifted from the source\./);
 
 const combinedIdentityAndOutfitPrompt = buildImageEditPrompt({
   validationResult: validation,
@@ -133,31 +215,129 @@ const combinedIdentityAndOutfitPrompt = buildImageEditPrompt({
       { kind: 'hair', note: 'Hair drifted from the source.' },
       { kind: 'outfit', note: 'Outfit drifted from the source.' },
     ],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        referenceId: 'REF_CH_LERA_DRESSED_TEST02',
+        actualVisibleDescription: 'a girl with one thick side braid and safari clothes',
+        found: true,
+        repairKinds: ['face', 'hair', 'outfit'],
+      },
+    ],
   },
 });
 
 assert.match(
   combinedIdentityAndOutfitPrompt,
-  /Change only the face\/head identity, hairstyle, and clothing\/accessories of the matching visible subject to match the PERSON SOURCE for identity traits and the CLOTHES SOURCE for clothing\/accessories/
+  /Completely replace the visible subject described as "a girl with one thick side braid and safari clothes" with the full character from REF_CH_LERA_DRESSED_TEST02\./
 );
-assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Change only the clothing\/accessories[\s\S]*Keep face\/head identity/);
-assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Keep face\/head identity/);
-assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Keep hairstyle/);
-assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Keep clothing\/accessories/);
+assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Include the reference character design|signature props/);
+assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Change only/);
+assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /PERSON SOURCE|CLOTHES SOURCE/);
+assert.doesNotMatch(
+  combinedIdentityAndOutfitPrompt,
+  /clothing\/accessories of the matching visible subject/
+);
 
 const headReplacementPrompt = buildImageEditPrompt({
   validationResult: validation,
   targetedRepairManifest: {
     referenceMode: 'identity',
     issues: [{ kind: 'head', note: 'Hair repair did not preserve color zoning.' }],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        referenceId: 'REF_CH_LERA_TEST01',
+        found: true,
+      },
+    ],
   },
 });
 
-assert.match(headReplacementPrompt, /Change only the head-and-hair identity of the matching visible subject/);
-assert.match(headReplacementPrompt, /replace the entire visible head area from the PERSON SOURCE as one unit/);
-assert.match(headReplacementPrompt, /Keep the scene expression, gaze direction, and head angle/);
+assert.match(
+  headReplacementPrompt,
+  /Completely replace the mismatched visible subject for the expected character slot with the full character from REF_CH_LERA_TEST01\./
+);
+assert.doesNotMatch(headReplacementPrompt, /visible subject for "Lera"/);
+assert.doesNotMatch(
+  headReplacementPrompt,
+  /head-and-hair identity|visible head area|PERSON SOURCE/i
+);
 assert.doesNotMatch(headReplacementPrompt, /Keep face\/head identity/);
 assert.doesNotMatch(headReplacementPrompt, /Keep hairstyle/);
 assert.doesNotMatch(headReplacementPrompt, /Keep stable identity colors/);
+
+const signaturePropPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'identity',
+    issues: [{ kind: 'outfit', note: 'Missing leaf collar and flower prop.' }],
+    subjectReplacements: [
+      {
+        characterName: 'Тік',
+        referenceId: 'REF_CH_TIK_01DEB5',
+        actualVisibleDescription:
+          'The character is missing its signature leaf collar and the flower prop, and the ears are not visible.',
+        validatorNote: 'Missing leaf collar and ears; missing flower prop.',
+        found: true,
+        repairKinds: ['outfit', 'design'],
+      },
+    ],
+  },
+});
+
+assert.match(signaturePropPrompt, /full character from REF_CH_TIK_01DEB5/);
+assert.match(
+  signaturePropPrompt,
+  /Completely replace the mismatched visible subject for the expected character slot with the full character from REF_CH_TIK_01DEB5\./
+);
+assert.doesNotMatch(signaturePropPrompt, /Visible subject to replace: "The character is missing/);
+assert.doesNotMatch(signaturePropPrompt, /signature props that belong to that character/);
+assert.doesNotMatch(signaturePropPrompt, /Validator diagnosis/);
+assert.match(signaturePropPrompt, /unrelated new props/);
+assert.doesNotMatch(signaturePropPrompt, /Add no text, labels, captions, symbols, new props, or extra subjects/);
+
+const noReferenceLabelPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'identity',
+    issues: [{ kind: 'colors', note: 'Wrong visible design.' }],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        actualVisibleDescription: 'young girl with braided pastel hair and yellow sweater',
+        found: true,
+      },
+    ],
+  },
+});
+
+assert.match(
+  noReferenceLabelPrompt,
+  /Completely replace the visible subject described as "young girl with braided pastel hair and yellow sweater" with the full character from the matching attached reference image\./
+);
+assert.doesNotMatch(noReferenceLabelPrompt, /Replace the validator-flagged mismatched visible subject/);
+
+const sceneSlotFallbackPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'identity',
+    issues: [{ kind: 'hair', note: 'Hair is incorrect.' }],
+    subjectReplacements: [
+      {
+        characterName: 'Lera',
+        referenceId: 'REF_CH_LERA_TEST01',
+        sceneSlotDescription: 'center foreground, kneeling beside the glowing egg',
+        found: true,
+      },
+    ],
+  },
+});
+
+assert.match(
+  sceneSlotFallbackPrompt,
+  /Completely replace the visible subject occupying this scene slot: "center foreground, kneeling beside the glowing egg" with the full character from REF_CH_LERA_TEST01\./
+);
+assert.doesNotMatch(sceneSlotFallbackPrompt, /Replace the entire matching visible subject/);
 
 console.log('imageEditPrompt tests passed');

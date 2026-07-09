@@ -12,12 +12,16 @@
 
 import type { StorySpec, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
+import type { StructuredRawResponse } from '../../providers/base/JsonSchema';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import { canonicalizeMapTileFeatures } from './mapTileMasks';
 
 export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
+  onRawResponse?: (response: StructuredRawResponse) => void | Promise<void>;
   reservedCharacters?: StorySpec['characters'];
+  /** Usage operation name for provider calls; callers can distinguish writer validation from other validators. */
+  operation?: string;
   /** When true, uses continuation prompt with previousOutlines, usedPlots, required/optional characters */
   isContinuation?: boolean;
   continuationContext?: {
@@ -47,7 +51,7 @@ import {
   TEXT_VALIDATION_CACHE_KEY,
   WRITER_PLAIN_CACHE_KEY,
 } from '../../prompts/text';
-import config from '../../config';
+import config, { getValidationTextModelOverride } from '../../config';
 import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
 import { VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
@@ -57,15 +61,23 @@ import { countNarrationWords } from '../../utils/audioTags';
 
 /** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
 const PLAIN_WRITER_MAX_OUTPUT_TOKENS = 16384;
+const MIN_GENERATED_SCENES = 1;
+
+function assertPlainStoryHasReadableScenes(parsed: {
+  fullText: string;
+  scenes: Array<{ sceneId: number; text: string }>;
+}): void {
+  const scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+  const hasReadableScene = scenes.some((scene) => typeof scene.text === 'string' && scene.text.trim().length > 0);
+  if (scenes.length < MIN_GENERATED_SCENES || !parsed.fullText.trim() || !hasReadableScene) {
+    throw new Error('Writer returned no readable story scenes');
+  }
+}
 
 export interface BatchValidationResult {
   failedScenes: Array<{
     sceneId: number;
     violations: Array<{ category: string; severity: string; message: string; suggestion?: string }>;
-    correctedCameraComposition?: {
-      shot: string;
-      characters: Array<{ name: string; description: string; outfitId?: string }>;
-    };
   }>;
 }
 
@@ -82,6 +94,26 @@ function buildProviderBlockedViolation() {
   };
 }
 
+function scoreSceneValidationResult(validation: Pick<SceneValidationResult, 'isValid' | 'violations'>): number {
+  if (validation.isValid && validation.violations.length === 0) {
+    return 100;
+  }
+  if (!validation.isValid && validation.violations.length === 0) {
+    return 0;
+  }
+
+  const penaltyBySeverity: Record<string, number> = {
+    critical: 100,
+    high: 60,
+    medium: 35,
+  };
+  const penalty = validation.violations.reduce(
+    (sum, violation) => sum + (penaltyBySeverity[violation.severity] ?? 45),
+    0
+  );
+  return Math.max(0, 100 - penalty);
+}
+
 export class StoryDomainService {
   constructor(
     private textProvider: ITextProvider,
@@ -90,9 +122,7 @@ export class StoryDomainService {
   ) {}
 
   private getValidationModelOverride(): string | undefined {
-    return config.ai.geminiApiKey?.trim()
-      ? config.ai.validationModel
-      : undefined;
+    return getValidationTextModelOverride();
   }
 
   /**
@@ -171,6 +201,7 @@ export class StoryDomainService {
       });
 
       const parsed = parsePlainTextToScenes(rawText);
+      assertPlainStoryHasReadableScenes(parsed);
       const wordCount = countNarrationWords(parsed.fullText);
 
       logger.info({ wordCount, sceneCount: parsed.scenes.length }, 'Story text (plain) generated successfully');
@@ -270,6 +301,7 @@ export class StoryDomainService {
           parentOnUsage?.(usage);
         },
         operation: 'director',
+        onRawResponse: options?.onRawResponse,
       });
 
       if (!result.illustrations || result.illustrations.length !== params.imagesPerStory) {
@@ -380,6 +412,8 @@ export class StoryDomainService {
     scenarioCardId?: string,
     options?: StoryDomainOptions,
   ): Promise<SceneValidationResult> {
+    const operation = options?.operation ?? 'validateScene';
+    const model = this.getValidationModelOverride();
     const prompt = buildValidationPrompt({
       sceneText,
       policy,
@@ -399,14 +433,31 @@ export class StoryDomainService {
       'Scene validation prompt',
     );
 
+    const requestManifest = {
+      version: 1,
+      operation,
+      endpoint: 'generateStructured',
+      model: model ?? null,
+      prompt,
+      config: {
+        schemaName: 'VALIDATION_SCHEMA',
+        temperature: 0.3,
+      },
+      context: {
+        sceneId: sceneText.sceneId,
+        isLastScene,
+        scenarioCardId: scenarioCardId ?? null,
+      },
+    };
+
     try {
       const validation = await this.validationTextProvider.generateStructured<SceneValidationResult>({
         prompt,
         schema: VALIDATION_SCHEMA,
         temperature: 0.3,
-        model: this.getValidationModelOverride(),
+        model,
         onUsage: options?.onUsage,
-        operation: 'validateScene',
+        operation,
       });
 
       logger.info(
@@ -414,12 +465,16 @@ export class StoryDomainService {
           sceneId: validation.sceneId,
           isValid: validation.isValid,
           violationCount: validation.violations.length,
-          hasCorrectedCameraComposition: !!validation.correctedCameraComposition,
         },
         'Scene validation complete',
       );
 
-      return validation;
+      return {
+        ...validation,
+        validationStatus: 'completed',
+        requestManifest,
+        validationScore: scoreSceneValidationResult(validation),
+      };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       if (isProviderContentBlockedError(errorMsg)) {
@@ -428,6 +483,9 @@ export class StoryDomainService {
           'Scene validation blocked by provider content filter - failing closed',
         );
         return {
+          validationStatus: 'provider_blocked',
+          requestManifest,
+          validationScore: 0,
           sceneId: sceneText.sceneId,
           isValid: false,
           violations: [buildProviderBlockedViolation()],
@@ -480,7 +538,7 @@ export class StoryDomainService {
         temperature: 0.3,
         model: this.getValidationModelOverride(),
         onUsage: options?.onUsage,
-        operation: 'validateScene',
+        operation: options?.operation ?? 'validateScene',
       });
 
       const failedCount = result.failedScenes?.length ?? 0;

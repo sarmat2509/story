@@ -24,18 +24,17 @@ import {
   assets,
   characters,
   environmentImageCache,
-  outfitPlateCache,
   scenes,
   stories,
   storyEnvironmentCache,
-  storyOutfitPlateCache,
   translations,
   type Asset,
 } from '../db/schema';
 import { ImageDomainService } from '../domain/image/ImageDomainService';
 import type { GeneratedImage, IImageProvider, ReferenceImage } from '../providers/base/IImageProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro/NanoBananaProProvider';
-import { assignSequentialImageIndices, collectOutfitPlateImageIndices } from '../services/referenceImageBuckets';
+import { referenceBindingIdFor } from '../services/referenceBinding';
+import { assignSequentialImageIndices } from '../services/referenceImageBuckets';
 import type { SceneVisual } from '../services/types';
 
 const DEFAULT_STORY_ID = '3d0de735-c407-45c3-a63d-8e41add42011';
@@ -59,7 +58,6 @@ type StoryScene = {
   text?: string;
   primaryRead?: string;
   environmentId?: string;
-  characterOutfitIds?: Record<string, string>;
   sceneVisual?: SceneVisual;
   visualPrompt?: string;
 };
@@ -67,12 +65,6 @@ type StoryScene = {
 type StoryEnvironment = {
   id: string;
   name: string;
-  description: string;
-};
-
-type StoryOutfit = {
-  id: string;
-  characterName: string;
   description: string;
 };
 
@@ -84,6 +76,7 @@ type RefEntry = {
   characterName?: string;
   imageIndex?: number;
   referenceKind?: 'character' | 'object';
+  referenceBindingId?: string;
   isTurnaround?: boolean;
   storagePath?: string;
 };
@@ -187,50 +180,13 @@ function pushUnique(out: string[], value: unknown): void {
   if (!out.some((item) => item.toLowerCase() === clean.toLowerCase())) out.push(clean);
 }
 
-function aliasSuffix(index: number): string {
-  let n = index + 1;
-  let out = '';
-  while (n > 0) {
-    n -= 1;
-    out = String.fromCharCode(65 + (n % 26)) + out;
-    n = Math.floor(n / 26);
-  }
-  return out;
-}
-
-function buildSubjectAliasByImageIndex(imageIndexMap: Map<string, number>): Map<number, string> {
-  const out = new Map<number, string>();
-  const seenNames = new Set<string>();
-  const indices = [...imageIndexMap.entries()]
-    .filter(([name]) => {
-      const normalized = normalizeName(name);
-      if (!normalized || seenNames.has(normalized)) return false;
-      seenNames.add(normalized);
-      return true;
-    })
-    .map(([, index]) => index)
-    .sort((a, b) => a - b);
-  indices.forEach((index, i) => out.set(index, `Subject ${aliasSuffix(i)}`));
-  return out;
-}
-
-function referenceInstruction(ref: RefEntry, subjectAliasByImageIndex: Map<number, string>, imageIndexMap: Map<string, number>): string {
-  const img = `Image ${ref.imageIndex}`;
+function referenceInstruction(ref: RefEntry): string {
+  const id = ref.referenceBindingId || referenceBindingIdFor(ref);
   if (ref.source === 'environment') {
-    return `${img}: Environment reference - content/layout only, not style. Re-draw in scene art style.`;
+    return `${id}: environment`;
   }
-  if (ref.source === 'outfit_plate') {
-    const idIdx = ref.characterName ? imageIndexMap.get(ref.characterName) : undefined;
-    const subject = idIdx ? subjectAliasByImageIndex.get(idIdx) : undefined;
-    const clothes = subject ? subject.replace(/^Subject\b/, 'Clothes') : 'the clothes source';
-    const identityPart = idIdx
-      ? `DRAW COMMAND: draw ${subject} from Image ${idIdx} wearing ${clothes} from ${img}. Image ${idIdx} is PERSON SOURCE. ${img} is CLOTHES SOURCE only.`
-      : `DRAW COMMAND: draw the matching PERSON SOURCE wearing ${clothes} from ${img}. The character reference is PERSON SOURCE. ${img} is CLOTHES SOURCE only.`;
-    return `${img}: CLOTHES SOURCE ${clothes}. Use only the clothing/accessories from this image. ${identityPart} Do not use ${img} for face, hair, body, age, or silhouette. Do not draw the mannequin.`;
-  }
-  const subject = ref.imageIndex ? subjectAliasByImageIndex.get(ref.imageIndex) : undefined;
-  const sheetType = ref.isTurnaround ? 'Character sheet' : 'Reference photo';
-  return `${img}: PERSON SOURCE ${subject ?? 'Subject'}. ${sheetType}. Use as the locked source of truth for face, exact hairstyle structure, hair placement, age read, body proportions, silhouette, skin/hair palette, and stable marks.`;
+  const sheetType = ref.isTurnaround ? 'identity turnaround' : 'identity';
+  return `${id}: ${sheetType}`;
 }
 
 function parseSceneVisual(scene: StoryScene): SceneVisual | undefined {
@@ -306,17 +262,6 @@ function humanLikeType(type?: string): boolean {
   return type === 'person' || type === 'child' || type === 'human';
 }
 
-function buildOutfitMap(scene: StoryScene, outfits: StoryOutfit[] | undefined): Record<string, string> | undefined {
-  if (!scene.characterOutfitIds || !outfits?.length) return undefined;
-  const byId = new Map(outfits.map((outfit) => [outfit.id, outfit.description]));
-  const out: Record<string, string> = {};
-  for (const [name, outfitId] of Object.entries(scene.characterOutfitIds)) {
-    const description = byId.get(outfitId);
-    if (description) out[name] = description;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
 async function findExistingImage(args: Args, storyId: string, sceneId: number): Promise<string> {
   if (args.existingImage) return path.isAbsolute(args.existingImage) ? args.existingImage : path.resolve(process.cwd(), args.existingImage);
 
@@ -375,40 +320,6 @@ async function loadEnvironmentRef(storyId: string, environmentId: string | undef
   };
 }
 
-async function loadOutfitRefs(storyId: string, environmentId: string | undefined, sceneCharacters: string[]): Promise<RefEntry[]> {
-  if (!environmentId || sceneCharacters.length === 0) return [];
-  const cacheRows = await db
-    .select({
-      characterKey: storyOutfitPlateCache.characterKey,
-      storagePath: outfitPlateCache.storagePath,
-    })
-    .from(storyOutfitPlateCache)
-    .innerJoin(outfitPlateCache, eq(storyOutfitPlateCache.cacheId, outfitPlateCache.id))
-    .where(
-      and(
-        eq(storyOutfitPlateCache.storyId, storyId),
-        eq(storyOutfitPlateCache.storyEnvironmentId, environmentId),
-      ),
-    );
-
-  const refs: RefEntry[] = [];
-  for (const row of cacheRows) {
-    const matchedName = sceneCharacters.find((name) => normalizeName(name) === normalizeName(row.characterKey));
-    if (!matchedName) continue;
-    const ref = await readRef(row.storagePath);
-    refs.push({
-      base64: ref.base64,
-      mimeType: ref.mimeType,
-      source: 'outfit_plate',
-      type: 'outfit_plate_reference',
-      characterName: cleanName(matchedName),
-      referenceKind: 'object',
-      storagePath: row.storagePath,
-    });
-  }
-  return refs;
-}
-
 class PromptOnlyImageProvider implements IImageProvider {
   async generateImage(): Promise<GeneratedImage> {
     const imageData = await sharp({
@@ -438,7 +349,7 @@ async function loadCharacterRefs(sceneAsset: Asset | null, sceneCharacters: stri
   for (const characterName of sceneCharacters) {
     const characterKey = normalizeName(characterName);
     const assetRef = fromAsset.find((ref: any) => {
-      if (ref.source === 'environment' || ref.source === 'outfit_plate') return false;
+      if (ref.source === 'environment') return false;
       return normalizeName(ref.characterName) === characterKey;
     });
     const metadataChar = findMetadataCharacter(metadataCharacters, characterName);
@@ -542,19 +453,18 @@ async function main(): Promise<void> {
   const sceneAsset = await loadSceneAsset(args.storyId, args.sceneId);
   const envRef = await loadEnvironmentRef(args.storyId, scene.environmentId);
   const characterRefs = await loadCharacterRefs(sceneAsset, sceneCharacterNames, mergedCharacters);
-  const outfitRefs = await loadOutfitRefs(args.storyId, scene.environmentId, sceneCharacterNames);
-  const refs: RefEntry[] = [...(envRef ? [envRef] : []), ...characterRefs, ...outfitRefs];
+  const refs: RefEntry[] = [...(envRef ? [envRef] : []), ...characterRefs];
   const imageIndexMap = assignSequentialImageIndices(refs);
-  const subjectAliasByImageIndex = buildSubjectAliasByImageIndex(imageIndexMap);
   const referenceImages: ReferenceImage[] = refs.map((ref) => ({
     base64Data: ref.base64,
     mimeType: ref.mimeType,
-    instructionText: referenceInstruction(ref, subjectAliasByImageIndex, imageIndexMap),
+    instructionText: referenceInstruction(ref),
     characterName: ref.characterName,
     referenceKind: ref.referenceKind,
+    referenceBindingId: ref.referenceBindingId || referenceBindingIdFor(ref),
+    imageIndex: ref.imageIndex,
   }));
 
-  const outfitPlateImageIndexByCharacter = collectOutfitPlateImageIndices(refs);
   const imaginaryCharacters = characterRefs.map((ref) => {
     const metadataChar = findMetadataCharacter(mergedCharacters, ref.characterName || '');
     return {
@@ -583,7 +493,6 @@ async function main(): Promise<void> {
   const existingImage = await findExistingImage(args, args.storyId, args.sceneId);
   const style = (metadata.imageStyle || config.image.defaultStyle) as string;
   const ageGroup = story.ageGroup || '6-8';
-  const characterOutfits = buildOutfitMap(scene, metadata.outfits as StoryOutfit[] | undefined);
   const imageProvider = args.promptOnly
     ? new PromptOnlyImageProvider()
     : new NanoBananaProProvider(undefined, args.model);
@@ -603,9 +512,7 @@ async function main(): Promise<void> {
     imaginaryCharacters,
     referenceImages,
     imageIndexMap,
-    outfitPlateImageIndexByCharacter,
     currentEnvironment,
-    characterOutfits,
     scenarioCardId: undefined,
     hasEnvironmentImageRef: !!envRef,
   };
@@ -620,10 +527,8 @@ async function main(): Promise<void> {
     sceneVisual,
     currentEnvironment,
     imageIndexMap: Object.fromEntries(imageIndexMap),
-    outfitPlateImageIndexByCharacter: Object.fromEntries(outfitPlateImageIndexByCharacter),
     imaginaryCharacters,
     realWorldCharacters,
-    characterOutfits,
     referenceSources: refs.map((ref) => ({
       imageIndex: ref.imageIndex,
       source: ref.source,
@@ -633,7 +538,8 @@ async function main(): Promise<void> {
       isTurnaround: ref.isTurnaround,
       storagePath: ref.storagePath,
       mimeType: ref.mimeType,
-      instructionText: referenceInstruction(ref, subjectAliasByImageIndex, imageIndexMap),
+      referenceBindingId: ref.referenceBindingId || referenceBindingIdFor(ref),
+      instructionText: referenceInstruction(ref),
     })),
   });
 

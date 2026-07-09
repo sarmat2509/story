@@ -111,6 +111,10 @@ function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
+function maxDisplayProgressForState(progress: StoryProgress): number {
+  return progress.activeTasks.length > 0 ? 99 : 100;
+}
+
 function clampRatio(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
@@ -236,9 +240,13 @@ export function recalculateStoryProgress(
     overallProgress = calculateOverallProgress(progress.completedTasks, progress.activeTasks);
   }
 
-  const monotonicProgress = Math.max(
-    progress.maxOverallProgress ?? 0,
-    clampPercent(overallProgress),
+  const maxDisplayProgress = maxDisplayProgressForState(progress);
+  const monotonicProgress = Math.min(
+    maxDisplayProgress,
+    Math.max(
+      progress.maxOverallProgress ?? 0,
+      clampPercent(overallProgress),
+    ),
   );
 
   progress.overallProgress = monotonicProgress;
@@ -577,8 +585,8 @@ export function calculateOverallProgress(
   active: ActiveTask[]
 ): number {
   // Determine all tasks that WILL execute in this flow
-  // Instant mode: analyzing_photos, generating_text, producing_visuals?, validating, generating_images
-  // Standard mode: generating_text, producing_visuals?, validating, generating_images
+  // Instant mode: analyzing_photos, generating_text, validating, producing_visuals?, generating_images
+  // Standard mode: generating_text, validating, producing_visuals?, generating_images
   
   const seenTasks = new Set<StoryTask>([...completed, ...active.map(t => t.task)]);
   
@@ -597,7 +605,7 @@ export function calculateOverallProgress(
   }
 
   if (seenTasks.has(STORY_TASKS.PRODUCING_VISUALS)) {
-    baselineTasks.splice(isInstantMode ? 2 : 1, 0, STORY_TASKS.PRODUCING_VISUALS);
+    baselineTasks.splice(isInstantMode ? 3 : 2, 0, STORY_TASKS.PRODUCING_VISUALS);
   }
   
   // Add optional tasks if they've appeared

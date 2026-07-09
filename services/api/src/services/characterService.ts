@@ -9,6 +9,7 @@ import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanu
 import { localizeCharacterNames, translateCharacterDescription } from './translationService';
 import { stripCharacterIdFromName, type CharacterType } from '@wondertales/shared';
 import { syncChildProfileCharactersForUser } from './childProfileService';
+import { buildCharacterDefaultOutfitPatch } from './defaultOutfitService';
 
 // Re-export CharacterType for use in routes
 export type { CharacterType };
@@ -75,8 +76,7 @@ async function analyzeCharacterPhotos(character: Character): Promise<void> {
       { onUsage: (u) => recordUsage(u, usageContext) }
     );
     
-    // Update character with AI-generated fields via repository
-    await getCharacterRepository().updateAnalysis(character.id, {
+    const analysisPatch = {
       aiGeneratedDescription: analysis.detailedDescription,
       clothing: analysis.clothing as any,
       distinctiveFeatures: analysis.distinctiveFeatures as any,
@@ -85,6 +85,19 @@ async function analyzeCharacterPhotos(character: Character): Promise<void> {
         ...(character.appearanceTraits as any || {}),
         ...analysis.appearanceTraits
       } as any : character.appearanceTraits
+    };
+    const defaultOutfitPatch = await buildCharacterDefaultOutfitPatch(
+      {
+        ...character,
+        ...analysisPatch,
+      },
+      character,
+    );
+
+    // Update character with AI-generated fields via repository
+    await getCharacterRepository().updateAnalysis(character.id, {
+      ...analysisPatch,
+      ...defaultOutfitPatch,
     });
     
     logger.info({ 
@@ -180,8 +193,10 @@ export async function createCharacter(
   userId: string,
   data: Omit<NewCharacter, 'userId'>
 ): Promise<Character> {
+  const defaultOutfitPatch = await buildCharacterDefaultOutfitPatch(data);
   const newCharacter: NewCharacter = {
     ...data,
+    ...defaultOutfitPatch,
     userId
   };
   
@@ -266,7 +281,15 @@ export async function updateCharacter(
     throw new Error('Character not found');
   }
   
-  const updated = await characterRepo.update(id, userId, data);
+  const finalCharacter = {
+    ...existing,
+    ...data,
+  };
+  const defaultOutfitPatch = await buildCharacterDefaultOutfitPatch(finalCharacter, existing);
+  const updated = await characterRepo.update(id, userId, {
+    ...data,
+    ...defaultOutfitPatch,
+  });
   
   if (!updated) {
     throw new Error('Failed to update character');

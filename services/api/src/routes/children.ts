@@ -35,6 +35,9 @@ import {
   assertStoryFromDrawingAccessForPhotos,
   isStoryFromDrawingAccessError,
 } from '../services/storyFromDrawingAccessService';
+import { getChildPhotoValidationService } from '../services/aiService';
+import { recordUsage } from '../services/aiUsageService';
+import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
 
 const router = Router();
 
@@ -68,6 +71,23 @@ function sendStoryFromDrawingAccessError(
     code: error.code,
     error: error.message,
     featureSlug: error.featureSlug,
+  });
+  return true;
+}
+
+function sendChildPhotoValidationError(
+  res: Parameters<typeof requireAuth>[1],
+  error: unknown
+): boolean {
+  if (!isChildPhotoValidationError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    index: error.index,
   });
   return true;
 }
@@ -221,7 +241,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       });
     }
 
-    assertUserPhotoInputs({
+    const photoPaths = assertUserPhotoInputs({
       photos,
       userId: req.user!.id,
       allowedPhotoTypes: ['child'],
@@ -230,6 +250,15 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       userId: req.user!.id,
       photoCount: photos.length,
     });
+    const usageContext = { userId: req.user!.id };
+    await getChildPhotoValidationService().assertUploadedPhotosContainHumans(
+      {
+        storagePaths: photoPaths,
+        userId: req.user!.id,
+        source: 'child_photo_analysis',
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
 
     logger.info(
       {
@@ -241,8 +270,6 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     );
 
     // Call analysis service (always 'person' for children)
-    const { recordUsage } = await import('../services/aiUsageService');
-    const usageContext = { userId: req.user!.id };
     const result = await analysisService.analyzeCharacter(
       {
         photos,
@@ -271,6 +298,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendChildPhotoValidationError(res, error)) return;
 
     logger.error(
       {
@@ -413,7 +441,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
 
     const referencePhotoUrls = getReferencePhotoUrls(data.referencePhotos);
-    assertUserPhotoInputs({
+    const referencePhotoPaths = assertUserPhotoInputs({
       photos: referencePhotoUrls,
       userId,
       allowedPhotoTypes: ['child'],
@@ -422,6 +450,14 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       userId,
       photoCount: referencePhotoUrls.length,
     });
+    await getChildPhotoValidationService().assertUploadedPhotosContainHumans(
+      {
+        storagePaths: referencePhotoPaths,
+        userId,
+        source: 'child_profile_create',
+      },
+      { onUsage: (u) => recordUsage(u, { userId }) }
+    );
 
     const dataForCreate = {
       ...data,
@@ -493,6 +529,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
   } catch (error: unknown) {
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendChildPhotoValidationError(res, error)) return;
     if (sendChildProfileLimitError(res, error)) return;
 
     const errorMessage = error instanceof Error ? error.message : String(error);

@@ -96,8 +96,10 @@ export class AiUsageRepository {
     model: string | null;
     inputUnits: number | null;
     outputUnits: number | null;
+    durationMs: number | null;
     metadata: Record<string, unknown> | null;
     costUsd: number | null;
+    createdAt: Date;
   }>> {
     const rows = await this.db
       .select({
@@ -106,8 +108,10 @@ export class AiUsageRepository {
         model: schema.aiUsageEvents.model,
         inputUnits: schema.aiUsageEvents.inputUnits,
         outputUnits: schema.aiUsageEvents.outputUnits,
+        durationMs: schema.aiUsageEvents.durationMs,
         metadata: schema.aiUsageEvents.metadata,
         costUsd: schema.aiUsageEvents.costUsd,
+        createdAt: schema.aiUsageEvents.createdAt,
       })
       .from(schema.aiUsageEvents)
       .where(eq(schema.aiUsageEvents.storyId, storyId));
@@ -117,8 +121,10 @@ export class AiUsageRepository {
       model: row.model,
       inputUnits: row.inputUnits,
       outputUnits: row.outputUnits,
+      durationMs: row.durationMs,
       metadata: (row.metadata as Record<string, unknown> | null) ?? null,
       costUsd: row.costUsd != null ? Number(row.costUsd) : null,
+      createdAt: row.createdAt,
     }));
   }
 
@@ -133,7 +139,7 @@ export class AiUsageRepository {
     const deltaSeconds = sql<number>`ABS(EXTRACT(EPOCH FROM (${createdAtUtc} - ${params.createdAt})))`;
     const conditions = [
       eq(schema.aiUsageEvents.storyId, params.storyId),
-      eq(schema.aiUsageEvents.operation, 'image_validation'),
+      sql`${schema.aiUsageEvents.operation} LIKE 'image_validation%'`,
       sql`${deltaSeconds} <= ${windowSeconds}`,
     ];
 
@@ -172,6 +178,56 @@ export class AiUsageRepository {
       createdAt: row.createdAt,
       matchedDeltaMs: Math.round(Number(row.deltaMs ?? 0)),
     };
+  }
+
+  async listImageValidationUsageCandidates(params: {
+    storyId: string;
+    model?: string | null;
+    createdAt: Date;
+    windowSeconds?: number;
+  }): Promise<MatchedImageValidationUsage[]> {
+    const windowSeconds = params.windowSeconds ?? 300;
+    const createdAtUtc = sql`${schema.aiUsageEvents.createdAt} AT TIME ZONE 'UTC'`;
+    const deltaSeconds = sql<number>`ABS(EXTRACT(EPOCH FROM (${createdAtUtc} - ${params.createdAt})))`;
+    const conditions = [
+      eq(schema.aiUsageEvents.storyId, params.storyId),
+      sql`${schema.aiUsageEvents.operation} LIKE 'image_validation%'`,
+      sql`${deltaSeconds} <= ${windowSeconds}`,
+    ];
+
+    if (params.model) {
+      conditions.push(eq(schema.aiUsageEvents.model, params.model));
+    }
+
+    const rows = await this.db
+      .select({
+        provider: schema.aiUsageEvents.provider,
+        operation: schema.aiUsageEvents.operation,
+        model: schema.aiUsageEvents.model,
+        inputUnits: schema.aiUsageEvents.inputUnits,
+        outputUnits: schema.aiUsageEvents.outputUnits,
+        costUsd: schema.aiUsageEvents.costUsd,
+        durationMs: schema.aiUsageEvents.durationMs,
+        metadata: schema.aiUsageEvents.metadata,
+        createdAt: schema.aiUsageEvents.createdAt,
+        deltaMs: sql<number>`${deltaSeconds} * 1000`,
+      })
+      .from(schema.aiUsageEvents)
+      .where(and(...conditions))
+      .orderBy(schema.aiUsageEvents.createdAt);
+
+    return rows.map((row) => ({
+      provider: row.provider,
+      operation: row.operation,
+      model: row.model,
+      inputUnits: row.inputUnits,
+      outputUnits: row.outputUnits,
+      costUsd: row.costUsd != null ? Number(row.costUsd) : null,
+      durationMs: row.durationMs,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+      createdAt: row.createdAt,
+      matchedDeltaMs: Math.round(Number(row.deltaMs ?? 0)),
+    }));
   }
 
   async getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {

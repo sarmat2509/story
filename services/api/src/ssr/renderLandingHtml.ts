@@ -11,7 +11,11 @@ import {
   buildPublicPricingPath,
   buildPublicSupportPath,
   buildPublicStoriesPath,
+  getPricingFeatureLabel,
+  interpolatePricingTemplate,
+  isPricingFeatureAvailable,
   normalizePublicSeoLocale,
+  type PricingTranslate,
   type PublicSeoLocale,
 } from '@wondertales/shared';
 import {
@@ -36,6 +40,7 @@ import {
   renderPublicPageFooter,
 } from './publicPageFooter';
 import { renderLandingStructuredData } from './publicStructuredData';
+import { getPlansI18n } from '../utils/i18nLoader';
 import {
   DEFAULT_BILLING_CURRENCY,
   SUPPORTED_BILLING_CURRENCIES,
@@ -426,7 +431,10 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .plan-card .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#8b7cb8;color:#fff;padding:4px 12px;border-radius:9999px;font-size:12px;font-weight:600}
 .plan-card .plan-name{font-size:20px;font-weight:600;color:#1e293b;margin-bottom:8px}
 .plan-card .plan-price{font-size:32px;font-weight:700;color:#1e293b;margin-bottom:12px}
-.plan-card .plan-desc{font-size:14px;color:#64748b;margin-bottom:20px;line-height:1.5;flex:1}
+.plan-card .plan-desc{font-size:14px;color:#64748b;margin-bottom:14px;line-height:1.5;flex:1}
+.plan-feature-list{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:8px;text-align:left}
+.plan-feature-list li{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.4;color:#475569}
+.plan-feature-list li::before{content:"✓";flex:0 0 auto;color:#10b981;font-weight:800}
 .plan-card .plan-cta{margin-top:auto;padding-top:16px}
 .landing-currency-toggle-wrap{display:flex;justify-content:center;margin:-8px 0 26px}
 .landing-currency-toggle{display:inline-flex;align-items:center;gap:4px;margin:0;padding:4px;border-radius:12px;border:1px solid rgba(139,124,184,.24);background:rgba(255,255,255,.76);box-shadow:0 8px 22px rgba(18,27,44,.06)}
@@ -550,6 +558,42 @@ function readPlanFeatureLimit(plan: PresentedPlan, slug: string, fallback: numbe
     return typeof limit === 'number' ? limit : fallback;
   }
   return fallback;
+}
+
+function readPlansI18nValue(plansI18n: any, key: string): string | undefined {
+  return key
+    .split('.')
+    .reduce((node, part) => (node && typeof node === 'object' ? node[part] : undefined), plansI18n);
+}
+
+function buildPricingTranslate(plansI18n: any): PricingTranslate {
+  return (key, params = {}, defaultValue = '') => {
+    const template = readPlansI18nValue(plansI18n, key) || defaultValue;
+    return interpolatePricingTemplate(template, params);
+  };
+}
+
+function getFallbackCharactersPerMonth(slug: string): number {
+  switch (slug) {
+    case 'free':
+      return 3;
+    case 'silver':
+      return 10;
+    case 'golden':
+      return 15;
+    case 'fairyworld':
+      return 20;
+    default:
+      return 0;
+  }
+}
+
+function getCharacterPlanFeature(plan: PresentedPlan): PresentedPlan['features'][string] {
+  return plan.features.characters_per_month ?? {
+    name: 'Character Generations Per Month',
+    value: { limit: getFallbackCharactersPerMonth(plan.slug) },
+    category: 'premium',
+  };
 }
 
 function getPlanPriceForCurrency(plan: PresentedPlan, billingCurrency: BillingCurrency): {
@@ -1075,9 +1119,14 @@ function renderPricing(
     dbPlans.length > 0
       ? dbPlans
       : buildFallbackPricingPlans(normalizeLandingLocale(locale), billingCurrency);
+  const translatePricing = buildPricingTranslate(getPlansI18n(locale));
 
   const presentedPlans = plans.map((p) => {
     const selectedPrice = getPlanPriceForCurrency(p, billingCurrency);
+    const characterFeature = getCharacterPlanFeature(p);
+    const characterLabel = isPricingFeatureAvailable(characterFeature)
+      ? getPricingFeatureLabel(locale, translatePricing, 'characters_per_month', characterFeature)
+      : null;
     const priceByCurrency = SUPPORTED_BILLING_CURRENCIES.reduce((acc, currency) => {
       const price = getPlanPriceForCurrency(p, currency);
       acc[currency] = formatPlanPrice(locale, price.priceMonthly, price.pricingCurrency);
@@ -1096,6 +1145,7 @@ function renderPricing(
         readPlanFeatureLimit(p, 'images_per_story', 1),
         readPlanFeatureLimit(p, 'graphic_novels_per_month', 0)
       ),
+      features: characterLabel ? [characterLabel] : [],
       featured: p.slug === 'golden',
     };
   });
@@ -1118,6 +1168,7 @@ function renderPricing(
         <div class="plan-name">${escapeHtml(p.name)}</div>
         <div class="plan-price"><span data-plan-price data-price-eur="${escapeHtml(p.priceByCurrency.EUR)}" data-price-usd="${escapeHtml(p.priceByCurrency.USD)}">${escapeHtml(p.price)}</span>${p.slug !== 'free' ? `<span style="font-size:14px;font-weight:400;color:#64748b">${escapeHtml(content.pricing.perMonthSuffix)}</span>` : ''}</div>
         <div class="plan-desc">${escapeHtml(p.desc)}</div>
+        ${p.features.length > 0 ? `<ul class="plan-feature-list">${p.features.map((feature) => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>` : ''}
       </div>`).join('')}
     </div>
     <p class="pricing-reassurance">${escapeHtml(content.pricing.reassurance)}</p>

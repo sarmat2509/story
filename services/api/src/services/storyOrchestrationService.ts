@@ -7,9 +7,7 @@ import {
   getDictionaryRepository,
   getEnvironmentImageCacheRepository,
   getImageValidationRepository,
-  getOutfitPlateCacheRepository,
   getStoryEnvironmentCacheRepository,
-  getStoryOutfitPlateCacheRepository,
   getAlignmentRepository,
   getStoryArtifactRepository,
 } from '../repositories';
@@ -38,7 +36,6 @@ import {
   STORY_TASKS,
   startTask,
   completeTask,
-  transitionTask,
   updateTaskProgress,
   recalculateStoryProgress,
   setPlannedTasks,
@@ -59,29 +56,27 @@ import {
   stripAllTags,
 } from '../utils/audioTags';
 import {
-  isNaturalAppearanceOutfit,
   parseCharacterOutfitsString,
   serializeCharacterOutfitsToStr,
-  lookupOutfitForCharacterName,
-  resolveOutfitDescriptionsFromSceneIds,
-  lookupOutfitIdForCharacterName,
-  type StoryOutfitDefinition,
 } from '../utils/characterOutfits';
 import {
   applyReferenceBucketLimits,
   assignSequentialImageIndices,
   buildPlaceholderReferenceNameMap,
-  collectOutfitPlateImageIndices,
   logReferenceBucketDelivery,
 } from './referenceImageBuckets';
-import { referenceBindingIdFor, referenceBindingLabel } from './referenceBinding';
+import { referenceBindingIdFor } from './referenceBinding';
 import {
-  getOrCreateOutfitPlateImage,
-  normalizeOutfitPlateCharacterKey,
-  sceneCharacterHasVisualReference,
-  shouldGenerateOutfitPlateForCharacter,
+  omitOutfitProseForDefaultOutfitCharacters,
   omitOutfitProseForNonHumanCharacters,
 } from './outfitPlateService';
+import {
+  applySceneDressedTurnaroundOverrides,
+  prepareSceneDressedTurnaroundReferences,
+  resolveSceneCharacterOutfits,
+  type SceneDressedTurnaroundPending,
+  type SceneOutfitPlatePending,
+} from './imageReferencePreparationService';
 import type { CharacterReference } from '../prompts/image';
 import {
   buildImageSystemInstruction,
@@ -93,6 +88,7 @@ import {
   type ImageEditRepairIssueKind,
 } from '../prompts/image/ImageEditPrompt';
 import type { UploadedFile } from '../providers/base/IFileManager';
+import type { StructuredRawResponse } from '../providers/base/JsonSchema';
 import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { validate as isUUID } from 'uuid';
 import * as path from 'path';
@@ -113,6 +109,12 @@ import {
   type AppearanceTraits,
 } from './types';
 import {
+  getSceneVisualCharacterCount,
+  limitSceneVisualCharacters,
+  MAX_SCENE_IMAGE_CHARACTERS,
+} from '../domain/story/sceneCharacterLimits';
+import {
+  imageJobTypeForGenerationKind,
   isGraphicNovelStyleGenerationKind,
   type StoryGenerationKind,
 } from './generationKindRouting';
@@ -139,7 +141,8 @@ import {
   persistLlmCharacters,
   mergeCharacters,
 } from './storyOrchestration/storyRecords';
-import { validateStoryScenes } from './storyOrchestration/validation';
+import type { TextValidationSummary } from './storyOrchestration/types';
+import { validateStoryTextScenes } from './storyOrchestration/validation';
 import {
   mergeDirectorIntoText,
   extractLlmCharactersFromText,
@@ -161,7 +164,10 @@ import {
 } from './storyQuotaService';
 import { syncChildProfileCharacter } from './childProfileService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
-import { recordStageTiming, withStageTiming } from './generationStageTimingService';
+import {
+  recordStageTiming,
+  withStageTiming,
+} from './generationStageTimingService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
 import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
 import { localizeCharacterNames } from './translationService';
@@ -184,6 +190,31 @@ const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
 
 const IMAGE_PROMPT_DEBUG_ROOT = path.resolve(__dirname, '../../../..', 'image-prompt-debug');
 
+function buildDirectorDebugMetadata(
+  rawResponse: StructuredRawResponse | undefined,
+  parsedResponse: unknown,
+): Record<string, unknown> | undefined {
+  if (!rawResponse && parsedResponse === undefined) return undefined;
+  const fallbackText =
+    rawResponse?.responseText ??
+    (parsedResponse !== undefined ? JSON.stringify(parsedResponse) : '');
+
+  return {
+    version: 1,
+    capturedAt: new Date().toISOString(),
+    rawResponse: {
+      provider: rawResponse?.provider ?? null,
+      operation: rawResponse?.operation ?? 'director',
+      model: rawResponse?.model ?? null,
+      finishReason: rawResponse?.finishReason ?? null,
+      durationMs: rawResponse?.durationMs ?? null,
+      responseLength: rawResponse?.responseLength ?? fallbackText.length,
+      text: fallbackText,
+    },
+    parsedResponse: parsedResponse ?? null,
+  };
+}
+
 function estimateSceneCountForAgeGroup(ageGroup?: string): number {
   if (!ageGroup) return 6;
   return ESTIMATED_SCENE_COUNT_BY_AGE_GROUP[ageGroup] ?? 6;
@@ -196,6 +227,16 @@ function estimateTrackedImageCount(totalScenes: number, imagesPerStory: number):
 
   const sceneIds = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory);
   return Math.min(2, sceneIds.length);
+}
+
+function storyNeedsContentEnrichment(story: {
+  title: string;
+  fullText: string;
+  scenes: unknown;
+}): boolean {
+  if (story.title === 'Generating...') return true;
+  if (!story.fullText.trim()) return true;
+  return Array.isArray(story.scenes) && story.scenes.length === 0;
 }
 
 function estimateProducerMs(illustrationCount: number): number {
@@ -236,6 +277,10 @@ function buildFixedStagePlan(params: {
       ? [{ task: STORY_TASKS.ANALYZING_PHOTOS, estimatedMs: photoAnalysisMs }]
       : []),
     { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: coefficients.avgTextMs },
+    {
+      task: STORY_TASKS.VALIDATING,
+      estimatedMs: coefficients.avgValidationMsPerScene * Math.max(sceneCount, 1),
+    },
     ...(includeProducer
       ? [
           {
@@ -244,10 +289,6 @@ function buildFixedStagePlan(params: {
           },
         ]
       : []),
-    {
-      task: STORY_TASKS.VALIDATING,
-      estimatedMs: coefficients.avgValidationMsPerScene * Math.max(sceneCount, 1),
-    },
     {
       task: STORY_TASKS.GENERATING_IMAGES,
       estimatedMs: coefficients.avgMsPerImage * trackedImageCount,
@@ -285,7 +326,7 @@ function buildFixedStagePlan(params: {
  * 3. Scene has visualPrompt that is a plain string (old stories) → put into cameraComposition
  */
 function migrateVisualPrompt(scene: any): SceneVisual {
-  if (scene.sceneVisual) return scene.sceneVisual as SceneVisual;
+  if (scene.sceneVisual) return limitSceneVisualCharacters(scene.sceneVisual as SceneVisual);
 
   const vp = scene.visualPrompt || '';
 
@@ -294,7 +335,7 @@ function migrateVisualPrompt(scene: any): SceneVisual {
     try {
       const parsed = JSON.parse(vp);
       if (parsed && typeof parsed.setting === 'string' && parsed.cameraComposition !== undefined) {
-        return parsed as SceneVisual;
+        return limitSceneVisualCharacters(parsed as SceneVisual);
       }
     } catch (_) {
       // Not valid JSON — fall through to legacy handling
@@ -653,6 +694,7 @@ export async function processStoryRequest(requestId: string): Promise<{
 
     await getStoryRepository().updateRequest(requestId, {
       status: 'processing',
+      errorMessage: null,
       updatedAt: new Date(),
     });
 
@@ -662,8 +704,11 @@ export async function processStoryRequest(requestId: string): Promise<{
     let text, mergedCharacters, spec, selectedCharacters;
     let textGenerationTimeMs: number | undefined;
     let validationTimeMs: number | undefined;
+    let textValidation: TextValidationSummary | undefined;
     let chosenPlotExampleId: string | undefined;
     let chosenWorldRuleId: string | undefined;
+    let directorRawResponse: StructuredRawResponse | undefined;
+    let directorParsedResponse: unknown;
 
     // Get Domain Services (only what the text phase actually needs)
     const storyDomain = getStoryDomainService();
@@ -760,7 +805,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           }),
       };
 
-      const plainText = await withStageTiming(
+      const writerText = await withStageTiming(
         {
           storyId,
           storyRequestId: requestId,
@@ -782,13 +827,62 @@ export async function processStoryRequest(requestId: string): Promise<{
         () => storyDomain.generateTextPlain(spec, textGenOptions)
       );
       textGenerationTimeMs = Date.now() - textGenStart;
+      await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
+
+      let validatedPlainText: any = {
+        title: writerText.title,
+        language: spec.language,
+        description: writerText.description,
+        characters: [],
+        environments: [],
+        outfits: [],
+        scenes: writerText.scenes.map((scene: any) => ({ ...scene })),
+        fullText: writerText.fullText,
+        wordCount: writerText.wordCount,
+      };
+
+      logger.info(
+        { requestId, title: validatedPlainText.title, wordCount: validatedPlainText.wordCount, textGenerationTimeMs },
+        'Writer text generated'
+      );
+
+      const validationResult = await validateStoryTextScenes({
+        requestId,
+        userId: request.userId,
+        storyId,
+        text: validatedPlainText,
+        spec,
+        maxRetries: 2,
+      });
+      validatedPlainText = validationResult.validatedText;
+      validatedPlainText.language = spec.language;
+      validationTimeMs = validationResult.validationTimeMs;
+      textValidation = validationResult.textValidation;
+      const validationCompletedAt = new Date();
+      await recordStageTiming({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: 'story',
+        pipelinePhase: 'validation',
+        operation: 'text_validation',
+        targetType: 'story',
+        startedAt: new Date(validationCompletedAt.getTime() - (validationTimeMs ?? 0)),
+        completedAt: validationCompletedAt,
+        durationMs: validationTimeMs ?? 0,
+        metadata: {
+          maxRetries: 2,
+          sceneCount: Array.isArray(validatedPlainText?.scenes) ? validatedPlainText.scenes.length : 0,
+          validationTarget: 'writer_text',
+        },
+      });
+
       const imagesPerStory = userPlan.imagesPerStory || 0;
       if (imagesPerStory > 0) {
-        const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
+        const blocks = composeScenesIntoBlocks(validatedPlainText.scenes, imagesPerStory);
         const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
-        await transitionTask(
+        await startTask(
           requestId,
-          STORY_TASKS.GENERATING_TEXT,
           STORY_TASKS.PRODUCING_VISUALS,
           {
             estimatedMs: estimateProducerMs(blocks.length),
@@ -824,14 +918,22 @@ export async function processStoryRequest(requestId: string): Promise<{
                 spec,
                 userCharacters,
               },
-              { onUsage: (u) => recordUsage(u, usageContext) }
+              {
+                onUsage: (u) => recordUsage(u, usageContext),
+                onRawResponse: (response) => {
+                  directorRawResponse = response;
+                },
+              }
             )
         );
+        directorParsedResponse = directorResult;
         await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
-        text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
+        text = mergeDirectorIntoText(validatedPlainText, directorResult, imagesPerStory, {
+          preferredCharacterNames: getPreferredSceneCharacterNamesForLimit(spec),
+        });
         text.language = spec.language;
         const anchorSceneIds = getIllustrationBlockStartSceneIds(
-          plainText.scenes.length,
+          validatedPlainText.scenes.length,
           imagesPerStory
         );
         logger.info(
@@ -862,24 +964,13 @@ export async function processStoryRequest(requestId: string): Promise<{
           'Director merged into text (outfits + per-block camera outfitIds)'
         );
       } else {
-        await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
-        text = {
-          title: plainText.title,
-          language: spec.language,
-          description: plainText.description,
-          characters: [],
-          environments: [],
-          outfits: [],
-          scenes: plainText.scenes.map((scene) => ({ ...scene })),
-          fullText: plainText.fullText,
-          wordCount: plainText.wordCount,
-        } as any;
+        text = validatedPlainText;
         logger.info({ requestId }, 'Skipped Director because imagesPerStory=0');
       }
 
       logger.info(
-        { requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs },
-        'Text generated'
+        { requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs, validationTimeMs },
+        'Text generated and validated'
       );
 
       // Log environments from Director output when illustrations are enabled.
@@ -935,7 +1026,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           llmCharacterCount: llmCharacters.length,
           llmCharacterNames: llmCharacters.map((c) => c.name).join(', '),
         },
-        'Extracted LLM-generated characters from direct text generation'
+        'Extracted LLM-generated characters from validated story text'
       );
 
       // Merge user characters
@@ -979,14 +1070,23 @@ export async function processStoryRequest(requestId: string): Promise<{
       const specForCheckpoint = { ...spec, policyProfile: undefined };
       Object.assign(checkpoints, {
         text,
+        validationComplete: true,
+        validatedText: text,
+        validationTimeMs,
+        textValidation,
         mergedCharacters,
         spec: specForCheckpoint,
         selectedCharacters,
       });
       await getStoryRepository().updateRequest(requestId, {
+        errorMessage: null,
         intermediateData: {
           ...checkpoints,
           text,
+          validationComplete: true,
+          validatedText: text,
+          validationTimeMs,
+          textValidation,
           mergedCharacters,
           spec: specForCheckpoint,
           selectedCharacters,
@@ -994,56 +1094,6 @@ export async function processStoryRequest(requestId: string): Promise<{
       });
 
       logger.info({ requestId, checkpoint: 'text' }, 'Checkpoint saved');
-    }
-
-    // CHECKPOINT 3: Validation
-    if (checkpoints.validationComplete && checkpoints.validatedText) {
-      logger.info({ requestId }, 'Reusing validated text from checkpoint');
-      text = checkpoints.validatedText;
-    } else {
-      const validationResult = await validateStoryScenes({
-        requestId,
-        userId: request.userId,
-        storyId,
-        text,
-        spec,
-        maxRetries: 2,
-      });
-      text = validationResult.validatedText;
-      validationTimeMs = validationResult.validationTimeMs;
-      const validationCompletedAt = new Date();
-      await recordStageTiming({
-        storyId,
-        storyRequestId: requestId,
-        userId: request.userId,
-        generationKind: 'story',
-        pipelinePhase: 'validation',
-        operation: 'text_validation',
-        targetType: 'story',
-        startedAt: new Date(validationCompletedAt.getTime() - (validationTimeMs ?? 0)),
-        completedAt: validationCompletedAt,
-        durationMs: validationTimeMs ?? 0,
-        metadata: {
-          maxRetries: 2,
-          sceneCount: Array.isArray(text?.scenes) ? text.scenes.length : 0,
-        },
-      });
-
-      // Save validation checkpoint (preserve storyId, text, spec, mergedCharacters)
-      const specForValidation = { ...spec, policyProfile: undefined };
-      Object.assign(checkpoints, {
-        validationComplete: true,
-        validatedText: text,
-        text,
-        spec: specForValidation,
-        selectedCharacters,
-        mergedCharacters,
-      });
-      await getStoryRepository().updateRequest(requestId, {
-        intermediateData: { ...checkpoints, validationComplete: true, validatedText: text },
-      });
-
-      logger.info({ requestId, checkpoint: 'validation' }, 'Checkpoint saved');
     }
 
     if (storyId) {
@@ -1065,8 +1115,9 @@ export async function processStoryRequest(requestId: string): Promise<{
       throw new Error('Story stub should exist before checkpoint 4');
     }
     const existingStory = await getStoryRepository().findById(storyId);
-    const needsEnrich = !existingStory || existingStory.title === 'Generating...';
+    const needsEnrich = !existingStory || storyNeedsContentEnrichment(existingStory);
     if (needsEnrich) {
+      const directorDebug = buildDirectorDebugMetadata(directorRawResponse, directorParsedResponse);
       const enrichParams = {
         userId: request.userId,
         storyRequestId: request.id,
@@ -1090,9 +1141,11 @@ export async function processStoryRequest(requestId: string): Promise<{
           storyArtifactTitle: spec.closingArtifact?.title,
           storyArtifactImagePath: spec.closingArtifact?.imagePath,
           storyArtifactSelection: (spec.closingArtifact as any)?.selection,
+          ...(directorDebug && { directorDebug }),
           llmGeneratedCharacters: (text as any).characters || [],
           imageStyle: (spec as any).imageStyle,
           ...((text as any).description && { seoDescription: (text as any).description }),
+          ...(textValidation && { textValidation }),
         },
         ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
         isScheduledContinuation,
@@ -1104,6 +1157,7 @@ export async function processStoryRequest(requestId: string): Promise<{
         const newStoryId = await createStoryRecord(enrichParams);
         Object.assign(checkpoints, { storyId: newStoryId });
         await getStoryRepository().updateRequest(requestId, {
+          errorMessage: null,
           intermediateData: { ...checkpoints, storyId: newStoryId },
         });
         storyId = newStoryId;
@@ -1128,6 +1182,7 @@ export async function processStoryRequest(requestId: string): Promise<{
       ...(isScheduledContinuation && { isScheduledContinuation: true, scheduleId }),
     });
     await getStoryRepository().updateRequest(requestId, {
+      errorMessage: null,
       intermediateData: {
         ...checkpoints,
         storyId,
@@ -1179,11 +1234,6 @@ export async function processStoryRequest(requestId: string): Promise<{
         logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after failure');
       }
     }
-
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'failed',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
 
     throw error;
   }
@@ -1390,8 +1440,32 @@ function normalizeStoredLlmCharactersForImageFlow(rawCharacters: any[]): any[] {
         originalCharacterId: char.originalCharacterId || extracted.id,
         appearance: char.appearance || description,
         description,
+        source: char.source || 'llm_generated',
       };
     });
+}
+
+function isUserSelectedCharacterSource(source: unknown): boolean {
+  return (
+    source === 'user_provided' ||
+    source === 'child_profile' ||
+    source === 'user_enriched_by_llm'
+  );
+}
+
+function shouldValidateOutfitForExpectedCharacter(
+  characterKind: 'human' | 'animal' | 'imaginary',
+  charData: CharacterData | undefined
+): boolean {
+  if (characterKind !== 'human' || !charData) return false;
+
+  const source = (charData as any).source;
+  if (source === 'llm_generated') return false;
+  if (isUserSelectedCharacterSource(source)) return true;
+
+  // Legacy stories may have selected user/child characters without an explicit source.
+  if ((charData as any).childProfileId || charData.type === 'child') return true;
+  return typeof charData.id === 'string' && charData.id.trim().length > 0;
 }
 
 /**
@@ -1406,7 +1480,40 @@ function extractStoragePath(url: string): string {
 
 function isChildBackedCharacter(char: unknown): boolean {
   const row = (char ?? {}) as Record<string, unknown>;
-  return row.type === 'child' || row.subtype === 'child';
+  return row.source === 'child_profile' || row.source === 'child';
+}
+
+function isChildProfileMirrorCharacterRow(char: unknown): boolean {
+  const row = (char ?? {}) as Record<string, unknown>;
+  return (
+    row.source === 'child_profile' ||
+    row.source === 'child' ||
+    row.type === 'child' ||
+    (row.type === 'person' && row.subtype === 'child')
+  );
+}
+
+function getPreferredSceneCharacterNamesForLimit(
+  spec: StorySpec & { childProfile?: ChildProfileData }
+): string[] {
+  const names: string[] = [];
+  if (typeof spec.childName === 'string' && spec.childName.trim()) {
+    names.push(spec.childName.trim());
+  }
+  if (typeof spec.childProfile?.name === 'string' && spec.childProfile.name.trim()) {
+    names.push(spec.childProfile.name.trim());
+  }
+  for (const character of spec.characters || []) {
+    if (isChildBackedCharacter(character) && character.name?.trim()) {
+      names.push(character.name.trim());
+      const canonicalName = (character as { canonicalName?: unknown }).canonicalName;
+      if (typeof canonicalName === 'string' && canonicalName.trim()) {
+        names.push(canonicalName.trim());
+      }
+    }
+  }
+
+  return Array.from(new Set(names));
 }
 
 /**
@@ -2036,250 +2143,29 @@ async function prepareSceneEnvironmentReference(params: {
   }
 }
 
-type OutfitPlateImageData = NonNullable<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>>>;
-
-function buildStoryOutfitPlateCacheKey(characterName: string, outfitId?: string | null): string {
-  const characterKey = normalizeOutfitPlateCharacterKey(characterName);
-  return outfitId?.trim() ? `${characterKey}::${outfitId.trim()}` : characterKey;
-}
-
-async function loadExistingOutfitPlateImage(params: {
-  storyId: string;
-  storyEnvironmentId: string;
-  characterName: string;
-  outfitId?: string | null;
-  assetStorage: ReturnType<typeof getAssetStorageService>;
-}): Promise<OutfitPlateImageData | null> {
-  const storyPlateKey = buildStoryOutfitPlateCacheKey(params.characterName, params.outfitId);
-  const mapping = await getStoryOutfitPlateCacheRepository().getByStoryEnvAndCharacter(
-    params.storyId,
-    params.storyEnvironmentId,
-    storyPlateKey
-  );
-  if (!mapping) return null;
-
-  const cached = await getOutfitPlateCacheRepository().getById(mapping.cacheId);
-  if (!cached) return null;
-
-  const buffer = await params.assetStorage.getAssetByPath(cached.storagePath);
+function characterDefaultOutfitData(character: any): Partial<CharacterData> {
   return {
-    base64: buffer.toString('base64'),
-    mimeType: 'image/png',
-    storagePath: cached.storagePath,
+    defaultOutfitText: character?.defaultOutfitText || undefined,
+    defaultOutfitEmbedding: Array.isArray(character?.defaultOutfitEmbedding)
+      ? character.defaultOutfitEmbedding
+      : undefined,
+    defaultOutfitFormality: character?.defaultOutfitFormality || undefined,
+    defaultOutfitPresentationGroups: character?.defaultOutfitPresentationGroups || undefined,
+    defaultOutfitPurposeTags: character?.defaultOutfitPurposeTags || undefined,
+    defaultOutfitSeasonTags: character?.defaultOutfitSeasonTags || undefined,
+    defaultOutfitClimateTags: character?.defaultOutfitClimateTags || undefined,
+    defaultOutfitEraTags: character?.defaultOutfitEraTags || undefined,
+    defaultOutfitSettingTags: character?.defaultOutfitSettingTags || undefined,
+    defaultOutfitActivityTags: character?.defaultOutfitActivityTags || undefined,
+    defaultOutfitSilhouetteTags: character?.defaultOutfitSilhouetteTags || undefined,
+    defaultOutfitFootwearTags: character?.defaultOutfitFootwearTags || undefined,
+    defaultOutfitComponentTags: character?.defaultOutfitComponentTags || undefined,
+    defaultOutfitColorPalette: character?.defaultOutfitColorPalette || undefined,
+    defaultOutfitMaterials: character?.defaultOutfitMaterials || undefined,
+    defaultOutfitPatterns: character?.defaultOutfitPatterns || undefined,
+    defaultOutfitDetailTags: character?.defaultOutfitDetailTags || undefined,
+    defaultOutfitCoverageTags: character?.defaultOutfitCoverageTags || undefined,
   };
-}
-
-async function prepareSceneOutfitPlateReferences(params: {
-  storyId: string;
-  storyRequestId?: string;
-  userId: string;
-  normalizedCharacters: string[];
-  characterDescriptionMap: Map<string, CharacterData>;
-  characterReferenceData: Array<{ characterName: string }>;
-  scene: SceneData;
-  currentEnvironmentId?: string;
-  currentEnvironment?: StoryEnvironment;
-  storyOutfits?: StoryOutfitEntry[];
-  imageStyle?: string;
-  ageGroup: string;
-  scenarioCardId?: string;
-  assetStorage: ReturnType<typeof getAssetStorageService>;
-  imageDomain: ReturnType<typeof getImageDomainService>;
-  outfitPlatePending: Map<
-    string,
-    Promise<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null>
-  >;
-  reuseExistingOnly?: boolean;
-}): Promise<
-  Array<{
-    base64: string;
-    mimeType: string;
-    fileUri?: string;
-    source: string;
-    type: string;
-    characterName: string;
-  }>
-> {
-  const {
-    storyId,
-    storyRequestId,
-    userId,
-    normalizedCharacters,
-    characterDescriptionMap,
-    characterReferenceData,
-    scene,
-    currentEnvironmentId,
-    currentEnvironment,
-    storyOutfits,
-    imageStyle,
-    ageGroup,
-    scenarioCardId,
-    assetStorage,
-    imageDomain,
-    outfitPlatePending,
-    reuseExistingOnly,
-  } = params;
-
-  if (!config.image.enableOutfitPlate || !currentEnvironmentId || !currentEnvironment) {
-    return [];
-  }
-
-  const outfitsMerged =
-    resolveCharacterOutfits(scene, {
-      currentEnvironment,
-      ...(storyOutfits && storyOutfits.length > 0 ? { storyOutfits } : {}),
-    }) || {};
-  const maxPlates = config.image.outfitPlateMaxPerScene;
-  const candidates: Array<{
-    displayName: string;
-    outfitPendingKey: string;
-  }> = [];
-
-  for (const mapKey of normalizedCharacters) {
-    if (candidates.length >= maxPlates) break;
-    const charData = characterDescriptionMap.get(mapKey);
-    const displayName = charData?.name || mapKey;
-    if (!shouldGenerateOutfitPlateForCharacter(charData)) continue;
-    if (!sceneCharacterHasVisualReference(displayName, characterReferenceData)) continue;
-    const outfitText = lookupOutfitForCharacterName(displayName, outfitsMerged);
-    if (!outfitText?.trim()) continue;
-    if (isNaturalAppearanceOutfit(outfitText)) continue;
-    const outfitId = lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
-    const storyPlateKey = buildStoryOutfitPlateCacheKey(displayName, outfitId);
-    candidates.push({
-      displayName,
-      outfitPendingKey: `${storyId}\x1f${currentEnvironmentId}\x1f${storyPlateKey}`,
-    });
-  }
-
-  return Promise.all(
-    candidates.map(async ({ displayName, outfitPendingKey }) => {
-      const outfitsMergedLocal =
-        resolveCharacterOutfits(scene, {
-          currentEnvironment,
-          ...(storyOutfits && storyOutfits.length > 0 ? { storyOutfits } : {}),
-        }) || {};
-      const outfitText = lookupOutfitForCharacterName(displayName, outfitsMergedLocal);
-      const outfitId = lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
-      let outfitPromise = outfitPlatePending.get(outfitPendingKey);
-      if (!outfitPromise) {
-        const outfitStartedAt = new Date();
-        outfitPromise = (async () => {
-          try {
-            const plate = reuseExistingOnly
-              ? await loadExistingOutfitPlateImage({
-                  storyId,
-                  storyEnvironmentId: currentEnvironmentId,
-                  characterName: displayName,
-                  outfitId: outfitId ?? undefined,
-                  assetStorage,
-                })
-              : await getOrCreateOutfitPlateImage({
-                  storyId,
-                  userId,
-                  storyEnvironmentId: currentEnvironmentId,
-                  characterName: displayName,
-                  outfitTextRaw: outfitText || '',
-                  outfitId: outfitId ?? undefined,
-                  imageStyle: imageStyle || 'soft_watercolor',
-                  ageGroup,
-                  scenarioCardId,
-                  assetStorage,
-                });
-            await recordStageTiming({
-              storyId,
-              storyRequestId,
-              userId,
-              generationKind: 'story',
-              pipelinePhase: 'asset_generation',
-              operation: 'outfit_plate_image',
-              targetType: 'outfit_plate',
-              targetKey: `${currentEnvironmentId}:${normalizeOutfitPlateCharacterKey(displayName)}:${outfitId ?? ''}`,
-              status: plate ? 'completed' : 'skipped',
-              startedAt: outfitStartedAt,
-              completedAt: new Date(),
-              metadata: {
-                characterName: displayName,
-                storyEnvironmentId: currentEnvironmentId,
-                outfitId: outfitId ?? null,
-                imageStyle: imageStyle || 'soft_watercolor',
-                scenarioCardId,
-                reuseExistingOnly: !!reuseExistingOnly,
-                cacheStatus: reuseExistingOnly ? (plate ? 'hit' : 'miss') : undefined,
-              },
-            });
-            return plate;
-          } catch (error) {
-            await recordStageTiming({
-              storyId,
-              storyRequestId,
-              userId,
-              generationKind: 'story',
-              pipelinePhase: 'asset_generation',
-              operation: 'outfit_plate_image',
-              targetType: 'outfit_plate',
-              targetKey: `${currentEnvironmentId}:${normalizeOutfitPlateCharacterKey(displayName)}:${outfitId ?? ''}`,
-              status: 'failed',
-              startedAt: outfitStartedAt,
-              completedAt: new Date(),
-              metadata: {
-                characterName: displayName,
-                storyEnvironmentId: currentEnvironmentId,
-                outfitId: outfitId ?? null,
-                imageStyle: imageStyle || 'soft_watercolor',
-                errorMessage: error instanceof Error ? error.message : String(error),
-              },
-            });
-            throw error;
-          } finally {
-            outfitPlatePending.delete(outfitPendingKey);
-          }
-        })();
-        outfitPlatePending.set(outfitPendingKey, outfitPromise);
-      }
-
-      const plate = await outfitPromise;
-      if (!plate) return null;
-
-      let plateFileUri = plate.fileUri;
-      if (config.nanoBanana?.enableFilesApi === true && plate.base64) {
-        try {
-          const buf = Buffer.from(plate.base64, 'base64');
-          const uploaded = await imageDomain.uploadReferenceFile(
-            buf,
-            plate.mimeType,
-            `outfit_${normalizeOutfitPlateCharacterKey(displayName)}`,
-            plate.storagePath
-          );
-          if (uploaded) plateFileUri = uploaded.uri;
-        } catch (err) {
-          logger.warn(
-            { err, storyId, characterName: displayName },
-            'Failed to upload outfit plate to Files API'
-          );
-        }
-      }
-
-      return {
-        base64: plateFileUri ? '' : plate.base64,
-        mimeType: plate.mimeType,
-        ...(plateFileUri ? { fileUri: plateFileUri } : {}),
-        source: 'outfit_plate',
-        type: 'outfit_plate_reference',
-        characterName: displayName,
-      };
-    })
-  ).then(
-    (refs) =>
-      refs.filter(Boolean) as Array<{
-        base64: string;
-        mimeType: string;
-        fileUri?: string;
-        source: string;
-        type: string;
-        characterName: string;
-      }>
-  );
 }
 
 /**
@@ -2425,7 +2311,7 @@ export async function processStoryImages(
         // Character names that appear in illustrated scenes (for system instruction + lazy LLM turnaround)
         const characterNamesInIllustratedScenes = new Set<string>();
         for (const scene of scenesToGenerate) {
-          const sceneVisualRaw = scene.sceneVisual || migrateVisualPrompt(scene);
+          const sceneVisualRaw = migrateVisualPrompt(scene);
           let sceneCharNames: string[];
           if (
             sceneVisualRaw?.cameraComposition &&
@@ -2488,10 +2374,8 @@ export async function processStoryImages(
         // On-demand environment image map (shared across parallel scene iterations)
         const environmentImageMap = new Map<string, EnvImageData>();
         const envImagePending = new Map<string, Promise<EnvImageData | null>>();
-        const outfitPlatePending = new Map<
-          string,
-          Promise<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null>
-        >();
+        const outfitPlatePending: SceneOutfitPlatePending = new Map();
+        const dressedTurnaroundPending: SceneDressedTurnaroundPending = new Map();
 
         const storyOutfitsList = (
           Array.isArray((text as any).outfits) ? (text as any).outfits : []
@@ -2629,6 +2513,7 @@ export async function processStoryImages(
           await getStoryRepository().updateRequest(requestId, {
             status: 'completed',
             storyId,
+            errorMessage: null,
           });
           await recordForegroundImagesReady(sceneId, 'foreground_threshold');
           logger.info(
@@ -2655,7 +2540,7 @@ export async function processStoryImages(
             return;
           }
 
-          const sceneVisualRaw = scene.sceneVisual || migrateVisualPrompt(scene);
+          const sceneVisualRaw = migrateVisualPrompt(scene);
           let sceneCharNames: string[];
           if (
             sceneVisualRaw?.cameraComposition &&
@@ -2740,8 +2625,9 @@ export async function processStoryImages(
             );
           })();
 
-          const outfitPlateRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
-            prepareSceneOutfitPlateReferences({
+          const defaultOutfitCharacterKeys = new Set<string>();
+          const dressedTurnaroundRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
+            prepareSceneDressedTurnaroundReferences({
               storyId,
               storyRequestId: requestId,
               userId: request.userId,
@@ -2758,13 +2644,15 @@ export async function processStoryImages(
               assetStorage,
               imageDomain,
               outfitPlatePending,
+              dressedTurnaroundPending,
+              defaultOutfitCharacterKeys,
             })
           );
 
-          const [envImageData, characterReferenceData, outfitPlateRefs] = await Promise.all([
+          const [envImageData, characterReferenceData, dressedTurnaroundRefs] = await Promise.all([
             envReferencePromise,
             characterReferencesPromise,
-            outfitPlateRefsPromise,
+            dressedTurnaroundRefsPromise,
           ]);
 
           const envRefEntry = envImageData
@@ -2782,10 +2670,14 @@ export async function processStoryImages(
               ]
             : [];
 
+          const effectiveCharacterReferenceData = applySceneDressedTurnaroundOverrides(
+            characterReferenceData,
+            dressedTurnaroundRefs,
+          );
           let referenceImageDataArray = [
             ...envRefEntry,
-            ...characterReferenceData,
-            ...outfitPlateRefs,
+            ...effectiveCharacterReferenceData,
+            ...dressedTurnaroundRefs,
           ];
           const bucketResult = applyReferenceBucketLimits(
             referenceImageDataArray,
@@ -2809,7 +2701,7 @@ export async function processStoryImages(
             .filter(Boolean) as CharacterData[];
 
           const characterOutfits =
-            resolveCharacterOutfits(scene, {
+            resolveSceneCharacterOutfits(scene, {
               currentEnvironment,
               storyOutfits: storyOutfitsList.length > 0 ? storyOutfitsList : undefined,
             }) || undefined;
@@ -2841,7 +2733,8 @@ export async function processStoryImages(
               legacyEnvOutfitsPresent,
               hasResolvedCharacterOutfits: !!characterOutfits,
               resolvedCharacterOutfitKeys: characterOutfits ? Object.keys(characterOutfits) : [],
-              outfitPlateRefsCount: outfitPlateRefs.length,
+              dressedTurnaroundRefsCount: dressedTurnaroundRefs.length,
+              defaultOutfitCharacterKeys: Array.from(defaultOutfitCharacterKeys),
             },
             'Generating scene image (parallel pool)'
           );
@@ -2879,6 +2772,7 @@ export async function processStoryImages(
                 imageIndexMap,
                 currentEnvironmentId,
                 currentEnvironment,
+                defaultOutfitCharacterKeys,
                 requestId,
                 onValidationRetry: async () => {
                   await syncForegroundImageProgress({ takingLongerThanExpected: true });
@@ -2903,13 +2797,14 @@ export async function processStoryImages(
                     (ref) =>
                       ref.source === 'imaginary_friend' ||
                       ref.source === 'child_reference' ||
-                      ref.source === 'character_reference'
+                      ref.source === 'character_reference' ||
+                      ref.source === 'character_outfit_turnaround'
                   ).length,
                   objectReferenceCount: referenceImageDataArray.filter(
-                    (ref) => ref.source === 'environment' || ref.source === 'outfit_plate'
+                    (ref) => ref.source === 'environment'
                   ).length,
                   hasEnvironmentImageRef: !!envImageData,
-                  outfitPlateRefsCount: outfitPlateRefs.length,
+                  dressedTurnaroundRefsCount: dressedTurnaroundRefs.length,
                   currentEnvironmentId,
                   index: i + 1,
                   total: scenesToGenerate.length,
@@ -2932,7 +2827,7 @@ export async function processStoryImages(
                 metadata: {
                   referenceCount: referenceImageDataArray.length,
                   hasEnvironmentImageRef: !!envImageData,
-                  outfitPlateRefsCount: outfitPlateRefs.length,
+                  dressedTurnaroundRefsCount: dressedTurnaroundRefs.length,
                   currentEnvironmentId,
                   index: i + 1,
                   total: scenesToGenerate.length,
@@ -3008,7 +2903,11 @@ export async function processStoryImages(
 
     if (config.image.skipGeneration || scenesToGenerate.length === 0) {
       await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
-      await getStoryRepository().updateRequest(requestId, { status: 'completed', storyId });
+      await getStoryRepository().updateRequest(requestId, {
+        status: 'completed',
+        storyId,
+        errorMessage: null,
+      });
       const readyCompletedAt = new Date();
       const readyReason = config.image.skipGeneration ? 'skip_generation' : 'no_scenes';
       await recordStageTiming({
@@ -3087,6 +2986,7 @@ export async function processStoryImages(
 
     // Clear intermediate data now that all images are generated (or skipped)
     await getStoryRepository().updateRequest(requestId, {
+      errorMessage: null,
       intermediateData: null,
     });
 
@@ -3184,6 +3084,89 @@ export interface ContinuationContext {
   previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
 }
 
+function characterIdentityKeys(character: Pick<CharacterData, 'id' | 'name' | 'canonicalName'> & {
+  nameAliases?: string[];
+}): string[] {
+  const keys: string[] = [];
+  if (character.id) keys.push(`id:${character.id}`);
+  const names = [character.name, character.canonicalName, ...(character.nameAliases || [])];
+  for (const name of names) {
+    if (!name || typeof name !== 'string') continue;
+    const clean = stripCharacterIdFromName(name).trim();
+    if (!clean) continue;
+    keys.push(`name:${normalizeCharacterName(clean)}`);
+    keys.push(`cross:${crossScriptIdentityKey(clean)}`);
+  }
+  return [...new Set(keys)];
+}
+
+function mergeCharacterDataForContinuation(
+  preferred: CharacterData[],
+  fallback: CharacterData[]
+): CharacterData[] {
+  const merged: CharacterData[] = [];
+  const seen = new Set<string>();
+
+  for (const character of [...preferred, ...fallback]) {
+    if (!character?.name) continue;
+    const keys = characterIdentityKeys(character);
+    if (keys.some((key) => seen.has(key))) continue;
+    merged.push(character);
+    for (const key of keys) seen.add(key);
+  }
+
+  return merged;
+}
+
+async function loadSelectedCharactersFromRequestForSpec(
+  request: StoryRequestData
+): Promise<CharacterData[]> {
+  const selectedCharactersPromise =
+    request.selectedCharacters && request.selectedCharacters.length > 0
+      ? getCharacterRepository().findByIds(request.userId, request.selectedCharacters)
+      : Promise.resolve([]);
+  const selectedChildrenPromise =
+    request.selectedChildren && request.selectedChildren.length > 0
+      ? getChildProfileRepository().findByIds(request.userId, request.selectedChildren)
+      : Promise.resolve([]);
+
+  const [loadedUserCharacters, childProfilesToInclude] = await Promise.all([
+    selectedCharactersPromise,
+    selectedChildrenPromise,
+  ]);
+  const childProfileCharacters =
+    childProfilesToInclude.length > 0
+      ? await Promise.all(childProfilesToInclude.map((child) => syncChildProfileCharacter(child)))
+      : [];
+  const characterRowsById = new Map<string, (typeof loadedUserCharacters)[number]>();
+  for (const character of [...loadedUserCharacters, ...childProfileCharacters]) {
+    characterRowsById.set(character.id, character);
+  }
+
+  return Array.from(characterRowsById.values())
+    .filter((c) => c.name)
+    .map((c) => ({
+      id: c.id,
+      name: stripCharacterIdFromName(c.name) || c.name,
+      canonicalName: c.name,
+      type: c.type,
+      subtype: (c as any).subtype || undefined,
+      childProfileId: (c as any).childProfileId || undefined,
+      source: isChildProfileMirrorCharacterRow(c) ? 'child_profile' : 'user_provided',
+      traits: c.personality || undefined,
+      referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
+      appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
+      description: c.description || undefined,
+      role: undefined,
+      appearance: undefined,
+      personality: c.personality || undefined,
+      turnaroundSheet: (c as any).turnaroundSheet || undefined,
+      descriptionEn: (c as any).descriptionEn || undefined,
+      aiGeneratedDescription: c.aiGeneratedDescription || undefined,
+      ...characterDefaultOutfitData(c),
+    }));
+}
+
 /**
  * Build story spec from request data
  * When continuationContext is provided, uses requiredCharacters + optionalCharacters instead of loading from request
@@ -3224,13 +3207,33 @@ export async function buildStorySpec(
     // Continuation mode: use characters from continuationContext
     if (options?.continuationContext) {
       const { requiredCharacters, optionalCharacters: optChars } = options.continuationContext;
-      selectedCharacters = [...requiredCharacters];
-      optionalCharacters = optChars && optChars.length > 0 ? optChars : undefined;
-      allCharacters = [...requiredCharacters, ...(optionalCharacters || [])];
+      const requiredFromContext = Array.isArray(requiredCharacters) ? requiredCharacters : [];
+      const optionalFromContext = Array.isArray(optChars) ? optChars : [];
+      const selectedFromRequest = await loadSelectedCharactersFromRequestForSpec(request);
+      selectedCharacters = mergeCharacterDataForContinuation(
+        selectedFromRequest,
+        requiredFromContext
+      );
+      optionalCharacters =
+        optionalFromContext.length > 0
+          ? mergeCharacterDataForContinuation(
+              optionalFromContext,
+              []
+            ).filter(
+              (character) =>
+                !characterIdentityKeys(character).some((key) =>
+                  selectedCharacters.some((selected) =>
+                    characterIdentityKeys(selected).includes(key)
+                  )
+                )
+            )
+          : undefined;
+      allCharacters = mergeCharacterDataForContinuation(selectedCharacters, optionalCharacters || []);
       logger.info(
         {
           requestId: request.id,
-          requiredCount: requiredCharacters.length,
+          requestSelectedCount: selectedFromRequest.length,
+          requiredCount: requiredFromContext.length,
           optionalCount: optionalCharacters?.length ?? 0,
           totalCharacters: allCharacters.length,
         },
@@ -3312,6 +3315,7 @@ export async function buildStorySpec(
             type: c.type,
             subtype: (c as any).subtype || undefined,
             childProfileId: (c as any).childProfileId || undefined,
+            source: isChildProfileMirrorCharacterRow(c) ? 'child_profile' : 'user_provided',
             traits: c.personality || undefined,
             referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
             appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
@@ -3322,6 +3326,7 @@ export async function buildStorySpec(
             turnaroundSheet: (c as any).turnaroundSheet || undefined,
             descriptionEn: (c as any).descriptionEn || undefined,
             aiGeneratedDescription: c.aiGeneratedDescription || undefined,
+            ...characterDefaultOutfitData(c),
           }));
 
         logger.info(
@@ -3861,6 +3866,43 @@ async function generateWithRetry(
   throw lastError;
 }
 
+const API_ASSET_ROUTE_PREFIX = '/api/v1/assets/';
+
+function normalizeReferenceStoragePath(ref: { storagePath?: unknown; url?: unknown }): string | null {
+  const explicitPath = typeof ref.storagePath === 'string' ? ref.storagePath.trim() : '';
+  if (explicitPath) return explicitPath;
+
+  const rawUrl = typeof ref.url === 'string' ? ref.url.trim() : '';
+  if (!rawUrl || rawUrl === 'unknown' || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    return null;
+  }
+
+  const assetPrefixIndex = rawUrl.indexOf(API_ASSET_ROUTE_PREFIX);
+  if (assetPrefixIndex >= 0) {
+    return rawUrl
+      .slice(assetPrefixIndex + API_ASSET_ROUTE_PREFIX.length)
+      .split(/[?#]/)[0] || null;
+  }
+
+  if (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('gs://')) {
+    return null;
+  }
+
+  return rawUrl.replace(/^\/+/, '');
+}
+
+function buildReferencePreviewUrl(ref: { storagePath?: unknown; url?: unknown }): string | null {
+  const storagePath = normalizeReferenceStoragePath(ref);
+  if (storagePath) return `${API_ASSET_ROUTE_PREFIX}${storagePath}`;
+
+  const rawUrl = typeof ref.url === 'string' ? ref.url.trim() : '';
+  if (!rawUrl || rawUrl === 'unknown' || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    return null;
+  }
+
+  return rawUrl;
+}
+
 async function saveImagePromptDebugArtifact(params: {
   storyId: string;
   sceneId: number;
@@ -3888,18 +3930,27 @@ async function saveImagePromptDebugArtifact(params: {
       prompt: params.payload.prompt,
       systemInstruction: params.payload.systemInstruction ?? null,
       aspectRatio: params.payload.aspectRatio ?? null,
-      referenceImages: (params.payload.referenceImages ?? []).map((ref, index) => ({
-        index: index + 1,
-        imageIndex: ref.imageIndex ?? index + 1,
-        referenceBindingId: ref.referenceBindingId ?? null,
-        instructionText: ref.instructionText ?? null,
-        characterName: ref.characterName ?? null,
-        referenceKind: ref.referenceKind ?? null,
-        mimeType: ref.mimeType ?? null,
-        fileUri: ref.fileUri ?? null,
-        url: ref.url ?? null,
-        hasBase64Data: ref.hasBase64Data,
-      })),
+      referenceImages: (params.payload.referenceImages ?? []).map((ref, index) => {
+        const storagePath = normalizeReferenceStoragePath(ref);
+        return {
+          index: index + 1,
+          imageIndex: ref.imageIndex ?? index + 1,
+          referenceBindingId: ref.referenceBindingId ?? null,
+          instructionText: ref.instructionText ?? null,
+          characterName: ref.characterName ?? null,
+          referenceKind: ref.referenceKind ?? null,
+          source: ref.source ?? null,
+          type: ref.type ?? null,
+          environmentId: ref.environmentId ?? null,
+          referenceEnvironmentId: ref.referenceEnvironmentId ?? null,
+          outfitId: ref.outfitId ?? null,
+          mimeType: ref.mimeType ?? null,
+          fileUri: ref.fileUri ?? null,
+          storagePath,
+          url: buildReferencePreviewUrl(ref),
+          hasBase64Data: ref.hasBase64Data,
+        };
+      }),
     };
 
     await fs.writeFile(filePath, JSON.stringify(debugRecord, null, 2), 'utf-8');
@@ -4011,14 +4062,18 @@ export function computeValidationScore(
   validation: ImageValidationResult,
   options?: {
     referenceNamesNormalized?: Set<string>;
-    expectedCharacters?: Array<{ name: string; characterKind: 'human' | 'animal' | 'imaginary' }>;
+    expectedCharacters?: Array<{
+      name: string;
+      characterKind: 'human' | 'animal' | 'imaginary';
+      validateOutfit?: boolean;
+    }>;
     sceneVisual?: SceneVisual;
     validationReferenceImages?: Array<{
       characterName: string;
       imageData?: string;
       fileUri?: string;
       mimeType?: string;
-      referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
+      referenceKind?: 'identity' | 'layout_template';
     }>;
     /** Override scoring params (used by tests); defaults to config.image.validationScoring. */
     scoringOverride?: typeof config.image.validationScoring;
@@ -4032,11 +4087,22 @@ export function computeValidationScore(
   const sceneVisual = options?.sceneVisual;
   const valRefs = options?.validationReferenceImages;
 
-  if (validation.characterCount !== validation.expectedCharacterCount) {
-    score -= 35;
+  const characterCountDelta = Math.abs(
+    validation.characterCount - validation.expectedCharacterCount
+  );
+  if (characterCountDelta > 0) {
+    score -= Math.min(
+      p.characterCountMismatchMaxPenalty,
+      characterCountDelta * p.characterCountMismatchPenalty
+    );
   }
 
   for (const c of validation.characters) {
+    if (!c.found) {
+      score -= p.missingCharacterPenalty;
+      continue;
+    }
+
     const leniency = getSceneAuthorizedValidationLeniency(c.name, sceneVisual, c);
     const identityLenient =
       leniency.transientFormAuthorizedConflict || leniency.expressionAuthorizedConflict;
@@ -4051,12 +4117,12 @@ export function computeValidationScore(
     if (c.duplicated) score -= p.duplicatedPenalty;
     if (!c.matchesColors && !leniency.transientFormAuthorizedConflict)
       score -= p.matchesColorsPenalty;
-    if (!c.matchesOutfit) score -= p.matchesOutfitPenalty;
 
     const norm = stripCharacterIdFromName(c.name).trim().toLowerCase();
     const hasRef = !!(refSet && refSet.size > 0 && refSet.has(norm));
     const exp = expected ? findExpectedForValidationChar(c.name, expected) : undefined;
     const expectedKind = exp?.characterKind ?? null;
+    if (exp?.validateOutfit === true && !c.matchesOutfit) score -= p.matchesOutfitPenalty;
 
     // Kind mismatch: single penalty; model branches below keyed on BOTH sides matching the
     // same kind so we never double-dock for our own mis-routing.
@@ -4081,13 +4147,23 @@ export function computeValidationScore(
 
     // Unified non-human branch: applies to animals AND imaginary creatures when the model
     // agrees on the kind and we have an identity reference (turnaround / reference photo).
-    const nonHumanWithRef =
+    const expectedNonHumanKindMatches = !!(
       expectedKind &&
       expectedKind !== 'human' &&
       c.characterKind !== 'human' &&
-      c.characterKind === expectedKind &&
-      charHasIdentityReference(c.name, valRefs);
-    if (nonHumanWithRef) {
+      c.characterKind === expectedKind
+    );
+    const nonHumanWithRef =
+      expectedNonHumanKindMatches && charHasIdentityReference(c.name, valRefs);
+    const reportedNonHumanIdentityDrift =
+      c.characterKind !== 'human' &&
+      (c.sameOverallDesignRead === false ||
+        c.proportionsMatchReference === false ||
+        (c.silhouetteDriftSeverity != null && c.silhouetteDriftSeverity !== 'none'));
+    const shouldScoreNonHumanIdentity =
+      nonHumanWithRef ||
+      ((expectedKind == null || expectedNonHumanKindMatches) && reportedNonHumanIdentityDrift);
+    if (shouldScoreNonHumanIdentity) {
       if (c.sameOverallDesignRead === false && !identityLenient) {
         score -= 22;
       }
@@ -4119,6 +4195,7 @@ interface ScoredAttempt {
   height: number;
   format: 'png' | 'jpeg' | 'webp';
   providerInteractionId?: string;
+  requestManifest?: Record<string, unknown>;
   score: number;
   validation: ImageValidationResult;
   attempt: number;
@@ -4139,7 +4216,14 @@ type EditRepairReferenceImage = {
   instructionText: string;
   characterName?: string;
   source?: string;
+  type?: string;
+  imageIndex?: number;
+  referenceBindingId?: string;
   referenceKind?: 'character' | 'object';
+  environmentId?: string;
+  referenceEnvironmentId?: string;
+  outfitId?: string;
+  storagePath?: string;
 };
 
 type TargetedEditRepairPlan = {
@@ -4226,30 +4310,30 @@ function validationCharacterNeedsOutfitRepair(c: ImageValidationResult['characte
   return !c.found || c.matchesOutfit === false;
 }
 
-function isOutfitRepairReference(ref: EditRepairReferenceImage): boolean {
-  return (
-    ref.source === 'outfit_plate' || /CLOTHES SOURCE|OUTFIT PLATE/i.test(ref.instructionText ?? '')
-  );
+function isDressedTurnaroundRepairReference(ref: EditRepairReferenceImage): boolean {
+  return ref.source === 'character_outfit_turnaround' || ref.type === 'dressed_turnaround_reference';
 }
 
 function isIdentityRepairReference(ref: EditRepairReferenceImage): boolean {
-  if (isOutfitRepairReference(ref)) return false;
   if (ref.source === 'environment') return false;
   return (
     ref.source === 'imaginary_friend' ||
     ref.source === 'child_reference' ||
     ref.source === 'character_reference' ||
+    ref.source === 'character_outfit_turnaround' ||
     ref.referenceKind === 'character'
   );
 }
 
+function editRepairReferenceLabel(ref: EditRepairReferenceImage): string {
+  return ref.referenceBindingId || (ref.imageIndex ? `REF_IMAGE_${ref.imageIndex}` : 'REF_CHARACTER');
+}
+
 function anonymizeEditRepairReference(ref: EditRepairReferenceImage): EditRepairReferenceImage {
-  const outfit = isOutfitRepairReference(ref);
+  const label = editRepairReferenceLabel(ref);
   return {
     ...ref,
-    instructionText: outfit
-      ? 'CLOTHES SOURCE. Use only the clothing and accessories from this reference. Do not use this image for face, hair, body, age, silhouette, pose, background, or scene layout. Do not draw the mannequin.'
-      : 'PERSON SOURCE. Use this reference only for identity traits listed in the validator issues: hairstyle, face/head identity, age read, body proportions, silhouette, skin and hair palette, and stable marks.',
+    instructionText: `${label}: identity`,
   };
 }
 
@@ -4269,6 +4353,23 @@ function makeRepairIssue(
     kind,
     note: note || 'Visual mismatch with the selected reference.',
   };
+}
+
+function sceneSlotDescriptionForRepairTarget(
+  scene: SceneData | undefined,
+  characterName: string
+): string | null {
+  const camera = scene?.sceneVisual?.cameraComposition;
+  if (!camera || typeof camera === 'string') return null;
+
+  const targetKey = stripCharacterIdFromName(characterName).trim().toLowerCase();
+  if (!targetKey) return null;
+
+  const character = camera.characters.find((candidate) => {
+    const candidateKey = stripCharacterIdFromName(candidate.name).trim().toLowerCase();
+    return candidateKey === targetKey;
+  });
+  return compactValidationText(character?.description);
 }
 
 function shouldIncludeSilhouetteRepairIssue(c: ImageValidationResult['characters'][0]): boolean {
@@ -4330,9 +4431,10 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
   return issues.slice(0, 4);
 }
 
-function buildTargetedEditRepairPlan(
+export function buildTargetedEditRepairPlan(
   refs: EditRepairReferenceImage[] | undefined,
-  validation: ImageValidationResult
+  validation: ImageValidationResult,
+  scene?: SceneData
 ): TargetedEditRepairPlan {
   const needsByName = new Map<
     string,
@@ -4340,6 +4442,11 @@ function buildTargetedEditRepairPlan(
       displayName: string;
       identity: boolean;
       outfit: boolean;
+      found: boolean;
+      actualVisibleDescription?: string | null;
+      sceneSlotDescription?: string | null;
+      validatorNote?: string | null;
+      repairKinds: Set<ImageEditRepairIssueKind>;
     }
   >();
 
@@ -4349,7 +4456,27 @@ function buildTargetedEditRepairPlan(
     const identity = validationCharacterNeedsIdentityRepair(c);
     const outfit = validationCharacterNeedsOutfitRepair(c);
     if (identity || outfit) {
-      needsByName.set(key, { displayName: c.name, identity, outfit });
+      const repairKinds = new Set<ImageEditRepairIssueKind>();
+      if (!c.found) repairKinds.add('presence');
+      if (c.faceMatchesReference === false) repairKinds.add('face');
+      if (c.hairMatchesReference === false) repairKinds.add('hair');
+      if (c.ageReadMatchesReference === false) repairKinds.add('age');
+      if (c.proportionsMatchReference === false) repairKinds.add('body');
+      if (c.sameOverallDesignRead === false) repairKinds.add('design');
+      if (shouldIncludeSilhouetteRepairIssue(c)) repairKinds.add('silhouette');
+      if (c.matchesColors === false) repairKinds.add('colors');
+      if (c.matchesOutfit === false) repairKinds.add('outfit');
+      needsByName.set(key, {
+        displayName: c.name,
+        identity,
+        outfit,
+        found: c.found,
+        actualVisibleDescription: c.actualVisibleDescription ?? null,
+        sceneSlotDescription: sceneSlotDescriptionForRepairTarget(scene, c.name),
+        validatorNote:
+          compactValidationText(c.issue) || compactValidationText(c.identityComparisonSummary),
+        repairKinds,
+      });
     }
   }
 
@@ -4359,12 +4486,20 @@ function buildTargetedEditRepairPlan(
     const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
     const needs = needsByName.get(key);
     if (!needs) return false;
-    if (isOutfitRepairReference(ref)) return needs.outfit;
-    if (isIdentityRepairReference(ref)) return needs.identity;
+    if (isDressedTurnaroundRepairReference(ref)) return needs.identity || needs.outfit;
+    if (isIdentityRepairReference(ref)) return needs.identity || needs.outfit;
     return false;
   });
 
   const selectedReferences = selected.map(anonymizeEditRepairReference);
+  const selectedIdentityRefByName = new Map<string, EditRepairReferenceImage>();
+  for (const ref of selectedReferences) {
+    if (!ref.characterName) continue;
+    const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+    if (key && !selectedIdentityRefByName.has(key)) {
+      selectedIdentityRefByName.set(key, ref);
+    }
+  }
   const needs = Array.from(needsByName.values());
   const hasIdentity = needs.some((n) => n.identity);
   const hasOutfit = needs.some((n) => n.outfit);
@@ -4383,6 +4518,19 @@ function buildTargetedEditRepairPlan(
     manifest: {
       referenceMode: mode,
       issues,
+      subjectReplacements: Array.from(needsByName.entries())
+        .map(([key, need]) => {
+          const ref = selectedIdentityRefByName.get(key);
+          return {
+            characterName: need.displayName,
+            referenceId: ref ? editRepairReferenceLabel(ref) : undefined,
+            actualVisibleDescription: need.actualVisibleDescription ?? null,
+            sceneSlotDescription: need.sceneSlotDescription ?? null,
+            validatorNote: need.validatorNote ?? null,
+            found: need.found,
+            repairKinds: Array.from(need.repairKinds),
+          };
+        })
     },
   };
 }
@@ -4403,12 +4551,12 @@ async function editSceneImageUsingValidationFeedback(params: {
   repairAttempt: number;
   reason: 'validation_failed' | 'manual_regenerate';
   sourceImageStoragePath?: string;
-  previousInteractionId?: string;
 }): Promise<SceneGeneratedImage> {
   const repairStartedAt = new Date();
   const repairPlan = buildTargetedEditRepairPlan(
     params.referenceImagesArray,
-    params.validation
+    params.validation,
+    params.scene
   );
 
   logger.info(
@@ -4443,11 +4591,23 @@ async function editSceneImageUsingValidationFeedback(params: {
       aspectRatio: '16:9',
       referenceImages: repairPlan.references,
       targetedRepairManifest: repairPlan.manifest,
-      previousInteractionId: params.previousInteractionId,
       systemInstruction: buildImageEditSystemInstruction(),
       personGeneration: 'allow_all',
       onUsage: (u) => recordUsage(u, { userId: params.userId ?? null, storyId: params.storyId }),
     });
+
+    if (image.requestManifest) {
+      image.requestManifest = {
+        ...image.requestManifest,
+        previousAttempt: params.previousAttempt,
+        repairAttempt: params.repairAttempt,
+        repairReason: params.reason,
+        validationScoreBeforeRepair: params.validationScore,
+        repairMode: repairPlan.mode,
+        repairManifest: repairPlan.manifest,
+        sourceImageStoragePath: params.sourceImageStoragePath ?? null,
+      };
+    }
 
     await recordStageTiming({
       storyId: params.storyId,
@@ -4719,57 +4879,6 @@ function runDetachedTask(
   });
 }
 
-function mergeCharacterOutfitRecords(
-  env: Record<string, string> | undefined,
-  scene: Record<string, string> | undefined
-): Record<string, string> | undefined {
-  const e = env && Object.keys(env).length ? env : undefined;
-  const s = scene && Object.keys(scene).length ? scene : undefined;
-  if (!e && !s) return undefined;
-  return { ...(e || {}), ...(s || {}) };
-}
-
-/**
- * Resolve character outfits for image generation and validation (same source).
- * New format: storyOutfits[] + scene.characterOutfitIds → descriptions (wins over legacy).
- * Legacy: environment characterOutfits + scene-level characterOutfits overlay.
- */
-function resolveCharacterOutfits(
-  scene: SceneData,
-  context: {
-    currentEnvironment?: { id: string; characterOutfits?: string | Record<string, string> };
-    storyOutfits?: StoryOutfitEntry[];
-  }
-): Record<string, string> | undefined {
-  let fromEnv: Record<string, string> | undefined;
-  const co = context.currentEnvironment?.characterOutfits;
-  if (co) {
-    fromEnv = typeof co === 'string' ? parseCharacterOutfitsString(co) : co;
-  }
-  const rawScene =
-    (scene.sceneVisual as { characterOutfits?: string | Record<string, string> } | undefined)
-      ?.characterOutfits ??
-    (scene as { characterOutfits?: string | Record<string, string> }).characterOutfits;
-  let fromScene: Record<string, string> | undefined;
-  if (rawScene) {
-    fromScene = typeof rawScene === 'string' ? parseCharacterOutfitsString(rawScene) : rawScene;
-  }
-  const legacy = mergeCharacterOutfitRecords(fromEnv, fromScene);
-
-  const rawIds = scene.characterOutfitIds;
-  if (context.storyOutfits?.length && rawIds && Object.keys(rawIds).length > 0) {
-    const fromIds = resolveOutfitDescriptionsFromSceneIds(
-      rawIds,
-      context.storyOutfits as StoryOutfitDefinition[]
-    );
-    if (fromIds && Object.keys(fromIds).length > 0) {
-      return { ...(legacy || {}), ...fromIds };
-    }
-  }
-
-  return legacy;
-}
-
 /**
  * Supports multiple reference images for better character consistency (M9)
  * Returns image data plus scene DB ID and URL for reference tracking.
@@ -4792,6 +4901,7 @@ async function generateSceneImageWithReference(
       source?: string;
       characterName?: string;
       type?: string;
+      isTurnaround?: boolean;
       sceneId?: number;
       url?: string;
       imageIndex?: number;
@@ -4809,6 +4919,22 @@ async function generateSceneImageWithReference(
   }
 ): Promise<{ imageUrl: string; assetId: string }> {
   const startTime = Date.now();
+  const originalCharacterCount = getSceneVisualCharacterCount(scene.sceneVisual);
+  const limitedSceneVisual = migrateVisualPrompt(scene);
+  const limitedCharacterCount = getSceneVisualCharacterCount(limitedSceneVisual);
+  if (originalCharacterCount > limitedCharacterCount) {
+    logger.warn(
+      {
+        storyId,
+        sceneId: scene.sceneId,
+        originalCharacterCount,
+        limitedCharacterCount,
+        maxSceneImageCharacters: MAX_SCENE_IMAGE_CHARACTERS,
+      },
+      'Trimmed scene image characters before image generation'
+    );
+  }
+  scene = { ...scene, sceneVisual: limitedSceneVisual };
 
   try {
     const sceneDbId =
@@ -4874,7 +5000,8 @@ async function generateSceneImageWithReference(
           (ref) =>
             ref.source === 'imaginary_friend' ||
             ref.source === 'child_reference' ||
-            ref.source === 'character_reference'
+            ref.source === 'character_reference' ||
+            ref.source === 'character_outfit_turnaround'
         )
         .map((ref) => ref.characterName),
       sceneCharacterNamesForRefs
@@ -4896,18 +5023,11 @@ async function generateSceneImageWithReference(
         : ref;
     });
 
-    const subjectAliasByImageIndex = buildSubjectAliasByImageIndex(context.imageIndexMap);
-    const referenceBindingByImageIndex = new Map<number, string>();
-    for (const ref of resolvedReferenceImageDataArray || []) {
-      const imageIndex = (ref as any).imageIndex;
-      const bindingId = (ref as any).referenceBindingId;
-      if (typeof imageIndex === 'number' && typeof bindingId === 'string' && bindingId) {
-        referenceBindingByImageIndex.set(imageIndex, bindingId);
-      }
-    }
-
     // Build reference images array with Google Asset Graph numbered labels
-    const referenceImagesArray = resolvedReferenceImageDataArray?.map((ref, index) => {
+    const sceneReferenceDataArray = (resolvedReferenceImageDataArray ?? []).filter(
+      (ref) => (ref as any).source !== 'outfit_plate' && (ref as any).type !== 'outfit_plate_reference'
+    );
+    const referenceImagesArray = sceneReferenceDataArray.map((ref, index) => {
       const refSource = (ref as any).source;
       const refImageIndex = (ref as any).imageIndex ?? index + 1;
       const meta: ReferenceMetadata = {
@@ -4916,11 +5036,10 @@ async function generateSceneImageWithReference(
         source:
           refSource === 'environment'
             ? 'environment'
-            : refSource === 'outfit_plate'
-              ? 'outfit_plate'
-              : refSource === 'imaginary_friend' ||
+            : refSource === 'imaginary_friend' ||
                   refSource === 'child_reference' ||
-                  refSource === 'character_reference'
+                  refSource === 'character_reference' ||
+                  refSource === 'character_outfit_turnaround'
                 ? (refSource as ReferenceMetadata['source'])
                 : 'previous_scene',
         characterName: (ref as any).characterName || 'unknown',
@@ -4930,39 +5049,13 @@ async function generateSceneImageWithReference(
 
       if (refSource === 'environment') {
         // No extra meta for env ref
-      } else if (refSource === 'outfit_plate') {
-        const plateCharName = (ref as any).characterName as string | undefined;
-        const map = context.imageIndexMap;
-        if (plateCharName && map && map.size > 0) {
-          let idIdx = map.get(plateCharName);
-          if (idIdx === undefined) {
-            const base = stripCharacterIdFromName(plateCharName).trim();
-            if (base) idIdx = map.get(base);
-          }
-          if (idIdx === undefined) {
-            const lower = stripCharacterIdFromName(plateCharName).trim().toLowerCase();
-            for (const [k, v] of map) {
-              if (stripCharacterIdFromName(k).trim().toLowerCase() === lower) {
-                idIdx = v;
-                break;
-              }
-            }
-          }
-          meta.identityImageIndex = idIdx;
-          meta.identityReferenceBindingId =
-            idIdx !== undefined ? referenceBindingByImageIndex.get(idIdx) : undefined;
-          meta.subjectAlias = idIdx !== undefined ? subjectAliasByImageIndex.get(idIdx) : undefined;
-          meta.clothesAlias = meta.subjectAlias
-            ? meta.subjectAlias.replace(/^Subject\b/, 'Clothes')
-            : undefined;
-        }
       } else if (
         (ref as any).type === 'imaginary' ||
         (ref as any).type === 'child_reference' ||
-        (ref as any).type === 'character_reference'
+        (ref as any).type === 'character_reference' ||
+        (ref as any).type === 'dressed_turnaround_reference'
       ) {
         meta.isTurnaround = !!(ref as any).isTurnaround;
-        meta.subjectAlias = subjectAliasByImageIndex.get(refImageIndex);
       } else {
         // Scene reference — carry characters present and environment info
         meta.charactersPresent = (ref as any).charactersPresent || [];
@@ -4985,7 +5078,7 @@ async function generateSceneImageWithReference(
         outfitId: (ref as any).outfitId,
         storagePath: (ref as any).storagePath,
         referenceKind:
-          refSource === 'environment' || refSource === 'outfit_plate'
+          refSource === 'environment'
             ? ('object' as const)
             : ('character' as const),
       };
@@ -5017,7 +5110,8 @@ async function generateSceneImageWithReference(
       if (
         (ref.type === 'imaginary' ||
           ref.type === 'child_reference' ||
-          ref.type === 'character_reference') &&
+          ref.type === 'character_reference' ||
+          ref.type === 'dressed_turnaround_reference') &&
         ref.characterName &&
         !imaginaryCharNameSet.has(ref.characterName)
       ) {
@@ -5042,19 +5136,9 @@ async function generateSceneImageWithReference(
 
     // Generate scene image with optional validation + one repair/regeneration pass.
     // Reference images are prepared before this function; validation retries rerender only the
-    // final scene image and reuse the same environment/outfit references.
+    // final scene image and reuse the same environment/full-character references.
     const hasEnvironmentImageRef =
       context.referenceImageDataArray?.some((r: any) => r.source === 'environment') ?? false;
-
-    const outfitPlateImageIndexByCharacter = collectOutfitPlateImageIndices(
-      resolvedReferenceImageDataArray
-    );
-
-    const resolvedSceneOutfits = resolveCharacterOutfits(scene, context);
-    const characterOutfitsForPrompt = omitOutfitProseForNonHumanCharacters(
-      resolvedSceneOutfits,
-      context.characters
-    );
 
     const generateRequest = {
       primaryRead: scene.primaryRead,
@@ -5069,9 +5153,7 @@ async function generateSceneImageWithReference(
       referenceImages: referenceImagesArray, // Array of references
       systemInstruction: context.imageSystemInstruction, // Static: role, art style, format, quality
       imageIndexMap: context.imageIndexMap, // Google Asset Graph: character name -> Image N
-      outfitPlateImageIndexByCharacter,
       currentEnvironment: context.currentEnvironment, // Per-scene environment for user prompt
-      characterOutfits: characterOutfitsForPrompt,
       scenarioCardId: context.scenarioCardId,
       hasEnvironmentImageRef,
     };
@@ -5103,6 +5185,8 @@ async function generateSceneImageWithReference(
 
     let imageRoute: SceneImageRoute = initialImageRoute;
     let image: SceneGeneratedImage;
+    const imageRequestManifests: Record<string, unknown>[] = [];
+    let repairRequestManifest: Record<string, unknown> | undefined;
     if (context.initialEditRepair) {
       try {
         image = await editSceneImageUsingValidationFeedback({
@@ -5122,6 +5206,7 @@ async function generateSceneImageWithReference(
           reason: 'manual_regenerate',
           sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
         });
+        if (image.requestManifest) repairRequestManifest = image.requestManifest;
       } catch (editError) {
         logger.error(
           {
@@ -5152,6 +5237,7 @@ async function generateSceneImageWithReference(
           validationAttempt: firstValidationAttempt,
           imageRoute,
         });
+        if (image.requestManifest) imageRequestManifests.push(image.requestManifest);
       } catch (initialGenerationError) {
         if (initialImageRoute !== 'simple' || !context.complexImageDomain) {
           throw initialGenerationError;
@@ -5184,43 +5270,19 @@ async function generateSceneImageWithReference(
           validationAttempt: firstValidationAttempt,
           imageRoute,
         });
+        if (image.requestManifest) imageRequestManifests.push(image.requestManifest);
       }
     }
     let lastValidation: ImageValidationResult | null = null;
-    const outfitByCharacter = omitOutfitProseForNonHumanCharacters(
-      resolveCharacterOutfits(scene, context),
-      context.characters
-    );
-    const outfitByCharacterForValidation = omitOutfitProseForVisualReferenceCharacters(
-      outfitByCharacter,
-      resolvedReferenceImageDataArray
-    );
-    const envCoRaw = context.currentEnvironment?.characterOutfits;
-    const sceneCoRaw = (
-      scene.sceneVisual as { characterOutfits?: string | Record<string, string> } | undefined
-    )?.characterOutfits;
-    const sceneCoForValidation = omitOutfitProseForVisualReferenceCharacters(
-      normalizeCharacterOutfitsInput(sceneCoRaw),
-      resolvedReferenceImageDataArray
-    );
-    const envCoForValidation = omitOutfitProseForVisualReferenceCharacters(
-      normalizeCharacterOutfitsInput(envCoRaw),
-      resolvedReferenceImageDataArray
-    );
-    const sceneCharacterOutfitsText =
-      sceneCoForValidation && Object.keys(sceneCoForValidation).length > 0
-        ? serializeCharacterOutfitsToStr(sceneCoForValidation)
-        : envCoForValidation && Object.keys(envCoForValidation).length > 0
-          ? serializeCharacterOutfitsToStr(envCoForValidation)
-          : outfitByCharacterForValidation && Object.keys(outfitByCharacterForValidation).length > 0
-            ? serializeCharacterOutfitsToStr(outfitByCharacterForValidation)
-            : undefined;
     const expectedCharacters = buildExpectedCharactersForValidation(
       scene,
       context.characters,
       resolvedReferenceImageDataArray,
-      outfitByCharacterForValidation,
-      { storyId, sceneId: scene.sceneId }
+      {
+        storyId,
+        sceneId: scene.sceneId,
+        defaultOutfitCharacterKeys: context.defaultOutfitCharacterKeys,
+      }
     );
     const validationReferenceImages = await buildValidationReferenceImages({
       expectedCharacters,
@@ -5251,12 +5313,20 @@ async function generateSceneImageWithReference(
               imageData: image.imageData,
               mimeType: image.mimeType,
               expectedCharacters,
-              sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
-              sceneCharacterOutfitsText,
+              sceneVisual: migrateVisualPrompt(scene),
               referenceImages:
                 validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
               logContext: { storyId, sceneId: scene.sceneId, attempt },
-              onUsage: (u) => recordUsage(u, imgUsageContext),
+              onUsage: (u) =>
+                recordUsage(u, {
+                  ...imgUsageContext,
+                  metadata: {
+                    usageTarget: 'image_validation',
+                    subjectType: 'scene_image',
+                    sceneIndex: scene.sceneId,
+                    attempt,
+                  },
+                }),
             });
             await recordStageTiming({
               storyId,
@@ -5327,7 +5397,7 @@ async function generateSceneImageWithReference(
           const score = computeValidationScore(validation, {
             referenceNamesNormalized: validationRefNamesNormalized,
             expectedCharacters,
-            sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
+            sceneVisual: migrateVisualPrompt(scene),
             validationReferenceImages,
           });
 
@@ -5338,6 +5408,7 @@ async function generateSceneImageWithReference(
             height: image.height,
             format: image.format,
             providerInteractionId: image.providerInteractionId,
+            requestManifest: image.requestManifest,
             score,
             validation,
             attempt,
@@ -5462,8 +5533,8 @@ async function generateSceneImageWithReference(
                   previousAttempt: attempt,
                   repairAttempt: attempt + 1,
                   reason: 'validation_failed',
-                  previousInteractionId: image.providerInteractionId,
                 });
+                if (image.requestManifest) repairRequestManifest = image.requestManifest;
                 imageRoute = validationRetryImageRoute;
               } catch (editError) {
                 logger.warn(
@@ -5597,6 +5668,7 @@ async function generateSceneImageWithReference(
             height: best.height,
             format: best.format,
             providerInteractionId: best.providerInteractionId,
+            requestManifest: best.requestManifest,
           };
         }
         imageRoute = best.imageRoute;
@@ -5704,6 +5776,9 @@ async function generateSceneImageWithReference(
             : 'regenerate'
           : 'disabled',
         providerInteractionId: image.providerInteractionId,
+        imageRequestManifest: imageRequestManifests[0] ?? null,
+        imageRequestManifests,
+        repairRequestManifest: repairRequestManifest ?? null,
         imageRoute: finalValidationMeta?.imageRoute ?? imageRoute,
         initialImageRoute,
         validationFallbackImageRoute:
@@ -5712,15 +5787,28 @@ async function generateSceneImageWithReference(
         style: context.userStyle,
         hasSceneVisual: !!scene.sceneVisual,
         referenceImages:
-          resolvedReferenceImageDataArray?.map((ref, index) => ({
-            index: index + 1,
-            source: ref.source || 'unknown',
-            characterName: ref.characterName || 'unknown',
-            type: ref.type || 'unknown',
-            sceneId: ref.sceneId,
-            charactersPresent: (ref as any).charactersPresent || [],
-            url: ref.url || 'unknown',
-          })) || [],
+          resolvedReferenceImageDataArray?.map((ref, index) => {
+            const storagePath = normalizeReferenceStoragePath(ref as { storagePath?: unknown; url?: unknown });
+            return {
+              index: index + 1,
+              imageIndex: (ref as any).imageIndex ?? index + 1,
+              source: ref.source || 'unknown',
+              characterName: ref.characterName || 'unknown',
+              type: ref.type || 'unknown',
+              sceneId: ref.sceneId,
+              environmentId: (ref as any).environmentId ?? null,
+              referenceEnvironmentId: (ref as any).referenceEnvironmentId ?? null,
+              outfitId: (ref as any).outfitId ?? null,
+              referenceBindingId: (ref as any).referenceBindingId ?? null,
+              referenceKind: (ref as any).referenceKind ?? null,
+              charactersPresent: (ref as any).charactersPresent || [],
+              mimeType: (ref as any).mimeType ?? null,
+              fileUri: (ref as any).fileUri ?? null,
+              storagePath,
+              url: buildReferencePreviewUrl(ref as { storagePath?: unknown; url?: unknown }),
+              hasBase64Data: !!(ref as any).base64,
+            };
+          }) || [],
       },
       generationTimeMs: Date.now() - startTime,
       status: 'completed',
@@ -5794,9 +5882,9 @@ interface ReferenceMetadata {
     | 'imaginary_friend'
     | 'child_reference'
     | 'character_reference'
+    | 'character_outfit_turnaround'
     | 'previous_scene'
-    | 'environment'
-    | 'outfit_plate';
+    | 'environment';
   characterName: string;
   characterDescription?: string;
   isTurnaround?: boolean; // True when reference is a turnaround sheet (4 views: FRONT, 3/4, SIDE, BACK)
@@ -5807,119 +5895,42 @@ interface ReferenceMetadata {
   imageIndex: number; // Sequential 1-based index for "Image N:" labels
   currentEnvironmentId?: string; // Environment of the scene being generated
   referenceEnvironmentId?: string; // Environment of the reference scene image
-  /** Character sheet / photo index for outfit_plate refs — cross-linked in instruction text */
-  identityImageIndex?: number;
   referenceBindingId?: string;
-  identityReferenceBindingId?: string;
-  /** Anonymous visual alias sent to the image model instead of the character name */
-  subjectAlias?: string;
-  /** Anonymous clothing alias paired to subjectAlias, e.g. Subject A -> Clothes A */
-  clothesAlias?: string;
 }
 
-function referenceAliasSuffix(index: number): string {
-  let n = index + 1;
-  let out = '';
-  while (n > 0) {
-    n -= 1;
-    out = String.fromCharCode(65 + (n % 26)) + out;
-    n = Math.floor(n / 26);
-  }
-  return out;
-}
+const VALIDATION_WARDROBE_TEXT_RE =
+  /\b(outfit|wardrobe|clothes|clothing|wears?|wearing|dressed|has on|jacket|bomber|crop top|sweater|skirt|tights|pants|trousers|jeans|leggings|shorts|shirt|t-?shirt|dress|coat|hoodie|boots?|shoes?|sneakers?|sandals?|socks?|uniform|costume|accessor(?:y|ies)|bracelet|necklace|bag|backpack|hat|cap)\b/i;
 
-function buildSubjectAliasByImageIndex(imageIndexMap?: Map<string, number>): Map<number, string> {
-  const out = new Map<number, string>();
-  if (!imageIndexMap || imageIndexMap.size === 0) return out;
-  const seenNames = new Set<string>();
-  const indices = [...imageIndexMap.entries()]
-    .filter(([name]) => {
-      const normalized = stripCharacterIdFromName(name).trim().toLowerCase();
-      if (!normalized || seenNames.has(normalized)) return false;
-      seenNames.add(normalized);
-      return true;
-    })
-    .map(([, imageIndex]) => imageIndex)
-    .sort((a, b) => a - b);
-
-  indices.forEach((imageIndex, index) => {
-    out.set(imageIndex, `Subject ${referenceAliasSuffix(index)}`);
-  });
-  return out;
-}
-
-function lookupOutfitForValidationName(
-  compositionName: string,
-  outfits: Record<string, string> | undefined
-): string | undefined {
-  if (!outfits) return undefined;
-  const keys = Object.keys(outfits);
-  if (keys.length === 0) return undefined;
-  if (outfits[compositionName]) return outfits[compositionName];
-  const base = stripCharacterIdFromName(compositionName).trim();
-  if (outfits[base]) return outfits[base];
-  const lower = base.toLowerCase();
-  for (const k of keys) {
-    if (stripCharacterIdFromName(k).trim().toLowerCase() === lower) return outfits[k];
-  }
-  return undefined;
-}
-
-function outfitFallbackFromCamera(
-  compositionName: string,
-  cameraComposition: SceneVisual['cameraComposition']
-): string | undefined {
-  if (!cameraComposition || typeof cameraComposition === 'string') return undefined;
-  const base = stripCharacterIdFromName(compositionName).trim().toLowerCase();
-  const ch = cameraComposition.characters.find(
-    (c) =>
-      c.name === compositionName || stripCharacterIdFromName(c.name).trim().toLowerCase() === base
-  );
-  return ch?.description;
-}
-
-type VisualWardrobeReference = {
-  source?: string;
-  characterName?: string;
-};
-
-function normalizeCharacterOutfitsInput(
-  raw: string | Record<string, string> | undefined
-): Record<string, string> | undefined {
+function stripWardrobeFromValidationDescription(text: string | undefined): string | undefined {
+  const raw = text?.trim();
   if (!raw) return undefined;
-  const parsed = typeof raw === 'string' ? parseCharacterOutfitsString(raw) : raw;
-  return parsed && Object.keys(parsed).length > 0 ? parsed : undefined;
+
+  const keptSentences = raw
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .flatMap((sentence) => {
+      if (!VALIDATION_WARDROBE_TEXT_RE.test(sentence)) return [sentence];
+      return sentence
+        .split(/\s*[,;]\s*/)
+        .map((clause) => clause.trim())
+        .filter((clause) => clause && !VALIDATION_WARDROBE_TEXT_RE.test(clause));
+    });
+
+  const cleaned = keptSentences.join(' ').replace(/\s+/g, ' ').trim();
+  return cleaned || undefined;
 }
 
-function buildVisualWardrobeGroundedNameSet(
-  referenceImageDataArray?: VisualWardrobeReference[]
-): Set<string> {
-  const names = new Set<string>();
-  for (const ref of referenceImageDataArray || []) {
-    if (!ref.characterName) continue;
-    if (ref.source === 'environment') continue;
-    const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
-    if (key) names.add(key);
-  }
-  return names;
-}
-
-function omitOutfitProseForVisualReferenceCharacters(
-  outfits: Record<string, string> | undefined,
-  referenceImageDataArray?: VisualWardrobeReference[]
-): Record<string, string> | undefined {
-  if (!outfits || Object.keys(outfits).length === 0) return outfits;
-  const visualGroundedNames = buildVisualWardrobeGroundedNameSet(referenceImageDataArray);
-  if (visualGroundedNames.size === 0) return outfits;
-
-  const filtered: Record<string, string> = {};
-  for (const [name, outfit] of Object.entries(outfits)) {
-    const key = stripCharacterIdFromName(name).trim().toLowerCase();
-    if (key && visualGroundedNames.has(key)) continue;
-    filtered[name] = outfit;
-  }
-
-  return Object.keys(filtered).length > 0 ? filtered : undefined;
+function validationCharacterDescription(
+  charData: CharacterData | undefined,
+  fallbackName: string
+): string {
+  const raw =
+    (charData as any)?.descriptionEn ||
+    (charData as any)?.aiGeneratedDescription ||
+    charData?.appearance ||
+    charData?.description;
+  return stripWardrobeFromValidationDescription(raw) || fallbackName;
 }
 
 /**
@@ -5932,14 +5943,13 @@ export function buildExpectedCharactersForValidation(
   scene: SceneData,
   characters: CharacterData[],
   referenceImageDataArray?: Array<{ source?: string; characterName?: string }>,
-  outfitByCharacter?: Record<string, string>,
-  logContext?: { storyId?: string; sceneId?: number }
+  logContext?: { storyId?: string; sceneId?: number; defaultOutfitCharacterKeys?: Set<string> }
 ): Array<{
   name: string;
   characterKind: 'human' | 'animal' | 'imaginary';
   speciesSubtype?: string;
   description?: string;
-  expectedOutfitForScene?: string;
+  validateOutfit: boolean;
 }> {
   let sceneCharacterNames: string[];
   const sv = scene.sceneVisual;
@@ -5952,7 +5962,6 @@ export function buildExpectedCharactersForValidation(
 
   // refSource index by normalized character name; used only as fallback when charData.type is unknown.
   const refSourceByName = new Map<string, string>();
-  const visualWardrobeGroundedNames = buildVisualWardrobeGroundedNameSet(referenceImageDataArray);
   for (const ref of referenceImageDataArray || []) {
     if (!ref.characterName || !ref.source) continue;
     const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
@@ -5984,28 +5993,14 @@ export function buildExpectedCharactersForValidation(
     const subtypeRaw = (charData as any)?.subtype;
     const speciesSubtype =
       typeof subtypeRaw === 'string' && subtypeRaw.trim() ? subtypeRaw.trim() : undefined;
-
-    // expectedOutfitForScene is a HUMAN concept (clothing). Animals and imaginary creatures
-    // use "natural appearance" — feeding them pose/camera fallback text confuses matchesOutfit.
-    // Humans with an identity reference or outfit plate use that image as wardrobe grounding;
-    // do not pass text wardrobe as a competing expectation.
-    const fromOutfits = lookupOutfitForValidationName(name, outfitByCharacter);
-    const expectedOutfitForScene =
-      characterKind === 'human' && !visualWardrobeGroundedNames.has(baseLower)
-        ? fromOutfits?.trim() || outfitFallbackFromCamera(name, sv?.cameraComposition) || undefined
-        : undefined;
+    const validateOutfit = shouldValidateOutfitForExpectedCharacter(characterKind, charData);
 
     return {
       name,
       characterKind,
       speciesSubtype,
-      description:
-        (charData as any)?.descriptionEn ||
-        (charData as any)?.aiGeneratedDescription ||
-        charData?.appearance ||
-        charData?.description ||
-        name,
-      expectedOutfitForScene,
+      description: validationCharacterDescription(charData, name),
+      validateOutfit,
     };
   });
 
@@ -6017,7 +6012,10 @@ export function buildExpectedCharactersForValidation(
         name: r.name,
         characterKind: r.characterKind,
         speciesSubtype: r.speciesSubtype,
-        hasOutfit: !!r.expectedOutfitForScene,
+        validateOutfit: r.validateOutfit,
+        keepDefaultOutfit: !!logContext?.defaultOutfitCharacterKeys?.has(
+          stripCharacterIdFromName(r.name).trim().toLowerCase()
+        ),
       })),
     },
     'Built expected characters for image validation'
@@ -6050,6 +6048,10 @@ async function buildValidationReferenceImages(params: {
     base64?: string;
     fileUri?: string;
     mimeType?: string;
+    storagePath?: string;
+    url?: string;
+    type?: string;
+    isTurnaround?: boolean;
   }>;
 }): Promise<
   Array<{
@@ -6057,7 +6059,8 @@ async function buildValidationReferenceImages(params: {
     imageData?: string;
     fileUri?: string;
     mimeType: string;
-    referenceKind?: 'identity' | 'outfit_plate';
+    referenceKind?: 'identity';
+    identitySource?: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
   }>
 > {
   const refs: Array<{
@@ -6065,143 +6068,113 @@ async function buildValidationReferenceImages(params: {
     imageData?: string;
     fileUri?: string;
     mimeType: string;
-    referenceKind?: 'identity' | 'outfit_plate';
+    referenceKind?: 'identity';
+    identitySource?: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
   }> = [];
   const seenIdentity = new Set<string>();
-  const seenOutfitPlate = new Set<string>();
 
   for (const expected of params.expectedCharacters) {
     const char = findCharacterForValidationName(expected.name, params.characters);
     const resolvedName = char?.name || expected.name;
     const normalizedName = stripCharacterIdFromName(resolvedName).trim().toLowerCase();
     if (!normalizedName || seenIdentity.has(normalizedName)) continue;
-    seenIdentity.add(normalizedName);
 
-    const turnaround = (char as any)?.turnaroundSheet as
-      | { url?: string; frontUrl?: string }
-      | null
-      | undefined;
-    const referencePhotoUrl = char?.referencePhotos?.find((photo) => photo?.url)?.url;
-    const chosenSource = turnaround?.url?.trim()
-      ? 'turnaround'
-      : turnaround?.frontUrl?.trim()
-        ? 'front'
-        : referencePhotoUrl?.trim()
-          ? 'reference_photo'
-          : null;
-    const chosenUrl =
-      turnaround?.url?.trim() || turnaround?.frontUrl?.trim() || referencePhotoUrl?.trim();
-
-    if (!chosenUrl) continue;
-
-    try {
-      const data = await loadReferenceImageData(chosenUrl, params.assetStorage);
-      logger.debug(
-        { characterName: resolvedName, chosenSource, chosenUrl },
-        'Selected identity reference for image validation'
-      );
-      refs.push({
-        characterName: resolvedName,
-        imageData: data.base64,
-        mimeType: data.mimeType,
-        referenceKind: 'identity',
-      });
-    } catch (err) {
-      logger.warn(
-        {
-          characterName: resolvedName,
-          chosenUrl,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'Failed to load validation reference image'
-      );
-    }
-  }
-
-  for (const ref of params.referenceImageDataArray || []) {
-    if (ref.source !== 'outfit_plate' || !ref.characterName || !ref.mimeType) continue;
-    const normalizedName = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
-    if (!normalizedName || seenOutfitPlate.has(normalizedName)) continue;
-
-    const refBase = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
-    const expected = params.expectedCharacters.find((c) => {
-      const expectedBase = stripCharacterIdFromName(c.name).trim().toLowerCase();
+    const generatedIdentityRef = (params.referenceImageDataArray || []).find((ref) => {
+      if (!ref.characterName) return false;
+      const refName = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+      if (refName !== normalizedName) return false;
       return (
-        expectedBase === refBase ||
-        c.name.trim().toLowerCase() === ref.characterName!.trim().toLowerCase()
+        ref.source === 'character_outfit_turnaround' ||
+        ref.type === 'dressed_turnaround_reference' ||
+        ref.isTurnaround === true
       );
     });
-    if (!expected) continue;
 
-    if (!ref.fileUri && !ref.base64) continue;
-    seenOutfitPlate.add(normalizedName);
-    refs.push({
-      characterName: ref.characterName,
-      ...(ref.fileUri ? { fileUri: ref.fileUri } : {}),
-      ...(ref.base64 ? { imageData: ref.base64 } : {}),
-      mimeType: ref.mimeType,
-      referenceKind: 'outfit_plate',
-    });
+    if (
+      generatedIdentityRef &&
+      generatedIdentityRef.mimeType &&
+      (generatedIdentityRef.fileUri ||
+        generatedIdentityRef.base64 ||
+        generatedIdentityRef.storagePath ||
+        generatedIdentityRef.url)
+    ) {
+      try {
+        let imageData = generatedIdentityRef.base64;
+        if (!imageData && generatedIdentityRef.storagePath) {
+          const buffer = await params.assetStorage.getAssetByPath(generatedIdentityRef.storagePath);
+          imageData = buffer.toString('base64');
+        }
+        if (!imageData && generatedIdentityRef.url) {
+          imageData = (await loadReferenceImageData(generatedIdentityRef.url, params.assetStorage))
+            .base64;
+        }
+        const identitySource =
+          generatedIdentityRef.source === 'character_outfit_turnaround' ||
+          generatedIdentityRef.type === 'dressed_turnaround_reference'
+            ? 'dressed_turnaround'
+            : 'turnaround';
+        refs.push({
+          characterName: generatedIdentityRef.characterName || resolvedName,
+          ...(generatedIdentityRef.fileUri ? { fileUri: generatedIdentityRef.fileUri } : {}),
+          ...(imageData ? { imageData } : {}),
+          mimeType: generatedIdentityRef.mimeType,
+          referenceKind: 'identity',
+          identitySource,
+        });
+        seenIdentity.add(normalizedName);
+        logger.debug(
+          {
+            characterName: resolvedName,
+            source: generatedIdentityRef.source,
+            type: generatedIdentityRef.type,
+            storagePath: generatedIdentityRef.storagePath,
+            url: generatedIdentityRef.url,
+          },
+          'Selected delivered identity reference for image validation',
+        );
+        continue;
+      } catch (err) {
+        logger.warn(
+          {
+            characterName: resolvedName,
+            storagePath: generatedIdentityRef.storagePath,
+            url: generatedIdentityRef.url,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'Failed to load delivered validation identity reference',
+        );
+      }
+    }
+
+    seenIdentity.add(normalizedName);
+    logger.debug(
+      { characterName: resolvedName },
+      'No delivered turnaround reference for image validation; skipping identity fallback'
+    );
   }
 
   return refs;
 }
 
 /**
- * Build instruction text placed immediately before a reference image.
- * Uses Google's "Image N: <role>" numbered label convention for unambiguous
- * image-to-description mapping. Keeps labels short to avoid text-vs-visual conflicts.
+ * Build the short text placed immediately before a reference image.
+ * The detailed reference roles live in the main prompt/system instruction; this
+ * interleaved label stays minimal so raw manifests do not carry duplicate
+ * Image-N aliases.
  */
 function buildReferenceInstructionText(meta: ReferenceMetadata): string {
-  const imgLabel = `Image ${meta.imageIndex}`;
-  const bindingLabel = meta.referenceBindingId
-    ? referenceBindingLabel({ referenceBindingId: meta.referenceBindingId, imageIndex: meta.imageIndex }, meta.imageIndex)
-    : imgLabel;
-
-  if (meta.source === 'environment') {
-    return `${bindingLabel}: Environment reference — content/layout only, not style. Re-draw in scene art style.`;
-  }
-
-  if (meta.source === 'outfit_plate') {
-    const idIdx = meta.identityImageIndex;
-    const subject = meta.subjectAlias ?? 'the matching subject';
-    const clothes = meta.clothesAlias ?? 'the clothes source';
-    const identityLabel =
-      idIdx && meta.identityReferenceBindingId
-        ? referenceBindingLabel(
-            { referenceBindingId: meta.identityReferenceBindingId, imageIndex: idIdx },
-            idIdx
-          )
-        : idIdx
-          ? `Image ${idIdx}`
-          : 'the matching PERSON SOURCE';
-    const identityPart = idIdx
-      ? `DRAW COMMAND: draw ${subject} from ${identityLabel} wearing ${clothes} from ${bindingLabel}. ${identityLabel} is PERSON SOURCE. ${bindingLabel} is CLOTHES SOURCE only.`
-      : `DRAW COMMAND: draw the matching PERSON SOURCE wearing ${clothes} from ${bindingLabel}. The character reference is PERSON SOURCE. ${bindingLabel} is CLOTHES SOURCE only.`;
-    return `${bindingLabel}: CLOTHES SOURCE ${clothes}. Use only the clothing/accessories from this image. ${identityPart} Do not use ${bindingLabel} for face, hair, body, age, or silhouette. Do not draw the mannequin.`;
-  }
-
-  if (
-    meta.source === 'imaginary_friend' ||
-    meta.source === 'child_reference' ||
-    meta.source === 'character_reference'
-  ) {
-    const sheetType = meta.isTurnaround ? 'Character sheet' : 'Reference photo';
-    const subject = meta.subjectAlias ?? 'Subject';
-    return `${bindingLabel}: PERSON SOURCE ${subject}. ${sheetType}. Use as the locked source of truth for face, exact hairstyle structure, hair placement, age read, body proportions, silhouette, skin/hair palette, and stable marks.`;
-  }
-
-  // Scene reference — env-aware label
-  const sameLocation =
-    meta.currentEnvironmentId &&
-    meta.referenceEnvironmentId &&
-    meta.currentEnvironmentId === meta.referenceEnvironmentId;
-
-  if (sameLocation) {
-    return `${bindingLabel}: Previous scene reference (same location).`;
-  }
-
-  return `${bindingLabel}: Previous scene reference (different location — use for character reference only).`;
+  const id = meta.referenceBindingId ?? `REF_IMAGE_${meta.imageIndex}`;
+  const label =
+    meta.source === 'environment'
+      ? 'an environment reference'
+      : meta.source === 'character_outfit_turnaround'
+        ? 'a dressed character turnaround reference'
+        : meta.source === 'previous_scene'
+          ? 'a previous scene reference'
+          : meta.isTurnaround
+            ? 'a character identity turnaround reference'
+            : 'a character identity reference';
+  return `The next image is ${id}: ${label}.`;
 }
 
 /**
@@ -6236,6 +6209,7 @@ async function saveStory(
     validationTimeMs?: number;
     sceneCount?: number;
     fullTextLength?: number;
+    textValidation?: TextValidationSummary;
   },
   chosenPlotExampleId?: string,
   chosenWorldRuleId?: string
@@ -6301,6 +6275,9 @@ async function saveStory(
           policyChecks: {
             outlineValidated: true,
             textValidated: true,
+            ...(timingData?.textValidation && {
+              textValidation: timingData.textValidation,
+            }),
             timestamp: new Date().toISOString(),
           },
           isPublished: false,
@@ -6448,7 +6425,7 @@ export async function retryStoryImages(
   requestId: string,
   userId: string
 ): Promise<{ id: string; status: string }> {
-  const { enqueueImageBatch } = await import('../jobs/storyJobProcessor');
+  const { enqueueImageJobForGenerationKind } = await import('../jobs/storyJobProcessor');
   const request = await getStoryRepository().findRequestByIdAndUser(requestId, userId);
   if (!request) {
     throw new Error('Story request not found');
@@ -6456,20 +6433,21 @@ export async function retryStoryImages(
   if (request.status !== 'failed') {
     throw new Error('Request is not in failed state');
   }
-  const storyId =
-    request.storyId ??
-    ((request.intermediateData as Record<string, unknown>)?.storyId as string | undefined);
+  const intermediateData = request.intermediateData as Record<string, unknown> | null | undefined;
+  const storyId = request.storyId ?? (intermediateData?.storyId as string | undefined);
   if (!storyId) {
     throw new Error('Cannot retry images: story data missing');
   }
-  const isContinuation = !!(request.intermediateData as Record<string, unknown>)?.isContinuation;
+  const generationKind = intermediateData?.generationKind as StoryGenerationKind;
+  const isContinuation = !!intermediateData?.isContinuation;
+  const imageJobType = imageJobTypeForGenerationKind(generationKind);
   await getStoryRepository().updateRequest(requestId, {
     status: 'processing',
     errorMessage: null,
     updatedAt: new Date(),
   });
-  await enqueueImageBatch(requestId, storyId, isContinuation);
-  logger.info({ requestId, storyId, userId }, 'Retry images enqueued');
+  await enqueueImageJobForGenerationKind(requestId, storyId, generationKind, isContinuation);
+  logger.info({ requestId, storyId, userId, generationKind, imageJobType }, 'Retry images enqueued');
   return { id: requestId, status: 'processing' };
 }
 
@@ -6528,7 +6506,7 @@ export async function getStoryRequestStatus(
       progress: progressData.overallProgress,
       progressData,
       storyId: resolvedStoryId,
-      errorMessage: request.errorMessage,
+      errorMessage: request.status === 'failed' ? request.errorMessage : null,
       createdAt: request.createdAt,
     };
   }
@@ -6554,7 +6532,7 @@ export async function getStoryRequestStatus(
     progress: request.progress,
     progressData: request.progressData as StoryProgress | null,
     storyId: resolvedStoryId,
-    errorMessage: request.errorMessage,
+    errorMessage: request.status === 'failed' ? request.errorMessage : null,
     createdAt: request.createdAt,
   };
 }
@@ -7610,6 +7588,7 @@ export async function regenerateSceneImage(
       type: uc.characters.type,
       subtype: (uc.characters as any).subtype || undefined,
       childProfileId: (uc.characters as any).childProfileId || undefined,
+      source: isChildProfileMirrorCharacterRow(uc.characters) ? 'child_profile' : 'user_provided',
       referencePhotos: uc.characters.referencePhotos as ReferencePhoto[] | undefined,
       appearanceTraits: uc.characters.appearanceTraits as AppearanceTraits | undefined,
       description: uc.characters.description || undefined,
@@ -7619,6 +7598,7 @@ export async function regenerateSceneImage(
       turnaroundSheet: (uc.characters as any).turnaroundSheet || undefined,
       descriptionEn: (uc.characters as any).descriptionEn || undefined,
       aiGeneratedDescription: (uc.characters as any).aiGeneratedDescription || undefined,
+      ...characterDefaultOutfitData(uc.characters),
     }));
   let mergedCharacters = mergeCharacters(userCharacterData, llmCharacters);
 
@@ -7636,6 +7616,7 @@ export async function regenerateSceneImage(
           type: childCharacter.type,
           subtype: (childCharacter as any).subtype || undefined,
           childProfileId: (childCharacter as any).childProfileId || undefined,
+          source: 'child_profile',
           referencePhotos: childCharacter.referencePhotos as ReferencePhoto[] | undefined,
           appearanceTraits: childCharacter.appearanceTraits as AppearanceTraits | undefined,
           description: childCharacter.description || undefined,
@@ -7645,6 +7626,7 @@ export async function regenerateSceneImage(
           turnaroundSheet: (childCharacter as any).turnaroundSheet || undefined,
           descriptionEn: (childCharacter as any).descriptionEn || undefined,
           aiGeneratedDescription: (childCharacter as any).aiGeneratedDescription || undefined,
+          ...characterDefaultOutfitData(childCharacter),
         } as CharacterData);
         mergedCharacters = mergeCharacters(userCharacterData, llmCharacters);
       }
@@ -7674,8 +7656,10 @@ export async function regenerateSceneImage(
     sceneId: scene.sceneId,
     text: scene.text,
     visualPrompt: effectiveVisualPrompt,
-    sceneVisual:
-      sceneFromJson.sceneVisual ?? migrateVisualPrompt({ visualPrompt: effectiveVisualPrompt }),
+    sceneVisual: migrateVisualPrompt({
+      sceneVisual: sceneFromJson.sceneVisual,
+      visualPrompt: effectiveVisualPrompt,
+    }),
     ...(sceneFromJson.environmentId ? { environmentId: sceneFromJson.environmentId } : {}),
     ...(sceneFromJson.characterOutfitIds && Object.keys(sceneFromJson.characterOutfitIds).length > 0
       ? { characterOutfitIds: sceneFromJson.characterOutfitIds as Record<string, string> }
@@ -7712,7 +7696,7 @@ export async function regenerateSceneImage(
     }
   }
 
-  const sceneVisualForNames = sceneData.sceneVisual || migrateVisualPrompt(sceneData);
+  const sceneVisualForNames = migrateVisualPrompt(sceneData);
   let sceneCharNames: string[];
   if (
     sceneVisualForNames?.cameraComposition &&
@@ -7804,18 +7788,21 @@ export async function regenerateSceneImage(
     );
   })();
 
-  const outfitPlatePendingRegen = new Map<
-    string,
-    Promise<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null>
-  >();
-  const initialRepairNeedsOutfitReferences = initialEditRepair
-    ? initialEditRepair.validation.characters.some(validationCharacterNeedsOutfitRepair)
+  const outfitPlatePendingRegen: SceneOutfitPlatePending = new Map();
+  const dressedTurnaroundPendingRegen: SceneDressedTurnaroundPending = new Map();
+  const initialRepairNeedsDressedReferences = initialEditRepair
+    ? initialEditRepair.validation.characters.some(
+        (character) =>
+          validationCharacterNeedsIdentityRepair(character) ||
+          validationCharacterNeedsOutfitRepair(character)
+      )
     : true;
-  const outfitPlateRefsPromise =
-    initialEditRepair && !initialRepairNeedsOutfitReferences
+  const defaultOutfitCharacterKeys = new Set<string>();
+  const dressedTurnaroundRefsPromise =
+    initialEditRepair && !initialRepairNeedsDressedReferences
       ? Promise.resolve([])
       : characterReferencesPromise.then((characterReferenceData) =>
-          prepareSceneOutfitPlateReferences({
+          prepareSceneDressedTurnaroundReferences({
             storyId,
             storyRequestId: story.storyRequestId ?? undefined,
             userId: story.userId,
@@ -7832,14 +7819,16 @@ export async function regenerateSceneImage(
             assetStorage,
             imageDomain,
             outfitPlatePending: outfitPlatePendingRegen,
+            dressedTurnaroundPending: dressedTurnaroundPendingRegen,
+            defaultOutfitCharacterKeys,
             reuseExistingOnly: true,
           })
         );
 
-  const [envImageData, characterReferenceData, outfitPlateRefs] = await Promise.all([
+  const [envImageData, characterReferenceData, dressedTurnaroundRefs] = await Promise.all([
     envReferencePromise,
     characterReferencesPromise,
-    outfitPlateRefsPromise,
+    dressedTurnaroundRefsPromise,
   ]);
 
   const envRefEntry = envImageData
@@ -7855,7 +7844,15 @@ export async function regenerateSceneImage(
       ]
     : [];
 
-  let referenceImageDataArray = [...envRefEntry, ...characterReferenceData, ...outfitPlateRefs];
+  const effectiveCharacterReferenceData = applySceneDressedTurnaroundOverrides(
+    characterReferenceData,
+    dressedTurnaroundRefs,
+  );
+  let referenceImageDataArray = [
+    ...envRefEntry,
+    ...effectiveCharacterReferenceData,
+    ...dressedTurnaroundRefs,
+  ];
   const bucketResult = applyReferenceBucketLimits(
     referenceImageDataArray,
     config.image.maxCharacterReferenceImages,
@@ -7892,7 +7889,7 @@ export async function regenerateSceneImage(
   const enrichedScene: SceneData = { ...sceneData, sceneVisual: composedSceneVisual };
 
   const characterOutfitsRegen =
-    resolveCharacterOutfits(sceneData, {
+    resolveSceneCharacterOutfits(sceneData, {
       currentEnvironment,
       storyOutfits: storyOutfitsRegen.length > 0 ? storyOutfitsRegen : undefined,
     }) || undefined;
@@ -7921,7 +7918,8 @@ export async function regenerateSceneImage(
       legacyEnvOutfitsPresent: legacyEnvOutfitsPresentRegen,
       hasResolvedCharacterOutfits: !!characterOutfitsRegen,
       resolvedCharacterOutfitKeys: characterOutfitsRegen ? Object.keys(characterOutfitsRegen) : [],
-      outfitPlateRefsCount: outfitPlateRefs.length,
+      dressedTurnaroundRefsCount: dressedTurnaroundRefs.length,
+      defaultOutfitCharacterKeys: Array.from(defaultOutfitCharacterKeys),
     },
     'Regenerate scene image: wardrobe context'
   );
@@ -7944,6 +7942,7 @@ export async function regenerateSceneImage(
     imageIndexMap,
     currentEnvironmentId,
     currentEnvironment,
+    defaultOutfitCharacterKeys,
     initialImageRoute: 'complex',
     initialEditRepair,
   });

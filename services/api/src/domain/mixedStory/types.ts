@@ -22,6 +22,13 @@ export interface MixedStoryScript {
   title: string;
   description: string;
   language: string;
+  characters?: Array<{
+    name: string;
+    type: string;
+    description: string;
+    role?: string;
+    personality?: string;
+  }>;
   environments: StoryEnvironment[];
   outfits?: StoryOutfitRow[];
   readingBlocks: MixedStoryReadingBlock[];

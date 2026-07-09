@@ -6,7 +6,7 @@ import { cosineSimilarity } from '../services/embeddingService';
 export interface StoryArtifactMatch {
   artifact: schema.StoryArtifact;
   score: number | null;
-  source: 'embedding' | 'scenario_random' | 'global_random';
+  source: 'embedding' | 'global_random';
   candidateCount: number;
   scenarioFiltered: boolean;
 }
@@ -73,21 +73,14 @@ export class StoryArtifactRepository {
   }
 
   async findBestForStoryContext(params: {
-    scenarioCardId?: string;
     queryEmbedding?: number[];
     topK?: number;
   }): Promise<StoryArtifactMatch | null> {
     const active = await this.findAllActive();
     if (active.length === 0) return null;
 
-    const scenarioCandidates = params.scenarioCardId
-      ? active.filter((artifact) =>
-          Array.isArray(artifact.scenarioAffinities) &&
-          artifact.scenarioAffinities.includes(params.scenarioCardId!)
-        )
-      : [];
-    const candidates = scenarioCandidates.length > 0 ? scenarioCandidates : active;
-    const scenarioFiltered = scenarioCandidates.length > 0;
+    const candidates = active;
+    const scenarioFiltered = false;
 
     if (params.queryEmbedding) {
       const scored = candidates
@@ -122,7 +115,7 @@ export class StoryArtifactRepository {
     return {
       artifact: picked,
       score: null,
-      source: scenarioFiltered ? 'scenario_random' : 'global_random',
+      source: 'global_random',
       candidateCount: candidates.length,
       scenarioFiltered,
     };

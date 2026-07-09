@@ -24,6 +24,7 @@ import { ImageDomainService } from '../domain/image';
 import { AudioDomainService } from '../domain/audio';
 import { GraphicNovelDomainService } from '../domain/graphicNovel';
 import { MixedStoryDomainService } from '../domain/mixedStory';
+import { ChildPhotoValidationService } from './childPhotoValidationService';
 import { ImageRateLimiter } from './imageRateLimiter';
 import { TextRateLimiter } from './textRateLimiter';
 import { stopAudioRateLimiter } from './audioRateLimiter';
@@ -44,6 +45,7 @@ let mapTileImageDomainService: ImageDomainService | null = null;
 let audioDomainService: AudioDomainService | null = null;
 let graphicNovelDomainService: GraphicNovelDomainService | null = null;
 let mixedStoryDomainService: MixedStoryDomainService | null = null;
+let childPhotoValidationService: ChildPhotoValidationService | null = null;
 
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
@@ -126,6 +128,21 @@ export function getMixedStoryDomainService(): MixedStoryDomainService {
   }
 
   return mixedStoryDomainService;
+}
+
+export function getChildPhotoValidationService(): ChildPhotoValidationService {
+  if (!childPhotoValidationService) {
+    logger.info(
+      { model: config.ai.geminiVisionModel || config.ai.validationModel },
+      'Initializing child profile photo validation service'
+    );
+    childPhotoValidationService = new ChildPhotoValidationService(
+      getValidationTextProvider(),
+      config.ai.geminiVisionModel || config.ai.validationModel
+    );
+  }
+
+  return childPhotoValidationService;
 }
 
 /**
@@ -222,7 +239,30 @@ export function getDirectorTextProvider(): ITextProvider {
 }
 
 export function getValidationTextProvider(): ITextProvider {
+  const validationVendor = normalizedValidationTextVendor();
   const validationModel = config.ai.validationModel;
+
+  if (validationVendor === 'openai') {
+    if (config.ai.openaiApiKey?.trim()) {
+      if (!validationTextProvider) {
+        logger.info(
+          { model: config.ai.openaiValidationModel },
+          'Initializing OpenAI primary provider for image validation'
+        );
+        validationTextProvider = new OpenAITextProvider(
+          config.ai.openaiApiKey,
+          config.ai.openaiValidationModel,
+        );
+      }
+
+      return validationTextProvider;
+    }
+
+    logger.warn(
+      { validationVendor, model: config.ai.openaiValidationModel },
+      'OpenAI validation provider unavailable, falling back to Gemini validation provider',
+    );
+  }
 
   if (config.ai.geminiApiKey?.trim()) {
     if (
@@ -247,7 +287,39 @@ export function getValidationTextProvider(): ITextProvider {
   return getTextProvider();
 }
 
+function normalizedValidationTextVendor(): 'gemini' | 'openai' {
+  const vendor = String(config.ai.validationTextVendor || 'gemini').trim().toLowerCase();
+  if (vendor === 'openai') return 'openai';
+  if (vendor === 'gemini') return 'gemini';
+  logger.warn(
+    { validationTextVendor: config.ai.validationTextVendor },
+    'Unknown AI_VALIDATION_TEXT_VENDOR, falling back to gemini',
+  );
+  return 'gemini';
+}
+
 function getImageValidationFallbackTextProvider(): ITextProvider | undefined {
+  const validationVendor = normalizedValidationTextVendor();
+
+  if (validationVendor === 'openai') {
+    if (!config.ai.geminiApiKey?.trim()) {
+      return undefined;
+    }
+
+    if (!imageValidationFallbackTextProvider) {
+      logger.info(
+        { model: config.ai.validationModel },
+        'Initializing Gemini fallback provider for image validation'
+      );
+      imageValidationFallbackTextProvider = new GeminiTextProvider(
+        config.ai.geminiApiKey,
+        config.ai.validationModel,
+      );
+    }
+
+    return imageValidationFallbackTextProvider;
+  }
+
   if (!config.ai.openaiApiKey?.trim()) {
     return undefined;
   }
@@ -652,6 +724,7 @@ export function resetServices(): void {
   audioDomainService = null;
   graphicNovelDomainService = null;
   mixedStoryDomainService = null;
+  childPhotoValidationService = null;
   textProvider = null;
   directorTextProvider = null;
   validationTextProvider = null;

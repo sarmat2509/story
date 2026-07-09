@@ -1,15 +1,26 @@
 {
   "sceneImage": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/ef1da4d9-e9b6-40f1-a9db-eaed24c30d72/image/47b2f44b-e16b-48f6-8000-db6e604bd946.jpg",
-  "sceneCharacterOutfitsText": "Емілія: floral bomber, jeans, pink sneakers. Флеш: natural appearance. Сяйвик: natural appearance, small pouch.",
   "sceneVisual": {
     "setting": "Stars and nebula through porthole; cozy cockpit.",
     "lighting": "Soft ambient cockpit light.",
     "cameraComposition": {
       "shot": "Medium-wide shot at eye level",
       "characters": [
-        { "name": "Емілія", "description": "At porthole", "outfitId": "o_emilia_bomber" },
-        { "name": "Флеш", "description": "Beside her", "outfitId": "o_flash_natural" },
-        { "name": "Сяйвик", "description": "Near controls", "outfitId": "o_syaivik_natural" }
+        {
+          "name": "Емілія",
+          "description": "At porthole",
+          "outfitId": "o_emilia_bomber"
+        },
+        {
+          "name": "Флеш",
+          "description": "Beside her",
+          "outfitId": "o_flash_natural"
+        },
+        {
+          "name": "Сяйвик",
+          "description": "Near controls",
+          "outfitId": "o_syaivik_natural"
+        }
       ]
     }
   },
@@ -17,8 +28,7 @@
     {
       "name": "Емілія",
       "isImaginary": false,
-      "description": "Young girl, pink and blue hair streaks",
-      "expectedOutfitForScene": "Floral bomber jacket, jeans, pink sneakers"
+      "description": "Young girl, pink and blue hair streaks"
     },
     {
       "name": "Флеш",

@@ -1,0 +1,44 @@
+{
+  "sceneImage": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/560ed19f-cdb9-497b-85c9-bff793360e75/rejected/scene4_attempt1.jpg",
+  "sceneVisual": {
+    "setting": "A jungle grotto scene with Емілія and Флеш near the waterfall threshold.",
+    "lighting": "Soft adventure-story lighting.",
+    "cameraComposition": {
+      "shot": "Medium storybook illustration of Емілія and Флеш in the jungle grotto.",
+      "characters": [
+        {
+          "name": "Емілія",
+          "description": "Емілія is visible as the main human character."
+        },
+        {
+          "name": "Флеш",
+          "description": "Флеш is visible as the small companion creature."
+        }
+      ]
+    }
+  },
+  "expectedCharacters": [
+    {
+      "name": "Флеш",
+      "characterKind": "imaginary",
+      "description": "Small companion creature matching the supplied reference.",
+      "validateOutfit": false
+    },
+    {
+      "name": "Емілія",
+      "characterKind": "human",
+      "description": "Human story character matching the supplied turnaround reference.",
+      "validateOutfit": true
+    }
+  ],
+  "references": [
+    {
+      "characterName": "Флеш",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/character_turnaround/1772467467251.jpg"
+    },
+    {
+      "characterName": "Емілія",
+      "path": "uploads/character_outfit_turnaround_cache/2811bcbd-04f9-4b48-a11e-5cc4b235f259.jpg"
+    }
+  ]
+}

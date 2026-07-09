@@ -274,6 +274,195 @@ const MOKHOVYK_SAFE_SCRIPT = {
   ],
 } as any;
 
+const OVERCROWDED_PANEL_SCRIPT = {
+  ...SCRIPT_FIXTURE,
+  title: 'Занадто багато героїв',
+  pages: [
+    {
+      pageNumber: 1,
+      pageRole: 'opening',
+      panels: [
+        {
+          panelId: 'p1-1',
+          dialogue: [
+            { speaker: 'Емілія', text: 'Друзі, подивіться на нитку!' },
+            { speaker: 'Флеш', text: 'Вона показує нам новий шлях.' },
+          ],
+          thoughts: [],
+          visual: {
+            environmentId: 'env_hall',
+            primaryRead: 'too many heroes gather',
+            sceneVisual: {
+              setting: 'Five named heroes crowd around the glowing tapestry.',
+              lighting: 'warm morning light',
+              cameraComposition: {
+                shot: 'wide group shot',
+                characters: ['Емілія', 'Флеш', 'Міра', 'Тік', 'Лео'].map((name, index) => ({
+                  name,
+                  position: `slot_${index}`,
+                  description: 'visible in the group with a readable reaction',
+                  outfitId: name === 'Емілія' ? 'o_emilia_jacket' : `o_${index}`,
+                })),
+              },
+            },
+          },
+        },
+        {
+          panelId: 'p1-2',
+          dialogue: [{ speaker: 'Емілія', text: 'Спершу підемо маленькою командою.' }],
+          thoughts: [],
+          visual: {
+            environmentId: 'env_hall',
+            primaryRead: 'Emilia chooses a smaller team',
+            sceneVisual: {
+              setting: 'Emilia points toward the calmer doorway.',
+              lighting: 'warm morning light',
+              cameraComposition: {
+                shot: 'medium shot',
+                characters: [
+                  {
+                    name: 'Емілія',
+                    position: 'center_foreground',
+                    description: 'pointing gently toward the doorway',
+                    outfitId: 'o_emilia_jacket',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  ],
+} as any;
+
+const STORM_SCRIPT = {
+  title: 'Безпечне світло',
+  description: 'Friends learn to stay safe during a storm.',
+  language: 'uk',
+  environments: [
+    {
+      id: 'env_room',
+      name: 'Safe Room',
+      description: 'A warm room with a wide window and a soft rug.',
+    },
+  ],
+  outfits: [
+    {
+      id: 'o_emilia_jacket',
+      characterName: 'Емілія',
+      description: 'denim jacket, black shirt, patterned pants, sneakers',
+    },
+    { id: 'o_flash_natural', characterName: 'Флеш', description: 'natural appearance' },
+  ],
+  pages: [
+    {
+      pageNumber: 1,
+      pageRole: 'opening',
+      panels: [
+        {
+          panelId: 'p1-1',
+          dialogue: [
+            { speaker: 'Емілія', text: 'Шторм наближається, я сама побіжу в сад!' },
+            { speaker: 'Флеш', text: 'Я полечу за тобою просто зараз.' },
+          ],
+          thoughts: [],
+          visual: {
+            environmentId: 'env_room',
+            primaryRead: 'Emilia runs toward storm',
+            sceneVisual: {
+              setting: 'The door is open and the storm is visible outside.',
+              lighting: 'stormy blue light',
+              cameraComposition: {
+                shot: 'medium shot',
+                characters: [
+                  {
+                    name: 'Емілія',
+                    position: 'left_foreground',
+                    description: 'running toward the open door with urgent expression',
+                    outfitId: 'o_emilia_jacket',
+                  },
+                  {
+                    name: 'Флеш',
+                    position: 'right_midground',
+                    description: 'hovering after Emilia with worried eyes',
+                    outfitId: 'o_flash_natural',
+                  },
+                ],
+              },
+            },
+          },
+        },
+        {
+          panelId: 'p1-2',
+          dialogue: [{ speaker: 'Емілія', text: 'Я швидко все виправлю надворі.' }],
+          thoughts: [],
+          visual: {
+            environmentId: 'env_room',
+            primaryRead: 'Emilia reaches doorway',
+            sceneVisual: {
+              setting: 'Rain blows near the doorway.',
+              lighting: 'stormy blue light',
+              cameraComposition: {
+                shot: 'wide shot',
+                characters: [
+                  {
+                    name: 'Емілія',
+                    position: 'center_foreground',
+                    description: 'standing at the threshold, looking outside',
+                    outfitId: 'o_emilia_jacket',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  ],
+} as any;
+
+const STORM_REPAIRED_PAGE = {
+  ...STORM_SCRIPT.pages[0],
+  panels: [
+    {
+      ...STORM_SCRIPT.pages[0].panels[0],
+      dialogue: [
+        { speaker: 'Емілія', text: 'Шторм сильний, тож ми залишимося біля вікна.' },
+        { speaker: 'Флеш', text: 'Я покличу дорослих, а ми спостерігатимемо звідси.' },
+      ],
+      visual: {
+        ...STORM_SCRIPT.pages[0].panels[0].visual,
+        primaryRead: 'Emilia stays safely inside',
+        sceneVisual: {
+          ...STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual,
+          setting: 'The door is closed; the storm is safely watched through the window.',
+          cameraComposition: {
+            shot: 'medium shot',
+            characters: STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
+          },
+        },
+      },
+    },
+    {
+      ...STORM_SCRIPT.pages[0].panels[1],
+      dialogue: [{ speaker: 'Емілія', text: 'Почекаємо тут, поки надворі стане спокійно.' }],
+      visual: {
+        ...STORM_SCRIPT.pages[0].panels[1].visual,
+        primaryRead: 'friends wait by window',
+        sceneVisual: {
+          ...STORM_SCRIPT.pages[0].panels[1].visual.sceneVisual,
+          setting: 'Emilia and Flash sit on the rug away from the window.',
+          cameraComposition: {
+            shot: 'wide shot',
+            characters: STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
+          },
+        },
+      },
+    },
+  ],
+} as any;
+
 class BlockThenSucceedProvider implements ITextProvider {
   public requests: GenerateStructuredRequest[] = [];
 
@@ -301,7 +490,39 @@ class BadNameThenSucceedProvider implements ITextProvider {
 
   async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
     this.requests.push(request);
-    return (this.requests.length === 1 ? MOKHOVYK_CONFLICT_SCRIPT : MOKHOVYK_SAFE_SCRIPT) as T;
+    if (request.operation === 'graphic_novel_page_repair') {
+      return { page: MOKHOVYK_SAFE_SCRIPT.pages[0] } as T;
+    }
+    return MOKHOVYK_CONFLICT_SCRIPT as T;
+  }
+}
+
+class OvercrowdedPanelThenSucceedProvider implements ITextProvider {
+  public requests: GenerateStructuredRequest[] = [];
+
+  async generateText(_request: GenerateTextRequest): Promise<string> {
+    throw new Error('generateText should not be called');
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
+    this.requests.push(request);
+    return (this.requests.length === 1 ? OVERCROWDED_PANEL_SCRIPT : SCRIPT_FIXTURE) as T;
+  }
+}
+
+class StormPageRepairProvider implements ITextProvider {
+  public requests: GenerateStructuredRequest[] = [];
+
+  async generateText(_request: GenerateTextRequest): Promise<string> {
+    throw new Error('generateText should not be called');
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
+    this.requests.push(request);
+    if (request.operation === 'graphic_novel_page_repair') {
+      return { page: STORM_REPAIRED_PAGE } as T;
+    }
+    return STORM_SCRIPT as T;
   }
 }
 
@@ -323,7 +544,6 @@ class ScriptTextValidationProvider implements ITextProvider {
       sceneId: this.requests.length,
       isValid: result.isValid,
       violations: result.violations ?? [],
-      correctedCameraComposition: null,
     } as T;
   }
 }
@@ -355,6 +575,7 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
   assert.doesNotMatch(provider.requests[1].prompt, /anchor/);
   assert.doesNotMatch(provider.requests[1].prompt, /speechTarget/);
   assert.doesNotMatch(provider.requests[1].prompt, /Bad for a referenced child/);
+  assert.ok(script.outfits?.length, 'graphic novel script keeps outfit rows for dressed turnarounds');
 
   const panelTwoCharacters = script.pages[0].panels[1].visual.sceneVisual.cameraComposition;
   assert.notEqual(typeof panelTwoCharacters, 'string');
@@ -376,9 +597,18 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
     assert.equal(emiliaOutfit?.description, 'denim jacket, black shirt, patterned pants, sneakers');
     assert.equal(flashOutfit?.description, 'natural appearance');
   }
+
+  const fallbackPageCharacters = script.pages[1].panels[0].visual.sceneVisual.cameraComposition;
+  assert.notEqual(typeof fallbackPageCharacters, 'string');
+  if (typeof fallbackPageCharacters !== 'string') {
+    assert.ok(
+      fallbackPageCharacters.characters.some((character) => character.name === 'Емілія'),
+      'normalization fallback pages keep the child anchor visible'
+    );
+  }
 }
 
-async function testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused() {
+async function testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReused() {
   const provider = new BadNameThenSucceedProvider();
   const validationProvider = new ScriptTextValidationProvider([
     {
@@ -402,13 +632,13 @@ async function testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused() 
   assert.equal(provider.requests.length, 2);
   assert.equal(validationProvider.requests.length, 2);
   assert.equal(provider.requests[0].operation, 'graphic_novel_script');
-  assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
+  assert.equal(provider.requests[1].operation, 'graphic_novel_page_repair');
+  assert.match(provider.requests[1].prompt, /reserved moss-creature character/);
   assert.equal(validationProvider.requests[0].operation, 'validateScene');
   assert.match(validationProvider.requests[0].prompt, /RESERVED CHARACTER IDENTITY VALIDATION/);
   assert.match(validationProvider.requests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
   assert.match(validationProvider.requests[0].prompt, /reserved_character_identity_conflict/);
   assert.match(validationProvider.requests[0].prompt, /MOKHOVYK|Моховик/i);
-  assert.equal(script.title, 'Секретна мова небесної черепахи');
 
   const firstCharacter =
     script.pages[0].panels[0].visual.sceneVisual.cameraComposition;
@@ -419,9 +649,58 @@ async function testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused() 
   }
 }
 
+async function testGraphicNovelScriptRetriesWhenPanelCastExceedsLimit() {
+  const provider = new OvercrowdedPanelThenSucceedProvider();
+  const validationProvider = new ScriptTextValidationProvider();
+  const service = new GraphicNovelDomainService(provider, validationProvider);
+
+  const script = await service.generateScript({ spec: SPEC, pageCount: 8 });
+
+  assert.equal(provider.requests.length, 2);
+  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
+  assert.equal(
+    validationProvider.requests.length,
+    1,
+    'overcrowded panel primary script is rejected before LLM text validation'
+  );
+  assert.equal(script.title, 'Світла стрічка');
+}
+
+async function testGraphicNovelScriptRepairsFailedPageBeforeWholeFallback() {
+  const provider = new StormPageRepairProvider();
+  const validationProvider = new ScriptTextValidationProvider([
+    {
+      isValid: false,
+      violations: [
+        {
+          category: 'content_policy',
+          severity: 'medium',
+          message:
+            'A strong storm is approaching, and the child decides to run outside alone.',
+          suggestion: 'Keep the child sheltered and ask for help.',
+        },
+      ],
+    },
+    { isValid: true },
+  ]);
+  const service = new GraphicNovelDomainService(provider, validationProvider);
+
+  const script = await service.generateScript({ spec: SPEC, pageCount: 1 });
+
+  assert.equal(provider.requests.length, 2);
+  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.requests[1].operation, 'graphic_novel_page_repair');
+  assert.match(provider.requests[1].prompt, /A strong storm is approaching/);
+  assert.equal(validationProvider.requests.length, 2);
+  assert.equal(script.pages[0].panels[0].dialogue[0].text, 'Шторм сильний, тож ми залишимося біля вікна.');
+}
+
 async function run() {
   await testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock();
-  await testGraphicNovelScriptRetriesWhenReservedCharacterNameIsReused();
+  await testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReused();
+  await testGraphicNovelScriptRetriesWhenPanelCastExceedsLimit();
+  await testGraphicNovelScriptRepairsFailedPageBeforeWholeFallback();
   console.log('graphicNovelDomainService tests passed');
 }
 

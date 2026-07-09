@@ -105,8 +105,8 @@ export function referenceBindingLabel(
   ref: ReferenceBindingInput,
   imageIndex?: number | null
 ): string {
-  const idx = imageIndex ?? ref.imageIndex;
-  return idx ? `${referenceBindingIdFor(ref)} / Image ${idx}` : referenceBindingIdFor(ref);
+  void imageIndex;
+  return referenceBindingIdFor(ref);
 }
 
 export function formatReferenceBindingInstruction(
@@ -126,6 +126,9 @@ export function formatReferenceBindingInstruction(
   }
 
   if (kind === 'character') {
+    if (ref.type === 'dressed_turnaround_reference' || ref.source === 'character_outfit_turnaround') {
+      return `${id}: dressed character identity reference. Use only when panel content names ${id}. This image is the locked character identity already wearing the required outfit. Do not borrow body parts, clothes, colors, heads, species, silhouette, or facial traits from another REF.`;
+    }
     return `${id}: character identity reference. One character only. Use only when panel content names ${id}. Do not borrow body parts, clothes, colors, heads, species, silhouette, or facial traits from another REF.`;
   }
 

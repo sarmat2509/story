@@ -16,6 +16,22 @@ interface AnalysisResult {
   imaginaryAppearance?: ImaginaryAppearance;
 }
 
+export interface CharacterGenerationUsage {
+  used: number;
+  limit: number;
+  remaining: number;
+  planLimit?: number;
+  bundleBonus?: number;
+}
+
+type EntitlementFeatureUsage = {
+  used?: number;
+  limit?: number;
+  remaining?: number;
+  plan_limit?: number;
+  bundle_bonus?: number;
+};
+
 // Get all characters for the current user
 export const useCharacters = () => {
   return useQuery({
@@ -26,6 +42,31 @@ export const useCharacters = () => {
       );
       return response.data.characters;
     },
+  });
+};
+
+export const useCharacterGenerationUsage = (enabled: boolean = true) => {
+  return useQuery({
+    queryKey: ['entitlements', 'characters_per_month'],
+    queryFn: async (): Promise<CharacterGenerationUsage | null> => {
+      const response = await apiClient.get<{
+        status: string;
+        features?: Record<string, EntitlementFeatureUsage>;
+      }>('/api/v1/entitlements', { skipAuthLogoutOn401: true });
+      const feature = response.data.features?.characters_per_month;
+      if (!feature || typeof feature.limit !== 'number') {
+        return null;
+      }
+
+      return {
+        used: feature.used ?? 0,
+        limit: feature.limit,
+        remaining: feature.remaining ?? Math.max(0, feature.limit - (feature.used ?? 0)),
+        planLimit: feature.plan_limit,
+        bundleBonus: feature.bundle_bonus,
+      };
+    },
+    enabled,
   });
 };
 
@@ -44,6 +85,7 @@ export const useCreateCharacter = () => {
     onSuccess: () => {
       // Invalidate characters list to trigger refetch
       queryClient.invalidateQueries({ queryKey: ['characters'] });
+      queryClient.invalidateQueries({ queryKey: ['entitlements'] });
     },
   });
 };
@@ -62,6 +104,7 @@ export const useUpdateCharacter = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['characters'] });
+      queryClient.invalidateQueries({ queryKey: ['entitlements'] });
     },
   });
 };

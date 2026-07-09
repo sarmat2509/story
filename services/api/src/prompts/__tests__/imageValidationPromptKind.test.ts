@@ -14,8 +14,8 @@ import {
 } from '../image/ImageValidationPrompt';
 
 function testCacheKeysBumped() {
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v11');
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v4');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v19');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v7');
 
   const full = getImageValidationCachedPrefix(true);
   const lite = getImageValidationCachedPrefix(false);
@@ -39,28 +39,36 @@ function testCacheKeysBumped() {
     'Full prompt should tell the model to leave human-identity slots null for non-humans'
   );
   assert.ok(
-    full.content.includes('hairstyle must be compared structurally'),
-    'Full prompt should require structural hairstyle comparison'
+    full.content.includes('HUMAN hair: broad color is not enough'),
+    'Full prompt should reject broad-color-only hair matches'
   );
   assert.ok(
     full.content.includes('hair color zoning'),
     'Full prompt should require hair color zoning comparison'
   );
   assert.ok(
-    full.content.includes('places color streaks in the wrong hair sections'),
-    'Full prompt should fail wrong placement of accent hair colors'
+    full.content.includes('high back ponytail becoming front braids'),
+    'Full prompt should fail visible structural hairstyle drift'
   );
   assert.ok(
     full.content.includes('HUMAN face must be evaluated as its own identity slot'),
     'Full prompt should require separate human face evaluation'
   );
   assert.ok(
-    full.content.includes('HUMAN face and hair booleans must be independent'),
-    'Full prompt should keep face and hair booleans independent'
+    full.content.includes('faceMatchesReference=null and say the face check was skipped'),
+    'Full prompt should skip face comparison when the face/head is hidden'
   );
   assert.ok(
-    full.content.includes('Outfit plates are clothing-only references'),
-    'Full prompt should keep outfit plates from weakening identity checks'
+    full.content.includes('HUMAN face and hair fields must be independent'),
+    'Full prompt should keep face and hair fields independent'
+  );
+  assert.ok(
+    full.content.includes('No separate outfit plate or text outfit description is used for final scene validation.'),
+    'Full prompt should reject separate outfit/text outfit validation inputs'
+  );
+  assert.ok(
+    full.content.includes('Validate outfit against the attached full-character visual reference.'),
+    'Full prompt should validate wardrobe only against full-character visual references'
   );
   assert.ok(
     full.content.includes('without its own IDENTITY mapping'),
@@ -200,7 +208,7 @@ function testTurnaroundIdentityReferenceIsExplicit() {
 
   assert.ok(runtime.includes('Image 2: turnaround identity reference for "Mia"'));
   assert.ok(runtime.includes('"Mia" -> Image 2 [HUMAN; IDENTITY_TURNAROUND]'));
-  assert.ok(runtime.includes('strict multi-view model sheet'));
+  assert.ok(runtime.includes('strict multi-view full-character model sheet'));
 }
 
 testCacheKeysBumped();

@@ -274,14 +274,65 @@ async function releaseQuotaAfterTextPermanentFailure(
   );
 }
 
+async function markTextRequestAfterPermanentFailure(
+  job: TextGenerationJob,
+  error: unknown
+): Promise<void> {
+  await releaseQuotaAfterTextPermanentFailure(job.requestId, error);
+
+  const request = await getStoryRepository().findRequestById(job.requestId);
+  const storyId =
+    request?.storyId ??
+    ((request?.intermediateData as Record<string, unknown> | null | undefined)?.storyId as
+      | string
+      | undefined) ??
+    null;
+  const existingStory = storyId ? await getStoryRepository().findById(storyId) : null;
+  const persistedStoryId = existingStory ? storyId : null;
+
+  if (storyId && !persistedStoryId) {
+    logger.warn(
+      { requestId: job.requestId, storyId },
+      'Skipping failed request storyId update because story no longer exists'
+    );
+  }
+
+  await getStoryRepository().updateRequest(job.requestId, {
+    status: 'failed',
+    ...(persistedStoryId && { storyId: persistedStoryId }),
+    errorMessage: errorMessage(error),
+    updatedAt: new Date(),
+  });
+
+  logger.info(
+    {
+      requestId: job.requestId,
+      storyId: persistedStoryId,
+      retries: job.retries,
+      error: errorMessage(error),
+    },
+    'Text request marked failed after permanent queue failure'
+  );
+}
+
 async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, error: unknown): Promise<void> {
   if (job.type !== 'image_batch' && job.type !== 'graphic_novel_pages') {
     return;
   }
 
+  const existingStory = job.storyId ? await getStoryRepository().findById(job.storyId) : null;
+  const persistedStoryId = existingStory ? job.storyId : null;
+
+  if (job.storyId && !persistedStoryId) {
+    logger.warn(
+      { requestId: job.requestId, storyId: job.storyId },
+      'Skipping failed image request storyId update because story no longer exists'
+    );
+  }
+
   await getStoryRepository().updateRequest(job.requestId, {
     status: 'failed',
-    storyId: job.storyId,
+    ...(persistedStoryId && { storyId: persistedStoryId }),
     errorMessage:
       job.type === 'graphic_novel_pages'
         ? 'Graphic novel pages could not be completed. Please try again.'
@@ -292,7 +343,7 @@ async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, er
   logger.info(
     {
       requestId: job.requestId,
-      storyId: job.storyId,
+      storyId: persistedStoryId,
       retries: job.retries,
       error: errorMessage(error),
     },
@@ -310,8 +361,7 @@ export const textQueue = new DurableJobQueue<TextGenerationJob>({
   name: 'text',
   maxConcurrency: () => config.queue.textConcurrency,
   processor: processTextGeneration,
-  onPermanentFailure: (job, error) =>
-    releaseQuotaAfterTextPermanentFailure(job.requestId, error),
+  onPermanentFailure: markTextRequestAfterPermanentFailure,
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -339,6 +389,24 @@ export function enqueueImageBatch(requestId: string, storyId: string, isContinua
     storyId,
     isContinuation,
   });
+}
+
+export function enqueueImageJobForGenerationKind(
+  requestId: string,
+  storyId: string,
+  generationKind: unknown,
+  isContinuation = false
+): Promise<string> {
+  const type = imageJobTypeForGenerationKind(generationKind as any);
+  if (type === 'graphic_novel_pages') {
+    return imageQueue.addJob({
+      type,
+      requestId,
+      storyId,
+    });
+  }
+
+  return enqueueImageBatch(requestId, storyId, isContinuation);
 }
 
 /**
@@ -457,6 +525,7 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
       await getStoryRepository().updateRequest(job.requestId, {
         status: 'completed',
         storyId,
+        errorMessage: null,
         updatedAt: new Date(),
       });
     } catch (dbError) {

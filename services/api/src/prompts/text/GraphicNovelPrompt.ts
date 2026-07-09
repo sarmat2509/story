@@ -1,24 +1,40 @@
 import type { StorySpec } from '../../ai/types';
+import type { GraphicNovelPageScript, GraphicNovelScript } from '../../domain/graphicNovel/types';
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 import {
   formatContinuationLocationMemory,
   formatContinuationOutfitMemory,
   formatContinuationStoryContext,
+  formatContactGeometryWriterRule,
   formatContentPolicySection,
   formatReferenceGroundedCharacterRules,
+  formatSceneVisualStagingDeltaRule,
   formatStoryTitleSection,
-  formatStructuredEnvironmentRules,
   formatStructuredOutfitRules,
+  formatStructuredEnvironmentRules,
   formatStructuredSpeakerNameRules,
   formatStructuredStoryInputSection,
   formatWriterCharacterName,
+  structuredCameraCharacterOutfitIdJsonSchema,
+  structuredOutfitsJsonSchema,
   type ContinuationCharacter,
   type ContinuationPromptContext,
 } from '../helpers';
+import {
+  visualCharacterReferenceLabelRegistryLines,
+  visualCharacterReferenceLabelsFromCharacters,
+  type VisualCharacterReferenceLabel,
+  type VisualReferenceCharacterInput,
+} from '../visualReferenceLabels';
 
 export const GRAPHIC_NOVEL_LINE_MAX_CHARS = 110;
 export const GRAPHIC_NOVEL_CAPTION_MAX_CHARS = 90;
 export const GRAPHIC_NOVEL_SPEAKER_MAX_CHARS = 40;
+export const GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS = 3;
+const GRAPHIC_NOVEL_SUGGESTED_PAGE_FOCUS_SUPPORTING_CHARACTERS = 2;
+const GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE = formatSceneVisualStagingDeltaRule(
+  'visual.sceneVisual.setting'
+);
 
 export interface GraphicNovelPanelCountRange {
   min: number;
@@ -169,6 +185,53 @@ export function graphicNovelCharacterList(
   return sections.join('\n');
 }
 
+function visualReferenceCharacterInputs(
+  spec: StorySpec,
+  continuationContext?: ContinuationPromptContext
+): VisualReferenceCharacterInput[] {
+  return [
+    ...(spec.characters ?? []),
+    ...(continuationContext?.requiredCharacters ?? []),
+    ...(continuationContext?.optionalCharacters ?? []),
+  ];
+}
+
+export function graphicNovelVisualReferenceLabelSection(
+  spec: StorySpec,
+  continuationContext?: ContinuationPromptContext,
+  visualReferenceLabels?: VisualCharacterReferenceLabel[]
+): string {
+  const labels =
+    visualReferenceLabels ??
+    visualCharacterReferenceLabelsFromCharacters(
+      visualReferenceCharacterInputs(spec, continuationContext)
+    );
+  const lines = visualCharacterReferenceLabelRegistryLines(labels);
+  if (lines.length === 0) {
+    return [
+      'VISUAL CHARACTER REFERENCES:',
+      '- No precomputed REF_CH_* labels are available. Use exact story names in speaker/name fields and keep visual text explicit without inventing REF labels.',
+    ].join('\n');
+  }
+
+  return [
+    'VISUAL CHARACTER REFERENCES:',
+    ...lines,
+    '- Use these REF_CH_* labels only inside visual fields: visual.primaryRead, visual.sceneVisual.setting, visual.sceneVisual.cameraComposition.shot, visual.sceneVisual.cameraComposition.characters[].description, and visual.sceneVisual.lighting.',
+    '- Keep dialogue[].speaker, thoughts[].speaker, and visual.sceneVisual.cameraComposition.characters[].name as exact story names, not REF_CH_* labels.',
+    '- Never use REF_CH_* labels in title, description, prose text, dialogue text, thought text, captions, or speaker names.',
+    '- When a listed character is mentioned in visual text, write its REF_CH_* label instead of the natural-language character name.',
+    '- If a REF_CH_* label appears anywhere in a panel visual, that same character must appear in that panel cameraComposition.characters[] row.',
+    '- Newly invented characters do not have REF_CH labels while you write this JSON. If a newly invented named helper/creature/object is visible, acted on, or named by primaryRead/setting, include its exact characters[].name in that panel cameraComposition.characters[] row.',
+    '- Visual spatial relationships must identify exact subjects. Do not write vague relationship/group words like "friend", "friends", "his friends", "her friends", "the group", "everyone", "others", "them", "companions", or "the team" in visual fields.',
+    '- Instead write explicit relationships such as "standing between REF_CH_A and REF_CH_B", "looking at REF_CH_A", or "beside REF_CH_B". For newly invented characters without REF labels, use the exact characters[].name.',
+  ].join('\n');
+}
+
+type VisualArtifactReference = {
+  referenceId: string;
+};
+
 function safetyFallbackCharacterList(spec: StorySpec): string {
   if (!spec.characters?.length) return 'No preselected characters.';
   return spec.characters
@@ -178,6 +241,145 @@ function safetyFallbackCharacterList(spec: StorySpec): string {
       return `- ${character.name} (${characterType}${role}): use this exact speaker name when this character talks.`;
     })
     .join('\n');
+}
+
+function pushUniquePromptName(names: string[], value: unknown): void {
+  if (typeof value !== 'string') return;
+  const name = formatWriterCharacterName(value);
+  if (!name) return;
+  const key = name.normalize('NFC').toLocaleLowerCase();
+  if (names.some((existing) => existing.normalize('NFC').toLocaleLowerCase() === key)) return;
+  names.push(name);
+}
+
+function graphicNovelCoreCastNames(
+  spec: StorySpec,
+  continuationContext?: ContinuationPromptContext
+): string[] {
+  const names: string[] = [];
+  for (const character of continuationContext?.requiredCharacters || []) {
+    pushUniquePromptName(names, character.name);
+  }
+  for (const character of spec.characters || []) {
+    pushUniquePromptName(names, character.name);
+  }
+  return names;
+}
+
+function graphicNovelEveryPageChildNames(spec: StorySpec): string[] {
+  const names: string[] = [];
+  for (const character of spec.characters || []) {
+    if (String(character.type || '').toLowerCase() === 'child') {
+      pushUniquePromptName(names, character.name);
+    }
+  }
+  return names;
+}
+
+function hashPromptSeed(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededPromptRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffledPromptNames(names: string[], seedInput: string): string[] {
+  const shuffled = [...names];
+  const random = seededPromptRandom(hashPromptSeed(seedInput));
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function suggestedPageFocus(
+  anchorNames: string[],
+  rotatingNames: string[],
+  pageIndex: number
+): string[] {
+  const supportingSlots =
+    anchorNames.length > 0
+      ? GRAPHIC_NOVEL_SUGGESTED_PAGE_FOCUS_SUPPORTING_CHARACTERS
+      : GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS;
+  const cast = anchorNames.slice();
+  if (rotatingNames.length === 0) return cast;
+  if (rotatingNames.length <= supportingSlots) return [...cast, ...rotatingNames];
+
+  const selected: string[] = [];
+  const stride = Math.max(1, supportingSlots);
+  const start = (pageIndex * stride) % rotatingNames.length;
+  for (
+    let offset = 0;
+    offset < rotatingNames.length && selected.length < supportingSlots;
+    offset += 1
+  ) {
+    selected.push(rotatingNames[(start + offset) % rotatingNames.length]);
+  }
+  return [...cast, ...selected];
+}
+
+export function graphicNovelCastCoverageRules(params: {
+  spec: StorySpec;
+  pageCount: number;
+  continuationContext?: ContinuationPromptContext;
+}): string {
+  const coreNames = graphicNovelCoreCastNames(params.spec, params.continuationContext);
+  const childAnchorNames = graphicNovelEveryPageChildNames(params.spec);
+  const childAnchorKeys = new Set(
+    childAnchorNames.map((name) => name.normalize('NFC').toLocaleLowerCase())
+  );
+  const seedInput = [
+    params.spec.language,
+    params.spec.ageGroup,
+    params.spec.goal,
+    params.spec.goalName,
+    params.spec.scenarioCard?.id,
+    params.spec.scenarioCard?.name,
+    params.spec.userNotes,
+    coreNames.join('|'),
+    String(params.pageCount),
+  ]
+    .filter(Boolean)
+    .join('|');
+  const rotatingNames = shuffledPromptNames(
+    coreNames.filter((name) => !childAnchorKeys.has(name.normalize('NFC').toLocaleLowerCase())),
+    seedInput
+  );
+
+  const rotation =
+    coreNames.length > 0
+      ? Array.from({ length: params.pageCount }, (_, index) => {
+          const cast = suggestedPageFocus(childAnchorNames, rotatingNames, index);
+          return `- Page ${index + 1} suggested focus: ${cast.join(', ')}`;
+        }).join('\n')
+      : '- No preselected core cast; keep any invented named cast small and rotate focus.';
+  const childAnchorRule =
+    childAnchorNames.length > 0
+      ? `- EVERY-PAGE CHILD PROTAGONIST: ${childAnchorNames.join(', ')} must appear visibly on every page, in at least one panel cameraComposition row on that page. The child protagonist may speak, think, act, observe, or react, but must be on-page.`
+      : '- No child protagonist is listed; rotate the core cast normally.';
+
+  return [
+    '- There is no page-level character-count cap. A page may use more heroes across separate panels when the story needs it.',
+    `- HARD PANEL LIMIT: each individual panel may use at most ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS} unique named characters total, counting dialogue speakers, thought speakers, and all visual.sceneVisual.cameraComposition.characters in that one panel.`,
+    childAnchorRule,
+    '- Rotate supporting heroes across pages and panels so every preselected/core character visibly appears at least once when the page count makes that possible.',
+    '- The focus order below is intentionally shuffled for this story so different pages naturally feature different heroes, but it is not a page-level hard cap:',
+    rotation,
+  ].join('\n');
 }
 
 export function ageRules(ageGroup: string): string {
@@ -316,18 +518,54 @@ export function thoughtBubbleRules(ageGroup: string, pageCount: number): string 
   return 'Use thoughts sparingly, only when the inner reaction is clearer or funnier than spoken dialogue.';
 }
 
-export function closingArtifactRules(spec: StorySpec): string {
+export function comicPanelCameraVarietyRules(): string {
+  return [
+    'COMIC CAMERA VARIETY:',
+    '- Across each multi-panel page, vary cameraComposition.shot. Do not repeat the same shot scale, camera angle, or environment slice in every panel.',
+    '- Pages with 3+ panels must include at least one wide/establishing shot and at least one extreme close-up on hands, face, a story object, or a key detail. Pages with 4+ panels should mix wide, medium, close-up/extreme close-up, and a distinct side/low/high/over-shoulder angle when the story allows.',
+    '- When panels reuse one environment, choose different fixed-location slices: far-left zone, far-right zone, central object/detail, and full wide view. Name visible landmarks from environment.description in the shot, such as door/steps, railing/bench/sea, telescope/cliffs/shoreline, or the full terrace view when those landmarks exist.',
+    '- cameraComposition.shot must state shot scale + viewpoint/angle + environment slice, not only "medium shot".',
+  ].join('\n');
+}
+
+export function closingArtifactRules(
+  spec: StorySpec,
+  visualArtifactReference?: VisualArtifactReference
+): string {
   if (!spec.closingArtifact) {
     return 'No fixed keepsake artifact is required.';
   }
 
-  return [
+  const lines = [
     `Closing keepsake artifact: ${spec.closingArtifact.title}.`,
+    `Artifact identity: ${spec.closingArtifact.description}`,
+    'Treat the artifact title and identity as canonical. Do not replace it with a generic gift, tool, instrument, jewel, key, or token when the catalog title is more specific.',
     `On the final page, include exactly one short dialogue, thought, or caption text with the artifact phrase wrapped in braces, using "${spec.closingArtifact.title}" as the artifact concept.`,
     'Write the words inside braces in the natural grammar/case for the sentence language. If the artifact appears in the middle of a sentence, do not force Title Case; use lowercase or inflection when that reads naturally.',
     `Good English example: "This {star key} will remind us..." Good Ukrainian example: "Ця {дерев'яна маска} нагадуватиме..."`,
     'Keep the marker inside dialogue[].text, thoughts[].text, or caption only. Do not put artifact braces in visual fields.',
     'The marker must fit the same character limit as any other bubble/caption text.',
+  ];
+
+  if (visualArtifactReference?.referenceId) {
+    lines.push(
+      `Visual artifact reference: ${visualArtifactReference.referenceId}.`,
+      `When the keepsake is visible in a panel, visual.primaryRead, visual.sceneVisual.setting, cameraComposition.shot, cameraComposition.characters[].description, or lighting must name ${visualArtifactReference.referenceId} instead of a generic object phrase.`,
+      `Use ${visualArtifactReference.referenceId} from the first visible appearance of this keepsake, even before characters know its name: falling object, sparkling object, gift, clue, token, object in hands, or object being offered all count as the same keepsake.`,
+      `If dialogue, thought, or caption text contains the braced artifact phrase, the same panel visual must also include ${visualArtifactReference.referenceId}.`,
+      `The visible object must read as "${spec.closingArtifact.title}" using the object reference image; do not call or depict it as a generic golden instrument/artifact/sparkle/butterfly/fish/key if the title is more specific.`
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function graphicNovelHazardSafetyRules(): string {
+  return [
+    '- If weather, storm, fire, water, roads, heights, getting stuck, darkness, or any risky situation appears, stage the story so children stay safe.',
+    '- Children must not run into a storm, road, water, fire, dangerous height, dark isolated place, or rescue scene without adult/teacher/parent guidance.',
+    '- Prefer safe shelter, indoor observation, asking an adult, calling for help, or a friendly magical helper making the situation harmless before children act.',
+    '- If the plot needs urgency, make it gentle and symbolic: a puzzle, color signal, soft glow, missing toy, blocked path, or creature asking for help from a safe distance.',
   ].join('\n');
 }
 
@@ -336,8 +574,17 @@ export function buildGraphicNovelPrompt(params: {
   pageCount: number;
   isContinuation?: boolean;
   continuationContext?: ContinuationPromptContext;
+  visualReferenceLabels?: VisualCharacterReferenceLabel[];
+  visualArtifactReferenceLabel?: string;
 }): string {
-  const { spec, pageCount, isContinuation, continuationContext } = params;
+  const {
+    spec,
+    pageCount,
+    isContinuation,
+    continuationContext,
+    visualReferenceLabels,
+    visualArtifactReferenceLabel,
+  } = params;
   const continuationSections =
     isContinuation && continuationContext
       ? [
@@ -352,10 +599,11 @@ export function buildGraphicNovelPrompt(params: {
 
 ROLE BOUNDARY:
 - You are the Graphic Novel Writer and page/panel planner, not the visual identity director.
-- Generate bubble text and panel staging only.
+- Generate bubble text, panel staging, persistent environment rows, and wardrobe binding rows only.
 - Keep everything wholesome, gentle, positive, and age-appropriate.
-- Do not include stable physical appearance, clothing catalogs, wardrobe lists, anatomy details, or reference-image descriptions in this JSON.
+- Do not include stable physical appearance, anatomy details, or reference-image descriptions in this JSON.
 - Character identity and default appearance are handled later by reference images and the image pipeline.
+- Outfit rows are production metadata for dressed turnarounds. Use detailed wardrobe only for child/person/human characters; non-human characters use "natural appearance".
 
 OUTPUT:
 - Return JSON matching the schema exactly.
@@ -367,17 +615,27 @@ OUTPUT:
 - Do not return visualAction, setting, charactersPresent, artPrompt, or panelVisual.
 - The final page must resolve positively and clearly for the age.
 - Create environments[] once for persistent locations. Reuse environmentId on panels instead of repeating the whole environment.
+- Create outfits[] once for canonical wardrobe bindings. Reuse outfitId on panels instead of repeating garment text.
+- Create characters[] only for newly invented named story characters/helpers/creatures that are not listed in CHARACTERS.
 
 ${formatStructuredStoryInputSection(spec, { includeIllustrationStyle: true })}
+
+${formatStructuredOutfitRules({ includeChangeRules: true })}
 
 ${formatStoryTitleSection({ isContinuation })}
 
 ${formatContentPolicySection(spec)}
 
+GRAPHIC NOVEL SAFETY STAGING:
+${graphicNovelHazardSafetyRules()}
+
 ${continuationSections}
 
 CLOSING ARTIFACT:
-${closingArtifactRules(spec)}
+${closingArtifactRules(
+  spec,
+  visualArtifactReferenceLabel ? { referenceId: visualArtifactReferenceLabel } : undefined
+)}
 
 PLOT FIDELITY:
 - Use the scenario plot guidance as the concrete story seed.
@@ -392,6 +650,7 @@ VISUAL ACTION LOGIC:
 - Before writing each action, reveal, puzzle, rescue, tool-use, or magic-effect panel, choose the exact visible cause-and-effect mechanism for that one frame.
 - visual.primaryRead should name the affected story object or result, not only the team activity. Example: "Vines pull the tilted stone upright" instead of "The team pulls hard".
 - visual.sceneVisual.setting must include the prop/tool connection and visible result: what the rope, vine, lever, bridge, key, light, spell, water, or object is attached to, touching, opening, lifting, blocking, moving, or changing.
+- ${GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE}
 - Each acting character description must include the functional interaction with the important prop or object: hands gripping the same vine, vine looped around the statue base, log wedged under the stone as a lever, stone tilting upright, water/debris shifting aside.
 - If the dialogue says a plan works, the panel visual must show how it works in the frame. A viewer should understand the physical or magical logic without reading the dialogue.
 - For coordinated actions, describe one shared system connecting everyone: the same rope/vine/lever/path/light links the characters to the affected object.
@@ -411,14 +670,22 @@ ${thoughtBubbleRules(spec.ageGroup, pageCount)}
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
+${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
+
+CAST COVERAGE AND PAGE FOCUS:
+${graphicNovelCastCoverageRules({ spec, pageCount, continuationContext: isContinuation ? continuationContext : undefined })}
+
 CHARACTER NAME OWNERSHIP:
 - Names listed in CHARACTERS are reserved identity names for those exact characters only.
 - Never reuse a listed character name for a newly invented creature, elder, helper, narrator, location, vehicle, object, world-animal, or environmental being.
 - If the scenario needs an additional named creature/helper (for example a giant animal carrying a world on its back), create a fresh name that is not similar to any listed character name.
+- Add each newly invented named helper/creature/object character to top-level characters[] with type and a stable visual description for turnaround generation.
+- If a newly invented named helper/creature/object is the main subject of visual.primaryRead, appears in visual.sceneVisual.setting, is watched/reacted to by others, or performs the panel action, it MUST be included in that panel visual.sceneVisual.cameraComposition.characters[] even when it is not speaking.
+- Do not write a panel where primaryRead/setting says "the small creature/griffin/robot/etc." is doing the action while cameraComposition.characters[] lists only observers. Add the named character row too.
+- characters[].description must be natural-language visual identity text only. Do not use REF_CH_* labels, internal IDs, panel action, or temporary scene state there.
+- Do not include preselected CHARACTERS in top-level characters[].
 - Do not reinterpret a reference-grounded character as a different species, scale, place, or vehicle. If a listed character appears, they remain that same character identity.
 - If an environment is on, inside, or carried by a large creature, that creature must have its own new name unless it is explicitly listed in CHARACTERS as that exact creature.
-
-${formatStructuredOutfitRules({ includeChangeRules: true })}
 
 ${formatStructuredSpeakerNameRules({
   helperKind: 'creature_or_helper',
@@ -429,6 +696,8 @@ ${formatReferenceGroundedCharacterRules({ includeGraphicDetails: true })}
 
 ${formatStructuredEnvironmentRules({ target: 'pages', includePanelDeltaRule: true })}
 
+${comicPanelCameraVarietyRules()}
+
 PAGE ROLES:
 - Page 1: opening
 - Page 2: setup
@@ -437,13 +706,17 @@ PAGE ROLES:
 
 PANEL REQUIREMENTS:
 - panelId must be stable and unique, like "p1-1".
+- The panel-level cast limit is binding: no panel may contain more than ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS} unique named characters total, counting dialogue speakers, thought speakers, and visual.sceneVisual.cameraComposition.characters. If more heroes are needed on the page, split them across different panels instead of staging all of them together.
+- Every child protagonist named in CAST COVERAGE AND PAGE FOCUS must appear in visual.sceneVisual.cameraComposition.characters on every page.
 - visual.environmentId must match environments[].id.
 - visual.primaryRead: short English phrase, 3-10 words, naming the main visual read of this panel.
+- ${GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE}
 - visual.sceneVisual.setting, cameraComposition.shot, cameraComposition.characters, and lighting must describe ONE moment.
-- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters. For action/mechanism panels, include the contact point and the object being affected.
+- The main acted-on subject of primaryRead/setting counts as a visible character when it is a named story helper, creature, animal, robot, object, or person. Include it in cameraComposition.characters[].
+- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside descriptions.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include:
   - position: semantic blocking like "left_foreground", "right_midground", "center_background", "upper_left_hovering".
-  - outfitId: exact id from top-level outfits[] for the clothes worn in this panel.
+  - outfitId: exact outfits[].id for this character in this shot. Detailed wardrobe rows are only for child/person/human characters; animals/imaginary/creatures use a natural-appearance binding.
 - For panels with 2 dialogue lines from 2 speakers, place speakers on clearly different left/right or foreground/background positions so bubble tails can point cleanly after Vision analysis.
 - For reference-grounded characters, that description must stay reference-safe and must not override the downstream reference image.
 - No text instructions, no speech bubble instructions, and no readable text in visual fields.
@@ -462,8 +735,17 @@ export function buildGraphicNovelSafetyFallbackPrompt(params: {
   pageCount: number;
   isContinuation?: boolean;
   continuationContext?: ContinuationPromptContext;
+  visualReferenceLabels?: VisualCharacterReferenceLabel[];
+  visualArtifactReferenceLabel?: string;
 }): string {
-  const { spec, pageCount, isContinuation, continuationContext } = params;
+  const {
+    spec,
+    pageCount,
+    isContinuation,
+    continuationContext,
+    visualReferenceLabels,
+    visualArtifactReferenceLabel,
+  } = params;
   const continuationSections =
     isContinuation && continuationContext
       ? [
@@ -480,6 +762,7 @@ SAFETY AND TONE:
 - Make everything wholesome, gentle, playful, and age-appropriate for age group ${spec.ageGroup}.
 - Avoid frightening detail, harm, weapons, threats, romance, risky behavior, and mature themes.
 - Adventure, medieval, magic, and creature elements must stay friendly and symbolic.
+${graphicNovelHazardSafetyRules()}
 
 OUTPUT:
 - Return JSON matching the schema exactly.
@@ -488,9 +771,12 @@ OUTPUT:
 - Use dialogue, occasional private thoughts, and rare short captions.
 - Each panel must contain final bubble text plus visual instructions only: dialogue/thoughts/caption and visual.
 - Create environments[] once for persistent locations and reuse environmentId on panels.
+- Create outfits[] once for canonical wardrobe bindings and reuse outfitId on panels.
 - The final page resolves warmly and clearly.
 
 ${formatStructuredStoryInputSection(spec)}
+
+${formatStructuredOutfitRules({ includeChangeRules: true })}
 
 ${formatStoryTitleSection({ isContinuation })}
 
@@ -499,7 +785,10 @@ ${formatContentPolicySection(spec)}
 ${continuationSections}
 
 CLOSING ARTIFACT:
-${closingArtifactRules(spec)}
+${closingArtifactRules(
+  spec,
+  visualArtifactReferenceLabel ? { referenceId: visualArtifactReferenceLabel } : undefined
+)}
 
 PACING:
 ${ageRules(spec.ageGroup)}
@@ -519,13 +808,16 @@ ${
     : safetyFallbackCharacterList(spec)
 }
 
+${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
+
+CAST COVERAGE AND PAGE FOCUS:
+${graphicNovelCastCoverageRules({ spec, pageCount, continuationContext: isContinuation ? continuationContext : undefined })}
+
 CHARACTER NAME OWNERSHIP:
 - Names listed in CHARACTERS are reserved for those exact characters only.
 - Do not use a listed character name for a new creature/helper/location/object or for a large world-carrying animal.
 - If the story needs another named creature, invent a different name.
 - A listed character must not be rewritten as a different species, scale, place, or vehicle.
-
-${formatStructuredOutfitRules({ includeChangeRules: true })}
 
 ${formatStructuredSpeakerNameRules()}
 
@@ -533,14 +825,131 @@ ${formatStructuredEnvironmentRules({ target: 'pages', includePanelDeltaRule: tru
 
 PANEL VISUAL RULES:
 - panelId must be stable and unique, like "p1-1".
+- No panel may contain more than ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS} unique named characters total, counting dialogue speakers, thought speakers, and visual.sceneVisual.cameraComposition.characters. Rotate extra heroes across adjacent panels instead of drawing all of them together.
+- Every child protagonist named in CAST COVERAGE AND PAGE FOCUS must appear in visual.sceneVisual.cameraComposition.characters on every page.
 - visual.environmentId must match environments[].id.
 - visual.primaryRead is a short English phrase, 3-10 words.
 - visual.sceneVisual.setting must include visible cause/effect for action, puzzle, rescue, tool-use, or magic-effect panels: what object is touched, moved, opened, lifted, blocked, or changed.
-- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, expression, gaze, gesture, and interaction for this exact panel. For action/mechanism panels, include the contact point and the object being affected.
+- ${GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE}
+${comicPanelCameraVarietyRules()}
+- The main acted-on subject of primaryRead/setting counts as a visible character when it is a named story helper, creature, animal, robot, object, or person. Include it in cameraComposition.characters[] even if it is not speaking.
+- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, expression, gaze, gesture, and interaction for this exact panel. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside descriptions.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include position.
-- Every visual.sceneVisual.cameraComposition.characters[] item must include outfitId.
+- Every visual.sceneVisual.cameraComposition.characters[] item must include outfitId. Detailed wardrobe rows are only for child/person/human characters; non-human characters use a natural-appearance binding.
 - For reference-grounded characters, describe only temporary pose/action/emotion/staging; do not describe stable identity details.
 - Do not output coordinates, bubble placement metadata, or readable text in visual fields.
+`;
+}
+
+export function buildGraphicNovelPageRepairPrompt(params: {
+  spec: StorySpec;
+  script: GraphicNovelScript;
+  page: GraphicNovelPageScript;
+  pageCount: number;
+  feedback: Array<{
+    category?: string;
+    severity?: string;
+    message: string;
+    suggestion?: string;
+  }>;
+  visualReferenceLabels?: VisualCharacterReferenceLabel[];
+  visualArtifactReferenceLabel?: string;
+}): string {
+  const {
+    spec,
+    script,
+    page,
+    pageCount,
+    feedback,
+    visualReferenceLabels,
+    visualArtifactReferenceLabel,
+  } = params;
+  const pageNumber = Number.isFinite(page.pageNumber) ? page.pageNumber : 1;
+  const panelCount = Array.isArray(page.panels) ? page.panels.length : 2;
+  const feedbackText = feedback
+    .map((item, index) => {
+      const prefix = `${index + 1}. ${item.category || 'validation'}${item.severity ? `/${item.severity}` : ''}`;
+      return [
+        `${prefix}: ${item.message}`,
+        item.suggestion ? `   Suggested direction: ${item.suggestion}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n');
+  const pageSummaries = (script.pages || []).map((candidate) => ({
+    pageNumber: candidate.pageNumber,
+    pageRole: candidate.pageRole,
+    panelReads: (candidate.panels || []).map((panel) => panel.visual?.primaryRead).filter(Boolean),
+    dialogue: (candidate.panels || [])
+      .flatMap((panel) => [...(panel.dialogue || []), ...(panel.thoughts || [])])
+      .map((line) => `${line.speaker}: ${line.text}`),
+  }));
+
+  return `Repair exactly one graphic novel page that failed text safety validation.
+
+Return JSON ONLY matching the schema: { "page": ... }.
+
+REPAIR TARGET:
+- Story title: ${script.title}
+- Story description: ${script.description}
+- Language: ${script.language || spec.language}
+- Repair pageNumber ${pageNumber} of ${pageCount}.
+- Keep page.pageNumber exactly ${pageNumber}.
+- Keep page.pageRole exactly "${page.pageRole}".
+- Return exactly ${panelCount} panels, preserving the same reading-order scale.
+- Use only existing environmentId values: ${(script.environments || []).map((environment) => environment.id).join(', ') || 'env_main'}.
+- Use only existing outfitId values from outfits[] or natural outfit bindings already present in the page.
+- Do not create top-level environments, outfits, or characters. Only return the repaired page object.
+
+VALIDATION PROBLEM TO FIX:
+${feedbackText || '- The page failed validation; make it gentler and age-appropriate.'}
+
+SAFETY REPAIR RULES:
+${graphicNovelHazardSafetyRules()}
+- Directly remove or rewrite the unsafe beat. Do not merely add a reassurance line while keeping the unsafe action.
+- If the current page has children running into danger, replace that with staying sheltered, asking for help, observing safely, or the risk becoming harmless before they act.
+
+STORY INPUT:
+${formatStructuredStoryInputSection(spec)}
+
+${formatContentPolicySection(spec)}
+
+CLOSING ARTIFACT:
+${closingArtifactRules(
+  spec,
+  visualArtifactReferenceLabel ? { referenceId: visualArtifactReferenceLabel } : undefined
+)}
+
+CHARACTERS:
+${graphicNovelCharacterList(spec)}
+
+${graphicNovelVisualReferenceLabelSection(spec, undefined, visualReferenceLabels)}
+
+CAST COVERAGE AND PAGE FOCUS:
+${graphicNovelCastCoverageRules({ spec, pageCount })}
+
+PANEL VISUAL RULES:
+- No panel may contain more than ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS} unique named characters total.
+- Every child protagonist named in CAST COVERAGE AND PAGE FOCUS must appear in visual.sceneVisual.cameraComposition.characters on this repaired page.
+- visual.environmentId must match one of the existing environment ids.
+- visual.primaryRead is a short English phrase, 3-10 words. Use REF_CH_* for listed characters and REF_OBJ_* for fixed story artifact objects inside visual text.
+- visual.sceneVisual.setting must describe one clear moment and visible cause/effect for action, puzzle, rescue, tool-use, or magic-effect panels.
+- ${GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE}
+${comicPanelCameraVarietyRules()}
+- The main acted-on subject of primaryRead/setting counts as a visible character when it is a named story helper, creature, animal, robot, object, or person. Include it in cameraComposition.characters[] even if it is not speaking.
+- visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, expression, gaze, gesture, and interaction for this exact panel. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside descriptions.
+- Every visual.sceneVisual.cameraComposition.characters[] item must include position and outfitId.
+- For reference-grounded characters, describe only temporary pose/action/emotion/staging; do not describe stable identity details.
+- Do not output coordinates, bubble placement metadata, or readable text in visual fields.
+- dialogue[].text and thoughts[].text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer.
+- captions must be ${GRAPHIC_NOVEL_CAPTION_MAX_CHARS} characters or fewer.
+
+WHOLE STORY CONTEXT SUMMARY:
+${JSON.stringify(pageSummaries, null, 2)}
+
+CURRENT FAILED PAGE JSON:
+${JSON.stringify(page, null, 2)}
 `;
 }
 
@@ -550,6 +959,29 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
     title: { type: 'string' },
     description: { type: 'string' },
     language: { type: 'string' },
+    characters: {
+      type: 'array',
+      description:
+        'Only newly invented named story characters/helpers/creatures that are not preselected CHARACTERS. Omit or return [] when there are none.',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          type: {
+            type: 'string',
+            enum: ['human', 'animal', 'creature', 'object'],
+          },
+          description: {
+            type: 'string',
+            description:
+              'Stable visual identity description in English for turnaround generation: body form, materials/colors, distinctive marks, readable age/species/object type. No REF labels, internal IDs, scene action, or temporary state.',
+          },
+          role: { type: 'string' },
+          personality: { type: 'string' },
+        },
+        required: ['name', 'type', 'description'],
+      },
+    },
     environments: {
       type: 'array',
       minItems: 1,
@@ -567,33 +999,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
         required: ['id', 'name', 'description'],
       },
     },
-    outfits: {
-      type: 'array',
-      minItems: 1,
-      items: {
-        type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            minLength: 1,
-            description:
-              'Short unique wardrobe id referenced by panel cameraComposition characters',
-          },
-          characterName: {
-            type: 'string',
-            minLength: 1,
-            description: 'Exact character name wearing this outfit',
-          },
-          description: {
-            type: 'string',
-            minLength: 1,
-            description:
-              'Wardrobe-only English description. Garments, shoes, worn accessories only; no face, hair, body, pose, or identity details.',
-          },
-        },
-        required: ['id', 'characterName', 'description'],
-      },
-    },
+    outfits: structuredOutfitsJsonSchema(),
     pages: {
       type: 'array',
       minItems: 1,
@@ -668,7 +1074,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                     primaryRead: {
                       type: 'string',
                       description:
-                        'Short English focus phrase, 3-10 words, naming what the viewer understands first. For action panels, name the affected object/result, not only the team activity.',
+                        'Short English focus phrase, 3-10 words, naming what the viewer understands first. For action panels, name the affected object/result, not only the team activity. Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.',
                     },
                     sceneVisual: {
                       type: 'object',
@@ -676,17 +1082,20 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                         setting: {
                           type: 'string',
                           description:
-                            'Scene-specific additions IN ENGLISH. Describe what is new/changed in this panel, not the whole environment. For action/tool/magic panels, include visible cause/effect: what object is touched, moved, opened, lifted, blocked, or changed.',
+                            `Scene-specific additions IN ENGLISH. Describe what is new/changed in this panel, not the whole environment. For action/tool/magic panels, include visible cause/effect: what object is touched, moved, opened, lifted, blocked, or changed. ${GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.`,
                         },
                         cameraComposition: {
                           type: 'object',
                           properties: {
                             shot: {
                               type: 'string',
-                              description: 'Shot type and camera angle in English',
+                              description:
+                                'Shot scale, viewpoint/angle, and environment slice in English. Examples: wide establishing shot of the full location, left-side view of door and steps, right-side view along railing and sea, central close-up on the story object, extreme close-up on hands/face/detail. Vary shot scale and angle across panels on the same page; do not write only "medium shot".',
                             },
                             characters: {
                               type: 'array',
+                              maxItems: GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS,
+                              description: `Characters visible in this panel. The panel must stay within ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS} unique named characters total, counting dialogue speakers, thought speakers, and visible characters.`,
                               items: {
                                 type: 'object',
                                 properties: {
@@ -699,14 +1108,9 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                                   description: {
                                     type: 'string',
                                     description:
-                                      'Placement, pose, expression, gaze, gesture, and interaction for this exact panel. For action/mechanism panels, include contact point and affected object. For reference-grounded characters, do not override stable identity/reference appearance.',
+                                      `Placement, pose, expression, gaze, gesture, and interaction for this exact panel. ${formatContactGeometryWriterRule()} For reference-grounded characters, do not override stable identity/reference appearance. Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects from the prompt instead of natural-language names.`,
                                   },
-                                  outfitId: {
-                                    type: 'string',
-                                    minLength: 1,
-                                    description:
-                                      'Exact outfits[].id for the clothes this character wears in this panel.',
-                                  },
+                                  outfitId: structuredCameraCharacterOutfitIdJsonSchema(),
                                 },
                                 required: ['name', 'position', 'description', 'outfitId'],
                               },
@@ -731,4 +1135,18 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
     },
   },
   required: ['title', 'description', 'language', 'environments', 'outfits', 'pages'],
+};
+
+const GRAPHIC_NOVEL_PAGE_SCHEMA = GRAPHIC_NOVEL_SCRIPT_SCHEMA.properties?.pages?.items;
+
+export const GRAPHIC_NOVEL_PAGE_REPAIR_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    page:
+      GRAPHIC_NOVEL_PAGE_SCHEMA ?? {
+        type: 'object',
+        properties: {},
+      },
+  },
+  required: ['page'],
 };

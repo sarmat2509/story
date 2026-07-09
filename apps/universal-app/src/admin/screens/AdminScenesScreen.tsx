@@ -3,7 +3,6 @@ import { NavigationProp, useNavigation, useRoute } from '@react-navigation/nativ
 import {
   Alert,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +13,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import {
+  type AdminTextValidationPayload,
+  type AdminStoryValidationItem,
   type AdminMapTileAssetPayload,
+  useAdminApplyBestSceneImageValidationCandidate,
   useAdminDirectorScenes,
   useAdminJobStatus,
   useAdminRegenerateGraphicNovelPageImage,
@@ -23,6 +25,17 @@ import {
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
+import {
+  buildAdminImageGenerationAttempts,
+  type AdminImageGenerationAttempt,
+} from '@/admin/utils/imageGenerationAttempts';
+import {
+  ALL_COST_CATEGORY_IDS,
+  COST_BREAKDOWN_CATEGORIES,
+  COST_CATEGORY_BY_ID,
+  classifyCostOperation,
+  type CostBreakdownCategoryId,
+} from '@/admin/utils/costBreakdown';
 import { API_BASE_URL } from '@/config/constants';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
@@ -84,6 +97,270 @@ function formatAdminApiUrl(url: string | null | undefined): string | null {
   return url;
 }
 
+type NormalizedRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type NormalizedPoint = {
+  x: number;
+  y: number;
+};
+
+type BubbleVisionMarkerKind = 'mouth' | 'face' | 'head';
+
+type BubbleVisionMarker = {
+  id: string;
+  panelIndex: number;
+  panelId: string | null;
+  characterName: string;
+  kind: BubbleVisionMarkerKind;
+  point: NormalizedPoint;
+  confidence: number | null;
+};
+
+type BubbleVisionPanelOverlay = {
+  panelIndex: number;
+  panelId: string | null;
+  rect: NormalizedRect;
+  markers: BubbleVisionMarker[];
+};
+
+type BubbleVisionOverlayTarget = {
+  title: string;
+  imageUrl: string | null;
+  pageNumber: number | null;
+  aspectRatio: number;
+  coordinateSpace: 'panel' | 'page';
+  panels: BubbleVisionPanelOverlay[];
+  markerCount: number;
+};
+
+function recordOrNull(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function recordsArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item)
+      )
+    : [];
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function percentValue(value: number): `${number}%` {
+  return `${clamp01(value) * 100}%`;
+}
+
+function readNormalizedRect(value: unknown): NormalizedRect | null {
+  const record = recordOrNull(value);
+  if (!record) return null;
+  const x = numberOrNull(record.x);
+  const y = numberOrNull(record.y);
+  const width = numberOrNull(record.width);
+  const height = numberOrNull(record.height);
+  if (x == null || y == null || width == null || height == null || width <= 0 || height <= 0) {
+    return null;
+  }
+  return {
+    x: clamp01(x),
+    y: clamp01(y),
+    width: Math.min(1 - clamp01(x), Math.max(0, width)),
+    height: Math.min(1 - clamp01(y), Math.max(0, height)),
+  };
+}
+
+function readNormalizedPoint(value: unknown): NormalizedPoint | null {
+  const record = recordOrNull(value);
+  if (!record) return null;
+  const x = numberOrNull(record.x);
+  const y = numberOrNull(record.y);
+  if (x == null || y == null) return null;
+  return { x: clamp01(x), y: clamp01(y) };
+}
+
+function pointPercentStyle(point: NormalizedPoint) {
+  return {
+    left: percentValue(point.x),
+    top: percentValue(point.y),
+  };
+}
+
+function pagePointFromAnalysisPoint(
+  point: NormalizedPoint,
+  panelRect: NormalizedRect,
+  coordinateSpace: 'panel' | 'page'
+): NormalizedPoint {
+  if (coordinateSpace === 'page') return point;
+  return {
+    x: panelRect.x + point.x * panelRect.width,
+    y: panelRect.y + point.y * panelRect.height,
+  };
+}
+
+function pageAspectRatioFromLayout(layout: Record<string, unknown> | null): number {
+  const pageSize = recordOrNull(layout?.pageSize);
+  const width = numberOrNull(pageSize?.width);
+  const height = numberOrNull(pageSize?.height);
+  if (width != null && height != null && width > 0 && height > 0) {
+    return width / height;
+  }
+  const aspectRatio = stringOrNull(layout?.aspectRatio);
+  const match = aspectRatio?.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+  if (match) {
+    const left = Number(match[1]);
+    const right = Number(match[2]);
+    if (Number.isFinite(left) && Number.isFinite(right) && right > 0) {
+      return left / right;
+    }
+  }
+  return 3 / 4;
+}
+
+function imageUrlFromStoragePath(path: unknown): string | null {
+  const storagePath = stringOrNull(path);
+  if (!storagePath) return null;
+  return formatAdminApiUrl(formatAssetUrl(storagePath) ?? storagePath);
+}
+
+function panelIdFromLayoutPanel(panel: Record<string, unknown>, panelIndex: number): string | null {
+  const script = recordOrNull(panel.script);
+  const templatePanel = recordOrNull(panel.templatePanel);
+  return (
+    stringOrNull(panel.panelId) ??
+    stringOrNull(script?.panelId) ??
+    stringOrNull(templatePanel?.id) ??
+    `panel-${panelIndex}`
+  );
+}
+
+function findLayoutPanelForVisionPanel(
+  layoutPanels: Record<string, unknown>[],
+  visionPanel: Record<string, unknown>,
+  fallbackIndex: number
+): Record<string, unknown> | null {
+  const panelIndex = numberOrNull(visionPanel.panelIndex);
+  const plannedPanelIndex = numberOrNull(visionPanel.plannedPanelIndex);
+  const panelId = stringOrNull(visionPanel.panelId);
+  const plannedPanelId = stringOrNull(visionPanel.plannedPanelId);
+
+  return (
+    layoutPanels.find((panel, index) => {
+      const currentIndex = index + 1;
+      const currentId = panelIdFromLayoutPanel(panel, currentIndex);
+      return (
+        currentIndex === panelIndex ||
+        currentIndex === plannedPanelIndex ||
+        (panelId != null && currentId === panelId) ||
+        (plannedPanelId != null && currentId === plannedPanelId)
+      );
+    }) ??
+    layoutPanels[fallbackIndex] ??
+    null
+  );
+}
+
+function buildBubbleVisionOverlayTarget(params: {
+  sceneIndex: number;
+  pageNumber?: number | null;
+  imageUrl: string | null;
+  imageRequestManifest: unknown;
+}): BubbleVisionOverlayTarget | null {
+  const manifest = recordOrNull(params.imageRequestManifest);
+  if (!manifest) return null;
+  const analysis = recordOrNull(manifest.bubbleVisionAnalysis);
+  const visionPanels = recordsArray(analysis?.panels);
+  if (visionPanels.length === 0) return null;
+
+  const layout = recordOrNull(manifest.layoutJson);
+  const layoutPanels = recordsArray(layout?.panels);
+  const coordinateSpace =
+    analysis?.coordinateSpace === 'page' ? ('page' as const) : ('panel' as const);
+  const pageNumber =
+    params.pageNumber ?? numberOrNull(layout?.pageNumber) ?? numberOrNull(manifest.pageNumber);
+  const panels: BubbleVisionPanelOverlay[] = [];
+
+  visionPanels.forEach((visionPanel, visionPanelIndex) => {
+    const layoutPanel = findLayoutPanelForVisionPanel(layoutPanels, visionPanel, visionPanelIndex);
+    const templatePanel = recordOrNull(layoutPanel?.templatePanel);
+    const panelIndex =
+      numberOrNull(visionPanel.panelIndex) ??
+      numberOrNull(visionPanel.plannedPanelIndex) ??
+      (layoutPanel ? layoutPanels.indexOf(layoutPanel) + 1 : visionPanelIndex + 1);
+    const rect =
+      readNormalizedRect(templatePanel?.rect) ??
+      readNormalizedRect(visionPanel.panelBounds) ??
+      null;
+    if (!rect) return;
+
+    const panelId =
+      stringOrNull(visionPanel.panelId) ??
+      stringOrNull(visionPanel.plannedPanelId) ??
+      (layoutPanel ? panelIdFromLayoutPanel(layoutPanel, panelIndex) : null);
+    const markers: BubbleVisionMarker[] = [];
+    recordsArray(visionPanel.detectedCharacters).forEach((character, characterIndex) => {
+      const characterName =
+        stringOrNull(character.name) ?? `Character ${characterIndex + 1}`;
+      const confidence = numberOrNull(character.confidence);
+      (
+        [
+          ['mouth', character.mouthCenter],
+          ['face', character.faceCenter],
+          ['head', character.headCenter],
+        ] as Array<[BubbleVisionMarkerKind, unknown]>
+      ).forEach(([kind, rawPoint]) => {
+        const point = readNormalizedPoint(rawPoint);
+        if (!point) return;
+        markers.push({
+          id: `${panelIndex}-${characterName}-${kind}-${markers.length}`,
+          panelIndex,
+          panelId,
+          characterName,
+          kind,
+          point: pagePointFromAnalysisPoint(point, rect, coordinateSpace),
+          confidence,
+        });
+      });
+    });
+    panels.push({ panelIndex, panelId, rect, markers });
+  });
+
+  const markerCount = panels.reduce((sum, panel) => sum + panel.markers.length, 0);
+  if (markerCount === 0) return null;
+
+  return {
+    title: `Bubble vision targets · page ${pageNumber ?? params.sceneIndex}`,
+    imageUrl: params.imageUrl ?? imageUrlFromStoragePath(manifest.artOnlyImageStoragePath),
+    pageNumber,
+    aspectRatio: pageAspectRatioFromLayout(layout),
+    coordinateSpace,
+    panels,
+    markerCount,
+  };
+}
+
 function toLabel(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -91,20 +368,25 @@ function toLabel(key: string): string {
     .toUpperCase();
 }
 
-function omitFullTextPromptForDisplay(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(omitFullTextPromptForDisplay);
-  }
-  if (!value || typeof value !== 'object') {
-    return value;
-  }
+function formatCostUsd(value: number): string {
+  return `$${value.toFixed(6)}`;
+}
 
-  const sanitized: Record<string, unknown> = {};
-  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
-    if (key === 'fullTextPrompt') return;
-    sanitized[key] = omitFullTextPromptForDisplay(child);
-  });
-  return sanitized;
+function formatValidationUsageCost(
+  usage: AdminStoryValidationItem['usage'] | null | undefined
+): string {
+  if (!usage || usage.costUsd == null || !Number.isFinite(usage.costUsd)) {
+    return 'n/a';
+  }
+  return formatCostUsd(usage.costUsd);
+}
+
+function formatJsonBlock(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function scrollToAnchor(anchorId: string) {
@@ -303,20 +585,138 @@ function renderSceneVisual(
   );
 }
 
+function TextValidationPanel({
+  validation,
+}: {
+  validation: AdminTextValidationPayload | null | undefined;
+}) {
+  if (!validation) {
+    return (
+      <View style={styles.sceneCard}>
+        <View style={styles.storyTextHeading}>
+          <Ionicons name="shield-checkmark-outline" size={18} color={theme.colors.text.secondary} />
+          <Text style={styles.sceneVisualHeadingText}>TEXT VALIDATION</Text>
+        </View>
+        <Text style={styles.helperText}>
+          No writer text validation payload stored for this story.
+        </Text>
+      </View>
+    );
+  }
+
+  const attempts = Array.isArray(validation.attempts) ? validation.attempts : [];
+  const failedSceneIds = Array.isArray(validation.failedSceneIds) ? validation.failedSceneIds : [];
+  const passedSceneIds = Array.isArray(validation.passedSceneIds) ? validation.passedSceneIds : [];
+  const score =
+    typeof validation.score === 'number' && Number.isFinite(validation.score)
+      ? `${validation.score}/100`
+      : 'n/a';
+
+  return (
+    <View style={styles.sceneCard}>
+      <View style={styles.sceneCardHeader}>
+        <View style={styles.storyTextHeading}>
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={18}
+            color={theme.colors.interactive.primary}
+          />
+          <Text style={styles.sceneCardTitle}>Text validation</Text>
+        </View>
+        <Text style={styles.textValidationScore}>{score}</Text>
+      </View>
+      <View style={styles.textValidationSummaryGrid}>
+        <View style={styles.textValidationSummaryPill}>
+          <Text style={styles.valueKey}>STATUS</Text>
+          <Text style={styles.valueText}>{validation.status ?? 'n/a'}</Text>
+        </View>
+        <View style={styles.textValidationSummaryPill}>
+          <Text style={styles.valueKey}>SCENES</Text>
+          <Text style={styles.valueText}>{validation.sceneCount ?? 'n/a'}</Text>
+        </View>
+        <View style={styles.textValidationSummaryPill}>
+          <Text style={styles.valueKey}>ATTEMPTS</Text>
+          <Text style={styles.valueText}>{validation.attemptCount ?? attempts.length}</Text>
+        </View>
+        <View style={styles.textValidationSummaryPill}>
+          <Text style={styles.valueKey}>DURATION</Text>
+          <Text style={styles.valueText}>{formatDurationMs(validation.validationTimeMs)}</Text>
+        </View>
+      </View>
+      <Text style={styles.helperText}>
+        Passed scenes: {passedSceneIds.length ? passedSceneIds.join(', ') : 'n/a'} · Failed scenes:{' '}
+        {failedSceneIds.length ? failedSceneIds.join(', ') : 'none'}
+      </Text>
+      {attempts.length > 0 ? (
+        <View style={styles.textValidationAttemptList}>
+          {attempts.map((attempt, index) => (
+            <View
+              key={`${attempt.sceneId}-${attempt.attempt}-${attempt.phase}-${index}`}
+              style={styles.textValidationAttemptCard}
+            >
+              <View style={styles.sceneCardHeader}>
+                <View>
+                  <Text style={styles.costBreakdownOperation}>
+                    Scene {attempt.sceneId} · {attempt.phase} attempt {attempt.attempt}
+                  </Text>
+                  <Text style={styles.costBreakdownMeta}>
+                    {attempt.isValid ? 'passed' : 'failed'} · {attempt.score}/100 ·{' '}
+                    {formatDurationMs(attempt.durationMs)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.textValidationJsonGrid}>
+                <View style={styles.textValidationJsonColumn}>
+                  <Text style={styles.valueKey}>RAW MANIFEST</Text>
+                  <ScrollView style={styles.textValidationJsonBox} nestedScrollEnabled>
+                    <ScrollView horizontal contentContainerStyle={styles.textValidationJsonContent}>
+                      <Text selectable style={styles.textValidationJsonText}>
+                        {formatJsonBlock(attempt.rawManifest)}
+                      </Text>
+                    </ScrollView>
+                  </ScrollView>
+                </View>
+                <View style={styles.textValidationJsonColumn}>
+                  <Text style={styles.valueKey}>RESULT</Text>
+                  <ScrollView style={styles.textValidationJsonBox} nestedScrollEnabled>
+                    <ScrollView horizontal contentContainerStyle={styles.textValidationJsonContent}>
+                      <Text selectable style={styles.textValidationJsonText}>
+                        {formatJsonBlock({
+                          normalized: attempt.result,
+                          raw: attempt.rawResult,
+                        })}
+                      </Text>
+                    </ScrollView>
+                  </ScrollView>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.helperText}>No per-scene validation attempts stored.</Text>
+      )}
+    </View>
+  );
+}
+
 function AuthenticatedAdminImagePreview({
   url,
   style,
   resizeMode,
   emptyLabel,
   iconName,
+  preserveAspectRatio = false,
 }: {
   url: string | null;
   style: any;
   resizeMode: 'cover' | 'contain';
   emptyLabel: string;
   iconName: keyof typeof Ionicons.glyphMap;
+  preserveAspectRatio?: boolean;
 }) {
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [naturalAspectRatio, setNaturalAspectRatio] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -324,6 +724,7 @@ function AuthenticatedAdminImagePreview({
     let objectUrl: string | null = null;
 
     setResolvedUrl(null);
+    setNaturalAspectRatio(null);
     setFailed(false);
 
     if (!url) {
@@ -367,6 +768,31 @@ function AuthenticatedAdminImagePreview({
     };
   }, [url]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setNaturalAspectRatio(null);
+
+    if (!resolvedUrl || failed || !preserveAspectRatio) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    Image.getSize(
+      resolvedUrl,
+      (width, height) => {
+        if (!cancelled && width > 0 && height > 0) {
+          setNaturalAspectRatio(width / height);
+        }
+      },
+      () => undefined
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [failed, preserveAspectRatio, resolvedUrl]);
+
   if (!url || failed) {
     return (
       <View style={[style, styles.mapTilePreviewEmptyState]}>
@@ -384,12 +810,123 @@ function AuthenticatedAdminImagePreview({
     );
   }
 
-  return <Image source={{ uri: resolvedUrl }} style={style} resizeMode={resizeMode} />;
+  return (
+    <Image
+      source={{ uri: resolvedUrl }}
+      style={
+        preserveAspectRatio && naturalAspectRatio
+          ? [style, { aspectRatio: naturalAspectRatio }]
+          : style
+      }
+      resizeMode={resizeMode}
+    />
+  );
+}
+
+function bubbleVisionMarkerColor(kind: BubbleVisionMarkerKind): string {
+  if (kind === 'mouth') return '#e11d48';
+  if (kind === 'face') return '#2563eb';
+  return '#7c3aed';
+}
+
+function BubbleVisionMarkersOverlay({ target }: { target: BubbleVisionOverlayTarget }) {
+  return (
+    <>
+      {target.panels.flatMap((panel) =>
+        panel.markers.map((marker) => {
+          const color = bubbleVisionMarkerColor(marker.kind);
+          return (
+            <View
+              key={marker.id}
+              pointerEvents="none"
+              style={[styles.bubbleVisionMarker, pointPercentStyle(marker.point)]}
+            >
+              <View
+                style={[
+                  styles.bubbleVisionMarkerDot,
+                  {
+                    borderColor: color,
+                    backgroundColor: `${color}33`,
+                  },
+                ]}
+              />
+            </View>
+          );
+        })
+      )}
+    </>
+  );
+}
+
+function BubbleVisionLegend() {
+  return (
+    <View style={styles.bubbleVisionLegend}>
+      {(['mouth', 'face', 'head'] as BubbleVisionMarkerKind[]).map((kind) => {
+        const color = bubbleVisionMarkerColor(kind);
+        return (
+          <View key={kind} style={styles.bubbleVisionLegendItem}>
+            <View
+              style={[
+                styles.bubbleVisionLegendDot,
+                { borderColor: color, backgroundColor: `${color}33` },
+              ]}
+            />
+            <Text style={styles.metaText}>{kind}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function GraphicNovelPageBubbleVisionPreview({
+  target,
+}: {
+  target: BubbleVisionOverlayTarget;
+}) {
+  const [showTargets, setShowTargets] = useState(false);
+
+  return (
+    <View style={styles.bubbleVisionInlineCard}>
+      <View style={styles.bubbleVisionInlineHeader}>
+        <View style={styles.storyTextHeading}>
+          <Ionicons name="locate-outline" size={16} color={theme.colors.interactive.primary} />
+          <View>
+            <Text style={styles.sceneVisualHeadingText}>COMIC PAGE TARGET POINTS</Text>
+            <Text style={styles.metaText}>
+              {target.markerCount} mouth/face/head points · {target.coordinateSpace}-relative
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[styles.sceneActionButton, styles.sceneSecondaryActionButton]}
+          onPress={() => setShowTargets((current) => !current)}
+        >
+          <Text style={[styles.sceneActionButtonText, styles.sceneSecondaryActionButtonText]}>
+            {showTargets ? 'Hide points' : 'Show points'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <View style={[styles.bubbleVisionImageFrame, { aspectRatio: target.aspectRatio }]}>
+        <AuthenticatedAdminImagePreview
+          url={formatAdminApiUrl(target.imageUrl)}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="contain"
+          emptyLabel="No comic page image"
+          iconName="image-outline"
+        />
+        {showTargets ? <BubbleVisionMarkersOverlay target={target} /> : null}
+      </View>
+      {showTargets ? <BubbleVisionLegend /> : null}
+    </View>
+  );
 }
 
 function renderFeatureChips(features: unknown, keyPrefix: string): React.ReactNode {
   const list = Array.isArray(features)
-    ? features.filter((feature): feature is string => typeof feature === 'string' && feature.length > 0)
+    ? features.filter(
+        (feature): feature is string => typeof feature === 'string' && feature.length > 0
+      )
     : [];
 
   if (list.length === 0) {
@@ -591,214 +1128,165 @@ function renderMapTile(
   );
 }
 
-function recordOrNull(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+function formatGenerationKind(kind: AdminImageGenerationAttempt['kind']): string {
+  if (kind === 'edit') return 'Edit';
+  if (kind === 'generate') return 'Generate';
+  return 'Generation';
 }
 
-function arrayOfRecords(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is Record<string, unknown> =>
-          !!item && typeof item === 'object' && !Array.isArray(item)
-      )
-    : [];
+function formatAttemptNumber(value: number | null | undefined, suffix = ''): string {
+  return value == null || !Number.isFinite(value) ? 'n/a' : `${value}${suffix}`;
 }
 
-function compactManifestValue(value: unknown): string {
-  if (value == null || value === '') return 'n/a';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return JSON.stringify(value);
-}
-
-function previewableManifestAssetPath(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === 'n/a') return null;
-  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return null;
-  return trimmed;
-}
-
-function manifestReferencePreviewUrl(row: Record<string, unknown>): string | null {
-  const rawPath =
-    previewableManifestAssetPath(row.thumbnailPath) ??
-    previewableManifestAssetPath(row.storagePath) ??
-    previewableManifestAssetPath(row.url);
-
-  return rawPath ? formatAssetUrl(rawPath) : null;
-}
-
-function ImageManifestReferenceRow({
-  row,
-  index,
-  rowKey,
-  previewOpen,
-  onTogglePreview,
+function SceneImageGenerationAttemptCard({
+  attempt,
+  isGraphicNovelPageImage,
+  onOpenGeneration,
+  onOpenValidation,
 }: {
-  row: Record<string, unknown>;
-  index: number;
-  rowKey: string;
-  previewOpen: boolean;
-  onTogglePreview: (rowKey: string | null) => void;
+  attempt: AdminImageGenerationAttempt;
+  isGraphicNovelPageImage?: boolean;
+  onOpenGeneration: () => void;
+  onOpenValidation?: () => void;
 }) {
-  const name = compactManifestValue(row.characterName ?? row.environmentId ?? row.name);
-  const kind = compactManifestValue(row.referenceKind);
-  const source = compactManifestValue(row.source);
-  const type = compactManifestValue(row.type);
-  const storagePath = compactManifestValue(row.storagePath ?? row.url);
-  const previewUrl = manifestReferencePreviewUrl(row);
-  const transport = row.fileUri
-    ? 'fileUri'
-    : row.hasBase64Data
-      ? `base64${row.base64Bytes ? ` · ${row.base64Bytes} bytes` : ''}`
-      : 'n/a';
+  const validation = attempt.validation;
+  const isPanelAttempt = attempt.panelIndex != null;
+  const usePagePreviewMode = !!isGraphicNovelPageImage && !isPanelAttempt;
+  const useContainPreview = usePagePreviewMode || isPanelAttempt;
+  const generationTitle = isPanelAttempt
+    ? attempt.label
+    : `${formatGenerationKind(attempt.kind)} request`;
+  const validationScore = validation
+    ? formatValidationScore(validation.validationScore, validation.validationStatus)
+    : (attempt.validationMissingReason ?? 'n/a');
 
   return (
-    <View
-      style={[
-        styles.imageManifestRefRowAnchor,
-        previewOpen ? styles.imageManifestRefRowAnchorActive : null,
-      ]}
-    >
-      <Pressable
-        style={[
-          styles.imageManifestRefRow,
-          previewUrl && previewOpen ? styles.imageManifestRefRowActive : null,
-        ]}
-        disabled={!previewUrl}
-        onPress={() => {
-          if (!previewUrl) return;
-          onTogglePreview(previewOpen ? null : rowKey);
-        }}
-      >
-        <Text style={styles.imageManifestRefTitle}>
-          Image {compactManifestValue(row.index ?? index + 1)} · {kind} · {name}
+    <View style={styles.imageAttemptCard}>
+      <View style={styles.imageAttemptPreviewColumn}>
+        <AuthenticatedAdminImagePreview
+          url={formatAdminApiUrl(attempt.imageUrl)}
+          style={[
+            styles.imageAttemptPreviewImage,
+            usePagePreviewMode ? styles.imageAttemptGraphicPagePreviewImage : null,
+          ]}
+          resizeMode={useContainPreview ? 'contain' : 'cover'}
+          emptyLabel="No attempt image"
+          iconName="image-outline"
+          preserveAspectRatio={isPanelAttempt}
+        />
+        <Text style={styles.imageAttemptCaption}>
+          {isPanelAttempt
+            ? `Panel ${attempt.panelIndex} ${attempt.kind === 'edit' ? 'edit' : 'image'}`
+            : attempt.kind === 'edit'
+              ? 'Edited image'
+              : 'Generated image'}
         </Text>
-        <Text selectable style={styles.imageManifestRefMeta}>
-          {source}/{type} · {transport}
-        </Text>
-        <Text selectable style={styles.imageManifestRefPath}>
-          {storagePath}
-        </Text>
-        {row.instructionText ? (
-          <Text selectable style={styles.imageManifestInstruction}>
-            {String(row.instructionText)}
-          </Text>
-        ) : null}
-      </Pressable>
-      {previewUrl && previewOpen ? (
-        <View style={styles.imageManifestPreviewTooltip}>
-          <AuthenticatedAdminImagePreview
-            url={previewUrl}
-            style={styles.imageManifestPreviewTooltipImage}
-            resizeMode="contain"
-            emptyLabel="Preview unavailable"
-            iconName="image-outline"
-          />
-        </View>
-      ) : null}
+      </View>
+
+      <View style={styles.imageAttemptLinksColumn}>
+        <TouchableOpacity style={styles.imageAttemptLinkPanel} onPress={onOpenGeneration}>
+          <View style={styles.imageAttemptLinkHeader}>
+            <Ionicons
+              name="git-network-outline"
+              size={16}
+              color={theme.colors.interactive.primary}
+            />
+            <Text style={styles.imageAttemptLinkTitle}>{generationTitle}</Text>
+          </View>
+          <View style={styles.imageAttemptMetaGrid}>
+            {attempt.pageNumber != null ? (
+              <Text style={styles.imageAttemptMetaText}>page: {attempt.pageNumber}</Text>
+            ) : null}
+            {attempt.panelIndex != null ? (
+              <Text style={styles.imageAttemptMetaText}>panel: {attempt.panelIndex}</Text>
+            ) : null}
+            <Text style={styles.imageAttemptMetaText}>
+              operation: {attempt.summary.operation ?? 'n/a'}
+            </Text>
+            <Text style={styles.imageAttemptMetaText}>model: {attempt.summary.model ?? 'n/a'}</Text>
+            <Text style={styles.imageAttemptMetaText}>
+              prompt: {formatAttemptNumber(attempt.summary.promptChars)}
+            </Text>
+            <Text style={styles.imageAttemptMetaText}>
+              refs: {formatAttemptNumber(attempt.summary.referenceCount)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.imageAttemptLinkPanel,
+            !validation ? styles.imageAttemptLinkPanelDisabled : null,
+          ]}
+          disabled={!validation}
+          onPress={onOpenValidation}
+        >
+          <View style={styles.imageAttemptLinkHeader}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={16}
+              color={validation ? theme.colors.interactive.primary : theme.colors.text.secondary}
+            />
+            <Text style={styles.imageAttemptLinkTitle}>Validation</Text>
+            <Text style={styles.imageAttemptScore}>{validationScore}</Text>
+          </View>
+          <View style={styles.imageAttemptMetaGrid}>
+            <Text style={styles.imageAttemptMetaText}>
+              status:{' '}
+              {validation?.validationStatus ??
+                (attempt.validationMissingReason
+                  ? `missing (${attempt.validationMissingReason})`
+                  : 'missing')}
+            </Text>
+            <Text style={styles.imageAttemptMetaText}>
+              attempt: {validation?.attempt ?? attempt.generationIndex}
+            </Text>
+            <Text style={styles.imageAttemptMetaText}>
+              validator: {validation?.visionModel ?? 'n/a'}
+            </Text>
+            <Text style={styles.imageAttemptMetaText}>
+              cost: {formatValidationUsageCost(validation?.usage)}
+              {validation?.usage?.eventCount ? ` (${validation.usage.eventCount} events)` : ''}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
-function ImageRequestManifestPanel({ manifest }: { manifest: unknown }) {
-  const [expanded, setExpanded] = useState(false);
-  const [activePreviewKey, setActivePreviewKey] = useState<string | null>(null);
-  const root = recordOrNull(manifest);
-  if (!root) return null;
-
-  const requests = arrayOfRecords(root.requests);
-  const fallbackReferences = Array.isArray(root.references) ? root.references : [];
-  const rawJson = JSON.stringify(omitFullTextPromptForDisplay(root), null, 2);
-
-  const renderReferenceRows = (references: unknown, keyPrefix: string) => {
-    const refs = Array.isArray(references) ? references : [];
-    if (refs.length === 0) {
-      return <Text style={styles.metaText}>No references recorded.</Text>;
-    }
-
-    return (
-      <View style={styles.imageManifestRefList}>
-        {refs.map((ref, index) => {
-          const row = recordOrNull(ref) ?? {};
-          const rowKey = `${keyPrefix}-ref-${index}`;
-          return (
-            <ImageManifestReferenceRow
-              key={rowKey}
-              row={row}
-              index={index}
-              rowKey={rowKey}
-              previewOpen={activePreviewKey === rowKey}
-              onTogglePreview={setActivePreviewKey}
-            />
-          );
-        })}
-      </View>
-    );
-  };
+function SceneImageGenerationAttemptsPanel({
+  attempts,
+  isGraphicNovelPageImage,
+  onOpenGeneration,
+  onOpenValidation,
+}: {
+  attempts: AdminImageGenerationAttempt[];
+  isGraphicNovelPageImage?: boolean;
+  onOpenGeneration: (attempt: AdminImageGenerationAttempt) => void;
+  onOpenValidation: (validation: AdminStoryValidationItem) => void;
+}) {
+  if (attempts.length === 0) {
+    return <Text style={styles.helperText}>No image attempts found for this scene.</Text>;
+  }
 
   return (
-    <View style={styles.imageManifestPanel}>
-      <View style={styles.storyTextHeading}>
-        <Ionicons name="git-network-outline" size={16} color={theme.colors.interactive.primary} />
-        <Text style={styles.sceneVisualHeadingText}>IMAGE GENERATOR REQUEST</Text>
-      </View>
-
-      <View style={styles.imageManifestMetaGrid}>
-        <Text style={styles.imageManifestMetaText}>mode: {compactManifestValue(root.mode)}</Text>
-        <Text style={styles.imageManifestMetaText}>
-          provider: {compactManifestValue(root.provider)}
-        </Text>
-        <Text style={styles.imageManifestMetaText}>model: {compactManifestValue(root.model)}</Text>
-        <Text style={styles.imageManifestMetaText}>
-          refs: {compactManifestValue(root.referenceCount)}
-        </Text>
-        <Text style={styles.imageManifestMetaText}>
-          selected attempt: {compactManifestValue(root.selectedAttempt)}
-        </Text>
-        <Text selectable style={styles.imageManifestMetaText}>
-          image: {compactManifestValue(root.imageStoragePath)}
-        </Text>
-      </View>
-
-      {requests.length > 0 ? (
-        <View style={styles.imageManifestRequestList}>
-          {requests.map((request, index) => (
-            <View key={`image-request-${index}`} style={styles.imageManifestRequestCard}>
-              <Text style={styles.imageManifestRequestTitle}>
-                Request {index + 1} · {compactManifestValue(request.operation)} ·{' '}
-                {compactManifestValue(request.mode)}
-              </Text>
-              <Text style={styles.imageManifestMetaText}>
-                model: {compactManifestValue(request.model)} · aspect:{' '}
-                {compactManifestValue(request.aspectRatio)} · prompt chars:{' '}
-                {compactManifestValue(request.promptLength)}
-              </Text>
-              {renderReferenceRows(request.referenceImages, `image-request-${index}`)}
-            </View>
-          ))}
-        </View>
-      ) : (
-        renderReferenceRows(fallbackReferences, 'image-request-fallback')
-      )}
-
-      <TouchableOpacity
-        style={styles.imageManifestToggle}
-        onPress={() => setExpanded((current) => !current)}
-      >
-        <Text style={styles.imageManifestToggleText}>
-          {expanded ? 'Hide raw manifest' : 'Show raw manifest'}
-        </Text>
-      </TouchableOpacity>
-      {expanded ? (
-        <ScrollView style={styles.mapTileRawBox} nestedScrollEnabled>
-          <Text selectable style={styles.audioPre}>
-            {rawJson}
-          </Text>
-        </ScrollView>
-      ) : null}
+    <View style={styles.imageAttemptList}>
+      {attempts.map((attempt) => (
+        <SceneImageGenerationAttemptCard
+          key={`image-attempt-${attempt.sceneIndex}-${attempt.panelIndex ?? 'scene'}-${attempt.generationIndex}`}
+          attempt={attempt}
+          isGraphicNovelPageImage={isGraphicNovelPageImage}
+          onOpenGeneration={() => onOpenGeneration(attempt)}
+          onOpenValidation={
+            attempt.validation
+              ? () => {
+                  onOpenValidation(attempt.validation!);
+                }
+              : undefined
+          }
+        />
+      ))}
     </View>
   );
 }
@@ -815,13 +1303,7 @@ function getGraphicPageRegenerationJobKey(storyId: string, pageNumber: number): 
   return `${storyId}:graphic-page:${pageNumber}`;
 }
 
-function RegenerationJobStatus({
-  jobId,
-  onTerminal,
-}: {
-  jobId: string;
-  onTerminal: () => void;
-}) {
+function RegenerationJobStatus({ jobId, onTerminal }: { jobId: string; onTerminal: () => void }) {
   const query = useAdminJobStatus(jobId);
   const notifiedTerminalRef = useRef(false);
   const status = query.data?.job.status;
@@ -842,9 +1324,7 @@ function RegenerationJobStatus({
   }, [onTerminal, status]);
 
   if (query.isLoading) {
-    return (
-      <Text style={styles.regenerationStatus}>Checking job {shortJobId(jobId)}...</Text>
-    );
+    return <Text style={styles.regenerationStatus}>Checking job {shortJobId(jobId)}...</Text>;
   }
 
   if (query.error) {
@@ -872,9 +1352,7 @@ function RegenerationJobStatus({
   }
 
   if (job.status === 'processing') {
-    return (
-      <Text style={styles.regenerationStatus}>Processing · {shortJobId(job.id)}</Text>
-    );
+    return <Text style={styles.regenerationStatus}>Processing · {shortJobId(job.id)}</Text>;
   }
 
   if (job.status === 'completed') {
@@ -900,17 +1378,22 @@ export default function AdminScenesScreen() {
   const scenesQuery = useAdminDirectorScenes(routeStoryId);
   const regenerateMutation = useAdminRegenerateSceneImage();
   const regenerateGraphicNovelPageMutation = useAdminRegenerateGraphicNovelPageImage();
+  const applyBestValidationMutation = useAdminApplyBestSceneImageValidationCandidate();
   const resetAudioMutation = useAdminResetStoryAudio();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
   const [regenerationJobs, setRegenerationJobs] = useState<Record<string, RegenerationJobEntry>>(
     {}
   );
+  const [enabledCostCategoryIds, setEnabledCostCategoryIds] = useState<
+    Set<CostBreakdownCategoryId>
+  >(() => new Set(ALL_COST_CATEGORY_IDS));
 
   useEffect(() => {
     setSelectedEnvironmentId(null);
     setSelectedOutfitId(null);
     setRegenerationJobs({});
+    setEnabledCostCategoryIds(new Set(ALL_COST_CATEGORY_IDS));
   }, [routeStoryId]);
   const storyScenes = useMemo(
     () => scenesQuery.data?.storyScenes ?? [],
@@ -918,6 +1401,7 @@ export default function AdminScenesScreen() {
   );
   const directorScenes = useMemo(() => scenesQuery.data?.items ?? [], [scenesQuery.data?.items]);
   const storyMeta = scenesQuery.data?.story;
+  const textValidation = storyMeta?.textValidation ?? null;
   const isGraphicPageStory =
     storyMeta?.storyFormat === 'graphic_novel' || storyMeta?.storyFormat === 'mixed_story';
   const directorSceneByIndex = useMemo(
@@ -960,18 +1444,82 @@ export default function AdminScenesScreen() {
     for (const list of map.values()) {
       list.sort(
         (a, b) =>
-          a.attempt - b.attempt ||
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          a.attempt - b.attempt || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
     }
     return map;
   }, [validations]);
   const cost = scenesQuery.data?.cost;
+  const costBreakdownWithCategories = useMemo(
+    () =>
+      (cost?.breakdown ?? []).map((item) => ({
+        item,
+        categoryId: classifyCostOperation(item.operation),
+      })),
+    [cost?.breakdown]
+  );
+  const costCategorySummaries = useMemo(
+    () =>
+      COST_BREAKDOWN_CATEGORIES.map((category) => {
+        const categoryRows = costBreakdownWithCategories.filter(
+          (entry) => entry.categoryId === category.id
+        );
+        return {
+          ...category,
+          eventCount: categoryRows.length,
+          costUsd: categoryRows.reduce((sum, entry) => sum + entry.item.costUsd, 0),
+        };
+      }).filter((category) => category.eventCount > 0),
+    [costBreakdownWithCategories]
+  );
+  const filteredCostBreakdown = useMemo(
+    () =>
+      costBreakdownWithCategories.filter((entry) => enabledCostCategoryIds.has(entry.categoryId)),
+    [costBreakdownWithCategories, enabledCostCategoryIds]
+  );
+  const filteredCostUsd = useMemo(
+    () => filteredCostBreakdown.reduce((sum, entry) => sum + entry.item.costUsd, 0),
+    [filteredCostBreakdown]
+  );
+  const selectedCostEventCount = filteredCostBreakdown.length;
+  const totalCostEventCount = costBreakdownWithCategories.length;
+  const toggleCostCategory = (categoryId: CostBreakdownCategoryId) => {
+    setEnabledCostCategoryIds((current) => {
+      const next = new Set(current);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+  const enableAllCostCategories = () => {
+    setEnabledCostCategoryIds(new Set(ALL_COST_CATEGORY_IDS));
+  };
   const environments = useMemo(
     () => scenesQuery.data?.environments ?? [],
     [scenesQuery.data?.environments]
   );
   const outfits = useMemo(() => scenesQuery.data?.outfits ?? [], [scenesQuery.data?.outfits]);
+  const getApplyBestSceneState = (sceneValidations: AdminStoryValidationItem[]) => {
+    const validationIds = new Set(sceneValidations.map((validation) => validation.id));
+    const isCurrent =
+      !!applyBestValidationMutation.variables?.validationId &&
+      validationIds.has(applyBestValidationMutation.variables.validationId);
+    const data = isCurrent ? applyBestValidationMutation.data : null;
+    return {
+      isPending: isCurrent && applyBestValidationMutation.isPending,
+      message:
+        isCurrent && data
+          ? `Applied attempt ${data.selectedAttempt}, score ${data.selectedScore}; compared ${data.compared.length}${data.changed ? '' : '; already selected'}`
+          : null,
+      error:
+        isCurrent && applyBestValidationMutation.error
+          ? (applyBestValidationMutation.error as Error).message
+          : null,
+    };
+  };
   const renderRegenerateButton = (item: (typeof scenes)[number]) => {
     if (!routeStoryId) return null;
 
@@ -1044,6 +1592,9 @@ export default function AdminScenesScreen() {
 
     const jobKey = getSceneRegenerationJobKey(routeStoryId, item.sceneIndex);
     const job = regenerationJobs[jobKey];
+    const sceneValidations = validationsBySceneIndex.get(item.sceneIndex) ?? [];
+    const applyBestAnchor = sceneValidations[0] ?? null;
+    const applyBestState = getApplyBestSceneState(sceneValidations);
     const isPending =
       regenerateMutation.isPending &&
       regenerateMutation.variables?.storyId === routeStoryId &&
@@ -1057,6 +1608,25 @@ export default function AdminScenesScreen() {
 
     return (
       <View style={styles.regenerationActionGroup}>
+        {applyBestAnchor ? (
+          <TouchableOpacity
+            style={[
+              styles.sceneActionButton,
+              styles.sceneSecondaryActionButton,
+              applyBestState.isPending ? styles.disabledButton : null,
+            ]}
+            disabled={applyBestState.isPending}
+            onPress={() => {
+              applyBestValidationMutation.mutate({
+                validationId: applyBestAnchor.id,
+              });
+            }}
+          >
+            <Text style={[styles.sceneActionButtonText, styles.sceneSecondaryActionButtonText]}>
+              {applyBestState.isPending ? 'Applying...' : 'Apply best score'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={styles.sceneActionButton}
           disabled={isPending}
@@ -1092,6 +1662,16 @@ export default function AdminScenesScreen() {
         {mutationError ? (
           <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
             Queue failed: {(mutationError as Error).message}
+          </Text>
+        ) : null}
+        {applyBestState.message ? (
+          <Text style={[styles.regenerationStatus, styles.regenerationStatusSuccess]}>
+            {applyBestState.message}
+          </Text>
+        ) : null}
+        {applyBestState.error ? (
+          <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
+            {applyBestState.error}
           </Text>
         ) : null}
       </View>
@@ -1306,137 +1886,126 @@ export default function AdminScenesScreen() {
           </View>
         ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
+          <TextValidationPanel validation={textValidation} />
+        ) : null}
+        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
           scenes.length > 0 ? (
             <View style={styles.cardGrid}>
-              {scenes.map((item) => (
-                <View key={item.sceneIndex} style={styles.sceneCard}>
-                  <View style={styles.sceneCardHeader}>
-                    <Text style={styles.sceneCardTitle}>
-                      SCENE {item.sceneIndex}
-                      {item.graphicNovelPageNumber
-                        ? ` · PAGE ${item.graphicNovelPageNumber}`
-                        : ''}
-                    </Text>
-                    <View style={styles.sceneCardHeaderActions}>
-                      {item.directorScene?.environmentId ? (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setSelectedEnvironmentId(item.directorScene?.environmentId ?? null);
-                            scrollToAnchor('admin-environments-section');
-                          }}
-                        >
-                          <Text
-                            style={
-                              item.directorScene.environmentId === selectedEnvironmentId
-                                ? styles.linkTextActive
-                                : styles.linkText
-                            }
+              {scenes.map((item) => {
+                const sceneValidations = validationsBySceneIndex.get(item.sceneIndex) ?? [];
+                const imageAttempts = buildAdminImageGenerationAttempts({
+                  sceneIndex: item.sceneIndex,
+                  manifest: item.imageRequestManifest,
+                  validations: sceneValidations,
+                  fallbackImageUrl: item.imageUrl,
+                  fallbackImageStoragePath: item.imageStoragePath,
+                });
+                const isGraphicNovelPageImage =
+                  (item.imageTargetKind ??
+                    (isGraphicPageStory ? 'graphic_novel_page' : 'scene')) === 'graphic_novel_page';
+                const sceneBubbleVisionTarget = isGraphicNovelPageImage
+                  ? buildBubbleVisionOverlayTarget({
+                      sceneIndex: item.sceneIndex,
+                      pageNumber: item.graphicNovelPageNumber,
+                      imageUrl: item.imageUrl,
+                      imageRequestManifest: item.imageRequestManifest,
+                    })
+                  : null;
+                return (
+                  <View key={item.sceneIndex} style={styles.sceneCard}>
+                    <View style={styles.sceneCardHeader}>
+                      <Text style={styles.sceneCardTitle}>
+                        SCENE {item.sceneIndex}
+                        {item.graphicNovelPageNumber
+                          ? ` · PAGE ${item.graphicNovelPageNumber}`
+                          : ''}
+                      </Text>
+                      <View style={styles.sceneCardHeaderActions}>
+                        {item.directorScene?.environmentId ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSelectedEnvironmentId(item.directorScene?.environmentId ?? null);
+                              scrollToAnchor('admin-environments-section');
+                            }}
                           >
-                            {item.directorScene.environmentId}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <Text style={styles.metaText}>n/a</Text>
-                      )}
-                      {renderRegenerateButton(item)}
-                    </View>
-                  </View>
-
-                  <View style={styles.sceneSection}>
-                    <View style={styles.storyTextBlock}>
-                      <View style={styles.storyTextHeading}>
-                        <Ionicons
-                          name="book-outline"
-                          size={16}
-                          color={theme.colors.interactive.primary}
-                        />
-                        <Text style={styles.sceneVisualHeadingText}>STORY TEXT</Text>
+                            <Text
+                              style={
+                                item.directorScene.environmentId === selectedEnvironmentId
+                                  ? styles.linkTextActive
+                                  : styles.linkText
+                              }
+                            >
+                              {item.directorScene.environmentId}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.metaText}>n/a</Text>
+                        )}
+                        {renderRegenerateButton(item)}
                       </View>
-                      <Text style={styles.storyTextBody}>{item.storyText || 'n/a'}</Text>
                     </View>
 
-                    {item.imageRequestManifest ? (
-                      <>
-                        <View style={styles.sceneDivider} />
-                        <ImageRequestManifestPanel manifest={item.imageRequestManifest} />
-                      </>
-                    ) : null}
-
-                    {item.directorScene ? (
-                      <>
-                        <View style={styles.sceneDivider} />
-
-                        {renderSceneVisual(item.directorScene.sceneVisual, {
-                          selectedOutfitId,
-                          onOutfitPress: (outfitId) => {
-                            setSelectedOutfitId(outfitId);
-                            scrollToAnchor('admin-outfits-section');
-                          },
-                        })}
-
-                        <View style={styles.sceneDivider} />
-                      </>
-                    ) : null}
-
-                    <View style={styles.validationBlock}>
-                      <View style={styles.storyTextHeading}>
-                        <Ionicons
-                          name="shield-checkmark-outline"
-                          size={16}
-                          color={theme.colors.interactive.primary}
-                        />
-                        <Text style={styles.sceneVisualHeadingText}>VALIDATIONS</Text>
-                      </View>
-                      {(validationsBySceneIndex.get(item.sceneIndex) ?? []).length > 0 ? (
-                        <View style={styles.validationList}>
-                          {(validationsBySceneIndex.get(item.sceneIndex) ?? []).map(
-                            (validation) => (
-                              <TouchableOpacity
-                                key={validation.id}
-                                style={styles.validationCard}
-                                onPress={() =>
-                                  navigation.navigate('AdminValidationDetail', {
-                                    id: validation.id,
-                                  })
-                                }
-                              >
-                                <View style={styles.validationCardHeader}>
-                                  <Text style={styles.validationCardTitle}>
-                                    Attempt {validation.attempt}
-                                    {validation.graphicNovelPageNumber
-                                      ? ` · Page ${validation.graphicNovelPageNumber}`
-                                      : ''}
-                                  </Text>
-                                  <Text style={styles.validationScore}>
-                                    {formatValidationScore(
-                                      validation.validationScore,
-                                      validation.validationStatus
-                                    )}
-                                  </Text>
-                                </View>
-                                <View style={styles.validationMetaRow}>
-                                  <Text style={styles.validationMetaText}>
-                                    {validation.validationStatus}
-                                  </Text>
-                                  <Text style={styles.validationMetaText}>
-                                    Validator: {validation.visionModel ?? 'n/a'}
-                                  </Text>
-                                  <Text style={styles.validationMetaText}>
-                                    {new Date(validation.createdAt).toLocaleString()}
-                                  </Text>
-                                </View>
-                                <Text style={styles.validationLink}>Open validation</Text>
-                              </TouchableOpacity>
-                            )
-                          )}
+                    <View style={styles.sceneSection}>
+                      <View style={styles.storyTextBlock}>
+                        <View style={styles.storyTextHeading}>
+                          <Ionicons
+                            name="book-outline"
+                            size={16}
+                            color={theme.colors.interactive.primary}
+                          />
+                          <Text style={styles.sceneVisualHeadingText}>STORY TEXT</Text>
                         </View>
-                      ) : (
-                        <Text style={styles.helperText}>No validations found for this scene.</Text>
-                      )}
+                        <Text style={styles.storyTextBody}>{item.storyText || 'n/a'}</Text>
+                      </View>
+
+                      {imageAttempts.length > 0 || sceneBubbleVisionTarget ? (
+                        <>
+                          <View style={styles.sceneDivider} />
+                          {sceneBubbleVisionTarget ? (
+                            <GraphicNovelPageBubbleVisionPreview
+                              target={sceneBubbleVisionTarget}
+                            />
+                          ) : null}
+                          {imageAttempts.length > 0 ? (
+                            <SceneImageGenerationAttemptsPanel
+                              attempts={imageAttempts}
+                              isGraphicNovelPageImage={isGraphicNovelPageImage}
+                              onOpenGeneration={(attempt) =>
+                                navigation.navigate('AdminImageGenerationDetail', {
+                                  storyId: routeStoryId,
+                                  sceneIndex: item.sceneIndex,
+                                  generationIndex: attempt.generationIndex,
+                                })
+                              }
+                              onOpenValidation={(validation) =>
+                                navigation.navigate('AdminValidationDetail', {
+                                  id: validation.id,
+                                })
+                              }
+                            />
+                          ) : null}
+                        </>
+                      ) : null}
+
+                      {item.directorScene ? (
+                        <>
+                          <View style={styles.sceneDivider} />
+
+                          {renderSceneVisual(item.directorScene.sceneVisual, {
+                            selectedOutfitId,
+                            onOutfitPress: (outfitId) => {
+                              setSelectedOutfitId(outfitId);
+                              scrollToAnchor('admin-outfits-section');
+                            },
+                          })}
+
+                          <View style={styles.sceneDivider} />
+                        </>
+                      ) : null}
                     </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <Text style={styles.helperText}>No scenes found for this story.</Text>
@@ -1537,33 +2106,107 @@ export default function AdminScenesScreen() {
           {cost ? (
             <View style={styles.costCard}>
               <View style={styles.costTotalRow}>
-                <Text style={styles.costTotalLabel}>TOTAL COST</Text>
-                <Text style={styles.costTotalValue}>${cost.costUsd.toFixed(6)}</Text>
+                <View>
+                  <Text style={styles.costTotalLabel}>SELECTED COST</Text>
+                  <Text style={styles.costTotalMeta}>
+                    {selectedCostEventCount}/{totalCostEventCount} events included
+                  </Text>
+                </View>
+                <View style={styles.costTotalValueWrap}>
+                  <Text style={styles.costTotalValue}>{formatCostUsd(filteredCostUsd)}</Text>
+                  <Text style={styles.costTotalMeta}>
+                    All events: {formatCostUsd(cost.costUsd)}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.helperText}>
                 Cache hits: {cost.cacheStats.cacheHitCount} calls, cached input:{' '}
                 {cost.cacheStats.totalCachedInputUnits.toLocaleString()} tokens
               </Text>
+              {costCategorySummaries.length > 0 ? (
+                <View style={styles.costFilterSection}>
+                  <View style={styles.costFilterHeader}>
+                    <Text style={styles.costFilterTitle}>Include categories</Text>
+                    <TouchableOpacity
+                      onPress={enableAllCostCategories}
+                      style={styles.costFilterAction}
+                    >
+                      <Text style={styles.costFilterActionText}>All on</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.costFilterGrid}>
+                    {costCategorySummaries.map((category) => {
+                      const isEnabled = enabledCostCategoryIds.has(category.id);
+                      return (
+                        <TouchableOpacity
+                          key={category.id}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: isEnabled }}
+                          onPress={() => toggleCostCategory(category.id)}
+                          style={[styles.costFilterChip, isEnabled && styles.costFilterChipActive]}
+                        >
+                          <Ionicons
+                            name={isEnabled ? 'checkbox-outline' : 'square-outline'}
+                            size={18}
+                            color={
+                              isEnabled
+                                ? theme.colors.interactive.primary
+                                : theme.colors.text.secondary
+                            }
+                          />
+                          <View style={styles.costFilterChipTextWrap}>
+                            <Text
+                              style={[
+                                styles.costFilterChipLabel,
+                                isEnabled && styles.costFilterChipLabelActive,
+                              ]}
+                            >
+                              {category.label}
+                            </Text>
+                            <Text style={styles.costFilterChipMeta}>
+                              {formatCostUsd(category.costUsd)} • {category.eventCount} events
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
               {cost.breakdown.length > 0 ? (
                 <View style={styles.costBreakdownList}>
-                  {cost.breakdown.map((item, index) => (
-                    <View
-                      key={`${item.provider}-${item.operation}-${item.model ?? 'na'}-${index}`}
-                      style={styles.costBreakdownRow}
-                    >
-                      <View style={styles.costBreakdownMain}>
-                        <Text style={styles.costBreakdownOperation}>{item.operation}</Text>
-                        <Text style={styles.costBreakdownMeta}>
-                          {item.provider}
-                          {item.model ? ` / ${item.model}` : ''}
-                        </Text>
-                        <Text style={styles.costBreakdownMeta}>
-                          {new Date(item.createdAt).toLocaleString()}
-                        </Text>
-                      </View>
-                      <Text style={styles.costBreakdownValue}>${item.costUsd.toFixed(6)}</Text>
-                    </View>
-                  ))}
+                  {filteredCostBreakdown.length > 0 ? (
+                    filteredCostBreakdown.map(({ item, categoryId }, index) => {
+                      const category = COST_CATEGORY_BY_ID.get(categoryId);
+                      return (
+                        <View
+                          key={`${item.provider}-${item.operation}-${item.model ?? 'na'}-${item.createdAt}-${index}`}
+                          style={styles.costBreakdownRow}
+                        >
+                          <View style={styles.costBreakdownMain}>
+                            <View style={styles.costBreakdownOperationRow}>
+                              <Text style={styles.costBreakdownOperation}>{item.operation}</Text>
+                              {category ? (
+                                <Text style={styles.costBreakdownCategory}>{category.label}</Text>
+                              ) : null}
+                            </View>
+                            <Text style={styles.costBreakdownMeta}>
+                              {item.provider}
+                              {item.model ? ` / ${item.model}` : ''}
+                            </Text>
+                            <Text style={styles.costBreakdownMeta}>
+                              {new Date(item.createdAt).toLocaleString()}
+                            </Text>
+                          </View>
+                          <Text style={styles.costBreakdownValue}>
+                            {formatCostUsd(item.costUsd)}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <Text style={styles.helperText}>No cost records in selected categories.</Text>
+                  )}
                 </View>
               ) : (
                 <Text style={styles.helperText}>No AI cost records found for this story.</Text>
@@ -1655,10 +2298,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: theme.colors.interactive.primary,
   },
+  sceneSecondaryActionButton: {
+    backgroundColor: theme.colors.interactive.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
   sceneActionButtonText: {
     color: theme.colors.text.inverse,
     fontWeight: '700',
     fontSize: 13,
+  },
+  sceneSecondaryActionButtonText: {
+    color: theme.colors.text.primary,
   },
   regenerationStatus: {
     maxWidth: 260,
@@ -1695,160 +2346,196 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  validationBlock: {
-    gap: 12,
+  textValidationScore: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: theme.colors.interactive.primary,
   },
-  imageManifestPanel: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  imageManifestMetaGrid: {
+  textValidationSummaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-  },
-  imageManifestMetaText: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-  },
-  imageManifestRequestList: {
     gap: 10,
   },
-  imageManifestRequestCard: {
-    gap: 8,
+  textValidationSummaryPill: {
+    minWidth: 150,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.background.secondary,
+    gap: 4,
+  },
+  textValidationAttemptList: {
+    gap: 14,
+  },
+  textValidationAttemptCard: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: theme.colors.background.secondary,
+    gap: 12,
+  },
+  textValidationJsonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  textValidationJsonColumn: {
+    flex: 1,
+    minWidth: 320,
+    gap: 6,
+  },
+  textValidationJsonBox: {
+    maxHeight: 340,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 8,
+    backgroundColor: theme.colors.background.primary,
+  },
+  textValidationJsonContent: {
+    padding: 10,
+  },
+  textValidationJsonText: {
+    fontFamily: Platform.select({ web: 'monospace', default: 'Courier' }),
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.text.primary,
+  },
+  imageAttemptList: {
+    gap: 12,
+  },
+  imageAttemptCard: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'stretch',
     borderWidth: 1,
     borderColor: theme.colors.border.light,
     borderRadius: 12,
     padding: 12,
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: theme.colors.background.secondary,
+    flexWrap: 'wrap',
   },
-  imageManifestRequestTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
-  imageManifestRefList: {
+  imageAttemptPreviewColumn: {
+    width: 280,
+    maxWidth: '100%',
     gap: 8,
   },
-  imageManifestRefRowAnchor: {
-    position: 'relative',
-  },
-  imageManifestRefRowAnchorActive: {
-    zIndex: 20,
-  },
-  imageManifestRefRow: {
-    gap: 3,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.colors.interactive.primary,
-    paddingLeft: 10,
-    paddingVertical: 4,
-    paddingRight: 8,
+  imageAttemptPreviewImage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
     borderRadius: 8,
+    backgroundColor: theme.colors.background.primary,
   },
-  imageManifestRefRowActive: {
-    backgroundColor: theme.colors.interactive.secondary + '66',
+  imageAttemptGraphicPagePreviewImage: {
+    aspectRatio: 3 / 4,
   },
-  imageManifestRefTitle: {
-    fontSize: 13,
+  imageAttemptCaption: {
+    fontSize: 12,
     fontWeight: '700',
+    color: theme.colors.text.secondary,
+  },
+  imageAttemptLinksColumn: {
+    flex: 1,
+    minWidth: 320,
+    gap: 10,
+  },
+  imageAttemptLinkPanel: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+    backgroundColor: theme.colors.background.primary,
+  },
+  imageAttemptLinkPanelDisabled: {
+    opacity: 0.55,
+  },
+  imageAttemptLinkHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  imageAttemptLinkTitle: {
+    fontSize: 15,
+    fontWeight: '800',
     color: theme.colors.text.primary,
   },
-  imageManifestRefMeta: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-  },
-  imageManifestRefPath: {
-    fontSize: 12,
+  imageAttemptScore: {
+    marginLeft: 'auto',
+    fontSize: 15,
+    fontWeight: '800',
     color: theme.colors.interactive.primary,
   },
-  imageManifestInstruction: {
-    fontSize: 12,
-    lineHeight: 18,
+  imageAttemptMetaGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  imageAttemptMetaText: {
+    fontSize: 13,
     color: theme.colors.text.secondary,
   },
-  imageManifestPreviewTooltip: {
-    position: 'absolute',
-    bottom: '100%',
-    left: 10,
-    width: 400,
-    marginBottom: 8,
-    padding: 8,
+  bubbleVisionInlineCard: {
     borderWidth: 1,
     borderColor: theme.colors.border.light,
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.background.primary,
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  imageManifestPreviewTooltipImage: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 8,
+    padding: 12,
     backgroundColor: theme.colors.background.secondary,
+    gap: 10,
   },
-  imageManifestToggle: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: theme.colors.interactive.secondary,
-  },
-  imageManifestToggleText: {
-    color: theme.colors.interactive.primary,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  validationList: {
+  bubbleVisionInlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
+    flexWrap: 'wrap',
   },
-  validationCard: {
+  bubbleVisionImageFrame: {
+    width: 420,
+    maxWidth: '100%',
+    borderRadius: 10,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: theme.colors.border.light,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: theme.colors.background.secondary,
-    gap: 8,
+    backgroundColor: theme.colors.background.primary,
+    position: 'relative',
   },
-  validationCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  bubbleVisionMarker: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    marginLeft: -8,
+    marginTop: -8,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bubbleVisionMarkerDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
+  },
+  bubbleVisionLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  validationCardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
-  validationScore: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.interactive.primary,
-  },
-  validationMetaRow: {
+  bubbleVisionLegendItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
-  validationMetaText: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
+  bubbleVisionLegendDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 3,
   },
-  validationLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.interactive.primary,
-    textDecorationLine: 'underline',
+  disabledButton: {
+    opacity: 0.55,
   },
   storyTextBody: {
     fontSize: 16,
@@ -2187,6 +2874,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
+    flexWrap: 'wrap',
   },
   costTotalLabel: {
     fontSize: 13,
@@ -2198,6 +2886,77 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: theme.colors.text.primary,
+  },
+  costTotalValueWrap: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  costTotalMeta: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+  costFilterSection: {
+    gap: 10,
+  },
+  costFilterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  costFilterTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0.2,
+  },
+  costFilterAction: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  costFilterActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.interactive.primary,
+  },
+  costFilterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  costFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    minWidth: 190,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  costFilterChipActive: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: `${theme.colors.interactive.primary}12`,
+  },
+  costFilterChipTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  costFilterChipLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+  },
+  costFilterChipLabelActive: {
+    color: theme.colors.text.primary,
+  },
+  costFilterChipMeta: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
   },
   costBreakdownList: {
     gap: 12,
@@ -2215,10 +2974,26 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  costBreakdownOperationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   costBreakdownOperation: {
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.text.primary,
+  },
+  costBreakdownCategory: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: theme.colors.background.secondary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    overflow: 'hidden',
   },
   costBreakdownMeta: {
     fontSize: 13,

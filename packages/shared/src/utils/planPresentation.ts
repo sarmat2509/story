@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE, isValidLocale, type Locale } from '../config/languages'
 export const PRICING_FEATURE_ORDER = [
   'stories_per_day',
   'images_per_story',
+  'characters_per_month',
   'graphic_novels_per_month',
   'mixed_stories_per_month',
   'premium_voices',

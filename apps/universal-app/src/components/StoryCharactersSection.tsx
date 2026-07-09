@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -198,6 +198,10 @@ function getCharacterDisplayName(character: StoryCharacter, storyLanguage?: stri
   return displayName || stripCharacterIdFromName(character.name);
 }
 
+function hasCharacterImage(character: StoryCharacter): boolean {
+  return typeof character.referencePhotoUrl === 'string' && character.referencePhotoUrl.trim().length > 0;
+}
+
 function StoryCharactersSectionInner({
   characters,
   savedCharacterIds,
@@ -209,6 +213,7 @@ function StoryCharactersSectionInner({
 }: StoryCharactersSectionProps) {
   const { t } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
+  const visibleCharacters = useMemo(() => characters.filter(hasCharacterImage), [characters]);
   const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(!collapsible);
   const shouldShowCharacters = !collapsible || isExpanded;
@@ -220,6 +225,10 @@ function StoryCharactersSectionInner({
     },
     [t]
   );
+
+  if (visibleCharacters.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.charactersSection}>
@@ -244,7 +253,7 @@ function StoryCharactersSectionInner({
           </View>
         ) : null}
       </Pressable>
-      {shouldShowCharacters && characters.map((char) => {
+      {shouldShowCharacters && visibleCharacters.map((char) => {
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
         const displayName = getCharacterDisplayName(char, storyLanguage);

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { buildSceneImagePrompt, buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../image/ImagePrompts';
 import { ImageDomainService } from '../../domain/image/ImageDomainService';
 
+const forbiddenSyntheticAlias = ['Sub', 'ject'].join('');
+
 function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
   const prompt = buildSceneImagePrompt({
     sceneVisual: {
@@ -28,11 +30,30 @@ function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
     imageIndexMap: new Map([['Mia', 1]]),
   });
 
-  assert.ok(prompt.includes('- Subject A (Image 1): match the character design from the sheet'));
+  assert.doesNotMatch(prompt, /match the full character design from the sheet/i);
+  assert.doesNotMatch(prompt, /match the attached full character reference image/i);
+  assert.doesNotMatch(prompt, /MUST AVOID any kind of text/);
+  assert.doesNotMatch(prompt, /keep free of text/i);
   assert.ok(!prompt.includes('Mia'));
   assert.ok(!prompt.includes('8-year-old girl with short brown hair'));
   assert.ok(!prompt.includes('freckles'));
   assert.ok(!prompt.includes('yellow raincoat'));
+}
+
+function testLegacyUserPromptKeepsTextBanInSystemOnly() {
+  const prompt = buildSceneImagePrompt({
+    visualPrompt: 'A bright meadow with a red kite flying over flowers.',
+    ageGroup: '6-8',
+    style: 'soft_watercolor',
+    hasReferences: false,
+  });
+
+  assert.doesNotMatch(prompt, /MUST AVOID any kind of text/);
+  assert.doesNotMatch(prompt, /Keep the frame free of words/i);
+  assert.doesNotMatch(prompt, /keep free of text/i);
+  assert.doesNotMatch(prompt, /avoid:.*\btext\b/i);
+  assert.doesNotMatch(prompt, /avoid:.*\bletters\b/i);
+  assert.doesNotMatch(prompt, /avoid:.*\btypography\b/i);
 }
 
 function testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise() {
@@ -65,7 +86,7 @@ function testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise() {
   assert.ok(!prompt.includes('paper texture'));
   assert.ok(!prompt.includes('[STYLE:'));
   assert.ok(!prompt.includes('Describe with nocturnal calm palette'));
-  assert.ok(prompt.includes('Subject A (Image 1): foreground center-left beside Subject A'));
+  assert.ok(prompt.includes('Character REF_IMAGE_1 is located foreground center-left beside REF_IMAGE_1'));
   assert.ok(!prompt.includes('Емілія'));
   assert.ok(!prompt.includes('Emilia'));
   assert.ok(!prompt.includes('as if ready to enter'));
@@ -96,17 +117,56 @@ function testStructuredPromptReplacesLocalizedCharacterNameAliases() {
     imageIndexMap: new Map([['Емілія', 1]]),
   });
 
-  assert.ok(prompt.includes('Subject A studies the glowing map while Subject A holds the lantern.'));
-  assert.ok(prompt.includes('framing Subject A near the table'));
-  assert.ok(prompt.includes('Subject A points at the map'));
-  assert.ok(prompt.includes('Warm light near Subject A, cooler shadows behind Subject A.'));
+  assert.ok(prompt.includes('REF_IMAGE_1 studies the glowing map while REF_IMAGE_1 holds the lantern.'));
+  assert.ok(prompt.includes('framing REF_IMAGE_1 near the table'));
+  assert.ok(prompt.includes('Character REF_IMAGE_1 is located foreground center, REF_IMAGE_1 points at the map'));
+  assert.ok(prompt.includes('Warm light near REF_IMAGE_1, cooler shadows behind REF_IMAGE_1.'));
   assert.ok(!prompt.includes('Емілія'));
   assert.ok(!prompt.includes('Emilia'));
   assert.ok(!prompt.includes('Эмилия'));
   assert.ok(!prompt.includes('Emilie'));
 }
 
-function testStructuredPromptKeepsSceneFirstAndUsesResultOrientedOutfitLanguage() {
+function testStructuredPromptUsesReferenceBindingIdsForDirectedActionText() {
+  const prompt = buildSceneImagePrompt({
+    sceneVisual: {
+      setting: 'A quiet spaceship corridor with a round glowing doorway.',
+      cameraComposition: {
+        shot: 'Medium-wide shot: Emilia enters the spaceship through the glowing doorway.',
+        characters: [
+          {
+            name: 'Emilia',
+            description: 'foreground left, Emilia reaches toward the control panel',
+          },
+        ],
+      },
+      lighting: 'Cool blue corridor light around Emilia.',
+    },
+    ageGroup: '6-8',
+    style: 'soft_watercolor',
+    hasReferences: true,
+    referenceCharacterNames: [{ name: 'Emilia', isTurnaround: true }],
+    imageIndexMap: new Map([['Emilia', 1]]),
+    referenceImages: [
+      {
+        referenceBindingId: 'REF_CH_EMILIA_TEST01',
+        characterName: 'Emilia',
+        referenceKind: 'character',
+        imageIndex: 1,
+        type: 'dressed_turnaround_reference',
+      },
+    ],
+  });
+
+  assert.ok(prompt.includes('REF_CH_EMILIA_TEST01 enters the spaceship'));
+  assert.doesNotMatch(prompt, /match the full character design from the sheet/i);
+  assert.ok(prompt.includes('Character REF_CH_EMILIA_TEST01 is located foreground left, REF_CH_EMILIA_TEST01 reaches toward the control panel'));
+  assert.ok(prompt.includes('Cool blue corridor light around REF_CH_EMILIA_TEST01.'));
+  assert.ok(!prompt.includes(forbiddenSyntheticAlias));
+  assert.ok(!prompt.includes('Emilia'));
+}
+
+function testStructuredPromptKeepsSceneFirstAndStripsTextOutfitLanguage() {
   const prompt = buildSceneImagePrompt({
     sceneVisual: {
       setting: 'Lush tropical jungle at sunrise with a narrow dirt path and pink orchids in the foreground.',
@@ -127,14 +187,15 @@ function testStructuredPromptKeepsSceneFirstAndUsesResultOrientedOutfitLanguage(
     hasReferences: true,
     referenceCharacterNames: [{ name: 'Емілія', isTurnaround: true }],
     imageIndexMap: new Map([['Емілія', 1]]),
-    outfitPlateImageIndexByCharacter: new Map([['Емілія', 3]]),
   });
 
   assert.ok(prompt.trimStart().startsWith('- Scene:'));
   assert.ok(!prompt.includes('- Wardrobe plates:'));
   assert.ok(!prompt.includes('Technical reference command'));
-  assert.ok(prompt.includes('Draw Subject A from Image 1 wearing Clothes A from Image 3.'));
-  assert.ok(prompt.includes('Image 1 is PERSON SOURCE; Image 3 is CLOTHES SOURCE only.'));
+  assert.doesNotMatch(prompt, /Draw .* wearing/i);
+  assert.doesNotMatch(prompt, /CLOTHES SOURCE/i);
+  assert.ok(!prompt.includes('jacket'));
+  assert.ok(!prompt.includes('zipper'));
   assert.ok(!prompt.includes('Емілія'));
 }
 
@@ -159,18 +220,15 @@ function testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes() {
     hasReferences: true,
     referenceCharacterNames: [{ name: 'Lera', isTurnaround: true }],
     imageIndexMap: new Map([['Lera', 2]]),
-    characterOutfits: {
-      Lera: 'Mustard-yellow sweater, denim skirt, navy tights, brown ankle boots',
-    },
   });
 
-  assert.ok(prompt.includes('- Subject A (Image 2): match the character design from the sheet.'));
+  assert.doesNotMatch(prompt, /match the full character design from the sheet/i);
   assert.ok(!prompt.includes('Lera'));
   assert.ok(!prompt.includes('Outfit in this scene:'));
   assert.ok(!prompt.includes('Mustard-yellow sweater'));
 }
 
-function testTextOnlyCharacterStillReceivesOutfitText() {
+function testTextOnlyCharacterDoesNotReceiveLegacyOutfitText() {
   const prompt = buildSceneImagePrompt({
     sceneVisual: {
       setting: 'A backstage dressing room.',
@@ -192,17 +250,19 @@ function testTextOnlyCharacterStillReceivesOutfitText() {
     realWorldCharacters: [
       {
         name: 'Stage Helper',
-        description: 'Friendly adult helper with a calm smile',
+        description: 'Friendly adult helper with a calm smile, blue crew vest, black trousers',
       },
     ],
     characterOutfits: {
       'Stage Helper': 'Blue crew vest, black trousers, comfortable sneakers',
     },
-  });
+  } as Parameters<typeof buildSceneImagePrompt>[0] & { characterOutfits?: Record<string, string> });
 
-  assert.ok(prompt.includes('Outfit in this scene: Blue crew vest, black trousers, comfortable sneakers.'));
-  assert.ok(prompt.includes('- Subject A: Friendly adult helper with a calm smile.'));
-  assert.ok(!prompt.includes('Stage Helper'));
+  assert.ok(prompt.includes('- Stage Helper: Friendly adult helper with a calm smile'));
+  assert.ok(!prompt.includes('Outfit in this scene:'));
+  assert.ok(!prompt.includes('Blue crew vest'));
+  assert.ok(!prompt.includes('blue crew vest'));
+  assert.ok(!prompt.includes('black trousers'));
 }
 
 function testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter() {
@@ -232,12 +292,9 @@ function testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter() {
       },
     ],
     imageIndexMap: new Map([['unknown', 2]]),
-    characterOutfits: {
-      'Hooded Stranger': 'Long hooded cloak in muted deep green-gray, dark gloves, plain travel boots',
-    },
   });
 
-  assert.ok(prompt.includes('- Subject A (Image 2): match the reference photo.'));
+  assert.doesNotMatch(prompt, /match the full character reference/i);
   assert.ok(!prompt.includes('Outfit in this scene:'));
   assert.ok(!prompt.includes('- unknown (Image 2):'));
   assert.ok(!prompt.includes('Hooded Stranger'));
@@ -253,12 +310,22 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   });
 
   assert.ok(systemInstruction.includes('Character sheets establish locked IDENTITY'));
-  assert.ok(systemInstruction.includes('draw the person from Image M wearing the clothing/accessories from Image N'));
-  assert.ok(systemInstruction.includes('Image M is PERSON SOURCE. Image N is CLOTHES SOURCE only.'));
-  assert.ok(systemInstruction.includes('Only the clothes should change.'));
-  assert.ok(systemInstruction.includes('Do not redesign, re-braid, re-style, simplify, beautify, or reinterpret hair'));
+  assert.ok(systemInstruction.includes('MUST AVOID any kind of text'));
+  assert.doesNotMatch(systemInstruction, /internal binding tokens/);
+  assert.doesNotMatch(systemInstruction, /Reference IDs such as REF_CH_\*/);
+  assert.doesNotMatch(systemInstruction, /Never render reference IDs/);
+  assert.doesNotMatch(systemInstruction, /labels, captions, speech bubbles/);
+  assert.doesNotMatch(systemInstruction, /outfit plate/i);
+  assert.doesNotMatch(systemInstruction, /CLOTHES SOURCE/i);
+  assert.doesNotMatch(systemInstruction, /draw the person from .* wearing/i);
+  assert.doesNotMatch(systemInstruction, /CLOTHING:/);
+  assert.doesNotMatch(systemInstruction, /Do not/i);
+  assert.doesNotMatch(systemInstruction, /CONTACT GEOMETRY/i);
+  assert.doesNotMatch(systemInstruction, /touches, opens, presses/i);
+  assert.doesNotMatch(systemInstruction, /clay, felt, colored pencil, cel animation, 3D, comic ink, or watercolor/i);
+  assert.ok(systemInstruction.includes('Preserve hair and facial identity faithfully'));
   assert.ok(systemInstruction.includes('ENVIRONMENT REFERENCE: The provided location image defines reusable layout'));
-  assert.ok(systemInstruction.includes('Do not copy the reference medium'));
+  assert.ok(systemInstruction.includes('Keep the same location and spatial relationships'));
 }
 
 function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
@@ -283,6 +350,8 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
   assert.ok(gardenPrompt.includes('style-neutral full-color location design plate'));
   assert.ok(gardenPrompt.includes('not line art'));
   assert.ok(gardenPrompt.includes('Do not lock the final art medium'));
+  assert.ok(gardenPrompt.includes('Keep functional architectural elements physically anchored and usable'));
+  assert.ok(gardenPrompt.includes('avoid freestanding doors, floating handles'));
   assert.ok(gardenPrompt.includes('large inert shell-shaped mound under a thick layer of brown leaves'));
   assert.ok(gardenPrompt.includes('no people, no characters, no animals, no creatures'));
   assert.ok(!gardenPrompt.includes('Matilda'));
@@ -299,15 +368,40 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
 async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   let capturedSystemInstruction = '';
   let capturedPrompt = '';
+  let capturedAspectRatio = '';
+  let capturedOperation = '';
+  let capturedReferenceLabels: string[] = [];
   const imageProvider = {
-    async generateImage(request: { prompt?: string; systemInstruction?: string }) {
+    async generateImage(request: {
+      prompt?: string;
+      systemInstruction?: string;
+      aspectRatio?: string;
+      operation?: string;
+      referenceImages?: Array<{ instructionText?: string }>;
+    }) {
       capturedPrompt = request.prompt || '';
       capturedSystemInstruction = request.systemInstruction || '';
-      return { imageUrl: 'https://example.com/test.png' };
+      capturedAspectRatio = request.aspectRatio || '';
+      capturedOperation = request.operation || '';
+      capturedReferenceLabels = request.referenceImages?.map((ref) => ref.instructionText || '') || [];
+      return {
+        imageData: Buffer.from('test-image'),
+        mimeType: 'image/png',
+        width: 1344,
+        height: 768,
+        format: 'png' as const,
+      };
     },
   };
 
   const service = new ImageDomainService(imageProvider as any);
+  const originalGenerateImageWithInstructions =
+    service.generateImageWithInstructions.bind(service);
+  let calledSharedGenerateMethod = false;
+  service.generateImageWithInstructions = async (request) => {
+    calledSharedGenerateMethod = true;
+    return originalGenerateImageWithInstructions(request);
+  };
 
   await service.generateSceneWithReference({
     sceneId: 1,
@@ -317,7 +411,7 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
     imaginaryCharacters: [{ name: 'Mia', isTurnaround: true }],
     referenceImages: [
       {
-        instructionText: 'Image 1: Character sheet for "Mia".',
+        instructionText: 'REF_CH_MIA_TEST01: character identity reference.',
         characterName: 'Mia',
         referenceKind: 'character',
         imageIndex: 1,
@@ -334,22 +428,63 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
     hasEnvironmentImageRef: false,
   });
 
+  assert.ok(calledSharedGenerateMethod);
+  assert.equal(capturedAspectRatio, '16:9');
+  assert.equal(capturedOperation, 'image_generate');
   assert.ok(!capturedSystemInstruction.includes('ENVIRONMENT REFERENCE:'));
-  assert.ok(capturedPrompt.includes('Subject A (REF_CH_MIA_TEST01 / Image 1)'));
+  assert.ok(capturedSystemInstruction.includes('MUST AVOID any kind of text'));
+  assert.ok(!capturedPrompt.includes('MUST AVOID any kind of text'));
+  assert.ok(!capturedPrompt.includes('REF_CH_MIA_TEST01'));
+  assert.ok(capturedReferenceLabels.includes('REF_CH_MIA_TEST01: character identity reference.'));
+  assert.ok(!capturedPrompt.includes(forbiddenSyntheticAlias));
+}
+
+async function testImageDomainSceneIllustrationUsesSystemOnlyTextBan() {
+  let capturedSystemInstruction = '';
+  let capturedPrompt = '';
+  const imageProvider = {
+    async generateImage(request: { prompt?: string; systemInstruction?: string }) {
+      capturedPrompt = request.prompt || '';
+      capturedSystemInstruction = request.systemInstruction || '';
+      return {
+        imageData: Buffer.from('test-image'),
+        mimeType: 'image/png',
+        width: 1344,
+        height: 768,
+        format: 'png' as const,
+      };
+    },
+  };
+
+  const service = new ImageDomainService(imageProvider as any);
+  await service.generateSceneIllustration({
+    sceneId: 2,
+    ageGroup: '6-8',
+    style: 'soft_watercolor',
+    visualPrompt: 'A bright meadow with a red kite flying over flowers.',
+    mode: 'without_references',
+  });
+
+  assert.ok(capturedSystemInstruction.includes('MUST AVOID any kind of text'));
+  assert.ok(!capturedPrompt.includes('MUST AVOID any kind of text'));
+  assert.doesNotMatch(capturedPrompt, /keep free of text/i);
 }
 
 testReferenceBackedCharacterDoesNotDuplicateTextIdentity();
+testLegacyUserPromptKeepsTextBanInSystemOnly();
 testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise();
 testStructuredPromptReplacesLocalizedCharacterNameAliases();
-testStructuredPromptKeepsSceneFirstAndUsesResultOrientedOutfitLanguage();
+testStructuredPromptUsesReferenceBindingIdsForDirectedActionText();
+testStructuredPromptKeepsSceneFirstAndStripsTextOutfitLanguage();
 testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes();
-testTextOnlyCharacterStillReceivesOutfitText();
+testTextOnlyCharacterDoesNotReceiveLegacyOutfitText();
 testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter();
 testSystemInstructionStatesReferenceIdentityWins();
 testEnvironmentPromptSanitizesCharacterOwnedLocations();
 
 async function main() {
   await testImageDomainUsesPerSceneEnvironmentReferenceFlag();
+  await testImageDomainSceneIllustrationUsesSystemOnlyTextBan();
   console.log('imagePromptReferenceRules tests passed');
 }
 

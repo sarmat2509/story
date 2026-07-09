@@ -288,11 +288,21 @@ export default function ProfileScreen() {
       if (result.canceled || !result.assets[0]) return;
 
       const previousAvatarUrl = profileUser?.avatarUrl ?? null;
-      const localUri = result.assets[0].uri;
+      const asset = result.assets[0];
+      const localUri = asset.uri;
 
       setIsAvatarBusy(true);
       try {
-        const uploadedAvatar = await uploadPhoto(localUri, 'profile', imageRights);
+        const uploadedAvatar = await uploadPhoto(
+          {
+            uri: localUri,
+            file: asset.file,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          },
+          'profile',
+          imageRights
+        );
         const canonicalAvatarUrl = toCanonicalAssetUrl(uploadedAvatar.url);
 
         try {

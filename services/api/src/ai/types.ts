@@ -10,6 +10,11 @@ import type { CharacterData, MapTileVisual, SceneVisual } from '../services/type
  * Scene validation result - for parallel scene-by-scene validation
  */
 export interface SceneValidationResult {
+  validationStatus?: 'completed' | 'provider_blocked';
+  /** Debug manifest for admin-only persistence. */
+  requestManifest?: Record<string, unknown>;
+  /** Computed 0-100 scene score derived from validation verdict and violation severity. */
+  validationScore?: number | null;
   sceneId: number;
   isValid: boolean;
   violations: Array<{
@@ -19,19 +24,17 @@ export interface SceneValidationResult {
       | 'fear_level'
       | 'emotional_tone'
       | 'vocabulary'
-      | 'camera_composition_incomplete'
       | 'reserved_character_identity_conflict'
       | 'reserved_name_reused_for_new_entity'
-      | 'character_identity_unclear';
+      | 'character_identity_unclear'
+      | 'graphic_novel_page_cast_limit'
+      | 'graphic_novel_panel_cast_limit'
+      | 'graphic_novel_child_anchor_missing'
+      | 'graphic_novel_cast_coverage_missing';
     severity: 'critical' | 'high' | 'medium';
     message: string;
     suggestion?: string;
   }>;
-  /** When cameraComposition has issues (missing/extra characters), the corrected version. Applied directly without scene regeneration. */
-  correctedCameraComposition?: {
-    shot: string;
-    characters: Array<{ name: string; description: string; outfitId?: string }>;
-  };
 }
 
 /**
@@ -76,9 +79,41 @@ export interface ImageValidationResult {
     sameOverallDesignRead?: boolean;
     /** When set: how much silhouette/body-type drift vs reference. Used for animal + imaginary identity. */
     silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe';
+    /** Optional comic-panel source for panel-local validation/repair feedback. */
+    panelNumber?: number;
+    /** Optional comic-panel id for panel-local validation/repair feedback. */
+    panelId?: string;
+    /** Normalized 0..1000 bbox of the visible candidate on the validated image/panel. */
+    characterBoundingBox?: {
+      found: boolean;
+      xMin: number;
+      yMin: number;
+      xMax: number;
+      yMax: number;
+      confidence: number;
+      visibility: 'full_body' | 'partial_body' | 'head_only' | 'not_visible';
+      /** Full-image scene QA duplicate evidence for the expected identity. */
+      duplicated?: boolean;
+      /** Number of visible copies of this expected identity in the whole validated image/panel. */
+      duplicateCount?: number;
+      /** Short location/visual notes for duplicate copies, when present. */
+      duplicateNotes?: string | null;
+      notes?: string | null;
+    } | null;
+    /** Pixel crop used for the per-character identity pass, relative to the validated image/panel. */
+    characterCropRect?: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    } | null;
     issue?: string;
   }>;
   hasUnexpectedCharacters: boolean;
+  /** Cast-audit pass output: expected roster names that are not visibly present in the image. */
+  missingExpectedCharacters?: string[];
+  /** Cast-audit pass output: concise notes for extra character-like subjects. */
+  unexpectedCharacterNotes?: string | null;
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
   /** Optional layout QA for panel/bubble-based images, enabled only by validation request flag. */

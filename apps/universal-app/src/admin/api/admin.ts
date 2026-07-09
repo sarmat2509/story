@@ -117,6 +117,11 @@ export type AdminImageValidationItem = {
   imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
   graphicNovelPageNumber?: number | null;
   mixedStoryScreenOrder?: number | null;
+  subjectType?: string | null;
+  pageNumber?: number | null;
+  panelIndex?: number | null;
+  panelId?: string | null;
+  cropRect?: unknown | null;
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;
@@ -126,6 +131,7 @@ export type AdminImageValidationItem = {
   requestManifest: unknown;
   providerError: string | null;
   result: unknown;
+  usage?: AdminImageValidationUsage | null;
   createdAt: string;
 };
 
@@ -140,10 +146,36 @@ export type AdminImageValidationUsage = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   matchedDeltaMs: number;
+  eventCount: number;
+  operations: string[];
 };
 
 export type AdminImageValidationDetail = AdminImageValidationItem & {
   usage: AdminImageValidationUsage | null;
+};
+
+export type AdminSceneImageValidationCandidateComparison = {
+  id: string;
+  attempt: number;
+  imageStoragePath: string;
+  score: number;
+  validationStatus: string;
+  missingCharacters: string[];
+  selected: boolean;
+  createdAt: string;
+};
+
+export type AdminApplyBestSceneImageValidationCandidateResult = {
+  storyId: string;
+  sceneIndex: number;
+  previousImageStoragePath: string | null;
+  selectedValidationId: string;
+  selectedAttempt: number;
+  selectedScore: number;
+  selectedImageStoragePath: string;
+  selectedAssetId: string;
+  compared: AdminSceneImageValidationCandidateComparison[];
+  changed: boolean;
 };
 
 export type AdminDirectorSceneItem = {
@@ -180,6 +212,11 @@ export type AdminStoryValidationItem = {
   imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
   graphicNovelPageNumber?: number | null;
   mixedStoryScreenOrder?: number | null;
+  subjectType?: string | null;
+  pageNumber?: number | null;
+  panelIndex?: number | null;
+  panelId?: string | null;
+  cropRect?: unknown | null;
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;
@@ -189,6 +226,7 @@ export type AdminStoryValidationItem = {
   requestManifest: unknown;
   providerError: string | null;
   result: unknown;
+  usage?: AdminImageValidationUsage | null;
   createdAt: string;
 };
 
@@ -198,6 +236,30 @@ export type AdminStoryCostBreakdownItem = {
   model: string | null;
   costUsd: number;
   createdAt: string;
+};
+
+export type AdminTextValidationAttempt = {
+  sceneId: number;
+  attempt: number;
+  phase: string;
+  durationMs: number;
+  isValid: boolean;
+  score: number;
+  result: unknown;
+  rawResult: unknown;
+  rawManifest: Record<string, unknown> | null;
+};
+
+export type AdminTextValidationPayload = {
+  version?: number;
+  status?: string;
+  score?: number;
+  sceneCount?: number;
+  attemptCount?: number;
+  validationTimeMs?: number;
+  passedSceneIds?: number[];
+  failedSceneIds?: number[];
+  attempts?: AdminTextValidationAttempt[];
 };
 
 export type AdminDashboardOverview = {
@@ -737,6 +799,29 @@ export function useAdminImageValidation(id?: string) {
   });
 }
 
+export function useAdminApplyBestSceneImageValidationCandidate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { validationId: string }) => {
+      const response = await apiClient.post<{
+        status: string;
+        data: AdminApplyBestSceneImageValidationCandidateResult;
+      }>(`/api/v1/admin/image-validations/${params.validationId}/apply-best-scene-image`);
+      return response.data.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validations'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validation'] });
+      queryClient.invalidateQueries({
+        queryKey: ['admin', 'image-validation', variables.validationId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'director-scenes', data.storyId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stories'] });
+    },
+  });
+}
+
 export type AdminResetStoryAudioClearedPayload = {
   storyId: string;
   userId: string;
@@ -907,6 +992,7 @@ export function useAdminDirectorScenes(storyId?: string) {
             storyFormat: string | null;
             mapTile: unknown;
             mapTileAsset: AdminMapTileAssetPayload | null;
+            textValidation: AdminTextValidationPayload | null;
             createdAt: string;
           };
           storyScenes: AdminStorySceneItem[];

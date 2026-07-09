@@ -5,12 +5,18 @@ import type { CameraCharacterComposition } from '../../services/types';
 import {
   buildValidationPrompt,
   buildGraphicNovelPrompt,
+  buildGraphicNovelPageRepairPrompt,
   buildGraphicNovelSafetyFallbackPrompt,
+  GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS,
+  GRAPHIC_NOVEL_PAGE_REPAIR_SCHEMA,
   GRAPHIC_NOVEL_SCRIPT_SCHEMA,
+  type VisualCharacterReferenceLabel,
 } from '../../prompts/text';
 import type { ContinuationPromptContext } from '../../prompts/helpers';
+import { stripCharacterIdFromName } from '@wondertales/shared';
 import type {
   GraphicNovelBubbleTextSizing,
+  GraphicNovelPageScript,
   GraphicNovelPageRole,
   GraphicNovelPanelVisual,
   GraphicNovelPanelScript,
@@ -18,10 +24,11 @@ import type {
 } from './types';
 import { planGraphicNovelLayouts } from './layoutPlanner';
 import { logger } from '../../utils/logger';
-import config from '../../config';
+import config, { getValidationTextModelOverride } from '../../config';
 import { VALIDATION_SCHEMA } from '../story/schemas';
 
 const GRAPHIC_NOVEL_MAX_OUTPUT_TOKENS = 48000;
+const GRAPHIC_NOVEL_PAGE_REPAIR_MAX_ATTEMPTS = 2;
 const FALLBACK_ENVIRONMENT_ID = 'env_main';
 type OutfitKind = 'natural' | 'everyday' | 'swimwear';
 
@@ -32,10 +39,7 @@ function isProviderContentBlockedError(error: unknown): boolean {
 
 class GraphicNovelScriptTextValidationError extends Error {
   constructor(
-    public readonly failures: Array<{
-      pageNumber: number;
-      violations: SceneValidationResult['violations'];
-    }>
+    public readonly failures: GraphicNovelScriptTextValidationFailure[]
   ) {
     super(
       `Graphic novel script text validation failed: ${failures
@@ -49,6 +53,11 @@ class GraphicNovelScriptTextValidationError extends Error {
     this.name = 'GraphicNovelScriptTextValidationError';
   }
 }
+
+type GraphicNovelScriptTextValidationFailure = {
+  pageNumber: number;
+  violations: SceneValidationResult['violations'];
+};
 
 function isGraphicNovelScriptRetryableError(error: unknown): boolean {
   return error instanceof GraphicNovelScriptTextValidationError;
@@ -109,46 +118,6 @@ function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string 
   return `o_${hex}_${kind}`;
 }
 
-function isHumanStoryCharacter(spec: StorySpec, characterName: string): boolean {
-  const lower = characterName.trim().toLowerCase();
-  const match = (spec.characters || []).find(
-    (character) =>
-      String(character.name || '')
-        .trim()
-        .toLowerCase() === lower
-  );
-  const type = String(match?.type || '').toLowerCase();
-  return ['child', 'person', 'human', 'adult', 'parent'].includes(type);
-}
-
-function isSwimmingPanel(panel: GraphicNovelPanelScript): boolean {
-  const text = [
-    panel.visual?.primaryRead,
-    panel.visual?.sceneVisual?.setting,
-    typeof panel.visual?.sceneVisual?.cameraComposition === 'object'
-      ? panel.visual.sceneVisual.cameraComposition.shot
-      : panel.visual?.sceneVisual?.cameraComposition,
-    ...(panel.dialogue || []).map((line) => line.text),
-    ...(panel.thoughts || []).map((line) => line.text),
-    panel.caption,
-    panel.visualAction,
-    panel.setting,
-    panel.artPrompt,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(
-    text
-  );
-}
-
-function isSwimwearDescription(description: string): boolean {
-  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(
-    description
-  );
-}
-
 function ensureOutfit(
   outfits: Map<string, StoryOutfitRow>,
   params: {
@@ -175,41 +144,196 @@ function panelSpeakers(panel: GraphicNovelPanelScript): string[] {
   return [...names];
 }
 
+function normalizeCastName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return stripCharacterIdFromName(value).trim().normalize('NFC').toLocaleLowerCase();
+}
+
+function displayCastName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return stripCharacterIdFromName(value).trim();
+}
+
+function addCastName(names: Map<string, string>, value: unknown): void {
+  const key = normalizeCastName(value);
+  const display = displayCastName(value);
+  if (!key || !display || names.has(key)) return;
+  names.set(key, display);
+}
+
+function pageCastForValidation(page: GraphicNovelScript['pages'][number]): {
+  all: Map<string, string>;
+  visual: Map<string, string>;
+} {
+  const all = new Map<string, string>();
+  const visual = new Map<string, string>();
+
+  for (const panel of Array.isArray(page.panels) ? page.panels : []) {
+    const cast = panelCastForValidation(panel);
+    for (const [key, name] of cast.all.entries()) all.set(key, name);
+    for (const [key, name] of cast.visual.entries()) visual.set(key, name);
+  }
+
+  return { all, visual };
+}
+
+function panelCastForValidation(panel: GraphicNovelPanelScript): {
+  all: Map<string, string>;
+  visual: Map<string, string>;
+} {
+  const all = new Map<string, string>();
+  const visual = new Map<string, string>();
+
+  for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
+    addCastName(all, line?.speaker);
+  }
+
+  const composition = panel.visual?.sceneVisual?.cameraComposition;
+  if (!composition || typeof composition === 'string' || !Array.isArray(composition.characters)) {
+    return { all, visual };
+  }
+
+  for (const character of composition.characters) {
+    addCastName(all, character?.name);
+    addCastName(visual, character?.name);
+  }
+
+  return { all, visual };
+}
+
+function selectedCharacterNamesForValidation(spec: StorySpec): Map<string, string> {
+  const selected = new Map<string, string>();
+  for (const character of spec.characters || []) {
+    addCastName(selected, character.name);
+  }
+  return selected;
+}
+
+function childAnchorNamesForValidation(spec: StorySpec): Map<string, string> {
+  const anchors = new Map<string, string>();
+  for (const character of spec.characters || []) {
+    if (String(character.type || '').toLowerCase() === 'child') {
+      addCastName(anchors, character.name);
+    }
+  }
+  return anchors;
+}
+
+function validateGraphicNovelPageCast(script: GraphicNovelScript, spec: StorySpec): void {
+  const pages = Array.isArray(script.pages) ? script.pages : [];
+  const childAnchors = childAnchorNamesForValidation(spec);
+  const selectedCharacters = selectedCharacterNamesForValidation(spec);
+  const visibleSelectedCharacters = new Set<string>();
+  const failures: GraphicNovelScriptTextValidationError['failures'] = [];
+
+  for (const [index, page] of pages.entries()) {
+    const pageNumber = Number.isFinite(page.pageNumber) ? page.pageNumber : index + 1;
+    const cast = pageCastForValidation(page);
+    const violations: SceneValidationResult['violations'] = [];
+
+    for (const [panelIndex, panel] of (Array.isArray(page.panels) ? page.panels : []).entries()) {
+      const panelCast = panelCastForValidation(panel);
+      if (panelCast.all.size > GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS) {
+        violations.push({
+          category: 'graphic_novel_panel_cast_limit',
+          severity: 'high',
+          message: `Page ${pageNumber}, panel ${panelIndex + 1} uses ${panelCast.all.size} unique named characters; the maximum per panel is ${GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS}.`,
+          suggestion:
+            'Keep at most three visible/speaking characters in a panel and rotate additional heroes into other panels on the same page.',
+        });
+      }
+    }
+
+    for (const [key, name] of childAnchors.entries()) {
+      if (!cast.visual.has(key)) {
+        violations.push({
+          category: 'graphic_novel_child_anchor_missing',
+          severity: 'high',
+          message: `Child character "${name}" must be visibly present on every graphic novel page.`,
+          suggestion:
+            'Add the child character to at least one panel cameraComposition.characters row on this page.',
+        });
+      }
+    }
+
+    for (const key of cast.visual.keys()) {
+      if (selectedCharacters.has(key)) {
+        visibleSelectedCharacters.add(key);
+      }
+    }
+
+    if (violations.length > 0) {
+      failures.push({ pageNumber, violations });
+    }
+  }
+
+  const missingSelected = [...selectedCharacters.entries()].filter(
+    ([key]) => !visibleSelectedCharacters.has(key)
+  );
+  if (missingSelected.length > 0) {
+    failures.push({
+      pageNumber: pages.length || 1,
+      violations: missingSelected.map(([, name]) => ({
+        category: 'graphic_novel_cast_coverage_missing',
+        severity: 'high',
+        message: `Selected character "${name}" never appears visibly in the comic script.`,
+        suggestion:
+          'Use cast coverage and page focus rotation so every selected hero appears in at least one panel cameraComposition.characters row.',
+      })),
+    });
+  }
+
+  if (failures.length > 0) {
+    throw new GraphicNovelScriptTextValidationError(failures);
+  }
+}
+
 function withRequiredPanelCharacters(
   panel: GraphicNovelPanelScript,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  const byName = new Map<string, CameraCharacterComposition>();
-  for (const character of characters) {
+  const byName = new Map<string, { character: CameraCharacterComposition; order: number }>();
+  const speakers = panelSpeakers(panel);
+  const speakerKeys = new Set(speakers.map(normalizeCastName).filter(Boolean));
+
+  for (const [order, character] of characters.entries()) {
     const name = String(character.name || '').trim();
-    if (!name || byName.has(name)) continue;
-    byName.set(name, character);
+    const key = normalizeCastName(name);
+    if (!name || !key || byName.has(key)) continue;
+    byName.set(key, { character, order });
   }
 
-  for (const speaker of panelSpeakers(panel)) {
-    if (byName.has(speaker)) continue;
+  for (const [speakerIndex, speaker] of speakers.entries()) {
+    const key = normalizeCastName(speaker);
+    if (!key || byName.has(key)) continue;
     const index = byName.size;
-    byName.set(speaker, {
-      name: speaker,
-      position: index % 2 === 0 ? 'left_foreground' : 'right_foreground',
-      description:
-        index % 2 === 0
-          ? 'visible in the panel, readable expression, looking toward the other speaker or panel action'
-          : 'visible in the panel, responding to the other speaker, readable expression and clear gaze',
+    byName.set(key, {
+      order: characters.length + speakerIndex,
+      character: {
+        name: speaker,
+        position: index % 2 === 0 ? 'left_foreground' : 'right_foreground',
+        description:
+          index % 2 === 0
+            ? 'visible in the panel, readable expression, looking toward the other speaker or panel action'
+            : 'visible in the panel, responding to the other speaker, readable expression and clear gaze',
+      },
     });
   }
 
-  return [...byName.values()];
+  return [...byName.values()]
+    .sort((a, b) => {
+      const aIsSpeaker = speakerKeys.has(normalizeCastName(a.character.name)) ? 0 : 1;
+      const bIsSpeaker = speakerKeys.has(normalizeCastName(b.character.name)) ? 0 : 1;
+      return aIsSpeaker - bIsSpeaker || a.order - b.order;
+    })
+    .slice(0, GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS)
+    .map((entry) => entry.character);
 }
 
 function withOutfitIds(
-  panel: GraphicNovelPanelScript,
-  spec: StorySpec,
   outfits: Map<string, StoryOutfitRow>,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  void panel;
-  void spec;
   return characters.map((character) => {
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
@@ -284,7 +408,6 @@ function normalizePanelVisual(
   panel: GraphicNovelPanelScript,
   panelIndex: number,
   environments: StoryEnvironment[],
-  spec: StorySpec,
   outfits: Map<string, StoryOutfitRow>
 ): GraphicNovelPanelVisual {
   const environmentIds = new Set(environments.map((environment) => environment.id));
@@ -299,8 +422,6 @@ function normalizePanelVisual(
   const oldComposition = oldPanelVisual?.cameraComposition;
 
   const characters = withOutfitIds(
-    panel,
-    spec,
     outfits,
     withRequiredPanelCharacters(panel, legacyCharacters(panel))
   );
@@ -329,7 +450,13 @@ function normalizePanelVisual(
   };
 }
 
-function fallbackPanel(pageNumber: number, panelIndex: number): GraphicNovelPanelScript {
+function fallbackPanel(pageNumber: number, panelIndex: number, spec: StorySpec): GraphicNovelPanelScript {
+  const heroName =
+    (spec.characters || []).find(
+      (character) => String(character.type || '').toLowerCase() === 'child'
+    )?.name ||
+    spec.characters?.[0]?.name ||
+    'Hero';
   const visualAction =
     panelIndex === 1
       ? 'The characters notice something new with clear curious expressions.'
@@ -341,8 +468,8 @@ function fallbackPanel(pageNumber: number, panelIndex: number): GraphicNovelPane
     beatType: panelIndex === 1 ? 'setup' : 'response',
     dialogue:
       panelIndex === 1
-        ? [{ speaker: 'Hero', text: 'Look!' }]
-        : [{ speaker: 'Hero', text: 'I can try.' }],
+        ? [{ speaker: heroName, text: 'Look!' }]
+        : [{ speaker: heroName, text: 'I can try.' }],
     thoughts: [],
     visual: {
       environmentId: FALLBACK_ENVIRONMENT_ID,
@@ -372,11 +499,11 @@ function normalizeScript(
     const source = sourcePages.find((page) => page.pageNumber === pageNumber) ?? sourcePages[index];
     const panels = source?.panels?.length
       ? source.panels
-      : [fallbackPanel(pageNumber, 1), fallbackPanel(pageNumber, 2)];
+      : [fallbackPanel(pageNumber, 1, spec), fallbackPanel(pageNumber, 2, spec)];
     const normalizedPanels =
       panels.length >= 2
         ? panels
-        : [panels[0] ?? fallbackPanel(pageNumber, 1), fallbackPanel(pageNumber, 2)];
+        : [panels[0] ?? fallbackPanel(pageNumber, 1, spec), fallbackPanel(pageNumber, 2, spec)];
 
     return {
       pageNumber,
@@ -387,7 +514,7 @@ function normalizeScript(
           dialogue: Array.isArray(panel.dialogue) ? panel.dialogue : [],
           thoughts: Array.isArray(panel.thoughts) ? panel.thoughts : [],
           caption: panel.caption,
-          visual: normalizePanelVisual(panel, panelIndex + 1, environments, spec, outfits),
+          visual: normalizePanelVisual(panel, panelIndex + 1, environments, outfits),
           beatType: panel.beatType,
           visualAction: panel.visualAction,
           setting: panel.setting,
@@ -406,6 +533,7 @@ function normalizeScript(
     title: script.title || 'Graphic Novel',
     description: script.description || 'A short child-friendly graphic novel.',
     language: script.language || spec.language,
+    characters: Array.isArray(script.characters) ? script.characters : [],
     environments,
     outfits: [...outfits.values()],
     pages,
@@ -481,16 +609,25 @@ export class GraphicNovelDomainService {
     private validationTextProvider: ITextProvider = textProvider
   ) {}
 
-  private async validateScriptText(params: {
+  private getValidationModelOverride(): string | undefined {
+    return getValidationTextModelOverride();
+  }
+
+  private async collectScriptTextValidationFailures(params: {
     script: GraphicNovelScript;
     spec: StorySpec;
     onUsage?: (usage: UsageMetadata) => void;
-  }): Promise<void> {
+    pageNumbers?: number[];
+  }): Promise<GraphicNovelScriptTextValidationFailure[]> {
     const pages = Array.isArray(params.script.pages) ? params.script.pages : [];
-    const failures: GraphicNovelScriptTextValidationError['failures'] = [];
+    const pageFilter = params.pageNumbers?.length ? new Set(params.pageNumbers) : null;
+    const failures: GraphicNovelScriptTextValidationFailure[] = [];
 
     for (const [index, page] of pages.entries()) {
       const sceneText = graphicNovelPageToValidationScene(params.script, page, index + 1);
+      if (pageFilter && !pageFilter.has(sceneText.sceneId)) {
+        continue;
+      }
       const prompt = buildValidationPrompt({
         sceneText,
         policy: params.spec.policyProfile,
@@ -512,7 +649,7 @@ export class GraphicNovelDomainService {
         prompt,
         schema: VALIDATION_SCHEMA,
         temperature: 0.1,
-        model: config.ai.validationModel,
+        model: this.getValidationModelOverride(),
         onUsage: params.onUsage,
         operation: 'validateScene',
       });
@@ -540,9 +677,157 @@ export class GraphicNovelDomainService {
       }
     }
 
+    return failures;
+  }
+
+  private async validateScriptText(params: {
+    script: GraphicNovelScript;
+    spec: StorySpec;
+    onUsage?: (usage: UsageMetadata) => void;
+  }): Promise<void> {
+    const failures = await this.collectScriptTextValidationFailures(params);
     if (failures.length > 0) {
       throw new GraphicNovelScriptTextValidationError(failures);
     }
+  }
+
+  private async regeneratePageWithValidationFeedback(params: {
+    script: GraphicNovelScript;
+    page: GraphicNovelPageScript;
+    failure: GraphicNovelScriptTextValidationFailure;
+    spec: StorySpec;
+    pageCount: number;
+    visualReferenceLabels?: VisualCharacterReferenceLabel[];
+    visualArtifactReferenceLabel?: string;
+    onUsage?: (usage: UsageMetadata) => void;
+  }): Promise<GraphicNovelPageScript> {
+    const prompt = buildGraphicNovelPageRepairPrompt({
+      spec: params.spec,
+      script: params.script,
+      page: params.page,
+      pageCount: params.pageCount,
+      visualReferenceLabels: params.visualReferenceLabels,
+      visualArtifactReferenceLabel: params.visualArtifactReferenceLabel,
+      feedback: params.failure.violations.map((violation) => ({
+        category: violation.category,
+        severity: violation.severity,
+        message: violation.message,
+        suggestion: violation.suggestion,
+      })),
+    });
+
+    logger.info(
+      {
+        pageNumber: params.failure.pageNumber,
+        violationCount: params.failure.violations.length,
+        promptLength: prompt.length,
+      },
+      'Regenerating graphic novel page with validation feedback'
+    );
+
+    const result = await this.textProvider.generateStructured<{ page: GraphicNovelPageScript }>({
+      prompt,
+      schema: GRAPHIC_NOVEL_PAGE_REPAIR_SCHEMA,
+      maxTokens: 14000,
+      temperature: 0.65,
+      onUsage: params.onUsage,
+      operation: 'graphic_novel_page_repair',
+    });
+
+    if (!result?.page || !Array.isArray(result.page.panels) || result.page.panels.length === 0) {
+      throw new Error(`Graphic novel page repair returned no usable page for page ${params.failure.pageNumber}`);
+    }
+
+    return {
+      ...result.page,
+      pageNumber: params.page.pageNumber,
+      pageRole: params.page.pageRole,
+    };
+  }
+
+  private async repairScriptPagesWithValidationFeedback(params: {
+    script: GraphicNovelScript;
+    spec: StorySpec;
+    pageCount: number;
+    visualReferenceLabels?: VisualCharacterReferenceLabel[];
+    visualArtifactReferenceLabel?: string;
+    onUsage?: (usage: UsageMetadata) => void;
+  }): Promise<GraphicNovelScript> {
+    let script = params.script;
+    let failures = await this.collectScriptTextValidationFailures({
+      script,
+      spec: params.spec,
+      onUsage: params.onUsage,
+    });
+
+    if (failures.length === 0) {
+      return script;
+    }
+
+    for (
+      let attempt = 1;
+      attempt <= GRAPHIC_NOVEL_PAGE_REPAIR_MAX_ATTEMPTS && failures.length > 0;
+      attempt += 1
+    ) {
+      logger.warn(
+        {
+          attempt,
+          failedPageNumbers: failures.map((failure) => failure.pageNumber),
+          failureSummaries: failures.map((failure) => ({
+            pageNumber: failure.pageNumber,
+            categories: failure.violations.map((violation) => violation.category),
+            messages: failure.violations.map((violation) => violation.message).slice(0, 3),
+          })),
+        },
+        'Graphic novel pages failed text validation; repairing failed pages only'
+      );
+
+      const repairedPageNumbers: number[] = [];
+      let nextPages = [...(script.pages || [])];
+
+      for (const failure of failures) {
+        const pageIndex = nextPages.findIndex((page, index) => {
+          const pageNumber = Number.isFinite(page.pageNumber) ? page.pageNumber : index + 1;
+          return pageNumber === failure.pageNumber;
+        });
+        if (pageIndex < 0) {
+          continue;
+        }
+
+        const repairedPage = await this.regeneratePageWithValidationFeedback({
+          script,
+          page: nextPages[pageIndex],
+          failure,
+          spec: params.spec,
+          pageCount: params.pageCount,
+          visualReferenceLabels: params.visualReferenceLabels,
+          visualArtifactReferenceLabel: params.visualArtifactReferenceLabel,
+          onUsage: params.onUsage,
+        });
+
+        nextPages = nextPages.map((page, index) => (index === pageIndex ? repairedPage : page));
+        repairedPageNumbers.push(failure.pageNumber);
+      }
+
+      script = { ...script, pages: nextPages };
+      validateGraphicNovelPageCast(script, params.spec);
+
+      failures = repairedPageNumbers.length
+        ? await this.collectScriptTextValidationFailures({
+            script,
+            spec: params.spec,
+            pageNumbers: repairedPageNumbers,
+            onUsage: params.onUsage,
+          })
+        : failures;
+    }
+
+    if (failures.length > 0) {
+      throw new GraphicNovelScriptTextValidationError(failures);
+    }
+
+    logger.info('Graphic novel script text validation passed after page repair');
+    return script;
   }
 
   async generateScript(params: {
@@ -550,6 +835,8 @@ export class GraphicNovelDomainService {
     pageCount: number;
     isContinuation?: boolean;
     continuationContext?: ContinuationPromptContext;
+    visualReferenceLabels?: VisualCharacterReferenceLabel[];
+    visualArtifactReferenceLabel?: string;
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<GraphicNovelScript> {
     const attempts = [
@@ -583,9 +870,13 @@ export class GraphicNovelDomainService {
           onUsage: params.onUsage,
           operation: attempt.operation,
         });
-        await this.validateScriptText({
+        validateGraphicNovelPageCast(raw, params.spec);
+        raw = await this.repairScriptPagesWithValidationFeedback({
           script: raw,
           spec: params.spec,
+          pageCount: params.pageCount,
+          visualReferenceLabels: params.visualReferenceLabels,
+          visualArtifactReferenceLabel: params.visualArtifactReferenceLabel,
           onUsage: params.onUsage,
         });
         usedAttempt = attempt.label;

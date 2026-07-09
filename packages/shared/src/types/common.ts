@@ -93,8 +93,26 @@ export interface CharacterData {
   appearanceTraits?: any; // Flexible - can be BasicAppearanceTraits or full union type
   description?: string;
   appearance?: string; // LLM-generated detailed description
+  defaultOutfitText?: string | null;
+  defaultOutfitEmbedding?: number[] | null;
+  defaultOutfitFormality?: string | null;
+  defaultOutfitPresentationGroups?: string[] | null;
+  defaultOutfitPurposeTags?: string[] | null;
+  defaultOutfitSeasonTags?: string[] | null;
+  defaultOutfitClimateTags?: string[] | null;
+  defaultOutfitEraTags?: string[] | null;
+  defaultOutfitSettingTags?: string[] | null;
+  defaultOutfitActivityTags?: string[] | null;
+  defaultOutfitSilhouetteTags?: string[] | null;
+  defaultOutfitFootwearTags?: string[] | null;
+  defaultOutfitComponentTags?: string[] | null;
+  defaultOutfitColorPalette?: string[] | null;
+  defaultOutfitMaterials?: string[] | null;
+  defaultOutfitPatterns?: string[] | null;
+  defaultOutfitDetailTags?: string[] | null;
+  defaultOutfitCoverageTags?: string[] | null;
   role?: string;
   personality?: any;
   traits?: any;
-  source?: 'llm_generated' | 'user_enriched_by_llm' | 'user_provided';
+  source?: 'llm_generated' | 'user_enriched_by_llm' | 'user_provided' | 'child_profile';
 }

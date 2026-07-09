@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { planGraphicNovelLayouts } from '../layoutPlanner';
-import { buildGraphicNovelPageFreeLayoutInstructions } from '../pageRenderer';
 import type { GraphicNovelPageScript, Rect } from '../types';
 
 const GEOMETRY_EPSILON = 0.001;
@@ -245,7 +244,7 @@ function testOpeningForSixToEightUsesAtLeastFourPanels(): void {
   assert.equal(planned[0].template.panels.length, planned[0].panels.length);
 }
 
-function testFreeLayoutPanelCountMustMatchScriptPanels(): void {
+function testTemplatePanelCountMustMatchScriptPanels(): void {
   const planned = planGraphicNovelLayouts({
     ageGroup: '6-8',
     pages: [
@@ -298,8 +297,8 @@ function testFreeLayoutPanelCountMustMatchScriptPanels(): void {
   assert.equal(planned[0].panels.length, 3);
   assert.equal(planned[0].template.panelCount, 3);
   assert.equal(planned[0].template.panels.length, 3);
-  assert.equal(planned[0].template.id, 'free_layout_3');
-  assert.equal(planned[0].template.templateFamily, 'free_layout');
+  assert.equal(planned[0].template.id, 'T08');
+  assert.equal(planned[0].template.templateFamily, 'graphic_novel_page');
 }
 
 function testPreservePanelCountKeepsExactSceneCount(): void {
@@ -355,7 +354,7 @@ function testPreservePanelCountKeepsExactSceneCount(): void {
   assert.equal(preserved[0].template.panelCount, 3);
 }
 
-function testFreeLayoutSelectionIgnoresRandomSource(): void {
+function testTemplateSelectionUsesRandomSourceForEqualScores(): void {
   const page: GraphicNovelPageScript = {
     pageNumber: 3,
     pageRole: 'conversation',
@@ -418,67 +417,55 @@ function testFreeLayoutSelectionIgnoresRandomSource(): void {
     randomSource: () => 0,
   })[0].template.id;
 
-  assert.equal(highRoll, 'free_layout_4');
-  assert.equal(lowRoll, 'free_layout_4');
+  assert.notEqual(highRoll, lowRoll);
+  assert.ok(['T09', 'T11', 'T17'].includes(highRoll));
+  assert.ok(['T09', 'T11', 'T17'].includes(lowRoll));
 }
 
-function testFreeLayoutPromptDoesNotUsePresetTemplateSlots(): void {
-  const planned = planGraphicNovelLayouts({
-    ageGroup: '4-5',
-    pages: [
+function testMissingPredefinedTemplateThrows(): void {
+  const page: GraphicNovelPageScript = {
+    pageNumber: 9,
+    pageRole: 'opening',
+    panels: [
       {
-        pageNumber: 1,
-        pageRole: 'opening',
-        panels: [
-          {
-            panelId: 'p1-1',
-            beatType: 'setup',
-            visualAction: 'A child opens a small box.',
-            setting: 'Bedroom',
-            charactersPresent: ['Nika'],
-            dialogue: [{ speaker: 'Nika', text: 'What is inside?' }],
-            thoughts: [],
-            visual: visual('Nika opens a small box', ['Nika']),
-            artPrompt: 'A child opening a small box in a bedroom.',
-          },
-          {
-            panelId: 'p1-2',
-            beatType: 'response',
-            visualAction: 'A soft glow appears.',
-            setting: 'Bedroom',
-            charactersPresent: ['Nika'],
-            dialogue: [],
-            thoughts: [{ speaker: 'Nika', text: 'It feels friendly.' }],
-            visual: visual('A soft glow appears', ['Nika']),
-            artPrompt: 'A friendly soft glow from a box.',
-          },
-        ],
+        panelId: 'p9-1',
+        beatType: 'setup',
+        visualAction: 'A child opens a small box.',
+        setting: 'Bedroom',
+        charactersPresent: ['Nika'],
+        dialogue: [{ speaker: 'Nika', text: 'What is inside?' }],
+        thoughts: [],
+        visual: visual('Nika opens a small box', ['Nika']),
+        artPrompt: 'A child opening a small box in a bedroom.',
+      },
+      {
+        panelId: 'p9-2',
+        beatType: 'response',
+        visualAction: 'A soft glow appears.',
+        setting: 'Bedroom',
+        charactersPresent: ['Nika'],
+        dialogue: [],
+        thoughts: [{ speaker: 'Nika', text: 'It feels friendly.' }],
+        visual: visual('A soft glow appears', ['Nika']),
+        artPrompt: 'A friendly soft glow from a box.',
       },
     ],
-  });
+  };
 
-  const prompt = buildGraphicNovelPageFreeLayoutInstructions(planned[0]);
-  assert.match(prompt, /Create a single comic page with exactly 2 panels/);
-  assert.doesNotMatch(prompt, /Choose the panel layout yourself/);
-  assert.doesNotMatch(prompt, /No preset layout guide image/);
-  assert.doesNotMatch(prompt, /color-coded/);
-  assert.doesNotMatch(prompt, /\bslot\b/i);
-  assert.doesNotMatch(prompt, /Slot color/);
-  assert.doesNotMatch(prompt, /Slot position/);
-  assert.doesNotMatch(prompt, /Environment id:/);
-  assert.doesNotMatch(prompt, /ENVIRONMENT TO REUSE/);
-  assert.doesNotMatch(prompt, /Character staging/);
-  assert.doesNotMatch(prompt, /If Character staging mentions/);
+  assert.throws(
+    () => planGraphicNovelLayouts({ ageGroup: '4-5', pages: [page], templates: [] }),
+    /No predefined graphic novel template/
+  );
 }
 
 export async function runGraphicNovelLayoutTests(): Promise<void> {
   testDynamicBubblePlacement();
   testBubbleStretchingKeepsText();
   testOpeningForSixToEightUsesAtLeastFourPanels();
-  testFreeLayoutPanelCountMustMatchScriptPanels();
+  testTemplatePanelCountMustMatchScriptPanels();
   testPreservePanelCountKeepsExactSceneCount();
-  testFreeLayoutSelectionIgnoresRandomSource();
-  testFreeLayoutPromptDoesNotUsePresetTemplateSlots();
+  testTemplateSelectionUsesRandomSourceForEqualScores();
+  testMissingPredefinedTemplateThrows();
 }
 
 if (require.main === module) {

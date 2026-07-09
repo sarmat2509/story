@@ -17,6 +17,7 @@ import { theme } from '@/theme';
 import { uploadPhoto, deletePhoto, UploadPhotoResult } from '@/utils/uploadPhoto';
 import { isServerAssetUrl } from '@/utils/assetUrl';
 import { confirmImageRights } from '@/utils/imageRightsConsent';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 type Photo = UploadPhotoResult & {
   isUploading?: boolean;
@@ -31,7 +32,10 @@ function getPhotoWidth(aspectRatio?: number): number {
     return PHOTO_HEIGHT;
   }
 
-  return Math.max(MIN_PHOTO_WIDTH, Math.min(MAX_PHOTO_WIDTH, Math.round(PHOTO_HEIGHT * aspectRatio)));
+  return Math.max(
+    MIN_PHOTO_WIDTH,
+    Math.min(MAX_PHOTO_WIDTH, Math.round(PHOTO_HEIGHT * aspectRatio))
+  );
 }
 
 interface PhotoUploadGridProps {
@@ -112,7 +116,8 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        const localUri = result.assets[0].uri;
+        const asset = result.assets[0];
+        const localUri = asset.uri;
 
         // Додаємо тимчасове фото з локальним URI
         const tempPhoto: Photo = {
@@ -126,11 +131,21 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
         try {
           // Завантажуємо на сервер
-          const uploadedPhoto = await uploadPhoto(localUri, photoType, {
-            childDataConsentAccepted: photoType === 'child' ? childDataConsentAccepted : undefined,
-            imageRightsAccepted: imageRights?.imageRightsAccepted,
-            noPublicFiguresAccepted: imageRights?.noPublicFiguresAccepted,
-          });
+          const uploadedPhoto = await uploadPhoto(
+            {
+              uri: localUri,
+              file: asset.file,
+              fileName: asset.fileName,
+              mimeType: asset.mimeType,
+            },
+            photoType,
+            {
+              childDataConsentAccepted:
+                photoType === 'child' ? childDataConsentAccepted : undefined,
+              imageRightsAccepted: imageRights?.imageRightsAccepted,
+              noPublicFiguresAccepted: imageRights?.noPublicFiguresAccepted,
+            }
+          );
 
           // Замінюємо тимчасове фото на завантажене
           const updatedPhotos = [...photos];
@@ -142,7 +157,8 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
           setUploadingIndex(null);
         } catch (error) {
           // Видаляємо тимчасове фото при помилці
-          Alert.alert(t('photo_upload.upload_error_title'), t('photo_upload.upload_error_message'));
+          const message = getLocalizedApiError(t, error, 'photo_upload.upload_error_message');
+          Alert.alert(t('photo_upload.upload_error_title'), message);
           onPhotosChange(photos.filter((_, i) => i !== tempIndex));
           setUploadingIndex(null);
         }

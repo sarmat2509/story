@@ -124,8 +124,11 @@ export function GenerationProgressModal({
     if (status === 'completed') return 100;
     if (status === 'failed') return 0;
 
+    const maxVisibleProgress = status === 'pending' || status === 'processing' ? 99 : 100;
     const incomingProgress = progressData?.overallProgress ?? progress ?? 0;
-    const clampedProgress = Math.max(maxSeenProgressRef.current, incomingProgress);
+    const cappedIncomingProgress = Math.min(maxVisibleProgress, Math.max(0, incomingProgress));
+    const cappedMaxSeenProgress = Math.min(maxVisibleProgress, maxSeenProgressRef.current);
+    const clampedProgress = Math.max(cappedMaxSeenProgress, cappedIncomingProgress);
     maxSeenProgressRef.current = clampedProgress;
     return clampedProgress;
   };

@@ -555,6 +555,25 @@ export const characters = pgTable(
     descriptionLanguage: varchar('description_language', { length: 10 }), // Language code of original description (e.g. 'uk', 'en', 'fr')
     isHidden: boolean('is_hidden').notNull().default(false), // LLM-generated characters hidden from UI
     descriptionEmbedding: jsonb('description_embedding'), // Gemini text-embedding-004 vector (number[]) for similarity matching
+    defaultOutfitText: text('default_outfit_text'), // Wardrobe-only default outfit description
+    defaultOutfitEmbedding: jsonb('default_outfit_embedding').$type<number[]>(),
+    defaultOutfitFormality: varchar('default_outfit_formality', { length: 40 }),
+    defaultOutfitPresentationGroups: text('default_outfit_presentation_groups').array(),
+    defaultOutfitPurposeTags: text('default_outfit_purpose_tags').array(),
+    defaultOutfitSeasonTags: text('default_outfit_season_tags').array(),
+    defaultOutfitClimateTags: text('default_outfit_climate_tags').array(),
+    defaultOutfitEraTags: text('default_outfit_era_tags').array(),
+    defaultOutfitSettingTags: text('default_outfit_setting_tags').array(),
+    defaultOutfitActivityTags: text('default_outfit_activity_tags').array(),
+    defaultOutfitSilhouetteTags: text('default_outfit_silhouette_tags').array(),
+    defaultOutfitFootwearTags: text('default_outfit_footwear_tags').array(),
+    defaultOutfitComponentTags: text('default_outfit_component_tags').array(),
+    defaultOutfitColorPalette: text('default_outfit_color_palette').array(),
+    defaultOutfitMaterials: text('default_outfit_materials').array(),
+    defaultOutfitPatterns: text('default_outfit_patterns').array(),
+    defaultOutfitDetailTags: text('default_outfit_detail_tags').array(),
+    defaultOutfitCoverageTags: text('default_outfit_coverage_tags').array(),
+    defaultOutfitUpdatedAt: timestamp('default_outfit_updated_at'),
     createdByMode: varchar('created_by_mode', { length: 20 }).notNull().default('parent'), // 'parent' | 'child'
     createdByChildProfileId: uuid('created_by_child_profile_id').references(
       () => childProfiles.id,
@@ -712,7 +731,6 @@ export const storyArtifacts = pgTable(
     description: text('description').notNull(),
     imagePath: text('image_path').notNull(),
     semanticTags: jsonb('semantic_tags').$type<string[]>().notNull().default([]),
-    scenarioAffinities: jsonb('scenario_affinities').$type<string[]>().notNull().default([]),
     descriptionEmbedding: jsonb('description_embedding').$type<number[]>(),
     embeddingModel: varchar('embedding_model', { length: 80 }),
     isActive: boolean('is_active').notNull().default(true),
@@ -723,9 +741,6 @@ export const storyArtifacts = pgTable(
     return {
       artifactCodeIdx: uniqueIndex('story_artifacts_artifact_code_uidx').on(table.artifactCode),
       activeIdx: index('story_artifacts_active_idx').on(table.isActive),
-      scenarioAffinitiesIdx: index('story_artifacts_scenario_affinities_idx').on(
-        table.scenarioAffinities
-      ),
       semanticTagsIdx: index('story_artifacts_semantic_tags_idx').on(table.semanticTags),
     };
   }
@@ -1296,6 +1311,11 @@ export const imageValidationResults = pgTable(
       .notNull(),
     sceneIndex: integer('scene_index').notNull(),
     attempt: integer('attempt').notNull(),
+    subjectType: varchar('subject_type', { length: 40 }).notNull().default('scene_image'),
+    pageNumber: integer('page_number'),
+    panelIndex: integer('panel_index'),
+    panelId: varchar('panel_id', { length: 80 }),
+    cropRect: jsonb('crop_rect'),
     imageStoragePath: text('image_storage_path').notNull(),
     validationScore: integer('validation_score'),
     validationStatus: varchar('validation_status', { length: 40 }).notNull().default('completed'),
@@ -1311,6 +1331,12 @@ export const imageValidationResults = pgTable(
       table.storyId,
       table.sceneIndex,
       table.createdAt
+    ),
+    subjectIdx: index('idx_image_validation_results_subject').on(
+      table.storyId,
+      table.subjectType,
+      table.pageNumber,
+      table.panelIndex
     ),
   })
 );
@@ -1813,17 +1839,42 @@ export type NewEnvironmentImageCache = typeof environmentImageCache.$inferInsert
 export type StoryEnvironmentCache = typeof storyEnvironmentCache.$inferSelect;
 export type NewStoryEnvironmentCache = typeof storyEnvironmentCache.$inferInsert;
 
-// Outfit plate cache — garment/silhouette reference (Imagen 4 Fast), global reuse by embedding
-export const outfitPlateCache = pgTable('outfit_plate_cache', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  outfitText: text('outfit_text').notNull(),
-  descriptionEmbedding: jsonb('description_embedding').$type<number[]>().notNull(),
-  imageStyle: varchar('image_style', { length: 100 }).notNull(),
-  ageGroup: varchar('age_group', { length: 20 }).notNull(),
-  storagePath: text('storage_path').notNull(),
-  storageUrl: text('storage_url'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+// Outfit plate cache — garment/silhouette reference, global reuse by embedding + catalog tags
+export const outfitPlateCache = pgTable(
+  'outfit_plate_cache',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    outfitText: text('outfit_text').notNull(),
+    descriptionEmbedding: jsonb('description_embedding').$type<number[]>().notNull(),
+    imageStyle: varchar('image_style', { length: 100 }).notNull(),
+    ageGroup: varchar('age_group', { length: 20 }).notNull(),
+    storagePath: text('storage_path').notNull(),
+    storageUrl: text('storage_url'),
+    catalogSource: varchar('catalog_source', { length: 120 }),
+    formality: varchar('formality', { length: 40 }),
+    presentationGroups: text('presentation_groups').array(),
+    purposeTags: text('purpose_tags').array(),
+    seasonTags: text('season_tags').array(),
+    climateTags: text('climate_tags').array(),
+    eraTags: text('era_tags').array(),
+    settingTags: text('setting_tags').array(),
+    activityTags: text('activity_tags').array(),
+    silhouetteTags: text('silhouette_tags').array(),
+    footwearTags: text('footwear_tags').array(),
+    componentTags: text('component_tags').array(),
+    colorPalette: text('color_palette').array(),
+    materials: text('materials').array(),
+    patterns: text('patterns').array(),
+    detailTags: text('detail_tags').array(),
+    coverageTags: text('coverage_tags').array(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    createdAtIdx: index('outfit_plate_cache_created_at_idx').on(table.createdAt),
+    storagePathIdx: uniqueIndex('outfit_plate_cache_storage_path_uidx').on(table.storagePath),
+    catalogSourceIdx: index('outfit_plate_cache_catalog_source_idx').on(table.catalogSource),
+  })
+);
 
 export const storyOutfitPlateCache = pgTable(
   'story_outfit_plate_cache',
@@ -1836,6 +1887,7 @@ export const storyOutfitPlateCache = pgTable(
     cacheId: uuid('cache_id')
       .references(() => outfitPlateCache.id, { onDelete: 'cascade' })
       .notNull(),
+    requestedOutfitText: text('requested_outfit_text'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
@@ -1851,6 +1903,42 @@ export type OutfitPlateCache = typeof outfitPlateCache.$inferSelect;
 export type NewOutfitPlateCache = typeof outfitPlateCache.$inferInsert;
 export type StoryOutfitPlateCache = typeof storyOutfitPlateCache.$inferSelect;
 export type NewStoryOutfitPlateCache = typeof storyOutfitPlateCache.$inferInsert;
+
+// Character-scoped dressed turnaround cache.
+// Unlike outfit plates, these are not globally reusable: the image combines one
+// private character identity with one outfit and must stay bound to character_id.
+export const characterOutfitTurnaroundCache = pgTable(
+  'character_outfit_turnaround_cache',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    characterId: uuid('character_id')
+      .references(() => characters.id, { onDelete: 'cascade' })
+      .notNull(),
+    outfitId: varchar('outfit_id', { length: 200 }),
+    outfitHash: varchar('outfit_hash', { length: 64 }).notNull(),
+    outfitText: text('outfit_text').notNull(),
+    outfitPlateStoragePath: text('outfit_plate_storage_path'),
+    imageStyle: varchar('image_style', { length: 100 }).notNull(),
+    ageGroup: varchar('age_group', { length: 20 }).notNull(),
+    storagePath: text('storage_path').notNull(),
+    storageUrl: text('storage_url'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    characterOutfitUidx: uniqueIndex('character_outfit_turnaround_character_outfit_uidx').on(
+      table.characterId,
+      table.outfitHash,
+      table.imageStyle,
+      table.ageGroup
+    ),
+    characterIdx: index('character_outfit_turnaround_character_idx').on(table.characterId),
+  })
+);
+
+export type CharacterOutfitTurnaroundCache =
+  typeof characterOutfitTurnaroundCache.$inferSelect;
+export type NewCharacterOutfitTurnaroundCache =
+  typeof characterOutfitTurnaroundCache.$inferInsert;
 
 // LLM turnaround cache - global reuse by embedding similarity (LLM characters only)
 export const llmTurnaroundCache = pgTable('llm_turnaround_cache', {

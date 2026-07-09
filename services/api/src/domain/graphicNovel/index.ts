@@ -7,19 +7,21 @@ export {
 export {
   analyzeGraphicNovelBubbleVision,
   analyzeGraphicNovelBubbleVisionByPanelCrops,
+  analyzeGraphicNovelBubbleVisionPanelImages,
   applyGraphicNovelBubbleVisionLayout,
   GRAPHIC_NOVEL_BUBBLE_VISION_SCHEMA,
   type GraphicNovelBubbleVisionAnalysis,
+  type GraphicNovelBubbleVisionPanelImage,
   type GraphicNovelBubbleVisionLayoutResult,
 } from './bubbleVisionPlanner';
 export {
-  buildGraphicNovelPageFreeLayoutInstructions,
-  buildGraphicNovelPageFreeLayoutSystemInstruction,
   buildGraphicNovelImageRequestManifest,
-  buildGraphicNovelPageRepairSystemInstruction,
-  buildGraphicNovelPageValidationRepairInstructions,
-  generateGraphicNovelPageFreeLayout,
+  buildGraphicNovelPanelCropInstructions,
+  buildGraphicNovelPanelCropSystemInstruction,
+  composeGraphicNovelPanelArtPage,
+  normalizeGraphicNovelPanelArtForTemplate,
   overlayGraphicNovelBubblesOnly,
+  overlayGraphicNovelPanelFrames,
   summarizeGraphicNovelReferenceImages,
 } from './pageRenderer';
 export {

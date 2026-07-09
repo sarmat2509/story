@@ -39,6 +39,19 @@ function firstEnvValue(...names: string[]): string {
   return '';
 }
 
+function optionalPositiveIntegerEnv(...names: string[]): number | null {
+  for (const name of names) {
+    const raw = process.env[name]?.trim();
+    if (!raw) continue;
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      throw new Error(`${name} must be a positive integer`);
+    }
+    return parsed;
+  }
+  return null;
+}
+
 const SIMPLE_IMAGE_MODEL =
   firstEnvValue('SIMPLE_IMAGE_MODEL', 'NANO_BANANA_MODEL') || 'gemini-3.1-flash-lite-image';
 const COMPLEX_IMAGE_MODEL =
@@ -173,6 +186,8 @@ export const config = {
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     openaiModel: process.env.OPENAI_TEXT_MODEL || 'gpt-5.2',
     openaiValidationModel: process.env.OPENAI_VALIDATION_MODEL || 'gpt-4o',
+    /** Primary text/vision provider for image validation; defaults to Gemini. */
+    validationTextVendor: (process.env.AI_VALIDATION_TEXT_VENDOR || '').trim() || 'gemini',
     /** When set, Director (`callDirector`) uses this text vendor; otherwise same as textVendor */
     directorTextVendor: (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || undefined,
     /** OpenAI model for Director only; falls back to OPENAI_TEXT_MODEL default */
@@ -201,6 +216,11 @@ export const config = {
   // Image Generation
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
+    /** Optional cost guard for graphic-novel and mixed-story comic pages. Empty means full length. */
+    graphicNovelMaxPageCount: optionalPositiveIntegerEnv(
+      'GRAPHIC_NOVEL_MAX_PAGE_COUNT',
+      'COMIC_MAX_PAGE_COUNT'
+    ),
     /** Simple visual path: ordinary story illustrations. */
     simpleProvider: firstEnvValue('SIMPLE_IMAGE_PROVIDER', 'IMAGE_PROVIDER') || 'nanobananapro',
     simpleModel: SIMPLE_IMAGE_MODEL,
@@ -253,17 +273,32 @@ export const config = {
     maxObjectReferenceImages: parseInt(process.env.IMAGE_MAX_OBJECT_REFERENCE_IMAGES || '10', 10),
     enableOutfitPlate: process.env.ENABLE_OUTFIT_PLATE === 'true',
     outfitPlateMaxPerScene: parseInt(process.env.OUTFIT_PLATE_MAX_PER_SCENE || '2', 10),
-    outfitPlateEmbeddingSimilarityThreshold: parseFloat(
-      process.env.OUTFIT_PLATE_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
+    outfitPlateCatalogSimilarityThreshold: parseFloat(
+      process.env.OUTFIT_PLATE_CATALOG_SIMILARITY_THRESHOLD || '0.82'
+    ),
+    outfitPlateDefaultOutfitTolerance: parseFloat(
+      process.env.OUTFIT_PLATE_DEFAULT_OUTFIT_TOLERANCE || '0.03'
     ),
     // Validation scoring: absolute penalties (subtracted from 100)
     validationScoring: {
       // Per-character penalties (subtracted from 100)
       recognizablePenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_RECOGNIZABLE || '20', 10),
+      missingCharacterPenalty: parseInt(
+        process.env.IMAGE_SCORE_PENALTY_MISSING_CHARACTER || '32',
+        10
+      ),
       duplicatedPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_DUPLICATED || '15', 10),
       matchesColorsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_MATCHES_COLORS || '10', 10),
-      matchesOutfitPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_MATCHES_OUTFIT || '10', 10),
+      matchesOutfitPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_MATCHES_OUTFIT || '20', 10),
       // Global penalties
+      characterCountMismatchPenalty: parseInt(
+        process.env.IMAGE_SCORE_PENALTY_CHARACTER_COUNT_MISMATCH || '16',
+        10
+      ),
+      characterCountMismatchMaxPenalty: parseInt(
+        process.env.IMAGE_SCORE_PENALTY_CHARACTER_COUNT_MISMATCH_MAX || '35',
+        10
+      ),
       textPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_TEXT || '5', 10),
       unexpectedCharsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3', 10),
       artifactsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10', 10),
@@ -611,6 +646,33 @@ export function getConcurrencyLimitForPlan(planSlug?: string): number {
   const slug = planSlug || 'free';
   const limits = config.audio.concurrency as Record<string, number>;
   return limits[slug] || limits.free;
+}
+
+export function getValidationTextModelOverride(): string | undefined {
+  const validationVendor = (config.ai.validationTextVendor || 'gemini').trim().toLowerCase();
+
+  if (validationVendor === 'openai' && config.ai.openaiApiKey?.trim()) {
+    return config.ai.openaiValidationModel;
+  }
+
+  if (config.ai.geminiApiKey?.trim()) {
+    return config.ai.validationModel;
+  }
+
+  if (config.ai.openaiApiKey?.trim()) {
+    return config.ai.openaiValidationModel;
+  }
+
+  return undefined;
+}
+
+export function getValidationTextModelLabel(): string {
+  return (
+    getValidationTextModelOverride() ??
+    config.ai.validationModel ??
+    config.ai.geminiVisionModel ??
+    'unknown'
+  );
 }
 
 export default config;

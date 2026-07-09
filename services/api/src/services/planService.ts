@@ -23,6 +23,7 @@ export async function getActivePlans(): Promise<Plan[]> {
 export interface PlanWithLimits extends Plan {
   storiesPerMonth: number;
   audioStoriesPerMonth: number;
+  charactersPerMonth: number;
   imagesPerStory: number;
   graphicNovelsPerMonth: number;
   mixedStoriesPerMonth: number;
@@ -43,6 +44,7 @@ export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
         ...plan,
         storiesPerMonth: getLimit('stories_per_month', 3),
         audioStoriesPerMonth: getLimit('audio_stories_per_month', 1),
+        charactersPerMonth: getLimit('characters_per_month', 3),
         imagesPerStory: getLimit('images_per_story', 3),
         graphicNovelsPerMonth: getLimit('graphic_novels_per_month', 0),
         mixedStoriesPerMonth: getLimit('mixed_stories_per_month', 0),
@@ -182,6 +184,7 @@ export interface PlanFeatures {
   allowReferencePhotos: boolean;
   storiesPerMonth: number;
   audioStoriesPerMonth: number;
+  charactersPerMonth: number;
 }
 
 /**
@@ -206,6 +209,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
       allowReferencePhotos: false,
       storiesPerMonth: 5,
       audioStoriesPerMonth: 1,
+      charactersPerMonth: 3,
     };
     return defaultFeatures;
   }
@@ -232,6 +236,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
     ),
     storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 3),
     audioStoriesPerMonth: getNumericFeature(featureMap, 'audio_stories_per_month', 1),
+    charactersPerMonth: getNumericFeature(featureMap, 'characters_per_month', 3),
   };
   
   return result;
@@ -339,6 +344,7 @@ const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   stories_per_month: 'story_created',
   audio_stories_per_month: 'audio_synthesized',
   audio_minutes_per_month: 'audio_synthesized', // legacy slug, same as audio stories
+  characters_per_month: 'character_generated',
   graphic_novels_per_month: 'graphic_novel_created',
   mixed_stories_per_month: 'story_created',
 };

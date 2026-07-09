@@ -84,6 +84,17 @@ assert.deepEqual(
 );
 assert.equal(presentedPlans[0].features.stories_per_month.name, 'Stories');
 assert.equal(presentedPlans[0].features.audio_stories_per_month, undefined);
+assert.deepEqual(
+  presentedPlans.map((plan) => [
+    plan.slug,
+    (plan.features.characters_per_month.value as { limit: number }).limit,
+  ]),
+  [
+    ['free', 3],
+    ['silver', 10],
+  ],
+  'presented plans should include default character generation limits when DB rows are missing'
+);
 assert.equal(presentedPlans[1].name, 'Localized Silver');
 assert.equal(presentedPlans[1].description, 'Localized silver copy');
 assert.equal(presentedPlans[1].priceMonthly, 899);

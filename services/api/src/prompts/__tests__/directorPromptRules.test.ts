@@ -11,10 +11,12 @@ import {
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v24');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v26');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
+  assert.ok(cached.includes('sceneVisual.setting must be a visual staging delta, not a plot summary'));
+  assert.ok(cached.includes('avoid vague wording like "the object is now resting"'));
   assert.ok(cached.includes('Depict exactly one concrete frozen moment'));
   assert.ok(cached.includes('Never describe a sequence of events'));
   assert.ok(cached.includes('Use positive visual phrasing'));
@@ -121,6 +123,9 @@ function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
   assert.ok(prompt.includes('If you find yourself trying to show both a big environment reveal and a tiny decisive action in the same medium-wide frame, choose one as primary and demote the other.'));
   assert.ok(prompt.includes('every illustration MUST include primaryRead: a short English phrase, roughly 3-10 words'));
   assert.ok(prompt.includes('primaryRead is the ONLY explicit focus field.'));
+  assert.ok(prompt.includes('CONTACT GEOMETRY RULE:'));
+  assert.ok(prompt.includes('Object-contact actions require explicit physical staging'));
+  assert.ok(prompt.includes('body position beside or in front of the fixed object'));
   assert.ok(prompt.includes('must not introduce story-significant props, held items, or costume pieces'));
   assert.ok(prompt.includes('reference-grounded identities in the downstream image pipeline'));
   assert.ok(prompt.includes('do NOT rewrite their full visual identity here'));
@@ -136,6 +141,10 @@ function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
   assert.ok(!prompt.includes('[excited] Mia opens'));
   assert.ok(prompt.includes('mapTile MUST be top-level and singular with exactly two conceptual fields: requiredFeatures[] and description.'));
   assert.ok(prompt.includes('Each illustration MUST include: environmentId (string), primaryRead (short English focus phrase), sceneVisual'));
+  assert.ok(prompt.includes('detailed wardrobe is human-only'));
+  assert.ok(prompt.includes('outfitId is a technical binding enforced like environmentId'));
+  assert.ok(prompt.includes('Detailed wardrobe descriptions are only for child/person/human characters'));
+  assert.ok(prompt.includes('Animals, imaginary creatures, objects, vehicles, and environmental beings'));
   assert.ok(prompt.includes('mapTile.description:'));
   assert.ok(prompt.includes('mapTile.requiredFeatures:'));
   assert.ok(!prompt.includes('connectorIntent'));

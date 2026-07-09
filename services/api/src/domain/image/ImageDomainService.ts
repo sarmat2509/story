@@ -7,6 +7,7 @@ import type {
   IImageProvider,
   GenerateImageRequest,
   GeneratedImage,
+  ImageAspectRatio,
   ReferenceImage,
   EditImageRequest,
 } from '../../providers/base/IImageProvider';
@@ -48,7 +49,7 @@ export interface BuiltScenePromptPayload {
   primaryRead?: string;
   prompt: string;
   systemInstruction?: string;
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  aspectRatio?: ImageAspectRatio;
   referenceImages?: Array<{
     instructionText?: string;
     characterName?: string;
@@ -59,6 +60,12 @@ export interface BuiltScenePromptPayload {
     fileUri?: string;
     hasBase64Data: boolean;
     url?: string;
+    storagePath?: string;
+    source?: string;
+    type?: string;
+    environmentId?: string;
+    referenceEnvironmentId?: string;
+    outfitId?: string;
   }>;
 }
 
@@ -91,7 +98,7 @@ export interface SceneImageWithReferenceRequest {
   sceneText?: string;
   ageGroup: string;
   style: string;
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  aspectRatio?: ImageAspectRatio;
 
   // Pre-classified character data (prepared by orchestration layer)
   realWorldCharacters: Array<{ name: string; description: string; nameAliases?: string[] }>;
@@ -122,14 +129,8 @@ export interface SceneImageWithReferenceRequest {
   // Google Asset Graph pattern: maps character name -> Image N index
   imageIndexMap?: Map<string, number>;
 
-  /** Character name → outfit plate reference index (Image N), after sequential assignment */
-  outfitPlateImageIndexByCharacter?: Map<string, number>;
-
   // Current scene's environment description (included in user prompt)
   currentEnvironment?: { id: string; name: string; description: string };
-
-  // Scene-specific outfit overrides from text generation
-  characterOutfits?: Record<string, string>;
 
   scenarioCardId?: string;
 
@@ -209,6 +210,12 @@ export class ImageDomainService {
       hasReferences: useCapabilityModel,
       scenarioCardId: request.scenarioCardId,
     });
+    const systemInstruction = buildImageSystemInstruction({
+      style: request.style || 'soft_watercolor',
+      ageGroup: request.ageGroup,
+      hasReferences: useCapabilityModel,
+      scenarioCardId: request.scenarioCardId,
+    });
 
     // Create provider request
     const providerRequest: GenerateImageRequest = {
@@ -220,9 +227,10 @@ export class ImageDomainService {
       personGeneration: 'allow_all',
       onUsage: options?.onUsage,
       operation: 'image_generate',
+      systemInstruction,
     };
 
-    return await this.imageProvider.generateImage(providerRequest);
+    return this.generateImageWithInstructions(providerRequest);
   }
 
   /**
@@ -260,10 +268,8 @@ export class ImageDomainService {
       referenceCharacterNames: request.imaginaryCharacters,
       realWorldCharacters: request.realWorldCharacters,
       imageIndexMap: request.imageIndexMap,
-      outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter,
       referenceImages: request.referenceImages,
       currentEnvironment: request.currentEnvironment,
-      characterOutfits: request.characterOutfits,
       scenarioCardId: request.scenarioCardId,
       hasEnvironmentImageRef: request.hasEnvironmentImageRef,
     });
@@ -288,9 +294,6 @@ export class ImageDomainService {
         systemInstruction,
         imageIndexMap: request.imageIndexMap
           ? Object.fromEntries(request.imageIndexMap)
-          : undefined,
-        outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter
-          ? Object.fromEntries(request.outfitPlateImageIndexByCharacter)
           : undefined,
         referenceLabels: request.referenceImages?.map((r) => r.instructionText),
       },
@@ -357,10 +360,16 @@ export class ImageDomainService {
         fileUri: ref.fileUri,
         hasBase64Data: !!ref.base64Data,
         url: ref.url,
+        storagePath: ref.storagePath,
+        source: ref.source,
+        type: ref.type,
+        environmentId: ref.environmentId,
+        referenceEnvironmentId: ref.referenceEnvironmentId,
+        outfitId: ref.outfitId,
       })),
     });
 
-    return await this.imageProvider.generateImage(providerRequest);
+    return this.generateImageWithInstructions(providerRequest);
   }
 
   /**
@@ -412,6 +421,12 @@ export class ImageDomainService {
         fileUri: ref.fileUri,
         hasBase64Data: !!ref.base64Data,
         url: ref.url,
+        storagePath: ref.storagePath,
+        source: (ref as { source?: string }).source,
+        type: (ref as { type?: string }).type,
+        environmentId: (ref as { environmentId?: string }).environmentId,
+        referenceEnvironmentId: (ref as { referenceEnvironmentId?: string }).referenceEnvironmentId,
+        outfitId: (ref as { outfitId?: string }).outfitId,
       })),
     });
 
@@ -606,24 +621,22 @@ export class ImageDomainService {
       /** Optional species/role hint (hamster, dragon, cat, fairy). Input-only. */
       speciesSubtype?: string;
       description?: string;
-      /** Scene-expected wardrobe (Director / characterOutfits); outfit check uses this, not the turnaround sheet. */
-      expectedOutfitForScene?: string;
+      validateOutfit?: boolean;
     }>;
     sceneVisual: SceneVisual;
-    /** Full characterOutfits line(s) for this scene/environment — same as image prompt; ground truth for wardrobe. */
-    sceneCharacterOutfitsText?: string;
     referenceImages?: Array<{
       characterName: string;
       imageData?: string; // base64 (optional when fileUri provided)
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
-      referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
-      identitySource?: 'turnaround' | 'reference_photo';
+      referenceKind?: 'identity' | 'layout_template';
+      identitySource?: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
     }>;
     logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;
     includeLayoutChecks?: boolean;
     includeBubbleChecks?: boolean;
+    includeWardrobeChecks?: boolean;
   }): Promise<ImageValidationResult> {
     // Legacy method name kept for callers, but the old single-pass validator is disabled.
     // All production validation now runs as segmented layout + per-character passes.
@@ -638,22 +651,22 @@ export class ImageDomainService {
       characterKind: 'human' | 'animal' | 'imaginary';
       speciesSubtype?: string;
       description?: string;
-      expectedOutfitForScene?: string;
+      validateOutfit?: boolean;
     }>;
     sceneVisual: SceneVisual;
-    sceneCharacterOutfitsText?: string;
     referenceImages?: Array<{
       characterName: string;
       imageData?: string;
       fileUri?: string;
       mimeType: string;
-      referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
-      identitySource?: 'turnaround' | 'reference_photo';
+      referenceKind?: 'identity' | 'layout_template';
+      identitySource?: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
     }>;
     logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;
     includeLayoutChecks?: boolean;
     includeBubbleChecks?: boolean;
+    includeWardrobeChecks?: boolean;
   }): Promise<ImageValidationResult> {
     if (!this.textProvider) {
       throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
@@ -697,7 +710,8 @@ export class ImageDomainService {
     originalMimeType: string;
     validationResult: ImageValidationResult;
     sceneDescription?: string;
-    aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+    aspectRatio?: ImageAspectRatio;
+    imageSize?: '512' | '0.5K' | '1K' | '2K' | '4K' | string;
     referenceImages?: Array<{
       url?: string;
       base64Data?: string;
@@ -718,9 +732,9 @@ export class ImageDomainService {
     systemInstruction?: string;
     targetedRepairManifest?: ImageEditRepairManifest;
     targetedRepairInstruction?: string;
-    previousInteractionId?: string;
     personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
     onUsage?: (usage: UsageMetadata) => void;
+    operation?: string;
   }): Promise<GeneratedImage> {
     if (!this.imageProvider.editImage) {
       throw new Error('Image provider does not support editImage — fallback to full regeneration');
@@ -739,12 +753,12 @@ export class ImageDomainService {
         editInstructionsLength: editInstructions.length,
         editInstructionsPreview: editInstructions.substring(0, 200),
         originalMimeType: params.originalMimeType,
+        imageSize: params.imageSize,
         referenceCount: params.referenceImages?.length || 0,
         targetedRepairManifest: params.targetedRepairManifest ?? null,
         targetedRepairInstruction: params.targetedRepairInstruction ?? null,
         hasSystemInstruction: !!params.systemInstruction,
-        hasPreviousInteractionId: !!params.previousInteractionId,
-        previousInteractionId: params.previousInteractionId ?? null,
+        operation: params.operation,
       },
       'Editing scene image based on validation feedback'
     );
@@ -754,6 +768,7 @@ export class ImageDomainService {
       originalMimeType: params.originalMimeType,
       editInstructions,
       aspectRatio: params.aspectRatio,
+      imageSize: params.imageSize,
       referenceImages:
         params.referenceImages?.map((ref) => ({
           url: ref.url,
@@ -775,10 +790,9 @@ export class ImageDomainService {
             inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
         })) || undefined,
       systemInstruction: params.systemInstruction,
-      previousInteractionId: params.previousInteractionId,
       personGeneration: params.personGeneration,
       onUsage: params.onUsage,
-      operation: 'image_edit',
+      operation: params.operation ?? 'image_edit',
     });
   }
 
@@ -791,6 +805,7 @@ export class ImageDomainService {
       {
         originalMimeType: request.originalMimeType,
         aspectRatio: request.aspectRatio,
+        imageSize: request.imageSize,
         referenceCount: request.referenceImages?.length || 0,
         editInstructionsLength: request.editInstructions.length,
       },
@@ -807,6 +822,7 @@ export class ImageDomainService {
     logger.info(
       {
         aspectRatio: request.aspectRatio,
+        imageSize: request.imageSize,
         referenceCount: request.referenceImages?.length || 0,
         promptLength: request.prompt.length,
         hasSystemInstruction: !!request.systemInstruction,

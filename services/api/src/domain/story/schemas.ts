@@ -7,6 +7,7 @@
  */
 
 import type { JsonSchema } from '../../providers/base/JsonSchema';
+import { MAX_SCENE_IMAGE_CHARACTERS } from './sceneCharacterLimits';
 
 /**
  * One row in sceneVisual.cameraComposition.characters — pose plus wardrobe ref (replaces top-level outfitBindings).
@@ -23,13 +24,14 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
     description: {
       type: 'string',
       minLength: 1,
-      description: 'Position in frame, posture, action, expression. IN ENGLISH.',
+      description:
+        'Position in frame, posture, action, expression. IN ENGLISH. Object-contact actions require explicit physical staging: body position beside or in front of the fixed object, exact contact point, and the named handle, surface, window, door, panel, control, or affected object.',
     },
     outfitId: {
       type: 'string',
       minLength: 1,
       description:
-        'EXACT outfits[].id for this character in this scene — same kind of reference as environmentId → environments[].id.',
+        'EXACT outfits[].id for this character in this scene — same kind of reference as environmentId → environments[].id. Detailed wardrobe rows are only for child/person/human characters; non-human rows use natural appearance.',
     },
   },
   required: ['name', 'description', 'outfitId'],
@@ -61,26 +63,6 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
               required: ['category', 'severity', 'message'],
             },
           },
-          correctedCameraComposition: {
-            type: 'object',
-            nullable: true,
-            properties: {
-              shot: { type: 'string' },
-              characters: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    description: { type: 'string' },
-                    outfitId: { type: 'string' },
-                  },
-                  required: ['name', 'description'],
-                },
-              },
-            },
-            required: ['shot', 'characters'],
-          },
         },
         required: ['sceneId', 'violations'],
       },
@@ -109,26 +91,6 @@ export const VALIDATION_SCHEMA: JsonSchema = {
         },
         required: ['category', 'severity', 'message'],
       },
-    },
-    correctedCameraComposition: {
-      type: 'object',
-      nullable: true,
-      properties: {
-        shot: { type: 'string' },
-        characters: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              description: { type: 'string' },
-              outfitId: { type: 'string' },
-            },
-            required: ['name', 'description'],
-          },
-        },
-      },
-      required: ['shot', 'characters'],
     },
   },
   required: ['sceneId', 'isValid', 'violations'],
@@ -159,7 +121,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
             type: 'string',
             enum: ['human', 'animal', 'imaginary'],
             description:
-              'Must match EXPECTED CHARACTERS line for this name: human = HUMAN (real person/child), animal = ANIMAL (real-world species like hamster/dog/cat), imaginary = IMAGINARY_CREATURE. Do not map animal to human.',
+              'Must match EXPECTED CHARACTERS line for this name: human = HUMAN (person/story character), animal = ANIMAL (real-world species like hamster/dog/cat), imaginary = IMAGINARY_CREATURE. Do not map animal to human.',
           },
           found: { type: 'boolean', description: 'Whether this character is present in the image' },
           duplicated: {
@@ -170,7 +132,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           recognizableScore: {
             type: 'number',
             description:
-              '0-1 aggregate identity vs turnaround. Must reflect overall design read, silhouette, creature subtype read (imaginary), and body form—not only a checklist of local features. 1.0 ONLY when no meaningful drift in silhouette, body type, mass, head/muzzle shape, subtype read, proportions, or signature traits; any noticeable subtype-read drift or body-form reinterpretation → strictly below 1.0. Consistent with face/hair/age/proportions booleans and optional silhouetteDriftSeverity/sameOverallDesignRead. For HUMANS: wrong face OR wrong age read OR wrong visible hairstyle must NOT be scored 0.9 as a minor single feature—usually 0.7–0.8 each; combined drift → often ≤0.5. For IMAGINARY: missing dominant body markings (spots/stripes) → ≤0.5; major silhouette/body-type/subtype drift → often 0.5–0.7 even if some colors/markings match. Temporary emotional expression, gaze, or flexible appendage pose (antennae/ears/whiskers/tail tip/crest tilt/wing angle) does NOT by itself lower this score if the same first-glance design read is preserved. Scene-authorized temporary visual states also do NOT by themselves lower this score: transparency, shimmering outline, glow, magical aura, mist/smoke form, or other explicitly requested transient presentation effects. Do not treat \"transparent vs solid\" alone as identity drift when the designer scene brief explicitly requests transparency or spectral rendering. Do not use ~0.9 when proportionsMatchReference is false due to visible drift. Wardrobe vs sheet does not raise this score. Penalty=(1-score)*20.',
+              '0-1 aggregate identity vs turnaround. Must reflect overall design read, silhouette, creature subtype read (imaginary), and body form—not only a checklist of local features. 1.0 ONLY when no meaningful drift in silhouette, body type, mass, head/muzzle shape, subtype read, proportions, or signature traits; any noticeable subtype-read drift or body-form reinterpretation → strictly below 1.0. Consistent with face/hair/apparent-life-stage/proportions booleans and optional silhouetteDriftSeverity/sameOverallDesignRead. For HUMANS: wrong face OR changed apparent character life-stage OR wrong visible hairstyle must NOT be scored 0.9 as a minor single feature—usually 0.7–0.8 each; combined drift → often ≤0.5. For IMAGINARY: missing dominant body markings (spots/stripes) → ≤0.5; major silhouette/body-type/subtype drift → often 0.5–0.7 even if some colors/markings match. Temporary emotional expression, gaze, or flexible appendage pose (antennae/ears/whiskers/tail tip/crest tilt/wing angle) does NOT by itself lower this score if the same first-glance design read is preserved. Scene-authorized temporary visual states also do NOT by themselves lower this score: transparency, shimmering outline, glow, magical aura, mist/smoke form, or other explicitly requested transient presentation effects. Do not treat \"transparent vs solid\" alone as identity drift when the designer scene brief explicitly requests transparency or spectral rendering. Do not use ~0.9 when proportionsMatchReference is false due to visible drift. Wardrobe vs sheet does not raise this score. Penalty=(1-score)*20.',
           },
           faceMatchesReference: {
             type: 'boolean',
@@ -182,13 +144,13 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
             type: 'boolean',
             nullable: true,
             description:
-              'HUMAN-only identity slot. Evaluate the whole visible hairstyle structure and hair color zoning vs reference independently from face/outfit: length, cut, silhouette, parting, bangs/front locks, texture, braid count/placement/thickness, ponytail/bun placement, loose-vs-tied sections, natural/base-color regions, dyed/accent-color regions, and distinctive colored streak placement. Do not mark true merely because broad hair color matches. Leave null for ANIMAL / IMAGINARY_CREATURE — fur/feather/mane drift belongs to sameOverallDesignRead + silhouetteDriftSeverity instead.',
+              'HUMAN-only identity slot. Broad hair color is insufficient. Compare visible hair structure and color zones: hairline/parting, front locks/bangs, braid/ponytail/bun count, placement, high/low anchor point, loose-vs-braided sections, length/silhouette, and accent-color placement. Any visible structural drift means false. Leave null for ANIMAL / IMAGINARY_CREATURE.',
           },
           ageReadMatchesReference: {
             type: 'boolean',
             nullable: true,
             description:
-              'HUMAN-only identity slot. Same age category as reference (child vs teen/adult) unless scene authorizes. Wrong age read is major—not stylistic. Leave null for ANIMAL / IMAGINARY_CREATURE.',
+              'HUMAN-only identity slot. Same broad illustrated character life-stage as the reference unless the scene authorizes a transformation. A visibly changed visual life-stage signal is major, not stylistic. Leave null for ANIMAL / IMAGINARY_CREATURE.',
           },
           proportionsMatchReference: {
             type: 'boolean',
@@ -210,7 +172,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
             type: 'string',
             nullable: true,
             description:
-              'When the expected character is missing or the visible slot is occupied by the wrong design, briefly describe what is actually visible instead, using concrete visual words useful for edit repair (e.g. "blond girl in a blue dress", "brown dragon-like quadruped", "small green mushroom creature"). Use null only when the expected character is clearly correct or no substitute/candidate is visible.',
+              'When the expected character is missing or the visible slot is occupied by the wrong design, briefly describe the visible substitute/candidate currently in the image, using concrete visual words useful for edit repair (e.g. "blond girl in a blue dress", "brown dragon-like quadruped", "small green mushroom creature"). This is not a problem statement: do not write what is missing, what should change, or how it differs from the reference. Use null only when the expected character is clearly correct or no substitute/candidate is visible.',
           },
           identityComparisonSummary: {
             type: 'string',
@@ -378,9 +340,10 @@ export const SCENE_SCHEMA: JsonSchema = {
             characters: {
               type: 'array',
               minItems: 1,
+              maxItems: MAX_SCENE_IMAGE_CHARACTERS,
               items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
               description:
-                'Per-character composition. MUST list ALL characters physically present in this scene. Each entry includes outfitId → outfits[].',
+                `Per-character composition. List only the most important visible characters for this illustration, maximum ${MAX_SCENE_IMAGE_CHARACTERS}. Each entry includes outfitId → outfits[].`,
             },
           },
           required: ['shot', 'characters'],

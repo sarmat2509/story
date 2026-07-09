@@ -121,7 +121,7 @@ export const ART_STYLES: Record<string, StyleDefinition> = {
   warm_3d: {
     imagePrefix: [
       'high-quality modern 3D animated film render',
-      'rounded appealing character forms, friendly proportions',
+      'rounded appealing character forms',
       'soft subsurface scattering on skin, physically based materials',
       'highly detailed fabrics with visible weave and stitching',
       'warm cinematic lighting with gentle volumetric rays',
@@ -130,7 +130,7 @@ export const ART_STYLES: Record<string, StyleDefinition> = {
     ],
     textGuidance: {
       setting: 'Describe as 3D animated render: rounded forms, detailed materials with physical properties, clean geometry.',
-      composition: 'Frame with cinematic depth and soft focus. Describe character poses with rounded appealing forms, detailed fabric folds.',
+      composition: 'Frame with cinematic depth and soft focus. Describe character poses with rounded appealing forms, detailed fabric folds, and proportions preserved from character references.',
       lighting: 'Describe as warm cinematic lighting with volumetric rays, soft depth of field, ray-traced shadows and reflections. Gentle subsurface scattering on skin/fabrics.',
     },
   },

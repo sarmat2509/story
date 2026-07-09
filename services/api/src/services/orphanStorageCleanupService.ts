@@ -141,6 +141,7 @@ export async function collectReferencedStoragePaths(): Promise<Set<string>> {
     stories,
     environmentCaches,
     outfitPlateCaches,
+    characterOutfitTurnaroundCaches,
     llmTurnaroundCaches,
     voicesWithSamples,
   ] = await Promise.all([
@@ -172,6 +173,8 @@ export async function collectReferencedStoragePaths(): Promise<Set<string>> {
       .from(schema.environmentImageCache),
     db.select({ storagePath: schema.outfitPlateCache.storagePath })
       .from(schema.outfitPlateCache),
+    db.select({ storagePath: schema.characterOutfitTurnaroundCache.storagePath })
+      .from(schema.characterOutfitTurnaroundCache),
     db.select({ storagePath: schema.llmTurnaroundCache.storagePath })
       .from(schema.llmTurnaroundCache),
     db.select({ sampleAudioUrl: schema.ttsVoices.sampleAudioUrl })
@@ -204,6 +207,7 @@ export async function collectReferencedStoragePaths(): Promise<Set<string>> {
   }
   for (const row of environmentCaches) addPath(paths, row.storagePath);
   for (const row of outfitPlateCaches) addPath(paths, row.storagePath);
+  for (const row of characterOutfitTurnaroundCaches) addPath(paths, row.storagePath);
   for (const row of llmTurnaroundCaches) addPath(paths, row.storagePath);
   for (const voice of voicesWithSamples) addPath(paths, voice.sampleAudioUrl);
 

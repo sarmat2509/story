@@ -7,6 +7,115 @@ import { getStoryRepository } from '../repositories';
 import type { Story } from '../db/schema';
 import logger from '../utils/logger';
 import { loadStoryCoverAssets } from './storyCoverService';
+import { stripCharacterIdFromName } from '@wondertales/shared';
+
+function normalizeContinuationCharacterName(name: unknown): string {
+  return typeof name === 'string'
+    ? stripCharacterIdFromName(name).trim().normalize('NFC').toLocaleLowerCase()
+    : '';
+}
+
+function continuationCharacterKeys(char: any): string[] {
+  const keys: string[] = [];
+  if (typeof char?.id === 'string' && char.id.trim()) keys.push(`id:${char.id.trim()}`);
+  const name = normalizeContinuationCharacterName(char?.name);
+  if (name) keys.push(`name:${name}`);
+  return keys;
+}
+
+function pickContinuationDescription(char: any): string {
+  for (const value of [char?.description, char?.appearance, char?.personality, char?.traits]) {
+    if (typeof value === 'string' && value.trim() && value !== 'undefined') {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function formatContinuationCharacters(chars: any[]): any[] {
+  return (chars || [])
+    .map((char) => {
+      const base = {
+        name: char?.name || '',
+        type: char?.type || 'unknown',
+        description: pickContinuationDescription(char),
+        role: char?.role || 'character',
+      };
+      if (char?.id) (base as any).id = char.id;
+      if (char?.subtype) (base as any).subtype = char.subtype;
+      if (char?.childProfileId) (base as any).childProfileId = char.childProfileId;
+      if (Array.isArray(char?.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
+      if (char?.turnaroundSheet && typeof char.turnaroundSheet === 'object') {
+        (base as any).turnaroundSheet = char.turnaroundSheet;
+      }
+      if (typeof char?.appearance === 'string') (base as any).appearance = char.appearance;
+      return base;
+    })
+    .filter((char) => normalizeContinuationCharacterName(char.name));
+}
+
+function mergeContinuationCharacters(preferred: any[], fallback: any[]): any[] {
+  const merged: any[] = [];
+  const seen = new Set<string>();
+
+  for (const char of [...formatContinuationCharacters(preferred), ...formatContinuationCharacters(fallback)]) {
+    const keys = continuationCharacterKeys(char);
+    if (keys.some((key) => seen.has(key))) continue;
+    merged.push(char);
+    for (const key of keys) seen.add(key);
+  }
+
+  return merged;
+}
+
+function removeCharactersAlreadyRequired(optionalCharacters: any[], requiredCharacters: any[]): any[] {
+  const requiredKeys = new Set(requiredCharacters.flatMap(continuationCharacterKeys));
+  return formatContinuationCharacters(optionalCharacters).filter(
+    (char) => !continuationCharacterKeys(char).some((key) => requiredKeys.has(key))
+  );
+}
+
+async function buildRequiredCharactersFromLinkedStory(storyId: string): Promise<any[]> {
+  const linked = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
+  return formatContinuationCharacters(linked.filter((char) => !char.isHidden));
+}
+
+async function normalizeExistingContinuationContext(story: Story, series: any): Promise<any> {
+  const ctx = (series.continuationContext || {}) as any;
+  const storyIds = Array.isArray(series.storyIds) ? (series.storyIds as string[]) : [];
+  const anchorStoryId = storyIds[0] || story.id;
+  const linkedRequired = await buildRequiredCharactersFromLinkedStory(anchorStoryId);
+  if (linkedRequired.length === 0) return ctx;
+
+  const requiredCharacters = mergeContinuationCharacters(linkedRequired, ctx.requiredCharacters || []);
+  const optionalCharacters = removeCharactersAlreadyRequired(
+    ctx.optionalCharacters || [],
+    requiredCharacters
+  );
+  const normalizedContext = {
+    ...ctx,
+    requiredCharacters,
+    optionalCharacters,
+  };
+
+  if (JSON.stringify(normalizedContext) !== JSON.stringify(ctx)) {
+    await getStoryRepository().updateSeries(series.id, {
+      continuationContext: normalizedContext,
+      updatedAt: new Date(),
+    });
+    logger.info(
+      {
+        seriesId: series.id,
+        anchorStoryId,
+        requiredCount: requiredCharacters.length,
+        optionalCount: optionalCharacters.length,
+      },
+      'Normalized existing series continuation character context'
+    );
+  }
+
+  return normalizedContext;
+}
 
 /**
  * Create or get existing series for a story
@@ -31,12 +140,13 @@ export async function getOrCreateSeries(storyId: string): Promise<{
       throw new Error(`Series not found: ${story.seriesId}`);
     }
     
+    const continuationContext = await normalizeExistingContinuationContext(story, series);
     logger.info({ seriesId: series.id, totalParts: series.totalParts }, 'Found existing series');
     
     return {
       seriesId: series.id,
       partNumber: series.totalParts,
-      continuationContext: series.continuationContext,
+      continuationContext,
     };
   }
   
@@ -54,7 +164,7 @@ export async function getOrCreateSeries(storyId: string): Promise<{
     imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
     totalParts: 1,
     storyIds: [storyId],
-    continuationContext: buildInitialContext(story),
+    continuationContext: await buildInitialContext(story),
   });
   
   // 4. Update original story with series_id
@@ -72,14 +182,19 @@ export async function getOrCreateSeries(storyId: string): Promise<{
 /**
  * Build initial context from first story
  */
-function buildInitialContext(story: Story): any {
+async function buildInitialContext(story: Story): Promise<any> {
   const outline = story.outline as any;
   const metadata = story.metadata as any;
   const scenes = story.scenes as any[]; // Actual scene data with text
+  const linkedCharacters = await getStoryRepository().findLinkedCharactersByStoryId(story.id);
   
   // Separate user-provided characters (from wizard) and LLM-generated characters
-  const userProvidedCharacters = metadata?.mergedCharacters || []; // From wizard selection
-  const llmGeneratedCharacters = metadata?.llmGeneratedCharacters || []; // Created by LLM
+  const linkedRequiredCharacters = linkedCharacters.filter((char) => !char.isHidden);
+  const linkedOptionalCharacters = linkedCharacters.filter((char) => char.isHidden);
+  const userProvidedCharacters =
+    linkedRequiredCharacters.length > 0 ? linkedRequiredCharacters : metadata?.mergedCharacters || [];
+  const llmGeneratedCharacters =
+    linkedOptionalCharacters.length > 0 ? linkedOptionalCharacters : metadata?.llmGeneratedCharacters || [];
   
   // DEBUG: Log raw character data
   logger.debug({
@@ -132,37 +247,6 @@ function buildInitialContext(story: Story): any {
     }
   }
   
-  // Format character descriptions while preserving reference images for continuation image generation
-  const formatCharacters = (chars: any[]) => {
-    return chars.map(char => {
-      // Build description from available fields, prioritizing description > appearance > personality > traits
-      let description = '';
-      
-      if (char.description && typeof char.description === 'string' && char.description.trim() && char.description !== 'undefined') {
-        description = char.description.trim();
-      } else if (char.appearance && typeof char.appearance === 'string' && char.appearance.trim() && char.appearance !== 'undefined') {
-        description = char.appearance.trim();
-      } else if (char.personality && typeof char.personality === 'string' && char.personality.trim() && char.personality !== 'undefined') {
-        description = char.personality.trim();
-      } else if (char.traits && typeof char.traits === 'string' && char.traits.trim() && char.traits !== 'undefined') {
-        description = char.traits.trim();
-      }
-      
-      const base = {
-        name: char.name || '',
-        type: char.type || 'unknown',
-        description: description,
-        role: char.role || 'character',
-      };
-      // Preserve reference images for continuation — required for character consistency across episodes
-      if (char.id) (base as any).id = char.id;
-      if (char.referencePhotos && Array.isArray(char.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
-      if (char.turnaroundSheet && typeof char.turnaroundSheet === 'object') (base as any).turnaroundSheet = char.turnaroundSheet;
-      if (char.appearance && typeof char.appearance === 'string') (base as any).appearance = char.appearance;
-      return base;
-    });
-  };
-  
   // Extract environments for continuation (metadata.environments or fallback from scenes)
   let previousEnvironments: Array<{ id: string; name: string; description: string; characterOutfits?: string }> = [];
   if (metadata?.environments && Array.isArray(metadata.environments) && metadata.environments.length > 0) {
@@ -208,8 +292,11 @@ function buildInitialContext(story: Story): any {
         goal: summary, // Use summary as goal
       })),
     }],
-    requiredCharacters: formatCharacters(userProvidedCharacters), // User-provided = MUST use
-    optionalCharacters: formatCharacters(llmGeneratedCharacters), // LLM-generated = MAY use
+    requiredCharacters: formatContinuationCharacters(userProvidedCharacters), // User-provided = MUST use
+    optionalCharacters: removeCharactersAlreadyRequired(
+      llmGeneratedCharacters,
+      formatContinuationCharacters(userProvidedCharacters)
+    ), // LLM-generated = MAY use
     usedPlots: sceneSummaries, // Use scene summaries as used plots
     previousEnvironments,
     previousOutfits,
@@ -366,6 +453,16 @@ export async function addContinuationToSeries(
     }
   }
 
+  const requiredCharacters = formatContinuationCharacters(ctx.requiredCharacters || []);
+  const existingOptionalCharacters = removeCharactersAlreadyRequired(
+    ctx.optionalCharacters || [],
+    requiredCharacters
+  );
+  const newOptionalCharacters = removeCharactersAlreadyRequired(
+    formatCharacters(llmGeneratedCharacters),
+    requiredCharacters
+  );
+
   const updatedContext = {
     ...ctx,
     previousOutlines: [
@@ -380,12 +477,9 @@ export async function addContinuationToSeries(
       },
     ],
     // requiredCharacters stay the same (user-provided don't change)
-    requiredCharacters: ctx.requiredCharacters || [],
+    requiredCharacters,
     // Merge new optional characters (LLM-generated from this episode)
-    optionalCharacters: mergeCharacters(
-      ctx.optionalCharacters || [],
-      formatCharacters(llmGeneratedCharacters)
-    ),
+    optionalCharacters: mergeCharacters(existingOptionalCharacters, newOptionalCharacters),
     usedPlots: [
       ...(ctx.usedPlots || []),
       ...sceneSummaries,

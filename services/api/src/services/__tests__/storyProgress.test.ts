@@ -96,18 +96,18 @@ function testInstantFlowIncludesPhotoAnalysisSegment(): void {
 
 function testExplicitProgressDoesNotJumpPastTimeBasedStagePosition(): void {
   const progress = createProgress({
-    completedTasks: [STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, STORY_TASKS.VALIDATING],
+    completedTasks: [STORY_TASKS.GENERATING_TEXT, STORY_TASKS.VALIDATING, STORY_TASKS.PRODUCING_VISUALS],
     activeTasks: [{ task: STORY_TASKS.GENERATING_IMAGES, progress: 50 }],
     plannedTasks: [
       { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: 30_000, rangeStart: 0, rangeEnd: 27 },
-      { task: STORY_TASKS.PRODUCING_VISUALS, estimatedMs: 12_000, rangeStart: 27, rangeEnd: 31 },
-      { task: STORY_TASKS.VALIDATING, estimatedMs: 47_000, rangeStart: 31, rangeEnd: 76 },
+      { task: STORY_TASKS.VALIDATING, estimatedMs: 47_000, rangeStart: 27, rangeEnd: 72 },
+      { task: STORY_TASKS.PRODUCING_VISUALS, estimatedMs: 12_000, rangeStart: 72, rangeEnd: 76 },
       { task: STORY_TASKS.GENERATING_IMAGES, estimatedMs: 132_000, rangeStart: 76, rangeEnd: 100 },
     ],
     taskTimeline: {
       [STORY_TASKS.GENERATING_TEXT]: { startedAt: 0, completedAt: 30_000, estimatedMs: 30_000 },
-      [STORY_TASKS.PRODUCING_VISUALS]: { startedAt: 30_000, completedAt: 42_000, estimatedMs: 12_000 },
-      [STORY_TASKS.VALIDATING]: { startedAt: 42_000, completedAt: 89_000, estimatedMs: 47_000 },
+      [STORY_TASKS.VALIDATING]: { startedAt: 30_000, completedAt: 77_000, estimatedMs: 47_000 },
+      [STORY_TASKS.PRODUCING_VISUALS]: { startedAt: 77_000, completedAt: 89_000, estimatedMs: 12_000 },
       [STORY_TASKS.GENERATING_IMAGES]: { startedAt: 89_000, estimatedMs: 132_000 },
     },
     maxOverallProgress: 76,
@@ -119,12 +119,78 @@ function testExplicitProgressDoesNotJumpPastTimeBasedStagePosition(): void {
   assert.equal(recalculated.activeTasks[0]?.progress, 87);
 }
 
+function testActiveTaskProgressIsCappedBelowComplete(): void {
+  const progress = createProgress({
+    completedTasks: [STORY_TASKS.GENERATING_TEXT],
+    activeTasks: [{ task: STORY_TASKS.GENERATING_IMAGES, progress: 0 }],
+    plannedTasks: [
+      { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: 10_000, rangeStart: 0, rangeEnd: 50 },
+      { task: STORY_TASKS.GENERATING_IMAGES, estimatedMs: 10_000, rangeStart: 50, rangeEnd: 100 },
+    ],
+    taskTimeline: {
+      [STORY_TASKS.GENERATING_TEXT]: { startedAt: 0, completedAt: 10_000, estimatedMs: 10_000 },
+      [STORY_TASKS.GENERATING_IMAGES]: { startedAt: 10_000, estimatedMs: 10_000 },
+    },
+    maxOverallProgress: 50,
+  });
+
+  const recalculated = recalculateStoryProgress(progress, 30_000);
+
+  assert.equal(recalculated.overallProgress, 99);
+  assert.equal(recalculated.maxOverallProgress, 99);
+}
+
+function testPersistedHundredIsCappedWhileTaskIsStillActive(): void {
+  const progress = createProgress({
+    completedTasks: [STORY_TASKS.GENERATING_TEXT],
+    activeTasks: [{ task: STORY_TASKS.GENERATING_IMAGES, progress: 100 }],
+    plannedTasks: [
+      { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: 10_000, rangeStart: 0, rangeEnd: 50 },
+      { task: STORY_TASKS.GENERATING_IMAGES, estimatedMs: 10_000, rangeStart: 50, rangeEnd: 100 },
+    ],
+    taskTimeline: {
+      [STORY_TASKS.GENERATING_TEXT]: { startedAt: 0, completedAt: 10_000, estimatedMs: 10_000 },
+      [STORY_TASKS.GENERATING_IMAGES]: { startedAt: 10_000, estimatedMs: 10_000 },
+    },
+    maxOverallProgress: 100,
+  });
+
+  const recalculated = recalculateStoryProgress(progress, 30_000);
+
+  assert.equal(recalculated.overallProgress, 99);
+  assert.equal(recalculated.maxOverallProgress, 99);
+}
+
+function testCompletedTasksCanReachComplete(): void {
+  const progress = createProgress({
+    completedTasks: [STORY_TASKS.GENERATING_TEXT, STORY_TASKS.GENERATING_IMAGES],
+    activeTasks: [],
+    plannedTasks: [
+      { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: 10_000, rangeStart: 0, rangeEnd: 50 },
+      { task: STORY_TASKS.GENERATING_IMAGES, estimatedMs: 10_000, rangeStart: 50, rangeEnd: 100 },
+    ],
+    taskTimeline: {
+      [STORY_TASKS.GENERATING_TEXT]: { startedAt: 0, completedAt: 10_000, estimatedMs: 10_000 },
+      [STORY_TASKS.GENERATING_IMAGES]: { startedAt: 10_000, completedAt: 20_000, estimatedMs: 10_000 },
+    },
+    maxOverallProgress: 99,
+  });
+
+  const recalculated = recalculateStoryProgress(progress, 30_000);
+
+  assert.equal(recalculated.overallProgress, 100);
+  assert.equal(recalculated.maxOverallProgress, 100);
+}
+
 export async function runStoryProgressTests(): Promise<void> {
   testStageCapAtRangeBoundary();
   testNextStageStartsFromPreviousCap();
   testImageStageCannotPullProgressBackward();
   testInstantFlowIncludesPhotoAnalysisSegment();
   testExplicitProgressDoesNotJumpPastTimeBasedStagePosition();
+  testActiveTaskProgressIsCappedBelowComplete();
+  testPersistedHundredIsCappedWhileTaskIsStillActive();
+  testCompletedTasksCanReachComplete();
 }
 
 if (require.main === module) {

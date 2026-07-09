@@ -364,8 +364,8 @@ export const CreateCharacterSchema = BaseCharacterSchema.and(
   { message: 'Either referencePhotos, description, or aiGeneratedDescription is required', path: ['description'] }
 );
 
-// Update schema: omit referencePhotos (read-only on edit)
-export const UpdateCharacterSchema = BaseCharacterSchema.omit({ referencePhotos: true }).partial().and(
+// Updates may include reference photos because changing them regenerates the model sheet.
+export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
   z.discriminatedUnion('type', [
     z.object({
       type: z.literal('animal'),

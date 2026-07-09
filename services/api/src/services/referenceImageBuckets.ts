@@ -72,12 +72,14 @@ export type ReferenceImageDataEntry = {
   referenceEnvironmentId?: string;
   outfitId?: string;
   storagePath?: string;
+  characterId?: string;
+  identitySource?: string;
 };
 
 /**
- * Apply Gemini 3.1–style buckets: keep up to maxCharacter identity refs and maxObject env/plates.
- * Order preserved: environment, character turnarounds, outfit plates, then any other refs.
- * Objects are trimmed from the end of the object sequence (plates before environment).
+ * Apply Gemini 3.1–style buckets: keep up to maxCharacter full-character refs and maxObject
+ * environment/object refs. Dressed turnarounds are character refs; raw outfit plates should
+ * only be used while creating those dressed turnarounds, not as final scene references.
  */
 export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
   refs: T[],
@@ -91,7 +93,7 @@ export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
   objectCount: number;
 } {
   const env = refs.filter((r) => r.source === 'environment');
-  const plates = refs.filter((r) => r.source === 'outfit_plate');
+  const rawOutfitPlates = refs.filter((r) => r.source === 'outfit_plate');
   const chars = refs.filter((r) => inferReferenceKind(r) === 'character');
   const other = refs.filter(
     (r) =>
@@ -103,17 +105,16 @@ export function applyReferenceBucketLimits<T extends ReferenceImageDataEntry>(
   const charsKept = chars.slice(0, Math.max(0, maxCharacter));
   const droppedCharacterCount = chars.length - charsKept.length;
 
-  const objectSeq = [...env, ...plates, ...other];
+  const objectSeq = [...env, ...other];
   const objectsKept = objectSeq.slice(0, Math.max(0, maxObject));
-  const droppedObjectCount = objectSeq.length - objectsKept.length;
+  const droppedObjectCount = objectSeq.length - objectsKept.length + rawOutfitPlates.length;
 
   const envKept = objectsKept.filter((r) => r.source === 'environment');
-  const platesKept = objectsKept.filter((r) => r.source === 'outfit_plate');
   const otherKept = objectsKept.filter(
-    (r) => r.source !== 'environment' && r.source !== 'outfit_plate'
+    (r) => r.source !== 'environment'
   );
 
-  const trimmed = [...envKept, ...charsKept, ...platesKept, ...otherKept] as T[];
+  const trimmed = [...envKept, ...charsKept, ...otherKept] as T[];
 
   return {
     trimmed,
@@ -140,7 +141,8 @@ export function assignSequentialImageIndices(refs: ReferenceImageDataEntry[]): M
     if (
       ref.type === 'imaginary' ||
       ref.type === 'child_reference' ||
-      ref.type === 'character_reference'
+      ref.type === 'character_reference' ||
+      ref.type === 'dressed_turnaround_reference'
     ) {
       if (ref.characterName && !imageIndexMap.has(ref.characterName)) {
         imageIndexMap.set(ref.characterName, imageIndex);
@@ -151,27 +153,6 @@ export function assignSequentialImageIndices(refs: ReferenceImageDataEntry[]): M
     imageIndex++;
   }
   return imageIndexMap;
-}
-
-/**
- * Map character display name → outfit plate "Image N" index (after assignSequentialImageIndices).
- * Stores both full name and ID-stripped base when they differ (matches lookupOutfitForCharacterName keys).
- */
-export function collectOutfitPlateImageIndices(
-  refs: Array<{ source?: string; characterName?: string; imageIndex?: number }> | undefined
-): Map<string, number> {
-  const m = new Map<string, number>();
-  if (!refs) return m;
-  for (const r of refs) {
-    if (r.source !== 'outfit_plate' || !r.characterName || typeof r.imageIndex !== 'number')
-      continue;
-    m.set(r.characterName, r.imageIndex);
-    const base = stripCharacterIdFromName(r.characterName).trim();
-    if (base && base !== r.characterName) {
-      m.set(base, r.imageIndex);
-    }
-  }
-  return m;
 }
 
 export function logReferenceBucketDelivery(params: {

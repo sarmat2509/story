@@ -24,6 +24,7 @@ import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheReposito
 import { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
 import { OutfitPlateCacheRepository } from './OutfitPlateCacheRepository';
 import { StoryOutfitPlateCacheRepository } from './StoryOutfitPlateCacheRepository';
+import { CharacterOutfitTurnaroundCacheRepository } from './CharacterOutfitTurnaroundCacheRepository';
 import { AlignmentRepository } from './AlignmentRepository';
 import { AiUsageRepository } from './AiUsageRepository';
 import { UsageEventsRepository } from './UsageEventsRepository';
@@ -66,6 +67,7 @@ export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheReposito
 export { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
 export { OutfitPlateCacheRepository } from './OutfitPlateCacheRepository';
 export { StoryOutfitPlateCacheRepository } from './StoryOutfitPlateCacheRepository';
+export { CharacterOutfitTurnaroundCacheRepository } from './CharacterOutfitTurnaroundCacheRepository';
 export { AlignmentRepository } from './AlignmentRepository';
 export { AiUsageRepository } from './AiUsageRepository';
 export { UsageEventsRepository } from './UsageEventsRepository';
@@ -108,6 +110,7 @@ let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
 let llmTurnaroundCacheRepo: LlmTurnaroundCacheRepository;
 let outfitPlateCacheRepo: OutfitPlateCacheRepository;
 let storyOutfitPlateCacheRepo: StoryOutfitPlateCacheRepository;
+let characterOutfitTurnaroundCacheRepo: CharacterOutfitTurnaroundCacheRepository;
 let alignmentRepo: AlignmentRepository;
 let aiUsageRepo: AiUsageRepository;
 let usageEventsRepo: UsageEventsRepository;
@@ -223,6 +226,12 @@ export function getStoryOutfitPlateCacheRepository(): StoryOutfitPlateCacheRepos
   if (!storyOutfitPlateCacheRepo)
     storyOutfitPlateCacheRepo = new StoryOutfitPlateCacheRepository(db);
   return storyOutfitPlateCacheRepo;
+}
+
+export function getCharacterOutfitTurnaroundCacheRepository(): CharacterOutfitTurnaroundCacheRepository {
+  if (!characterOutfitTurnaroundCacheRepo)
+    characterOutfitTurnaroundCacheRepo = new CharacterOutfitTurnaroundCacheRepository(db);
+  return characterOutfitTurnaroundCacheRepo;
 }
 
 export function getAlignmentRepository(): AlignmentRepository {

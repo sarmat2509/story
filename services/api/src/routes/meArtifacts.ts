@@ -104,7 +104,6 @@ async function mapCollectedArtifact(details: CollectedStoryArtifactDetails, loca
       thumbnailUrl: image.thumbnailUrl,
       imageUrl: image.imageUrl,
       semanticTags: artifact.semanticTags,
-      scenarioAffinities: artifact.scenarioAffinities,
     },
     story: {
       id: story.id,

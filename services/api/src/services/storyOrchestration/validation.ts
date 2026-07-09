@@ -12,47 +12,145 @@ import {
   recordModerationDecision,
 } from '../moderationDecisionService';
 import config from '../../config';
-import type { ValidateParams, ValidateResult } from './types';
+import type {
+  TextValidationAttemptPhase,
+  TextValidationAttemptRecord,
+  TextValidationSummary,
+  ValidateParams,
+  ValidateResult,
+} from './types';
 
 type SceneValidationLike = {
   sceneId: number;
   isValid: boolean;
   violations: Array<{ category: string; message: string }>;
+  validationScore?: number | null;
+  requestManifest?: Record<string, unknown>;
   correctedCameraComposition?: {
     shot: string;
     characters: Array<{ name: string; description: string; outfitId?: string }>;
   };
 };
 
-function mergeCorrectedCameraComposition(
-  existingCameraComposition: unknown,
-  corrected: NonNullable<SceneValidationLike['correctedCameraComposition']>,
-): NonNullable<SceneValidationLike['correctedCameraComposition']> {
-  const existingCharacters =
-    existingCameraComposition &&
-    typeof existingCameraComposition === 'object' &&
-    Array.isArray((existingCameraComposition as { characters?: unknown }).characters)
-      ? ((existingCameraComposition as {
-          characters: Array<{ name?: string; outfitId?: string }>;
-        }).characters ?? [])
-      : [];
+const CAMERA_COMPOSITION_COMPLETENESS_CATEGORY = 'camera_composition_incomplete';
 
-  const existingOutfits = new Map(
-    existingCharacters
-      .filter((character) => typeof character?.name === 'string' && typeof character?.outfitId === 'string')
-      .map((character) => [character.name!.trim(), character.outfitId!.trim()] as const),
+function normalizeSceneValidation(validation: SceneValidationLike): SceneValidationLike {
+  const ignoredViolations = validation.violations.filter(
+    (violation) => violation.category === CAMERA_COMPOSITION_COMPLETENESS_CATEGORY,
+  );
+  const violations = validation.violations.filter(
+    (violation) => violation.category !== CAMERA_COMPOSITION_COMPLETENESS_CATEGORY,
   );
 
+  if (ignoredViolations.length > 0 || validation.correctedCameraComposition) {
+    logger.info(
+      {
+        sceneId: validation.sceneId,
+        ignoredViolationCount: ignoredViolations.length,
+        ignoredCorrectedCameraComposition: Boolean(validation.correctedCameraComposition),
+      },
+      'Ignoring camera composition completeness result from text validation',
+    );
+  }
+
   return {
-    shot: corrected.shot,
-    characters: corrected.characters.map((character) => ({
-      ...character,
-      ...(character.outfitId
-        ? { outfitId: character.outfitId }
-        : existingOutfits.get(character.name.trim())
-          ? { outfitId: existingOutfits.get(character.name.trim()) }
-          : {}),
-    })),
+    sceneId: validation.sceneId,
+    isValid:
+      violations.length === 0 &&
+      (validation.isValid || ignoredViolations.length > 0 || Boolean(validation.correctedCameraComposition)),
+    violations,
+    validationScore: scoreTextSceneValidation({
+      isValid:
+        violations.length === 0 &&
+        (validation.isValid || ignoredViolations.length > 0 || Boolean(validation.correctedCameraComposition)),
+      violations,
+    }),
+    requestManifest: validation.requestManifest,
+  };
+}
+
+function scoreTextSceneValidation(validation: Pick<SceneValidationLike, 'isValid' | 'violations'>): number {
+  if (validation.isValid && validation.violations.length === 0) {
+    return 100;
+  }
+  if (!validation.isValid && validation.violations.length === 0) {
+    return 0;
+  }
+
+  const penaltyBySeverity: Record<string, number> = {
+    critical: 100,
+    high: 60,
+    medium: 35,
+  };
+  const penalty = validation.violations.reduce((sum, violation) => {
+    const severity = typeof (violation as any).severity === 'string' ? (violation as any).severity : '';
+    return sum + (penaltyBySeverity[severity] ?? 45);
+  }, 0);
+  return Math.max(0, 100 - penalty);
+}
+
+function validationResultWithoutDebugFields(validation: unknown): unknown {
+  if (!validation || typeof validation !== 'object' || Array.isArray(validation)) {
+    return validation;
+  }
+  const { requestManifest, ...rest } = validation as Record<string, unknown>;
+  return rest;
+}
+
+function buildTextValidationAttempt(input: {
+  validation: SceneValidationLike;
+  rawValidation: unknown;
+  phase: TextValidationAttemptPhase;
+  attempt: number;
+  durationMs: number;
+}): TextValidationAttemptRecord {
+  const score = input.validation.validationScore ?? scoreTextSceneValidation(input.validation);
+  return {
+    sceneId: input.validation.sceneId,
+    attempt: input.attempt,
+    phase: input.phase,
+    durationMs: input.durationMs,
+    isValid: input.validation.isValid,
+    score,
+    result: {
+      sceneId: input.validation.sceneId,
+      isValid: input.validation.isValid,
+      violations: input.validation.violations,
+    },
+    rawResult: validationResultWithoutDebugFields(input.rawValidation),
+    rawManifest: input.validation.requestManifest ?? null,
+  };
+}
+
+function buildTextValidationSummary(input: {
+  validations: SceneValidationLike[];
+  attempts: TextValidationAttemptRecord[];
+  validationTimeMs: number;
+  sceneCount: number;
+}): TextValidationSummary {
+  const failedSceneIds = input.validations
+    .filter((validation) => !validation.isValid)
+    .map((validation) => validation.sceneId);
+  const passedSceneIds = input.validations
+    .filter((validation) => validation.isValid)
+    .map((validation) => validation.sceneId);
+  const finalScores = input.validations.map(
+    (validation) => validation.validationScore ?? scoreTextSceneValidation(validation)
+  );
+  const score = finalScores.length > 0
+    ? Math.round(finalScores.reduce((sum, value) => sum + value, 0) / finalScores.length)
+    : 0;
+
+  return {
+    version: 1,
+    status: failedSceneIds.length === 0 ? 'passed' : 'failed',
+    score,
+    sceneCount: input.sceneCount,
+    attemptCount: input.attempts.length,
+    validationTimeMs: input.validationTimeMs,
+    passedSceneIds,
+    failedSceneIds,
+    attempts: input.attempts,
   };
 }
 
@@ -118,18 +216,27 @@ async function runWithConcurrencyLimit<T, TResult>(
 }
 
 /**
- * Validate story scenes with retry logic
+ * Validate story prose scenes with retry logic
  * Used by both standard and continuation flows
  */
-export async function validateStoryScenes(params: ValidateParams): Promise<ValidateResult> {
+export async function validateStoryTextScenes(params: ValidateParams): Promise<ValidateResult> {
   const { requestId, userId, storyId, text, spec, maxRetries = 2 } = params;
   const usageContext = { userId, storyId };
+  const scenes = Array.isArray(text?.scenes) ? text.scenes : [];
+  const hasReadableScene = scenes.some(
+    (scene: any) => typeof scene?.text === 'string' && scene.text.trim().length > 0,
+  );
+
+  if (!text?.fullText?.trim() || scenes.length === 0 || !hasReadableScene) {
+    throw new Error('Story text validation cannot run without readable scenes');
+  }
 
   const storyDomain = getStoryDomainService();
   const coefficients = await getGenerationCoefficients();
 
   const validationStart = Date.now();
   const validationConcurrency = config.text.validationConcurrency;
+  const validationAttempts: TextValidationAttemptRecord[] = [];
   await startTask(requestId, STORY_TASKS.VALIDATING, {
     estimatedMs: coefficients.avgValidationMsPerScene * (text?.scenes?.length || 6),
     totalScenes: text.scenes.length,
@@ -175,57 +282,46 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         {
           onUsage: (u) => recordUsage(u, usageContext),
           reservedCharacters: spec.characters,
+          operation: 'writer_text_validation',
         },
       );
       const durationMs = Date.now() - sceneStart;
       initialValidationDurations.push(durationMs);
       completedValidationUnits += 1;
+      const normalizedValidation = normalizeSceneValidation({
+        sceneId: validation.sceneId,
+        isValid: validation.isValid,
+        violations: validation.violations,
+        validationScore: validation.validationScore,
+        requestManifest: validation.requestManifest,
+        correctedCameraComposition: (validation as any).correctedCameraComposition,
+      });
+      validationAttempts.push(buildTextValidationAttempt({
+        validation: normalizedValidation,
+        rawValidation: validation,
+        phase: 'initial',
+        attempt: 1,
+        durationMs,
+      }));
 
       logger.info(
         {
           requestId,
           sceneId: scene.sceneId,
           durationMs,
-          isValid: validation.isValid,
-          violationCount: validation.violations.length,
+          isValid: normalizedValidation.isValid,
+          violationCount: normalizedValidation.violations.length,
         },
         'Scene validation completed',
       );
 
       await reportValidationProgress(scene.sceneId);
 
-      return {
-        sceneId: validation.sceneId,
-        isValid: validation.isValid,
-        violations: validation.violations,
-        correctedCameraComposition: validation.correctedCameraComposition,
-      };
+      return normalizedValidation;
     },
   );
 
-  // Apply correctedCameraComposition directly (no regeneration needed)
-  for (const validation of validations) {
-    if (validation.correctedCameraComposition) {
-      const scene = text.scenes.find((s: any) => s.sceneId === validation.sceneId);
-      if (scene?.sceneVisual) {
-        scene.sceneVisual.cameraComposition = mergeCorrectedCameraComposition(
-          scene.sceneVisual.cameraComposition,
-          validation.correctedCameraComposition,
-        );
-        logger.info(
-          { requestId, sceneId: validation.sceneId, characterCount: validation.correctedCameraComposition.characters.length },
-          'Applied correctedCameraComposition to scene'
-        );
-      }
-    }
-  }
-
-  // failedScenes: exclude scenes that only had camera_composition_incomplete and we fixed it
-  const hasOtherViolations = (v: SceneValidationLike) =>
-    v.violations.some((viol: any) => viol.category !== 'camera_composition_incomplete');
-  const failedScenes = validations.filter(
-    (v) => !v.isValid && (!v.correctedCameraComposition || hasOtherViolations(v))
-  );
+  const failedScenes = validations.filter((v) => !v.isValid);
 
   if (failedScenes.length > 0) {
     failedScenes.forEach((validation) => {
@@ -279,7 +375,7 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         return scene?.text ?? '';
       });
 
-      // Update only scene text (preserve sceneVisual, environmentId, etc.)
+      // Update only scene prose; any non-text metadata on the caller's scene object is left untouched.
       sceneIds.forEach((sceneId, i) => {
         const idx = text.scenes.findIndex((s: any) => s.sceneId === sceneId);
         if (idx !== -1 && newTexts[i]) {
@@ -311,10 +407,26 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
               {
                 onUsage: (u) => recordUsage(u, usageContext),
                 reservedCharacters: spec.characters,
+                operation: 'writer_text_validation',
               },
             );
             const durationMs = Date.now() - sceneStart;
             completedValidationUnits += 1;
+            const normalizedValidation = normalizeSceneValidation({
+              sceneId: validation.sceneId,
+              isValid: validation.isValid,
+              violations: validation.violations,
+              validationScore: validation.validationScore,
+              requestManifest: validation.requestManifest,
+              correctedCameraComposition: (validation as any).correctedCameraComposition,
+            });
+            validationAttempts.push(buildTextValidationAttempt({
+              validation: normalizedValidation,
+              rawValidation: validation,
+              phase: 'revalidation',
+              attempt: attempt + 2,
+              durationMs,
+            }));
 
             logger.info(
               {
@@ -322,41 +434,20 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
                 sceneId: scene.sceneId,
                 attempt: attempt + 1,
                 durationMs,
-                isValid: validation.isValid,
-                violationCount: validation.violations.length,
+                isValid: normalizedValidation.isValid,
+                violationCount: normalizedValidation.violations.length,
               },
               'Scene revalidation completed',
             );
 
             await reportValidationProgress(scene.sceneId);
 
-            return {
-              sceneId: validation.sceneId,
-              isValid: validation.isValid,
-              violations: validation.violations,
-              correctedCameraComposition: validation.correctedCameraComposition,
-            };
+            return normalizedValidation;
           },
         );
       } else {
         revalidations = sceneIds.map((sceneId) => ({ sceneId, isValid: true, violations: [] }));
       }
-
-      // Apply correctedCameraComposition from revalidation if present
-      revalidations.forEach((validation, idx) => {
-        const sceneId = sceneIds[idx];
-        const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
-        if (validation.correctedCameraComposition && scene?.sceneVisual) {
-          scene.sceneVisual.cameraComposition = mergeCorrectedCameraComposition(
-            scene.sceneVisual.cameraComposition,
-            validation.correctedCameraComposition,
-          );
-          logger.info(
-            { requestId, sceneId },
-            'Applied correctedCameraComposition after revalidation'
-          );
-        }
-      });
 
       // Update validations for next iteration (scenesToRegenerate logic)
       revalidations.forEach((validation, idx) => {
@@ -376,12 +467,7 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
             stage: 'generated_text_revalidation',
             attempt: attempt + 1,
           });
-          const hasOther = validation.violations.some((viol: any) => viol.category !== 'camera_composition_incomplete');
-          if (validation.correctedCameraComposition && !hasOther) {
-            scenesToRegenerate.delete(sceneId);
-          } else {
-            scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
-          }
+          scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
         }
       });
     }
@@ -445,8 +531,19 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
     'Validation completed',
   );
 
+  const textValidation = buildTextValidationSummary({
+    validations,
+    attempts: validationAttempts,
+    validationTimeMs,
+    sceneCount: text.scenes.length,
+  });
+
   return {
     validatedText: text,
-    validationTimeMs
+    validationTimeMs,
+    textValidation,
   };
 }
+
+/** @deprecated Use validateStoryTextScenes to make the prose-only boundary explicit. */
+export const validateStoryScenes = validateStoryTextScenes;

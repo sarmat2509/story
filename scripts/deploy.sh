@@ -5,6 +5,7 @@
 #   ./scripts/deploy.sh            # Deploy everything (API + webapp + migrations)
 #   ./scripts/deploy.sh --api      # API + migrations only
 #   ./scripts/deploy.sh --web      # Webapp only
+#   ./scripts/deploy.sh --outfits  # Pregenerated outfit plate assets only
 #   ./scripts/deploy.sh --nginx    # Legacy nginx handoff check only; deploy live proxy from ../proxy
 #   ./scripts/deploy.sh --migrate  # Migrations only (no rebuild/redeploy)
 
@@ -60,24 +61,27 @@ DEPLOY_API=false
 DEPLOY_WEB=false
 DEPLOY_MIGRATE=false
 DEPLOY_NGINX=false
+DEPLOY_OUTFITS=false
 
 if [[ $# -eq 0 ]]; then
   DEPLOY_API=true
   DEPLOY_WEB=true
   DEPLOY_MIGRATE=true
+  DEPLOY_OUTFITS=true
 fi
 
 for arg in "$@"; do
   case "$arg" in
-    --api)     DEPLOY_API=true; DEPLOY_MIGRATE=true ;;
+    --api)     DEPLOY_API=true; DEPLOY_MIGRATE=true; DEPLOY_OUTFITS=true ;;
     --web)     DEPLOY_WEB=true ;;
+    --outfits) DEPLOY_OUTFITS=true ;;
     --nginx)   DEPLOY_NGINX=true ;;
     --migrate) DEPLOY_MIGRATE=true ;;
     -h|--help)
-      sed -n '1,9p' "$0"
+      sed -n '1,10p' "$0"
       exit 0
       ;;
-    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--nginx] [--migrate]"; exit 1 ;;
+    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--outfits] [--nginx] [--migrate]"; exit 1 ;;
   esac
 done
 
@@ -237,6 +241,60 @@ docker exec wondertales-api-prod sh -lc '
   done
 '
 rm -f /tmp/wondertales-voice-samples.tar.gz
+EOF
+  print_step_done
+}
+
+sync_outfit_plate_cache() {
+  local outfit_dir="${PROJECT_ROOT}/services/api/uploads/outfit_plate_cache"
+  local outfit_tarball="/tmp/wondertales-outfit-plate-cache.tar.gz"
+  local outfit_count
+
+  if [[ "${SKIP_OUTFIT_PLATE_SYNC:-false}" == "true" ]]; then
+    echo "⚠️  SKIP_OUTFIT_PLATE_SYNC=true, skipping outfit plate cache sync"
+    return 0
+  fi
+
+  if [[ ! -d "${outfit_dir}" ]]; then
+    echo "❌ Local outfit plate cache directory not found: ${outfit_dir}"
+    exit 1
+  fi
+
+  outfit_count=$(find "${outfit_dir}" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) ! -name '*.source.*' ! -name '._*' | wc -l | tr -d ' ')
+  if [[ -z "${outfit_count}" || "${outfit_count}" == "0" ]]; then
+    echo "❌ No outfit plate image files found in ${outfit_dir}"
+    exit 1
+  fi
+
+  print_step "Syncing pregenerated outfit plates to API upload volume..."
+  echo "   Local outfit plate files: ${outfit_count}"
+  COPYFILE_DISABLE=1 tar --no-xattrs \
+    --exclude='outfit_plate_cache/*.source.*' \
+    --exclude='outfit_plate_cache/._*' \
+    -czf "${outfit_tarball}" \
+    -C "${PROJECT_ROOT}/services/api/uploads" \
+    outfit_plate_cache
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${outfit_tarball}" \
+    ${DROPLET_USER}@${DROPLET_IP}:/tmp/wondertales-outfit-plate-cache.tar.gz
+  rm -f "${outfit_tarball}"
+
+  ssh_droplet << 'EOF'
+if ! docker ps --filter name=wondertales-api-prod --filter status=running --format '{{.Names}}' | grep -q wondertales-api-prod; then
+  echo "❌ wondertales-api-prod is not running; cannot sync outfit plates into the api_uploads volume"
+  exit 1
+fi
+docker cp /tmp/wondertales-outfit-plate-cache.tar.gz wondertales-api-prod:/tmp/wondertales-outfit-plate-cache.tar.gz
+docker exec wondertales-api-prod sh -lc '
+  mkdir -p /app/services/api/uploads
+  tar -xzf /tmp/wondertales-outfit-plate-cache.tar.gz -C /app/services/api/uploads
+  find /app/services/api/uploads/outfit_plate_cache -type f \( -name "._*" -o -name "*.source.*" \) -delete
+  rm -f /tmp/wondertales-outfit-plate-cache.tar.gz
+  printf "outfit_plate_cache files: "
+  find /app/services/api/uploads/outfit_plate_cache -maxdepth 1 -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.webp" \) | wc -l | tr -d " "
+  printf "\n"
+  du -sh /app/services/api/uploads/outfit_plate_cache || true
+'
+rm -f /tmp/wondertales-outfit-plate-cache.tar.gz
 EOF
   print_step_done
 }
@@ -500,6 +558,7 @@ EOF
 
   rm -f /tmp/${API_IMAGE}.tar.gz
   sync_voice_samples
+  sync_outfit_plate_cache
   sync_nginx_config
   echo "✅ API deployed"
 }
@@ -638,6 +697,7 @@ EOF
 echo "Deploy started"
 echo "   API:      $DEPLOY_API"
 echo "   Webapp:   $DEPLOY_WEB"
+echo "   Outfits:  $DEPLOY_OUTFITS"
 echo "   Nginx:    $DEPLOY_NGINX"
 echo "   Migrate:  $DEPLOY_MIGRATE"
 echo "   Droplet:  ${DROPLET_USER}@${DROPLET_IP}"
@@ -653,6 +713,11 @@ if $DEPLOY_API; then
   # Post-deploy migrations: after new image is running
   run_migrations_post_deploy
   cleanup_api_docker_artifacts
+fi
+
+# Sync pregenerated outfit assets without rebuilding API.
+if $DEPLOY_OUTFITS && ! $DEPLOY_API; then
+  sync_outfit_plate_cache
 fi
 
 # Deploy webapp

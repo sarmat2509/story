@@ -268,7 +268,7 @@ function expectedCharacters() {
       name: 'Луна',
       characterKind: 'human' as const,
       description: LUNA_DESCRIPTION,
-      expectedOutfitForScene: 'red raincoat, yellow scarf, blue trousers, small canvas satchel',
+      validateOutfit: true,
     },
     {
       name: 'Миро',
@@ -400,10 +400,6 @@ async function main(): Promise<void> {
           ['Луна', 1],
           ['Миро', 2],
         ]),
-        characterOutfits: {
-          'Луна': 'red raincoat, yellow scarf, blue trousers, small canvas satchel',
-          'Миро': 'pearl-white fur, pale blue ear tips, crescent-shaped glowing tail, silver paws',
-        },
         scenarioCardId: storySpec.scenarioCard?.id,
       },
       { onUsage }
@@ -415,8 +411,6 @@ async function main(): Promise<void> {
       mimeType: saved.mimeType,
       expectedCharacters: expected,
       sceneVisual,
-      sceneCharacterOutfitsText:
-        'Луна: red raincoat, yellow scarf, blue trousers, small canvas satchel. Миро: pearl-white fur, pale blue ear tips, crescent-shaped glowing tail, silver paws.',
       referenceImages: validatorRefs,
       logContext: { storyId: 'seedream-reference-story-sample', sceneId: storyScene.sceneId },
       onUsage,

@@ -7,6 +7,7 @@ import type { StoryAudioMetadata } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { getLocalizedStoryTitle } from '@/utils/storyTitle';
 
 interface Props {
   story: {
@@ -39,6 +40,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
   const { t } = useTranslation();
   const audioBadgeTitle = t('story_card.audio_badge_title');
   const deleteButtonTitle = t('story_card.delete_button_title');
+  const displayTitle = getLocalizedStoryTitle(story.title, t);
   const setWebTitle = React.useCallback((node: unknown, title: string) => {
     if (Platform.OS === 'web' && isWebTitleNode(node)) {
       node.setAttribute('title', title);
@@ -137,7 +139,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
               />
               <View style={styles.gridTitleBlock} pointerEvents="none">
                 <Text style={styles.gridTitle} numberOfLines={2}>
-                  {story.title}
+                  {displayTitle}
                 </Text>
               </View>
             </View>
@@ -166,7 +168,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
               Platform.OS === 'web' && hovered && styles.deleteButtonGridHover,
               pressed && styles.deleteButtonGridPressed,
             ]}
-            onPress={() => onDelete(story.id, story.title)}
+            onPress={() => onDelete(story.id, displayTitle)}
             accessibilityRole="button"
             accessibilityLabel={deleteButtonTitle}
             ref={deleteButtonRef}
@@ -184,7 +186,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
       <TouchableOpacity style={styles.listCardTouchable} onPress={() => onPress(story.id)}>
         <View style={styles.content}>
           <Text style={styles.title} numberOfLines={2}>
-            {story.title}
+            {displayTitle}
           </Text>
           <Text style={styles.meta}>
             {story.language} • {story.status}
@@ -197,7 +199,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
       {onDelete && (
         <TouchableOpacity
           style={styles.deleteButtonList}
-          onPress={() => onDelete(story.id, story.title)}
+          onPress={() => onDelete(story.id, displayTitle)}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={deleteButtonTitle}

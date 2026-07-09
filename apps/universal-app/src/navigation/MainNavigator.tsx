@@ -739,7 +739,7 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      {!isInstantMode && !isChildSession && (
+      {!isChildSession && (
         <Tab.Screen
           name="Children"
           component={ChildrenScreenWithAuth}
@@ -753,7 +753,7 @@ function TabNavigator() {
           }}
         />
       )}
-      {!isInstantMode && !isChildSession && (
+      {!isChildSession && (
         <Tab.Screen
           name="ChildDetail"
           component={ChildDetailScreenWithAuth}
@@ -1069,7 +1069,7 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      {!isInstantMode && !isChildSession && (
+      {!isChildSession && (
         <Drawer.Screen
           name="Children"
           component={ChildrenScreenWithAuth}
@@ -1082,7 +1082,7 @@ function DrawerNavigator() {
           }}
         />
       )}
-      {!isInstantMode && !isChildSession && (
+      {!isChildSession && (
         <Drawer.Screen
           name="ChildDetail"
           component={ChildDetailScreenWithAuth}

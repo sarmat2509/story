@@ -156,6 +156,8 @@ export interface ImageGenerationContext {
   scenarioCardId?: string;
   /** When present with scene.characterOutfitIds, resolves wardrobe for image gen / validation. */
   storyOutfits?: StoryOutfitEntry[];
+  /** Normalized character names whose scene wardrobe should stay on their saved default outfit. */
+  defaultOutfitCharacterKeys?: Set<string>;
   userPlan: {
     imagesPerStory: number;
     imageQuality: string;

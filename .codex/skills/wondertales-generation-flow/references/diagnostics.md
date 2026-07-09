@@ -36,7 +36,6 @@ Use:
 
 - `runGraphicNovelDiagnosticForStory.ts --story-id=<id> --text-only`
 - `runGraphicNovelDiagnosticForStory.ts --story-id=<id> --stop-after-first-page`
-- `generateFreeLayoutGraphicNovelPage.ts --story-id=<id> --page=1 --prompt-only=true`
 
 Check DB:
 
