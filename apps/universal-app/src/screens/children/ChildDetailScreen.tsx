@@ -410,6 +410,66 @@ export default function ChildDetailScreen() {
     childCardData.childModeEnabled !== true ||
     childCardData.childModePasscodeConfigured !== true ||
     (enterChildMode.isPending && enterChildMode.variables === child.id);
+  const renderHeaderActions = (compact = false) => (
+    <View style={[styles.headerActions, compact && styles.headerActionsMobile]}>
+      <View
+        style={[
+          styles.statusPill,
+          childModeReadyToStart
+            ? styles.statusPillEnabled
+            : childModeNeedsPassword
+              ? styles.statusPillWarning
+              : styles.statusPillDisabled,
+          compact && styles.statusPillMobile,
+        ]}
+      >
+        <Ionicons
+          name={
+            childModeReadyToStart
+              ? 'shield-checkmark'
+              : childModeNeedsPassword
+                ? 'key-outline'
+                : 'shield-outline'
+          }
+          size={compact ? 15 : 16}
+          color={
+            childModeReadyToStart
+              ? theme.colors.status.success
+              : childModeNeedsPassword
+                ? theme.colors.interactive.primary
+                : theme.colors.text.tertiary
+          }
+        />
+        <Text
+          style={[
+            styles.statusPillText,
+            childModeReadyToStart && styles.statusPillTextEnabled,
+            childModeNeedsPassword && styles.statusPillTextWarning,
+            compact && styles.statusPillTextMobile,
+          ]}
+          numberOfLines={1}
+        >
+          {childModeHeaderStatus}
+        </Text>
+      </View>
+      <AppButton
+        label={childModeStartActionLabel}
+        disabled={childModeStartActionDisabled}
+        loading={enterChildMode.isPending && enterChildMode.variables === child.id}
+        onPress={() => enterChildMode.mutate(child.id)}
+        size={compact ? 'sm' : 'md'}
+        leading={
+          <Ionicons
+            name="play-circle-outline"
+            size={compact ? 16 : 17}
+            color={theme.colors.text.inverse}
+          />
+        }
+        style={[styles.headerStartAction, compact && styles.headerStartActionMobile]}
+        labelStyle={compact ? styles.headerStartActionLabelMobile : undefined}
+      />
+    </View>
+  );
   const detailTabs: Array<{
     key: ChildDetailTab;
     icon: keyof typeof Ionicons.glyphMap;
@@ -446,7 +506,7 @@ export default function ChildDetailScreen() {
     <View style={styles.container}>
       <View style={[styles.pageContent, isMobile && styles.pageContentMobile]}>
         <View style={[styles.headerPanel, isMobile && styles.headerPanelMobile]}>
-          <View style={styles.identityRow}>
+          <View style={[styles.identityRow, isMobile && styles.identityRowMobile]}>
             <View style={[styles.avatarShell, { width: headerAvatarWidth }]}>
               {childAvatarUrl ? (
                 <Image
@@ -462,65 +522,19 @@ export default function ChildDetailScreen() {
                 />
               )}
             </View>
-            <View style={styles.identityText}>
-              <Text style={styles.childName}>{child.name}</Text>
-              <Text style={styles.childMeta}>
+            <View style={[styles.identityText, isMobile && styles.identityTextMobile]}>
+              <Text style={[styles.childName, isMobile && styles.childNameMobile]} numberOfLines={1}>
+                {child.name}
+              </Text>
+              <Text style={[styles.childMeta, isMobile && styles.childMetaMobile]}>
                 {childCardData.birthDate
                   ? new Date(childCardData.birthDate).toLocaleDateString()
                   : t('children_screen.title')}
               </Text>
+              {isMobile ? renderHeaderActions(true) : null}
             </View>
           </View>
-          <View style={[styles.headerActions, isMobile && styles.headerActionsMobile]}>
-            <View
-              style={[
-                styles.statusPill,
-                childModeReadyToStart
-                  ? styles.statusPillEnabled
-                  : childModeNeedsPassword
-                    ? styles.statusPillWarning
-                    : styles.statusPillDisabled,
-              ]}
-            >
-              <Ionicons
-                name={
-                  childModeReadyToStart
-                    ? 'shield-checkmark'
-                    : childModeNeedsPassword
-                      ? 'key-outline'
-                      : 'shield-outline'
-                }
-                size={16}
-                color={
-                  childModeReadyToStart
-                    ? theme.colors.status.success
-                    : childModeNeedsPassword
-                      ? theme.colors.interactive.primary
-                      : theme.colors.text.tertiary
-                }
-              />
-              <Text
-                style={[
-                  styles.statusPillText,
-                  childModeReadyToStart && styles.statusPillTextEnabled,
-                  childModeNeedsPassword && styles.statusPillTextWarning,
-                ]}
-              >
-                {childModeHeaderStatus}
-              </Text>
-            </View>
-            <AppButton
-              label={childModeStartActionLabel}
-              disabled={childModeStartActionDisabled}
-              loading={enterChildMode.isPending && enterChildMode.variables === child.id}
-              onPress={() => enterChildMode.mutate(child.id)}
-              size="md"
-              leading={
-                <Ionicons name="play-circle-outline" size={17} color={theme.colors.text.inverse} />
-              }
-              style={[styles.headerStartAction, isMobile && styles.headerStartActionMobile]}
-            />
-          </View>
+          {!isMobile ? renderHeaderActions(false) : null}
         </View>
 
         <View style={styles.tabBar}>
@@ -785,8 +799,10 @@ const styles = StyleSheet.create({
     }),
   },
   headerPanelMobile: {
-    alignItems: 'flex-start',
-    flexDirection: 'column',
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    padding: theme.spacing[3],
+    gap: theme.spacing[3],
   },
   identityRow: {
     flexDirection: 'row',
@@ -794,6 +810,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
     minWidth: 0,
     flex: 1,
+  },
+  identityRowMobile: {
+    width: '100%',
+    alignItems: 'flex-start',
   },
   avatarShell: {
     height: HEADER_AVATAR_HEIGHT,
@@ -813,15 +833,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flex: 1,
   },
+  identityTextMobile: {
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+  },
   childName: {
     color: theme.colors.text.primary,
     fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.bold,
   },
+  childNameMobile: {
+    lineHeight: 24,
+  },
   childMeta: {
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.sm,
     marginTop: theme.spacing[1],
+  },
+  childMetaMobile: {
+    marginTop: -theme.spacing[1],
   },
   headerActions: {
     flexDirection: 'row',
@@ -831,15 +862,22 @@ const styles = StyleSheet.create({
   },
   headerActionsMobile: {
     width: '100%',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    gap: theme.spacing[2],
   },
   headerStartAction: {
     minWidth: 220,
   },
   headerStartActionMobile: {
-    flex: 1,
-    minWidth: 220,
+    width: '100%',
+    minWidth: 0,
+    paddingHorizontal: theme.spacing[3],
+  },
+  headerStartActionLabelMobile: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 18,
   },
   statusPill: {
     flexDirection: 'row',
@@ -851,6 +889,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[2],
     backgroundColor: theme.colors.neutral[50],
     borderColor: theme.colors.border.light,
+  },
+  statusPillMobile: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
   },
   statusPillEnabled: {
     backgroundColor: theme.colors.success[50],
@@ -867,6 +911,11 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
+  },
+  statusPillTextMobile: {
+    flexShrink: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 18,
   },
   statusPillTextEnabled: {
     color: theme.colors.success[600],
