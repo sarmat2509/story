@@ -1,7 +1,5 @@
--- Free-layout comics no longer use preset template fields.
-
-ALTER TABLE graphic_novel_pages
-  DROP COLUMN IF EXISTS template_id;
+-- Free-layout comics no longer use preset template metadata.
+-- Keep legacy columns in place for launch safety; application code no longer reads them.
 
 UPDATE graphic_novel_projects
 SET layout_manifest = layout_manifest - 'layoutTemplateImageSent' - 'templateFamily'

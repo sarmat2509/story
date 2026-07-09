@@ -66,12 +66,12 @@ if [[ -f "${APP_DIR}/dist/manifest.json" ]]; then
   check_manifest "${APP_DIR}/dist/manifest.json"
 fi
 
-if ! rg -q '<link rel="manifest" href="/manifest.json"' "${APP_DIR}/public/index.html"; then
+if ! rg -q '<link rel="manifest" href="/manifest\.json([^"]*)?"' "${APP_DIR}/public/index.html"; then
   echo "apps/universal-app/public/index.html does not link /manifest.json"
   exit 1
 fi
 
-if [[ -f "${APP_DIR}/dist/index.html" ]] && ! rg -q '<link rel="manifest" href="/manifest.json"' "${APP_DIR}/dist/index.html"; then
+if [[ -f "${APP_DIR}/dist/index.html" ]] && ! rg -q '<link rel="manifest" href="/manifest\.json([^"]*)?"' "${APP_DIR}/dist/index.html"; then
   echo "apps/universal-app/dist/index.html does not link /manifest.json"
   exit 1
 fi

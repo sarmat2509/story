@@ -25,7 +25,7 @@ assert.deepEqual(
   }),
   {
     kind: 'public-web-pricing',
-    href: '/pricing',
+    href: '/ru/pricing',
   }
 );
 
