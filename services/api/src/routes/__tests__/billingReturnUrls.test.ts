@@ -48,7 +48,7 @@ assert.equal(
 
 assert.equal(
   buildBillingPortalReturnUrl('https://wondertales.art/', 'es'),
-  'https://wondertales.art/profile'
+  'https://wondertales.art/es/profile'
 );
 
 assert.equal(
