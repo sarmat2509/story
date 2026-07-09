@@ -31,6 +31,7 @@ import { theme } from '@/theme';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { getLocalizedStoryTitle } from '@/utils/storyTitle';
+import { storage, type DashboardVisitEntry } from '@/utils/storage';
 
 type ExtendedPressableState = {
   pressed: boolean;
@@ -39,6 +40,9 @@ type ExtendedPressableState = {
 
 /** Page background — follows active palette (not hardcoded lavender). */
 const DASHBOARD_BG_GRADIENT = modernGradients.page;
+const RETURNING_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
+
+type DashboardGreetingVariant = 'regular' | 'returning' | 'frequent';
 
 function getStoryCover(story: {
   coverThumbnailUrl?: string | null;
@@ -51,6 +55,33 @@ function getStoryCover(story: {
       story.scenes?.find((scene) => scene.image?.url)?.image?.url ||
       null
   );
+}
+
+function getLocalDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDashboardGreetingVariant(
+  previousVisit: DashboardVisitEntry | undefined,
+  now: Date,
+  visitsToday: number
+): DashboardGreetingVariant {
+  if (visitsToday >= 3) {
+    return 'frequent';
+  }
+
+  const previousSeenAt = previousVisit?.lastSeenAt
+    ? Date.parse(previousVisit.lastSeenAt)
+    : Number.NaN;
+
+  if (Number.isFinite(previousSeenAt) && now.getTime() - previousSeenAt >= RETURNING_AFTER_MS) {
+    return 'returning';
+  }
+
+  return 'regular';
 }
 
 export default function DashboardScreen() {
@@ -70,6 +101,8 @@ export default function DashboardScreen() {
   } = useStories();
   const { data: quizCandidate } = useStoryQuizCandidate(isChildSession && childQuizEnabled);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [greetingVariant, setGreetingVariant] =
+    useState<DashboardGreetingVariant>('regular');
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -103,6 +136,51 @@ export default function DashboardScreen() {
   const isLoading = storiesLoading || (!isChildSession && childrenLoading);
   const hasError = storiesError || (!isChildSession && childrenError);
   const greetingName = isChildSession ? activeChild?.name : user?.displayName;
+  const dashboardVisitorKey = isChildSession
+    ? `child:${activeChild?.id ?? 'unknown'}`
+    : `parent:${user?.id ?? 'unknown'}`;
+  const greetingKey =
+    greetingVariant === 'frequent'
+      ? 'dashboard.greeting_frequent'
+      : greetingVariant === 'returning'
+        ? 'dashboard.greeting_returning'
+        : isChildSession
+          ? 'dashboard.greeting_regular_child'
+          : 'dashboard.greeting_regular';
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      async function updateDashboardVisitState() {
+        const now = new Date();
+        const dayKey = getLocalDayKey(now);
+        const visitState = await storage.getDashboardVisitState();
+        const previousVisit = visitState[dashboardVisitorKey];
+        const visitsToday =
+          previousVisit?.dayKey === dayKey ? previousVisit.visitsToday + 1 : 1;
+
+        if (isActive) {
+          setGreetingVariant(getDashboardGreetingVariant(previousVisit, now, visitsToday));
+        }
+
+        await storage.setDashboardVisitState({
+          ...visitState,
+          [dashboardVisitorKey]: {
+            lastSeenAt: now.toISOString(),
+            dayKey,
+            visitsToday,
+          },
+        });
+      }
+
+      updateDashboardVisitState();
+
+      return () => {
+        isActive = false;
+      };
+    }, [dashboardVisitorKey])
+  );
 
   // Responsive columns: 1 on mobile, 2 on tablet, 3 on desktop
   const { width } = useWindowDimensions();
@@ -170,7 +248,7 @@ export default function DashboardScreen() {
                   ) : null}
                 </View>
                 <Text style={styles.greeting}>
-                  {t('dashboard.welcome_back', { name: greetingName || 'User' })}
+                  {t(greetingKey, { name: greetingName || 'User' })}
                 </Text>
                 <Text style={styles.subtext}>
                   {featuredStory

@@ -8,9 +8,18 @@ const STORAGE_KEYS = {
   AUDIO_NOTIFICATIONS: '@wondertales/audio_notifications_shown',
   LIBRARY_VIEW_MODE: '@wondertales/library_view_mode',
   AUDIO_FILTER: '@wondertales/audio_filter',
+  DASHBOARD_VISIT_STATE: '@wondertales/dashboard_visit_state',
   /** Last TTS voice chosen in Story viewer (default for next stories). */
   PREFERRED_STORY_VOICE_ID: '@wondertales/preferred_story_voice_id',
 } as const;
+
+export interface DashboardVisitEntry {
+  lastSeenAt: string;
+  dayKey: string;
+  visitsToday: number;
+}
+
+export type DashboardVisitState = Record<string, DashboardVisitEntry>;
 
 export const storage = {
   async getItem(key: keyof typeof STORAGE_KEYS): Promise<string | null> {
@@ -99,6 +108,24 @@ export const storage = {
       return this.setItem('AUDIO_FILTER', JSON.stringify(filter));
     } catch (error) {
       console.error('Failed to save audio filter:', error);
+    }
+  },
+
+  async getDashboardVisitState(): Promise<DashboardVisitState> {
+    try {
+      const value = await this.getItem('DASHBOARD_VISIT_STATE');
+      return value ? JSON.parse(value) : {};
+    } catch (error) {
+      console.error('Failed to read dashboard visit state:', error);
+      return {};
+    }
+  },
+
+  async setDashboardVisitState(state: DashboardVisitState): Promise<void> {
+    try {
+      return this.setItem('DASHBOARD_VISIT_STATE', JSON.stringify(state));
+    } catch (error) {
+      console.error('Failed to save dashboard visit state:', error);
     }
   },
 
