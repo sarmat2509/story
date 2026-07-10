@@ -46,16 +46,6 @@ export class FaceDeduplicationService {
       return [];
     }
 
-    if (photoUrls.length === 1) {
-      // Single photo - no deduplication needed
-      return [{
-        groupId: '1',
-        name: 'Character',
-        characterType: 'person',
-        photoUrls: [photoUrls[0]],
-      }];
-    }
-
     logger.info({ photoCount: photoUrls.length }, 'Starting photo deduplication');
 
     try {

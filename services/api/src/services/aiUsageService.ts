@@ -40,6 +40,7 @@ export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
 const TEXT_PRICED_OPERATIONS = new Set([
   USAGE_OP_TTS_PROSODY_TAGS,
   'character_analysis',
+  'character_identity_match',
   'translation',
   'face_dedup',
   'image_validation',

@@ -999,17 +999,28 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       }
     });
     
-    // Step 2: Create characters from photo groups
+    // Step 2: Match or create characters from photo groups
+    const selectedCharacterIds: string[] = [];
     const createdCharacterIds: string[] = [];
+    const matchedCharacterIds: string[] = [];
+    const selectedCharacterIdSet = new Set<string>();
+    const addSelectedCharacterId = (characterId: string): void => {
+      if (selectedCharacterIdSet.has(characterId)) return;
+      selectedCharacterIdSet.add(characterId);
+      selectedCharacterIds.push(characterId);
+    };
     
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
     const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
     const { generateTurnaroundSheetFromReference, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
     const { localizeCharacterNames } = await import('../services/translationService');
     const { getCharacterRepository } = await import('../repositories');
+    const { getCharacterIdentityMatchingService } = await import('../services/characterIdentityMatchingService');
+    const { recordInstantCharacterQuotaUsage } = await import('../services/characterQuotaService');
     
     const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
     const analysisService = new CharacterAnalysisService(geminiProvider);
+    const characterIdentityMatchingService = getCharacterIdentityMatchingService();
     
     for (const group of photoGroups) {
       try {
@@ -1045,6 +1056,40 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         };
         
         const { type, subtype } = typeMapping[group.characterType];
+
+        const identityMatch = await characterIdentityMatchingService.findMatch({
+          userId: request.userId,
+          photoUrls: group.photoUrls,
+          characterType: type,
+          analysis,
+          language,
+          onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
+        }).catch(err => {
+          logger.warn(
+            { err, requestId, groupName: group.name, characterType: type },
+            'Character identity matching failed; creating a new instant character'
+          );
+          return null;
+        });
+
+        if (identityMatch?.matchedCharacter) {
+          const matchedCharacter = identityMatch.matchedCharacter;
+          addSelectedCharacterId(matchedCharacter.id);
+          matchedCharacterIds.push(matchedCharacter.id);
+
+          logger.info({
+            requestId,
+            matchedCharacterId: matchedCharacter.id,
+            matchedCharacterName: matchedCharacter.name,
+            detectedFrom: group.characterType,
+            confidence: identityMatch.confidence,
+            score: identityMatch.score,
+            candidateCount: identityMatch.candidateCount,
+            validation: identityMatch.validation,
+          }, 'Existing character reused from instant photos');
+
+          continue;
+        }
         
         // 2.3: Create character record
         const character = await getCharacterRepository().create({
@@ -1054,8 +1099,12 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           subtype,
           description: analysis.detailedDescription,
           aiGeneratedDescription: analysis.detailedDescription,
+          descriptionLanguage: language,
+          descriptionEmbedding: identityMatch?.descriptionEmbedding ?? null,
           referencePhotos: group.photoUrls.map(url => ({ url })),
           appearanceTraits: analysis.appearanceTraits,
+          clothing: analysis.clothing,
+          distinctiveFeatures: analysis.distinctiveFeatures,
           isHidden: false,
         } as any);
         
@@ -1067,6 +1116,15 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           characterSubtype: character.subtype,
           detectedFrom: group.characterType
         }, 'Character created from photos (instant mode)');
+
+        await recordInstantCharacterQuotaUsage(request.userId, {
+          childProfileId: request.childProfileId ?? null,
+          storyId,
+          storyRequestId: requestId,
+          characterId: character.id,
+          characterName: character.name,
+          characterType: character.type,
+        });
 
         localizeCharacterNames(character, {
           onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
@@ -1115,6 +1173,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         }
         
         createdCharacterIds.push(character.id);
+        addSelectedCharacterId(character.id);
         
       } catch (error) {
         logger.error({
@@ -1127,30 +1186,34 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     
     await completeTask(requestId, STORY_TASKS.ANALYZING_PHOTOS);
     
-    if (createdCharacterIds.length === 0) {
-      throw new Error('Failed to create any characters from photos');
+    if (selectedCharacterIds.length === 0) {
+      throw new Error('Failed to match or create any characters from photos');
     }
     
     logger.info({
       requestId,
-      charactersCreated: createdCharacterIds.length
-    }, 'Characters created successfully');
+      charactersCreated: createdCharacterIds.length,
+      charactersMatched: matchedCharacterIds.length,
+      selectedCharacterCount: selectedCharacterIds.length,
+    }, 'Instant characters matched or created successfully');
     
     // Step 3: Update story request with character IDs and mark setup complete
     await getStoryRepository().updateRequest(requestId, {
-      selectedCharacters: createdCharacterIds,
+      selectedCharacters: selectedCharacterIds,
       intermediateData: {
         ...intermediateData,
         photoGroups,
         createdCharacterIds,
+        matchedCharacterIds,
+        selectedCharacterIds,
         characterSetupComplete: true,
       }
     });
     
     logger.info({
       requestId,
-      selectedCharacters: createdCharacterIds,
-      characterCount: createdCharacterIds.length,
+      selectedCharacters: selectedCharacterIds,
+      characterCount: selectedCharacterIds.length,
     }, 'Story request updated with auto-selected characters');
     
     // Step 4: Enqueue text generation job

@@ -9,6 +9,7 @@ import {
   type QuotaReservationReleaseReason,
 } from './quotaReservationReleaseUtils';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
+import { recordUsageEvent } from './usageEventsService';
 
 export const CHARACTER_QUOTA_FEATURE_SLUG = 'characters_per_month';
 export const CHARACTER_USAGE_EVENT = 'character_generated';
@@ -223,6 +224,44 @@ export async function reserveManualCharacterQuota(
       remaining: Math.max(0, quota.remaining - 1),
     };
   });
+}
+
+export async function recordInstantCharacterQuotaUsage(
+  userId: string,
+  options: {
+    childProfileId?: string | null;
+    storyId?: string | null;
+    storyRequestId?: string | null;
+    characterId: string;
+    characterName?: string | null;
+    characterType?: string | null;
+  }
+): Promise<void> {
+  await recordUsageEvent(userId, CHARACTER_USAGE_EVENT, 1, {
+    childProfileId: options.childProfileId ?? null,
+    metadata: {
+      instantCharacter: true,
+      quotaEnforced: false,
+      quotaBehavior: 'tracked_without_blocking_instant_story_creation',
+      characterId: options.characterId,
+      recordedAt: new Date().toISOString(),
+      ...(options.storyId && { storyId: options.storyId }),
+      ...(options.storyRequestId && { storyRequestId: options.storyRequestId }),
+      ...(options.characterName && { characterName: options.characterName }),
+      ...(options.characterType && { characterType: options.characterType }),
+    },
+  });
+
+  logger.info(
+    {
+      userId,
+      storyId: options.storyId,
+      storyRequestId: options.storyRequestId,
+      characterId: options.characterId,
+      characterType: options.characterType,
+    },
+    'Recorded instant character quota usage without enforcing monthly limit'
+  );
 }
 
 export async function releaseManualCharacterQuotaReservation(

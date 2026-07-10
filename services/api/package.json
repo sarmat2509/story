@@ -32,6 +32,7 @@
     "seed:test-accounts": "tsx src/scripts/seedQaTestAccounts.ts",
     "test:imagen": "npx tsx src/scripts/testImagenAPI.ts",
     "test:llm-character-persistence": "tsx src/services/__tests__/llmCharacterPersistence.test.ts",
+    "test:character-identity-matching": "tsx src/services/__tests__/characterIdentityMatchingService.test.ts",
     "test:cross-script-identity": "tsx src/utils/__tests__/crossScriptIdentityKey.test.ts",
     "test:character-outfits": "tsx src/utils/__tests__/characterOutfits.test.ts",
     "test:story-domain-text": "tsx src/domain/story/__tests__/storyDomainTextGeneration.test.ts",
