@@ -867,10 +867,15 @@ type RenderedGraphicNovelPageArt = {
 };
 
 type PixelCropRect = { left: number; top: number; width: number; height: number };
-type GraphicNovelCoverSource = 'full_width_panel' | 'widest_first_page_panel';
+type GraphicNovelCoverSource =
+  | 'matching_story_card_aspect_ratio_panel'
+  | 'full_width_panel'
+  | 'widest_first_page_panel';
 type GraphicNovelCoverPanelSelection = {
   panelIndex: number;
   source: GraphicNovelCoverSource;
+  imageWidth: number;
+  imageHeight: number;
 };
 type GraphicNovelPanelAttemptAsset = {
   assetId: string;
@@ -950,7 +955,11 @@ function getContinuationDataFromRequest(request: { id: string; intermediateData?
 }
 
 function isGraphicNovelCoverSource(value: unknown): value is GraphicNovelCoverSource {
-  return value === 'full_width_panel' || value === 'widest_first_page_panel';
+  return (
+    value === 'matching_story_card_aspect_ratio_panel' ||
+    value === 'full_width_panel' ||
+    value === 'widest_first_page_panel'
+  );
 }
 
 async function hasReusableGraphicNovelCover(
@@ -965,18 +974,10 @@ async function hasReusableGraphicNovelCover(
   const params = (asset?.generationParams as Record<string, unknown> | null) || {};
   return (
     params.kind === 'graphic_novel_cover_panel' &&
-    params.sourceImageKind === 'art_only_before_bubble_overlay'
+    (params.sourceImageKind === 'standalone_final_panel_image' ||
+      params.sourceImageKind === 'art_only_before_bubble_overlay')
   );
 }
-
-type GraphicNovelCoverPanelCrop = {
-  cropRect: PixelCropRect;
-  fullPanelCropRect: PixelCropRect;
-  borderInsetPx: number;
-  targetAspectRatio: number;
-  focusRect: Rect | null;
-  focusStrategy: 'character_body' | 'head_priority' | 'action' | 'center';
-};
 
 type GraphicNovelRenderedPageValidation = {
   validation: ImageValidationResult;
@@ -1267,17 +1268,8 @@ async function saveThumbnail(
   }
 }
 
-function isFullWidthHorizontalCoverPanel(rect: {
-  x: number;
-  width: number;
-  height: number;
-}): boolean {
-  const pageAspectRatio = GRAPHIC_NOVEL_PAGE_SIZE.width / GRAPHIC_NOVEL_PAGE_SIZE.height;
-  const panelAspectRatio = (rect.width * pageAspectRatio) / rect.height;
-  return rect.width >= 0.9 && rect.x <= 0.05 && rect.x + rect.width >= 0.95 && panelAspectRatio > 1;
-}
-
-const ORDINARY_STORY_THUMBNAIL_ASPECT_RATIO = 672 / 384;
+const STORY_CARD_ASPECT_RATIO = 16 / 9;
+const STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE = 0.03;
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -1292,301 +1284,24 @@ function clampRectToUnit(rect: Rect): Rect | null {
   return { x, y, width: right - x, height: bottom - y };
 }
 
-function mergeRects(rects: Rect[]): Rect | null {
-  if (rects.length === 0) return null;
-  const left = Math.min(...rects.map((rect) => rect.x));
-  const top = Math.min(...rects.map((rect) => rect.y));
-  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
-  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-function tinyRectAroundVisionPoint(
-  point: { x: number; y: number },
-  size: { width: number; height: number }
-): Rect | null {
-  return clampRectToUnit({
-    x: point.x - size.width / 2,
-    y: point.y - size.height / 2,
-    width: size.width,
-    height: size.height,
-  });
-}
-
-function coverHeadFocusRectFromCharacterRect(rect: Rect): Rect | null {
-  return clampRectToUnit({
-    x: rect.x,
-    y: rect.y,
-    width: rect.width,
-    height: Math.max(0.08, Math.min(rect.height, rect.height * 0.35)),
-  });
-}
-
-function coverFocusRectsFromVision(
-  analysis: GraphicNovelBubbleVisionAnalysis | null | undefined,
-  panelIndex: number
-): { body: Rect | null; head: Rect | null; action: Rect | null } {
-  const panelAnalysis = analysis?.panels?.find(
-    (panel) => Number(panel.panelIndex) === panelIndex + 1
-  );
-  if (!panelAnalysis) return { body: null, head: null, action: null };
-
-  const characterRects =
-    panelAnalysis.occupiedZones
-      ?.filter((zone) => zone.kind === 'character' || zone.kind === 'face')
-      .map((zone) => clampRectToUnit(zone))
-      .filter((rect): rect is Rect => !!rect) ?? [];
-
-  const explicitHeadRects =
-    panelAnalysis.occupiedZones
-      ?.filter((zone) => zone.kind === 'face')
-      .map((zone) => clampRectToUnit(zone))
-      .filter((rect): rect is Rect => !!rect) ?? [];
-
-  const detectedHeadRects =
-    panelAnalysis.detectedCharacters?.flatMap((character) =>
-      [character.faceCenter, character.headCenter]
-        .filter((point): point is { x: number; y: number } => !!point)
-        .map((point) => tinyRectAroundVisionPoint(point, { width: 0.18, height: 0.16 }))
-        .filter((rect): rect is Rect => !!rect)
-    ) ?? [];
-
-  const inferredHeadRects =
-    explicitHeadRects.length === 0 && detectedHeadRects.length === 0
-      ? characterRects
-          .map(coverHeadFocusRectFromCharacterRect)
-          .filter((rect): rect is Rect => !!rect)
-      : [];
-
-  const actionRects =
-    panelAnalysis.occupiedZones
-      ?.filter((zone) => zone.kind === 'main_action' || zone.kind === 'important_object')
-      .map((zone) => clampRectToUnit(zone))
-      .filter((rect): rect is Rect => !!rect) ?? [];
-
-  return {
-    body: mergeRects(characterRects),
-    head: mergeRects([...explicitHeadRects, ...detectedHeadRects, ...inferredHeadRects]),
-    action: mergeRects(actionRects),
-  };
-}
-
 export function selectGraphicNovelCoverPanel(
-  page: PlannedGraphicNovelPage
+  panels: Array<{ panelIndex: number; imageWidth: number; imageHeight: number }>
 ): GraphicNovelCoverPanelSelection | null {
-  const panelIndex = page.panels.findIndex((panel) =>
-    isFullWidthHorizontalCoverPanel(panel.templatePanel.rect)
-  );
-  if (panelIndex >= 0) {
-    return { panelIndex, source: 'full_width_panel' };
-  }
-
-  if (page.pageNumber !== 1) {
-    return null;
-  }
-
-  let widestPanelIndex = -1;
-  let widestPanelWidth = -1;
-  let widestPanelArea = -1;
-  page.panels.forEach((panel, index) => {
-    const rect = panel.templatePanel.rect;
-    const width = Number(rect.width);
-    const area = width * Number(rect.height);
-    if (
-      width > widestPanelWidth + 0.0001 ||
-      (Math.abs(width - widestPanelWidth) <= 0.0001 && area > widestPanelArea)
-    ) {
-      widestPanelIndex = index;
-      widestPanelWidth = width;
-      widestPanelArea = area;
-    }
+  const selectedPanel = panels.find((panel) => {
+    if (panel.imageWidth <= 0 || panel.imageHeight <= 0) return false;
+    const aspectRatio = panel.imageWidth / panel.imageHeight;
+    return (
+      Math.abs(aspectRatio - STORY_CARD_ASPECT_RATIO) / STORY_CARD_ASPECT_RATIO <=
+      STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE
+    );
   });
 
-  return widestPanelIndex >= 0
-    ? { panelIndex: widestPanelIndex, source: 'widest_first_page_panel' }
+  return selectedPanel
+    ? {
+        ...selectedPanel,
+        source: 'matching_story_card_aspect_ratio_panel',
+      }
     : null;
-}
-
-function panelCropRect(
-  page: PlannedGraphicNovelPage,
-  panelIndex: number,
-  imageWidth: number,
-  imageHeight: number
-): { left: number; top: number; width: number; height: number } {
-  const rect = page.panels[panelIndex]?.templatePanel.rect ?? page.panels[0]?.templatePanel.rect;
-  if (!rect) {
-    return { left: 0, top: 0, width: imageWidth, height: imageHeight };
-  }
-
-  const left = Math.max(0, Math.min(imageWidth - 1, Math.round(rect.x * imageWidth)));
-  const top = Math.max(0, Math.min(imageHeight - 1, Math.round(rect.y * imageHeight)));
-  const right = Math.max(
-    left + 1,
-    Math.min(imageWidth, Math.round((rect.x + rect.width) * imageWidth))
-  );
-  const bottom = Math.max(
-    top + 1,
-    Math.min(imageHeight, Math.round((rect.y + rect.height) * imageHeight))
-  );
-  return {
-    left,
-    top,
-    width: right - left,
-    height: bottom - top,
-  };
-}
-
-function focusRectToPixelBounds(
-  rect: Rect,
-  panelRect: PixelCropRect
-): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  return {
-    left: panelRect.left + rect.x * panelRect.width,
-    top: panelRect.top + rect.y * panelRect.height,
-    right: panelRect.left + (rect.x + rect.width) * panelRect.width,
-    bottom: panelRect.top + (rect.y + rect.height) * panelRect.height,
-  };
-}
-
-function shiftCropStartToContainRange(params: {
-  start: number;
-  cropSize: number;
-  minStart: number;
-  maxStart: number;
-  rangeStart: number;
-  rangeEnd: number;
-}): number {
-  const rangeSize = params.rangeEnd - params.rangeStart;
-  if (rangeSize <= 0 || rangeSize > params.cropSize) {
-    return clampNumber(params.start, params.minStart, params.maxStart);
-  }
-
-  let start = params.start;
-  if (start > params.rangeStart) {
-    start = params.rangeStart;
-  }
-  if (start + params.cropSize < params.rangeEnd) {
-    start = params.rangeEnd - params.cropSize;
-  }
-  return clampNumber(start, params.minStart, params.maxStart);
-}
-
-export function buildGraphicNovelCoverPanelCrop(params: {
-  page: PlannedGraphicNovelPage;
-  panelIndex: number;
-  imageWidth: number;
-  imageHeight: number;
-  analysis?: GraphicNovelBubbleVisionAnalysis | null;
-}): GraphicNovelCoverPanelCrop {
-  const fullPanelCropRect = panelCropRect(
-    params.page,
-    params.panelIndex,
-    params.imageWidth,
-    params.imageHeight
-  );
-  const borderInsetPx = Math.min(
-    Math.max(6, Math.round(Math.min(fullPanelCropRect.width, fullPanelCropRect.height) * 0.025)),
-    Math.floor(Math.min(fullPanelCropRect.width, fullPanelCropRect.height) / 5)
-  );
-  const innerLeft = fullPanelCropRect.left + borderInsetPx;
-  const innerTop = fullPanelCropRect.top + borderInsetPx;
-  const innerWidth = Math.max(1, fullPanelCropRect.width - borderInsetPx * 2);
-  const innerHeight = Math.max(1, fullPanelCropRect.height - borderInsetPx * 2);
-  const innerAspect = innerWidth / innerHeight;
-  const targetAspectRatio = ORDINARY_STORY_THUMBNAIL_ASPECT_RATIO;
-  const cropWidth =
-    innerAspect > targetAspectRatio
-      ? Math.max(1, Math.round(innerHeight * targetAspectRatio))
-      : innerWidth;
-  const cropHeight =
-    innerAspect > targetAspectRatio
-      ? innerHeight
-      : Math.max(1, Math.round(innerWidth / targetAspectRatio));
-  const focusRects = coverFocusRectsFromVision(params.analysis, params.panelIndex);
-  const cropWidthUnit = cropWidth / fullPanelCropRect.width;
-  const cropHeightUnit = cropHeight / fullPanelCropRect.height;
-  const bodyFits =
-    !!focusRects.body &&
-    focusRects.body.width <= cropWidthUnit * 0.92 &&
-    focusRects.body.height <= cropHeightUnit * 0.92;
-  const focusStrategy =
-    focusRects.body && !bodyFits && focusRects.head
-      ? 'head_priority'
-      : focusRects.body
-        ? 'character_body'
-        : focusRects.head
-          ? 'head_priority'
-          : focusRects.action
-            ? 'action'
-            : 'center';
-  const focusRect =
-    focusStrategy === 'head_priority'
-      ? focusRects.head
-      : focusStrategy === 'character_body'
-        ? focusRects.body
-        : focusStrategy === 'action'
-          ? focusRects.action
-          : null;
-  const focusCenterX = focusRect ? focusRect.x + focusRect.width / 2 : 0.5;
-  const focusCenterY = focusRect ? focusRect.y + focusRect.height / 2 : 0.5;
-  const desiredCenterX = fullPanelCropRect.left + focusCenterX * fullPanelCropRect.width;
-  const desiredCenterY = fullPanelCropRect.top + focusCenterY * fullPanelCropRect.height;
-  const maxLeft = innerLeft + innerWidth - cropWidth;
-  const maxTop = innerTop + innerHeight - cropHeight;
-  let left = clampNumber(desiredCenterX - cropWidth / 2, innerLeft, maxLeft);
-  let top = clampNumber(desiredCenterY - cropHeight / 2, innerTop, maxTop);
-
-  if (focusRect) {
-    const focusBounds = focusRectToPixelBounds(focusRect, fullPanelCropRect);
-    const paddingX = Math.min(
-      Math.round(cropWidth * (focusStrategy === 'head_priority' ? 0.12 : 0.08)),
-      Math.round(innerWidth * 0.12)
-    );
-    const paddingTop = Math.min(
-      Math.round(cropHeight * (focusStrategy === 'head_priority' ? 0.2 : 0.1)),
-      Math.round(innerHeight * 0.12)
-    );
-    const paddingBottom = Math.min(
-      Math.round(cropHeight * (focusStrategy === 'head_priority' ? 0.14 : 0.1)),
-      Math.round(innerHeight * 0.1)
-    );
-
-    left = shiftCropStartToContainRange({
-      start: left,
-      cropSize: cropWidth,
-      minStart: innerLeft,
-      maxStart: maxLeft,
-      rangeStart: focusBounds.left - paddingX,
-      rangeEnd: focusBounds.right + paddingX,
-    });
-    top = shiftCropStartToContainRange({
-      start: top,
-      cropSize: cropHeight,
-      minStart: innerTop,
-      maxStart: maxTop,
-      rangeStart: focusBounds.top - paddingTop,
-      rangeEnd: focusBounds.bottom + paddingBottom,
-    });
-  }
-
-  return {
-    cropRect: {
-      left: Math.round(left),
-      top: Math.round(top),
-      width: Math.round(cropWidth),
-      height: Math.round(cropHeight),
-    },
-    fullPanelCropRect,
-    borderInsetPx,
-    targetAspectRatio,
-    focusRect,
-    focusStrategy,
-  };
 }
 
 async function createGraphicNovelCoverPanelAsset(params: {
@@ -1595,31 +1310,32 @@ async function createGraphicNovelCoverPanelAsset(params: {
   requestId: string;
   page: PlannedGraphicNovelPage;
   pageAssetId: string;
-  imageData: Buffer;
-  sourceImageKind: 'art_only_before_bubble_overlay';
-  bubbleVisionAnalysis?: GraphicNovelBubbleVisionAnalysis | null;
+  panelImages?: GraphicNovelBubbleVisionPanelImage[];
 }): Promise<{ assetId: string; source: GraphicNovelCoverSource } | null> {
-  const selectedPanel = selectGraphicNovelCoverPanel(params.page);
+  const panelImages = [...(params.panelImages ?? [])].sort(
+    (left, right) => left.panelIndex - right.panelIndex
+  );
+  const panelDimensions = await Promise.all(
+    panelImages.map(async (panelImage) => {
+      const metadata = await sharp(panelImage.imageData).metadata();
+      return {
+        panelIndex: panelImage.panelIndex,
+        imageWidth: metadata.width ?? 0,
+        imageHeight: metadata.height ?? 0,
+      };
+    })
+  );
+  const selectedPanel = selectGraphicNovelCoverPanel(panelDimensions);
   if (!selectedPanel) {
     return null;
   }
+  const selectedPanelImage = panelImages.find(
+    (panelImage) => panelImage.panelIndex === selectedPanel.panelIndex
+  );
+  if (!selectedPanelImage) return null;
 
-  const metadata = await sharp(params.imageData).metadata();
-  const imageWidth = metadata.width;
-  const imageHeight = metadata.height;
-  if (!imageWidth || !imageHeight) {
-    throw new Error('Cannot create graphic novel cover panel without image dimensions');
-  }
-
-  const coverCrop = buildGraphicNovelCoverPanelCrop({
-    page: params.page,
-    panelIndex: selectedPanel.panelIndex,
-    imageWidth,
-    imageHeight,
-    analysis: params.bubbleVisionAnalysis,
-  });
-  const cropRect = coverCrop.cropRect;
-  const coverImage = await sharp(params.imageData).extract(cropRect).png().toBuffer();
+  const coverImage = await sharp(selectedPanelImage.imageData).png().toBuffer();
+  const sourceAspectRatio = selectedPanel.imageWidth / selectedPanel.imageHeight;
 
   const assetStorage = getAssetStorageService();
   const uploadResult = await assetStorage.uploadAsset({
@@ -1643,19 +1359,20 @@ async function createGraphicNovelCoverPanelAsset(params: {
     generationParams: {
       kind: 'graphic_novel_cover_panel',
       source: selectedPanel.source,
-      cropStrategy: 'smart_character_aware_ordinary_story_ratio',
-      sourceImageKind: params.sourceImageKind,
+      selectionStrategy: 'first_standalone_panel_matching_story_card_aspect_ratio',
+      sourceImageKind: 'standalone_final_panel_image',
       pageNumber: params.page.pageNumber,
-      panelIndex: selectedPanel.panelIndex + 1,
+      panelIndex: selectedPanel.panelIndex,
+      panelId: selectedPanelImage.panelId ?? null,
       requestId: params.requestId,
       sourcePageAssetId: params.pageAssetId,
-      cropRect,
-      fullPanelCropRect: coverCrop.fullPanelCropRect,
-      borderInsetPx: coverCrop.borderInsetPx,
-      targetAspectRatio: coverCrop.targetAspectRatio,
-      focusRect: coverCrop.focusRect,
-      focusStrategy: coverCrop.focusStrategy,
-      templatePanelRect: params.page.panels[selectedPanel.panelIndex]?.templatePanel.rect ?? null,
+      sourceImageWidth: selectedPanel.imageWidth,
+      sourceImageHeight: selectedPanel.imageHeight,
+      sourceAspectRatio,
+      targetAspectRatio: STORY_CARD_ASPECT_RATIO,
+      aspectRatioRelativeTolerance: STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE,
+      templatePanelRect:
+        params.page.panels[selectedPanel.panelIndex - 1]?.templatePanel.rect ?? null,
     },
     generationTimeMs: null,
     status: 'completed',
@@ -5488,16 +5205,14 @@ async function renderAndStorePage(params: {
         requestId: params.requestId,
         page: finalPlannedPage,
         pageAssetId: asset.id,
-        imageData: artOnlyImageData,
-        sourceImageKind: 'art_only_before_bubble_overlay',
-        bubbleVisionAnalysis: bubbleVision.analysis,
+        panelImages: rendered.panelImages,
       });
       coverAssetId = coverAsset?.assetId;
       coverSource = coverAsset?.source;
     } catch (error) {
       logger.warn(
         { err: error, storyId: params.storyId, pageNumber: params.page.pageNumber },
-        'Graphic novel cover panel crop failed'
+        'Graphic novel cover panel selection failed'
       );
     }
   }
@@ -5790,7 +5505,8 @@ export async function regenerateGraphicNovelPageImage(params: {
         coverAssetId: renderedAssets.coverAssetId,
         metadata: {
           ...((latestStoryForCover?.metadata as Record<string, unknown> | null) || {}),
-          graphicNovelCoverSource: renderedAssets.coverSource ?? 'full_width_panel',
+          graphicNovelCoverSource:
+            renderedAssets.coverSource ?? 'matching_story_card_aspect_ratio_panel',
           graphicNovelCoverPageNumber: params.pageNumber,
           graphicNovelCoverPanelAssetId: renderedAssets.coverAssetId,
           graphicNovelCoverPending: false,
@@ -5937,7 +5653,8 @@ export async function processGraphicNovelPages(
           coverAssetId: renderedAssets.coverAssetId,
           metadata: {
             ...((latestStoryForCover?.metadata as Record<string, unknown> | null) || {}),
-            graphicNovelCoverSource: renderedAssets.coverSource ?? 'full_width_panel',
+            graphicNovelCoverSource:
+              renderedAssets.coverSource ?? 'matching_story_card_aspect_ratio_panel',
             graphicNovelCoverPageNumber: page.pageNumber,
             graphicNovelCoverPanelAssetId: renderedAssets.coverAssetId,
             graphicNovelCoverPending: false,

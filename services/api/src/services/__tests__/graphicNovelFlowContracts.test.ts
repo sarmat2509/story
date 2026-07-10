@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { calculateGraphicNovelQuota } from '../graphicNovelQuotaService';
 import {
-  buildGraphicNovelCoverPanelCrop,
   augmentGraphicNovelPagesWithMentionedCharacters,
   buildGraphicNovelCharacterAliasMap,
   buildGraphicNovelTextManifest,
@@ -160,192 +159,30 @@ function testTextManifestFeedsStoryTextAndOverlay(): void {
   );
 }
 
-function testCoverPanelSelectionPrefersFullWidthThenFirstPageWidest(): void {
-  const makePage = (
-    rects: Array<{ x: number; y: number; width: number; height: number }>,
-    pageNumber = 1
-  ) => ({
-    pageNumber,
-    panels: rects.map((rect, index) => ({
-      templatePanel: {
-        id: `p${index + 1}`,
-        rect,
-      },
-    })),
-  });
-
+function testCoverPanelSelectionUsesFirstMatchingStandalonePanel(): void {
   assert.deepEqual(
-    selectGraphicNovelCoverPanel(makePage([
-      { x: 0.0195, y: 0.02, width: 0.9609, height: 0.33 },
-      { x: 0.0195, y: 0.37, width: 0.47, height: 0.28 },
-      { x: 0.5104, y: 0.37, width: 0.47, height: 0.28 },
-    ]) as any),
-    { panelIndex: 0, source: 'full_width_panel' }
-  );
-
-  assert.deepEqual(
-    selectGraphicNovelCoverPanel(makePage([
-      { x: 0.0195, y: 0.02, width: 0.47, height: 0.94 },
-      { x: 0.5104, y: 0.02, width: 0.47, height: 0.94 },
-    ]) as any),
-    { panelIndex: 0, source: 'widest_first_page_panel' }
-  );
-
-  assert.deepEqual(
-    selectGraphicNovelCoverPanel(makePage([
-      { x: 0.0195, y: 0.02, width: 0.9609, height: 0.86 },
-      { x: 0.0195, y: 0.9, width: 0.47, height: 0.08 },
-      { x: 0.5104, y: 0.9, width: 0.47, height: 0.08 },
-    ]) as any),
-    { panelIndex: 0, source: 'widest_first_page_panel' },
-    'first page fallback should use the widest panel even when it is tall'
+    selectGraphicNovelCoverPanel([
+      { panelIndex: 1, imageWidth: 1024, imageHeight: 768 },
+      { panelIndex: 2, imageWidth: 1344, imageHeight: 768 },
+      { panelIndex: 3, imageWidth: 1376, imageHeight: 768 },
+    ]),
+    {
+      panelIndex: 2,
+      imageWidth: 1344,
+      imageHeight: 768,
+      source: 'matching_story_card_aspect_ratio_panel',
+    },
+    'the first standalone panel near the 16:9 story-card ratio should be selected'
   );
 
   assert.equal(
-    selectGraphicNovelCoverPanel(makePage([
-      { x: 0.0195, y: 0.02, width: 0.47, height: 0.94 },
-      { x: 0.5104, y: 0.02, width: 0.47, height: 0.94 },
-    ], 2) as any),
+    selectGraphicNovelCoverPanel([
+      { panelIndex: 1, imageWidth: 1024, imageHeight: 768 },
+      { panelIndex: 2, imageWidth: 768, imageHeight: 1024 },
+    ]),
     null,
-    'non-first pages should still require a horizontal full-width cover candidate'
+    'a page without a matching panel should leave cover selection open for later pages'
   );
-}
-
-function testCoverPanelCropMatchesStoryThumbnailRatioAndCharacters(): void {
-  const page = {
-    panels: [
-      {
-        templatePanel: {
-          id: 'p1',
-          rect: { x: 0.02, y: 0.34, width: 0.96, height: 0.32 },
-        },
-      },
-    ],
-  };
-  const crop = buildGraphicNovelCoverPanelCrop({
-    page: page as any,
-    panelIndex: 0,
-    imageWidth: 896,
-    imageHeight: 1152,
-    analysis: {
-      panels: [
-        {
-          panelIndex: 1,
-          detectedCharacters: [],
-          occupiedZones: [
-            {
-              x: 0.72,
-              y: 0.18,
-              width: 0.22,
-              height: 0.74,
-              kind: 'character',
-            },
-          ],
-        },
-      ],
-    },
-  });
-
-  assert.ok(crop.borderInsetPx >= 6);
-  assert.ok(crop.cropRect.left > crop.fullPanelCropRect.left, 'crop should remove left border');
-  assert.ok(crop.cropRect.top > crop.fullPanelCropRect.top, 'crop should remove top border');
-  assert.ok(
-    crop.cropRect.left + crop.cropRect.width <
-      crop.fullPanelCropRect.left + crop.fullPanelCropRect.width,
-    'crop should remove right border and crop toward the character area'
-  );
-  assert.ok(crop.cropRect.left > crop.fullPanelCropRect.left + 60, 'crop should shift toward right-side characters');
-  assert.ok(Math.abs(crop.cropRect.width / crop.cropRect.height - 672 / 384) < 0.01);
-  assert.equal(crop.focusRect?.x, 0.72);
-  assert.equal(crop.focusStrategy, 'character_body');
-}
-
-function testCoverPanelCropPrioritizesHeadWhenBodyCannotFit(): void {
-  const page = {
-    panels: [
-      {
-        templatePanel: {
-          id: 'p1',
-          rect: { x: 0.02, y: 0.02, width: 0.47, height: 0.94 },
-        },
-      },
-    ],
-  };
-  const crop = buildGraphicNovelCoverPanelCrop({
-    page: page as any,
-    panelIndex: 0,
-    imageWidth: 896,
-    imageHeight: 1152,
-    analysis: {
-      panels: [
-        {
-          panelIndex: 1,
-          detectedCharacters: [
-            {
-              name: 'Emilia',
-              faceCenter: { x: 0.5, y: 0.18 },
-              headCenter: { x: 0.5, y: 0.16 },
-              mouthCenter: { x: 0.5, y: 0.23 },
-            },
-          ],
-          occupiedZones: [
-            {
-              x: 0.39,
-              y: 0.08,
-              width: 0.22,
-              height: 0.82,
-              kind: 'character',
-            },
-          ],
-        },
-      ],
-    },
-  });
-
-  assert.equal(crop.focusStrategy, 'head_priority');
-  assert.ok(crop.focusRect, 'head priority should produce a focus rect');
-  assert.ok((crop.focusRect?.height ?? 1) < 0.3, 'head focus should be smaller than full body');
-  assert.ok(
-    crop.cropRect.top < crop.fullPanelCropRect.top + crop.fullPanelCropRect.height * 0.24,
-    'crop should move upward toward the character head'
-  );
-  assert.ok(
-    crop.cropRect.left >= crop.fullPanelCropRect.left + crop.borderInsetPx,
-    'crop should stay inside the panel border'
-  );
-  assert.ok(
-    crop.cropRect.top >= crop.fullPanelCropRect.top + crop.borderInsetPx,
-    'crop should stay below the panel border'
-  );
-  const headLeft = crop.fullPanelCropRect.left + (crop.focusRect?.x ?? 0) * crop.fullPanelCropRect.width;
-  const headTop = crop.fullPanelCropRect.top + (crop.focusRect?.y ?? 0) * crop.fullPanelCropRect.height;
-  const headRight =
-    crop.fullPanelCropRect.left +
-    ((crop.focusRect?.x ?? 0) + (crop.focusRect?.width ?? 0)) * crop.fullPanelCropRect.width;
-  const headBottom =
-    crop.fullPanelCropRect.top +
-    ((crop.focusRect?.y ?? 0) + (crop.focusRect?.height ?? 0)) * crop.fullPanelCropRect.height;
-  const visibleHeadLeft = Math.max(headLeft, crop.fullPanelCropRect.left + crop.borderInsetPx);
-  const visibleHeadTop = Math.max(headTop, crop.fullPanelCropRect.top + crop.borderInsetPx);
-  const visibleHeadRight = Math.min(
-    headRight,
-    crop.fullPanelCropRect.left + crop.fullPanelCropRect.width - crop.borderInsetPx
-  );
-  const visibleHeadBottom = Math.min(
-    headBottom,
-    crop.fullPanelCropRect.top + crop.fullPanelCropRect.height - crop.borderInsetPx
-  );
-  assert.ok(crop.cropRect.left <= visibleHeadLeft, 'crop should not cut the left edge of the head focus');
-  assert.ok(
-    crop.cropRect.left + crop.cropRect.width >= visibleHeadRight,
-    'crop should not cut the right edge of the head focus'
-  );
-  assert.ok(crop.cropRect.top <= visibleHeadTop, 'crop should not cut the top of the head focus');
-  assert.ok(
-    crop.cropRect.top + crop.cropRect.height >= visibleHeadBottom,
-    'crop should not cut the bottom of the head focus'
-  );
-  assert.ok(Math.abs(crop.cropRect.width / crop.cropRect.height - 672 / 384) < 0.01);
 }
 
 function testGraphicNovelStoryCharacterLinksMatchStorybookFlow(): void {
@@ -652,9 +489,7 @@ function main(): void {
   testFirstPageCompletionRule();
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();
-  testCoverPanelSelectionPrefersFullWidthThenFirstPageWidest();
-  testCoverPanelCropMatchesStoryThumbnailRatioAndCharacters();
-  testCoverPanelCropPrioritizesHeadWhenBodyCannotFit();
+  testCoverPanelSelectionUsesFirstMatchingStandalonePanel();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
   testComicScriptExtractsLlmRobotCharacter();
   testMentionedLlmComicCharacterIsAddedToPanelComposition();
