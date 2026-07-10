@@ -30,6 +30,45 @@ export type AdminUserListItem = {
   audioStoriesUsedCurrentPeriod: number;
 };
 
+export type AdminDiscountCode = {
+  id: string;
+  code: string;
+  kind: 'subscription' | 'bundle';
+  percentOff: number;
+  durationMonths: number | null;
+  planId: string | null;
+  planSlug: string | null;
+  planName: string | null;
+  bundleId: string | null;
+  bundleSlug: string | null;
+  bundleName: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  assignments: Array<{
+    id: string;
+    userId: string;
+    email: string;
+    displayName: string | null;
+    notificationSentAt: string | null;
+  }>;
+};
+
+export type AdminDiscountCodeInput = {
+  kind: 'subscription' | 'bundle';
+  percentOff: number;
+  durationMonths: number | null;
+  planId: string | null;
+  bundleId: string | null;
+  isActive: boolean;
+  assignedUserEmails: string[];
+};
+
+export type AdminDiscountOptions = {
+  plans: Array<{ id: string; slug: string; name: string }>;
+  bundles: Array<{ id: string; slug: string; name: string }>;
+};
+
 export type AdminFeedbackListItem = {
   id: string;
   userId: string | null;
@@ -618,6 +657,62 @@ export function useAdminUsers(params: { limit: number; offset: number; search?: 
         }
       );
       return response.data.data;
+    },
+  });
+}
+
+export function useAdminDiscountCodes() {
+  return useQuery({
+    queryKey: ['admin', 'discount-codes'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: AdminDiscountCode[] }>(
+        '/api/v1/admin/discount-codes'
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useAdminDiscountOptions() {
+  return useQuery({
+    queryKey: ['admin', 'discount-codes', 'options'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: AdminDiscountOptions }>(
+        '/api/v1/admin/discount-codes/options'
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useCreateAdminDiscountCode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: AdminDiscountCodeInput) => {
+      const response = await apiClient.post<{ status: string; data: AdminDiscountCode }>(
+        '/api/v1/admin/discount-codes',
+        input
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'discount-codes'] });
+    },
+  });
+}
+
+export function useUpdateAdminDiscountCode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; input: AdminDiscountCodeInput }) => {
+      const response = await apiClient.patch<{ status: string; data: AdminDiscountCode }>(
+        `/api/v1/admin/discount-codes/${params.id}`,
+        params.input
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'discount-codes'] });
     },
   });
 }

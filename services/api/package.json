@@ -59,6 +59,7 @@
     "test:tts-prosody-tagged-text": "tsx src/utils/__tests__/ttsProsodyTaggedText.test.ts",
     "test:bundle-period-overlap": "tsx src/services/__tests__/bundlePeriodOverlap.test.ts",
     "test:outfit-plate-service": "tsx src/services/__tests__/outfitPlateService.test.ts",
+    "test:e2e:discount-stripe": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/checkDiscountStripeE2E.ts",
     "compare:image-validation": "tsx src/scripts/compareSceneImageValidation.ts",
     "compare:director": "tsx src/scripts/compareDirectorTextProviders.ts",
     "prompt:artifact-lab": "tsx src/scripts/runArtifactImagePrompt.ts"

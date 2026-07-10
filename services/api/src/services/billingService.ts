@@ -4,16 +4,28 @@
  */
 
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import config from '../config';
-import { getUserRepository, getPlanRepository, getBundleRepository } from '../repositories';
+import {
+  getUserRepository,
+  getPlanRepository,
+  getBundleRepository,
+  getDiscountRepository,
+} from '../repositories';
 import * as planService from './planService';
 import * as bundleService from './bundleService';
 import { BUNDLE_CHECKOUT_METADATA_KIND } from './bundleService';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 import { logger } from '../utils/logger';
+import { normalizeBillingCurrency } from './planPresentationService';
 import {
-  normalizeBillingCurrency,
-} from './planPresentationService';
+  activateSubscriptionDiscountApplication,
+  createPendingDiscountApplication,
+  previewDiscount,
+  stripeCouponFingerprint,
+  DiscountCodeError,
+  type DiscountPreview,
+} from './discountService';
 
 let stripeClient: Stripe | null = null;
 
@@ -25,6 +37,43 @@ function getStripe(): Stripe {
     stripeClient = new Stripe(config.stripe.secretKey);
   }
   return stripeClient;
+}
+
+async function getOrCreateStripeCoupon(preview: DiscountPreview): Promise<string> {
+  const code = preview.discountCode;
+  const fingerprint = stripeCouponFingerprint(code);
+  if (code.stripeCouponId && code.stripeCouponFingerprint === fingerprint) {
+    return code.stripeCouponId;
+  }
+
+  const stripe = getStripe();
+  const duration: Stripe.CouponCreateParams.Duration =
+    code.kind === 'bundle' ? 'once' : code.durationMonths ? 'repeating' : 'forever';
+  const coupon = await stripe.coupons.create(
+    {
+      name: `${code.code} (${code.percentOff}% off)`,
+      percent_off: code.percentOff,
+      duration,
+      ...(duration === 'repeating' && code.durationMonths
+        ? { duration_in_months: code.durationMonths }
+        : {}),
+      metadata: {
+        discountCodeId: code.id,
+        discountCode: code.code,
+        discountKind: code.kind,
+        fingerprint,
+      },
+    },
+    {
+      idempotencyKey: `wt-discount-${code.id}-${crypto
+        .createHash('sha256')
+        .update(fingerprint)
+        .digest('hex')
+        .slice(0, 16)}`,
+    }
+  );
+  await getDiscountRepository().updateStripeCoupon(code.id, coupon.id, fingerprint);
+  return coupon.id;
 }
 
 /**
@@ -95,7 +144,9 @@ export async function createCheckoutSession(
   email: string,
   successUrl: string,
   cancelUrl: string,
-  requestedBillingCurrency?: string | null
+  requestedBillingCurrency?: string | null,
+  discountCode?: string | null,
+  discountQuoteFingerprint?: string | null
 ): Promise<{ sessionId: string; url: string }> {
   const userRepo = getUserRepository();
   const user = await userRepo.findById(userId);
@@ -122,6 +173,28 @@ export async function createCheckoutSession(
 
   let customerId = await getOrCreateStripeCustomer(userId, email);
   const stripe = getStripe();
+  const discountPreview = discountCode
+    ? await previewDiscount({
+        userId,
+        code: discountCode,
+        kind: 'subscription',
+        planSlug,
+        requestedBillingCurrency: billingCurrency,
+      })
+    : null;
+  if (
+    discountPreview &&
+    (!discountQuoteFingerprint || discountPreview.quoteFingerprint !== discountQuoteFingerprint)
+  ) {
+    throw new DiscountCodeError(
+      'DISCOUNT_QUOTE_CHANGED',
+      'The discount or price changed. Apply the code again before continuing.'
+    );
+  }
+  const stripeCouponId = discountPreview ? await getOrCreateStripeCoupon(discountPreview) : null;
+  const discountApplication = discountPreview
+    ? await createPendingDiscountApplication(userId, discountPreview)
+    : null;
 
   const createSession = (customer: string) =>
     stripe.checkout.sessions.create({
@@ -134,18 +207,21 @@ export async function createCheckoutSession(
           quantity: 1,
         },
       ],
+      ...(stripeCouponId ? { discounts: [{ coupon: stripeCouponId }] } : {}),
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: {
         userId,
         planSlug,
         billingCurrency,
+        ...(discountApplication ? { discountApplicationId: discountApplication.id } : {}),
       },
       subscription_data: {
         metadata: {
           userId,
           planSlug,
           billingCurrency,
+          ...(discountApplication ? { discountApplicationId: discountApplication.id } : {}),
         },
       },
     });
@@ -155,14 +231,30 @@ export async function createCheckoutSession(
     session = await createSession(customerId);
   } catch (error) {
     if (!isMissingStripeCustomerForActiveMode(error)) {
+      if (discountApplication) {
+        await getDiscountRepository().cancelApplication(discountApplication.id);
+      }
       throw error;
     }
     customerId = await replaceStripeCustomerForActiveMode(userId, email, customerId);
-    session = await createSession(customerId);
+    try {
+      session = await createSession(customerId);
+    } catch (retryError) {
+      if (discountApplication) {
+        await getDiscountRepository().cancelApplication(discountApplication.id);
+      }
+      throw retryError;
+    }
   }
 
   if (!session.url) {
+    if (discountApplication) {
+      await getDiscountRepository().cancelApplication(discountApplication.id);
+    }
     throw new Error('Stripe Checkout Session URL not returned');
+  }
+  if (discountApplication) {
+    await getDiscountRepository().attachCheckoutSession(discountApplication.id, session.id);
   }
 
   logger.info(
@@ -181,7 +273,9 @@ export async function createBundleCheckoutSession(
   email: string,
   successUrl: string,
   cancelUrl: string,
-  requestedBillingCurrency?: string | null
+  requestedBillingCurrency?: string | null,
+  discountCode?: string | null,
+  discountQuoteFingerprint?: string | null
 ): Promise<{ sessionId: string; url: string }> {
   const planRepo = getPlanRepository();
   const bundleRepo = getBundleRepository();
@@ -243,6 +337,28 @@ export async function createBundleCheckoutSession(
         },
         quantity: 1,
       };
+  const discountPreview = discountCode
+    ? await previewDiscount({
+        userId,
+        code: discountCode,
+        kind: 'bundle',
+        bundleSlug,
+        requestedBillingCurrency: billingCurrency,
+      })
+    : null;
+  if (
+    discountPreview &&
+    (!discountQuoteFingerprint || discountPreview.quoteFingerprint !== discountQuoteFingerprint)
+  ) {
+    throw new DiscountCodeError(
+      'DISCOUNT_QUOTE_CHANGED',
+      'The discount or price changed. Apply the code again before continuing.'
+    );
+  }
+  const stripeCouponId = discountPreview ? await getOrCreateStripeCoupon(discountPreview) : null;
+  const discountApplication = discountPreview
+    ? await createPendingDiscountApplication(userId, discountPreview)
+    : null;
 
   const createSession = (customer: string) =>
     stripe.checkout.sessions.create({
@@ -250,6 +366,7 @@ export async function createBundleCheckoutSession(
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [lineItem],
+      ...(stripeCouponId ? { discounts: [{ coupon: stripeCouponId }] } : {}),
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: {
@@ -262,6 +379,7 @@ export async function createBundleCheckoutSession(
         extraAudio: String(bundle.extraAudio),
         subscriptionPeriodStart: periodStart.toISOString(),
         subscriptionPeriodEnd: periodEnd.toISOString(),
+        ...(discountApplication ? { discountApplicationId: discountApplication.id } : {}),
       },
     });
 
@@ -270,14 +388,30 @@ export async function createBundleCheckoutSession(
     session = await createSession(customerId);
   } catch (error) {
     if (!isMissingStripeCustomerForActiveMode(error)) {
+      if (discountApplication) {
+        await getDiscountRepository().cancelApplication(discountApplication.id);
+      }
       throw error;
     }
     customerId = await replaceStripeCustomerForActiveMode(userId, email, customerId);
-    session = await createSession(customerId);
+    try {
+      session = await createSession(customerId);
+    } catch (retryError) {
+      if (discountApplication) {
+        await getDiscountRepository().cancelApplication(discountApplication.id);
+      }
+      throw retryError;
+    }
   }
 
   if (!session.url) {
+    if (discountApplication) {
+      await getDiscountRepository().cancelApplication(discountApplication.id);
+    }
     throw new Error('Stripe Checkout Session URL not returned');
+  }
+  if (discountApplication) {
+    await getDiscountRepository().attachCheckoutSession(discountApplication.id, session.id);
   }
 
   logger.info(
@@ -390,6 +524,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
         session.metadata?.checkoutKind === BUNDLE_CHECKOUT_METADATA_KIND
       ) {
         await bundleService.applyPaidBundleFromCheckoutSession(session);
+        await getDiscountRepository().completeBundleApplication(session.id);
         break;
       }
 
@@ -402,8 +537,24 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
         return;
       }
 
-      const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
+      const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ['discounts'],
+      });
       await planService.updateSubscriptionFromStripe(userId, stripeSub, planSlug);
+      const discountApplicationId = session.metadata?.discountApplicationId;
+      if (discountApplicationId) {
+        await activateSubscriptionDiscountApplication({
+          applicationId: discountApplicationId,
+          userId,
+          stripeSubscription: stripeSub,
+        });
+      }
+      break;
+    }
+
+    case 'checkout.session.expired': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await getDiscountRepository().cancelApplicationByCheckoutSession(session.id);
       break;
     }
 
@@ -437,6 +588,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
     case 'customer.subscription.deleted': {
       const stripeSub = event.data.object as Stripe.Subscription;
       await planService.updateSubscriptionDeletedFromStripe(stripeSub.id);
+      await getDiscountRepository().cancelSubscriptionApplications(stripeSub.id);
       break;
     }
 

@@ -318,6 +318,7 @@ const linking: any = {
           AdminContentConfig: 'content-config',
           AdminVoices: 'voices',
           AdminUsers: 'users',
+          AdminDiscountCodes: 'discounts',
           AdminValidations: 'validations',
           AdminValidationDetail: 'validations/:id',
           AdminImageGenerationDetail:

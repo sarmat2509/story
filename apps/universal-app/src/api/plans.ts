@@ -27,6 +27,23 @@ export interface PlansCatalogData {
   supportedBillingCurrencies: BillingCurrency[];
 }
 
+export interface DiscountPreviewData {
+  code: string;
+  kind: 'subscription' | 'bundle';
+  percentOff: number;
+  durationMonths: number | null;
+  originalAmountMinor: number;
+  discountAmountMinor: number;
+  finalAmountMinor: number;
+  pricingCurrency: BillingCurrency;
+  estimatedEndsAt: string | null;
+  quoteFingerprint: string;
+  planSlug: string | null;
+  planName: string | null;
+  bundleSlug: string | null;
+  bundleName: string | null;
+}
+
 // Get plans with features (public, works for all users)
 export const usePlans = (currency?: BillingCurrency) => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
@@ -253,7 +270,12 @@ export const useBundles = (
 export const useCreateBundleCheckoutSession = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { bundleSlug: string; currency?: BillingCurrency }) => {
+    mutationFn: async (input: {
+      bundleSlug: string;
+      currency?: BillingCurrency;
+      discountCode?: string;
+      discountQuoteFingerprint?: string;
+    }) => {
       const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
         '/api/v1/billing/bundle-checkout',
         input
@@ -269,7 +291,12 @@ export const useCreateBundleCheckoutSession = () => {
 export const useCreateCheckoutSession = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { planSlug: string; currency?: BillingCurrency }) => {
+    mutationFn: async (input: {
+      planSlug: string;
+      currency?: BillingCurrency;
+      discountCode?: string;
+      discountQuoteFingerprint?: string;
+    }) => {
       const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
         '/api/v1/billing/checkout-session',
         input
@@ -278,6 +305,24 @@ export const useCreateCheckoutSession = () => {
     },
     onSuccess: () => {
       invalidateBillingState(queryClient);
+    },
+  });
+};
+
+export const usePreviewDiscount = () => {
+  return useMutation({
+    mutationFn: async (input: {
+      code: string;
+      kind: 'subscription' | 'bundle';
+      planSlug?: string;
+      bundleSlug?: string;
+      currency?: BillingCurrency;
+    }) => {
+      const response = await apiClient.post<{ status: string; data: DiscountPreviewData }>(
+        '/api/v1/billing/discount-preview',
+        input
+      );
+      return response.data.data;
     },
   });
 };

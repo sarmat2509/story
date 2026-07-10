@@ -13,6 +13,7 @@ import AdminPrivacyRequestsScreen from '@/admin/screens/AdminPrivacyRequestsScre
 import AdminScenesScreen from '@/admin/screens/AdminScenesScreen';
 import AdminStoriesScreen from '@/admin/screens/AdminStoriesScreen';
 import AdminUsersScreen from '@/admin/screens/AdminUsersScreen';
+import AdminDiscountCodesScreen from '@/admin/screens/AdminDiscountCodesScreen';
 import AdminImageGenerationDetailScreen from '@/admin/screens/AdminImageGenerationDetailScreen';
 import AdminValidationDetailScreen from '@/admin/screens/AdminValidationDetailScreen';
 import AdminValidationsScreen from '@/admin/screens/AdminValidationsScreen';
@@ -56,6 +57,7 @@ export default function AdminNavigator() {
       <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Stack.Screen name="AdminStories" component={AdminStoriesScreen} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+      <Stack.Screen name="AdminDiscountCodes" component={AdminDiscountCodesScreen} />
       <Stack.Screen name="AdminFeedback" component={AdminFeedbackScreen} />
       <Stack.Screen name="AdminPrivacyRequests" component={AdminPrivacyRequestsScreen} />
       <Stack.Screen name="AdminValidations" component={AdminValidationsScreen} />

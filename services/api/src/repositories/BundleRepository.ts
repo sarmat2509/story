@@ -22,6 +22,15 @@ export class BundleRepository {
     return row ?? null;
   }
 
+  async findBundleById(id: string): Promise<schema.StoryBundle | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.storyBundles)
+      .where(eq(schema.storyBundles.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
   async findPriceForPlanAndBundle(
     planId: string,
     bundleId: string,

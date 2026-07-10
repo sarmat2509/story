@@ -41,6 +41,14 @@ import { getImageValidationById } from '../services/imageValidationQueryService'
 import { getAssetStorageService } from '../services/assetStorageService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
+import {
+  createAdminDiscountCode,
+  DiscountCodeError,
+  getAdminDiscountOptions,
+  listAdminDiscountCodes,
+  updateAdminDiscountCode,
+  type AdminDiscountCodeInput,
+} from '../services/discountService';
 
 const router = Router();
 
@@ -101,6 +109,38 @@ const AdminAssetImageParamsSchema = z.object({
 const UserIdParamsSchema = z.object({
   userId: z.string().uuid(),
 });
+
+const DiscountCodeIdParamsSchema = z.object({
+  discountCodeId: z.string().uuid(),
+});
+
+const AdminDiscountCodeBodySchema = z
+  .object({
+    kind: z.enum(['subscription', 'bundle']),
+    percentOff: z.coerce.number().int().min(1).max(100),
+    durationMonths: z.coerce.number().int().min(1).max(120).nullable().optional(),
+    planId: z.string().uuid().nullable().optional(),
+    bundleId: z.string().uuid().nullable().optional(),
+    isActive: z.boolean().optional().default(true),
+    assignedUserEmails: z.array(z.string().trim().email().max(255)).max(500).optional().default([]),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.kind === 'subscription' && value.bundleId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['bundleId'],
+        message: 'Subscription codes cannot target bundles',
+      });
+    }
+    if (value.kind === 'bundle' && (value.planId || value.durationMonths)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: value.planId ? ['planId'] : ['durationMonths'],
+        message: 'Bundle codes cannot have a plan or duration',
+      });
+    }
+  });
 
 const DataPrivacyRequestIdParamsSchema = z.object({
   requestId: z.string().uuid(),
@@ -810,6 +850,74 @@ router.get('/users', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list users',
+    });
+  }
+});
+
+router.get('/discount-codes/options', async (req: Request, res: Response) => {
+  try {
+    return res.json({ status: 'success', data: await getAdminDiscountOptions() });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin discount options failed');
+    return res.status(500).json({ status: 'error', message: 'Failed to load discount options' });
+  }
+});
+
+router.get('/discount-codes', async (req: Request, res: Response) => {
+  try {
+    return res.json({ status: 'success', data: await listAdminDiscountCodes() });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin discount code list failed');
+    return res.status(500).json({ status: 'error', message: 'Failed to list discount codes' });
+  }
+});
+
+router.post('/discount-codes', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminDiscountCodeBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid discount code data',
+        details: parsed.error.flatten(),
+      });
+    }
+    const data = await createAdminDiscountCode(parsed.data as AdminDiscountCodeInput, req.user!.id);
+    return res.status(201).json({ status: 'success', data });
+  } catch (error) {
+    const statusCode = error instanceof DiscountCodeError ? error.statusCode : 500;
+    logger.error({ err: error, userId: req.user?.id }, 'Admin discount code creation failed');
+    return res.status(statusCode).json({
+      status: 'error',
+      ...(error instanceof DiscountCodeError ? { code: error.code } : {}),
+      message: error instanceof Error ? error.message : 'Failed to create discount code',
+    });
+  }
+});
+
+router.patch('/discount-codes/:discountCodeId', async (req: Request, res: Response) => {
+  try {
+    const params = DiscountCodeIdParamsSchema.safeParse(req.params);
+    const body = AdminDiscountCodeBodySchema.safeParse(req.body);
+    if (!params.success || !body.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid discount code data',
+        details: body.success ? params.error.flatten() : body.error.flatten(),
+      });
+    }
+    const data = await updateAdminDiscountCode(
+      params.data.discountCodeId,
+      body.data as AdminDiscountCodeInput
+    );
+    return res.json({ status: 'success', data });
+  } catch (error) {
+    const statusCode = error instanceof DiscountCodeError ? error.statusCode : 500;
+    logger.error({ err: error, userId: req.user?.id }, 'Admin discount code update failed');
+    return res.status(statusCode).json({
+      status: 'error',
+      ...(error instanceof DiscountCodeError ? { code: error.code } : {}),
+      message: error instanceof Error ? error.message : 'Failed to update discount code',
     });
   }
 });

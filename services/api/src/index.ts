@@ -57,6 +57,7 @@ import { startAllQueues } from './jobs/storyJobProcessor';
 import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
 import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
 import { startOrphanStorageCleanupScheduler } from './jobs/orphanStorageCleanupSchedulerJob';
+import { startBillingReminderScheduler } from './jobs/billingReminderSchedulerJob';
 import { checkDatabaseHealth } from './db';
 import { logger } from './utils/logger';
 
@@ -281,6 +282,9 @@ const server = config.queue.runHttpServer
 
         // Start orphan storage cleanup scheduler when explicitly enabled
         startOrphanStorageCleanupScheduler();
+
+        // Send two-day renewal reminders and retry discount assignment emails.
+        startBillingReminderScheduler();
       }
     })
   : null;

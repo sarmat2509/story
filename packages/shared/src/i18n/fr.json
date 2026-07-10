@@ -646,6 +646,22 @@
     "feature_unlocked_on": "Disponible avec {{planName}}",
     "confirm_upgrade": "Confirmer la mise à niveau",
     "confirm_upgrade_message": "Êtes-vous sûr de vouloir passer au forfait {{planName}}?",
+    "discount": {
+      "plan": "Abonnement",
+      "regular_price": "Prix normal",
+      "discount": "Réduction",
+      "total_now": "À payer maintenant",
+      "code_label": "Code de réduction",
+      "code_placeholder": "WT-XXXX-XXXX",
+      "apply": "Appliquer",
+      "invalid": "Ce code de réduction ne peut pas être appliqué.",
+      "applied_until": "Réduction appliquée jusqu’au {{date}}.",
+      "applied_forever": "Réduction appliquée pendant toute la durée de cet abonnement.",
+      "bundle_applied": "Réduction appliquée à cet achat unique.",
+      "opening_checkout": "Ouverture du paiement sécurisé…",
+      "confirm_bundle": "Confirmer l’achat du pack",
+      "continue_to_payment": "Continuer vers le paiement"
+    },
     "confirm": "Confirmer",
     "features": {
       "stories_per_day": "Jusqu'à {{value}} histoires par jour",
@@ -1678,6 +1694,36 @@
       "expires_notice": "This link expires in 1 hour.",
       "ignore_notice": "If you didn't request this, you can safely ignore this email.",
       "footer": "This is a transactional email about account access."
+    },
+    "discount_code_assigned": {
+      "subject": "Un code de réduction WonderTales vous attend",
+      "preview": "Utilisez votre offre personnelle lors du choix d’un abonnement ou d’un pack d’histoires.",
+      "title": "Votre code de réduction",
+      "intro": "Un code de réduction a été attribué à votre compte WonderTales.",
+      "code_label": "Code",
+      "discount_label": "Réduction",
+      "duration_label": "Durée de la réduction",
+      "duration_forever": "Pendant toute la durée de l’abonnement",
+      "duration_cycles": "Périodes de facturation mensuelle : {{months}}",
+      "scope_label": "Valable pour",
+      "scope_all_plans": "Tous les abonnements payants",
+      "scope_plan": "Abonnement : {{name}}",
+      "scope_all_bundles": "Tous les packs d’histoires",
+      "scope_bundle": "Pack : {{name}}",
+      "cta": "Voir les abonnements",
+      "footer": "Ceci est un e-mail transactionnel concernant une réduction attribuée à votre compte."
+    },
+    "billing_renewal_reminder": {
+      "subject": "Votre abonnement WonderTales sera renouvelé dans 2 jours",
+      "preview": "Consultez la date et le montant prévu de votre prochain paiement.",
+      "title": "Prochain paiement de l’abonnement",
+      "intro": "Le renouvellement de votre abonnement WonderTales est prévu dans 2 jours.",
+      "plan_label": "Abonnement",
+      "date_label": "Date du paiement",
+      "amount_label": "Montant prévu",
+      "discount_ending": "Votre réduction prend fin le {{date}}. Ensuite, le prix mensuel sera de {{amount}}.",
+      "cta": "Gérer l’abonnement",
+      "footer": "Ceci est un rappel transactionnel concernant votre abonnement WonderTales."
     }
   },
   "api_errors": {

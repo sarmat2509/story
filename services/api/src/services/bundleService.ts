@@ -113,7 +113,9 @@ export async function applyPaidBundleFromCheckoutSession(
   if (session.metadata?.checkoutKind !== BUNDLE_CHECKOUT_METADATA_KIND) {
     return;
   }
-  if (session.payment_status !== 'paid') {
+  const noCostCheckoutCompleted =
+    session.payment_status === 'no_payment_required' && session.amount_total === 0;
+  if (session.payment_status !== 'paid' && !noCostCheckoutCompleted) {
     logger.warn({ sessionId: session.id }, 'Bundle checkout session not paid; skipping grant');
     return;
   }

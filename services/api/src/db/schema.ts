@@ -458,12 +458,146 @@ export const userBundleGrants = pgTable(
   })
 );
 
+// Admin-created percentage discount codes for recurring subscriptions or one-time bundles.
+// A code without assignment rows is public; once assignments exist, only assigned users may use it.
+export const discountCodes = pgTable(
+  'discount_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 32 }).notNull().unique(),
+    kind: varchar('kind', { length: 20 }).notNull(), // 'subscription' | 'bundle'
+    percentOff: integer('percent_off').notNull(),
+    durationMonths: integer('duration_months'), // subscription only; null means forever
+    planId: uuid('plan_id').references(() => plans.id, { onDelete: 'set null' }),
+    bundleId: uuid('bundle_id').references(() => storyBundles.id, { onDelete: 'set null' }),
+    isActive: boolean('is_active').notNull().default(true),
+    stripeCouponId: varchar('stripe_coupon_id', { length: 255 }),
+    stripeCouponFingerprint: varchar('stripe_coupon_fingerprint', { length: 128 }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex('discount_codes_code_uidx').on(table.code),
+    kindActiveIdx: index('discount_codes_kind_active_idx').on(table.kind, table.isActive),
+    planIdIdx: index('discount_codes_plan_id_idx').on(table.planId),
+    bundleIdIdx: index('discount_codes_bundle_id_idx').on(table.bundleId),
+  })
+);
+
+export const discountCodeAssignments = pgTable(
+  'discount_code_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    discountCodeId: uuid('discount_code_id')
+      .references(() => discountCodes.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    notificationSentAt: timestamp('notification_sent_at', { withTimezone: true }),
+    notificationAttempts: integer('notification_attempts').notNull().default(0),
+    lastNotificationError: text('last_notification_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    codeUserIdx: uniqueIndex('discount_code_assignments_code_user_uidx').on(
+      table.discountCodeId,
+      table.userId
+    ),
+    userIdIdx: index('discount_code_assignments_user_id_idx').on(table.userId),
+    notificationIdx: index('discount_code_assignments_notification_idx').on(
+      table.notificationSentAt,
+      table.notificationAttempts
+    ),
+  })
+);
+
+export const discountApplications = pgTable(
+  'discount_applications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    discountCodeId: uuid('discount_code_id')
+      .references(() => discountCodes.id, { onDelete: 'restrict' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    planId: uuid('plan_id').references(() => plans.id, { onDelete: 'set null' }),
+    bundleId: uuid('bundle_id').references(() => storyBundles.id, { onDelete: 'set null' }),
+    checkoutSessionId: varchar('checkout_session_id', { length: 255 }).unique(),
+    stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+    percentOffSnapshot: integer('percent_off_snapshot').notNull(),
+    durationMonthsSnapshot: integer('duration_months_snapshot'),
+    originalAmountMinor: integer('original_amount_minor').notNull(),
+    discountedAmountMinor: integer('discounted_amount_minor').notNull(),
+    pricingCurrency: varchar('pricing_currency', { length: 3 }).notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    userStatusIdx: index('discount_applications_user_status_idx').on(
+      table.userId,
+      table.kind,
+      table.status
+    ),
+    subscriptionIdx: index('discount_applications_subscription_idx').on(
+      table.stripeSubscriptionId
+    ),
+    endsAtIdx: index('discount_applications_ends_at_idx').on(table.endsAt),
+  })
+);
+
+export const billingReminderDeliveries = pgTable(
+  'billing_reminder_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    subscriptionId: uuid('subscription_id')
+      .references(() => userSubscriptions.id, { onDelete: 'cascade' })
+      .notNull(),
+    kind: varchar('kind', { length: 40 }).notNull(),
+    referenceAt: timestamp('reference_at', { withTimezone: true }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('sending'),
+    attempts: integer('attempts').notNull().default(1),
+    lastError: text('last_error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    deliveryIdx: uniqueIndex('billing_reminder_deliveries_event_uidx').on(
+      table.userId,
+      table.kind,
+      table.referenceAt
+    ),
+    statusIdx: index('billing_reminder_deliveries_status_idx').on(table.status, table.referenceAt),
+  })
+);
+
 export type StoryBundle = typeof storyBundles.$inferSelect;
 export type NewStoryBundle = typeof storyBundles.$inferInsert;
 export type PlanBundlePrice = typeof planBundlePrices.$inferSelect;
 export type NewPlanBundlePrice = typeof planBundlePrices.$inferInsert;
 export type UserBundleGrant = typeof userBundleGrants.$inferSelect;
 export type NewUserBundleGrant = typeof userBundleGrants.$inferInsert;
+export type DiscountCode = typeof discountCodes.$inferSelect;
+export type NewDiscountCode = typeof discountCodes.$inferInsert;
+export type DiscountCodeAssignment = typeof discountCodeAssignments.$inferSelect;
+export type NewDiscountCodeAssignment = typeof discountCodeAssignments.$inferInsert;
+export type DiscountApplication = typeof discountApplications.$inferSelect;
+export type NewDiscountApplication = typeof discountApplications.$inferInsert;
+export type BillingReminderDelivery = typeof billingReminderDeliveries.$inferSelect;
+export type NewBillingReminderDelivery = typeof billingReminderDeliveries.$inferInsert;
 
 // Child profiles table
 export const childProfiles = pgTable(

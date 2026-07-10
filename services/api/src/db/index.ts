@@ -176,6 +176,14 @@ async function gracefulShutdown(signal: string) {
       logger.warn({ err }, 'Failed to stop orphan storage cleanup scheduler during shutdown');
     }
 
+    // Stop billing reminder scheduler
+    try {
+      const { stopBillingReminderScheduler } = await import('../jobs/billingReminderSchedulerJob');
+      stopBillingReminderScheduler();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop billing reminder scheduler during shutdown');
+    }
+
     // Stop rate limiter intervals
     try {
       const { stopAllRateLimiters } = await import('../services/aiService');

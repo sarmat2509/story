@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   Alert,
+  TextInput,
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
@@ -29,6 +30,8 @@ import {
   useCreateBundleCheckoutSession,
   useSubscriptionUsage,
   invalidateBillingState,
+  usePreviewDiscount,
+  type DiscountPreviewData,
 } from '@/api/plans';
 import type { BillingCurrency } from '@wondertales/shared';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
@@ -111,6 +114,11 @@ export default function PlansScreen() {
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [showBundleCheckoutModal, setShowBundleCheckoutModal] = useState(false);
+  const [selectedBundle, setSelectedBundle] = useState<any>(null);
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountPreviewData | null>(null);
+  const [discountValidationError, setDiscountValidationError] = useState<string | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [bundleError, setBundleError] = useState<string | null>(null);
   const [nativeBillingPending, setNativeBillingPending] = useState(false);
@@ -120,6 +128,7 @@ export default function PlansScreen() {
   const createCheckoutSession = useCreateCheckoutSession();
   const updateBillingCurrency = useUpdateBillingCurrency();
   const createBundleCheckout = useCreateBundleCheckoutSession();
+  const previewDiscount = usePreviewDiscount();
   const { data: subscriptionUsage } = useSubscriptionUsage(isAuthenticated);
   const periodEndFormatted = useMemo(
     () =>
@@ -216,6 +225,12 @@ export default function PlansScreen() {
         const { url } = await createCheckoutSession.mutateAsync({
           planSlug: selectedPlan.slug,
           currency: billingCurrency,
+          discountCode:
+            appliedDiscount?.kind === 'subscription' ? appliedDiscount.code : undefined,
+          discountQuoteFingerprint:
+            appliedDiscount?.kind === 'subscription'
+              ? appliedDiscount.quoteFingerprint
+              : undefined,
         });
         if (url && assignWebLocation(url)) {
           return;
@@ -257,6 +272,39 @@ export default function PlansScreen() {
     }
   };
 
+  const resetDiscountForm = () => {
+    setDiscountCodeInput('');
+    setAppliedDiscount(null);
+    setDiscountValidationError(null);
+    previewDiscount.reset();
+  };
+
+  const openUpgradeModal = (plan: any) => {
+    resetDiscountForm();
+    setSelectedPlan(plan);
+    setShowUpgradeModal(true);
+  };
+
+  const applyDiscountCode = async (kind: 'subscription' | 'bundle') => {
+    const code = discountCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setDiscountValidationError(null);
+    setAppliedDiscount(null);
+    try {
+      const data = await previewDiscount.mutateAsync({
+        code,
+        kind,
+        planSlug: kind === 'subscription' ? selectedPlan?.slug : undefined,
+        bundleSlug: kind === 'bundle' ? selectedBundle?.slug : undefined,
+        currency: billingCurrency,
+      });
+      setDiscountCodeInput(data.code);
+      setAppliedDiscount(data);
+    } catch (error: unknown) {
+      setDiscountValidationError(getLocalizedApiError(t, error, 'plans.discount.invalid'));
+    }
+  };
+
   const pricingLocale = normalizePricingLocale(i18n.language);
   const translatePricing = useCallback<PricingTranslate>(
     (key, params, defaultValue) =>
@@ -282,13 +330,16 @@ export default function PlansScreen() {
   );
 
   const handleBundlePurchase = useCallback(
-    async (bundleSlug: string) => {
+    async (bundleSlug: string, discount?: DiscountPreviewData | null) => {
       setBundleError(null);
       if (enableRealPayments && isWeb) {
         try {
           const { url } = await createBundleCheckout.mutateAsync({
             bundleSlug,
             currency: billingCurrency,
+            discountCode: discount?.kind === 'bundle' ? discount.code : undefined,
+            discountQuoteFingerprint:
+              discount?.kind === 'bundle' ? discount.quoteFingerprint : undefined,
           });
           if (url && assignWebLocation(url)) {
             return;
@@ -305,6 +356,12 @@ export default function PlansScreen() {
     },
     [enableRealPayments, isWeb, createBundleCheckout, t]
   );
+
+  const openBundleCheckout = useCallback((bundle: any) => {
+    resetDiscountForm();
+    setSelectedBundle(bundle);
+    setShowBundleCheckoutModal(true);
+  }, []);
 
   const bundleCardEls = useMemo(
     () =>
@@ -360,7 +417,7 @@ export default function PlansScreen() {
                 label={t('plans.bundles.buy_button')}
                 disabled={!canBuy || createBundleCheckout.isPending}
                 loading={createBundleCheckout.isPending}
-                onPress={() => handleBundlePurchase(b.slug)}
+                onPress={() => openBundleCheckout(b)}
                 size="md"
                 style={styles.bundleBuyAction}
               />
@@ -375,6 +432,7 @@ export default function PlansScreen() {
       t,
       formatPrice,
       handleBundlePurchase,
+      openBundleCheckout,
       createBundleCheckout.isPending,
       billingCurrency,
       currentPlanBundleComicRatio,
@@ -428,6 +486,15 @@ export default function PlansScreen() {
     createCheckoutSession.reset();
     setNativeBillingError(null);
     setNativeBillingSuccess(false);
+    resetDiscountForm();
+  };
+
+  const resetBundleModal = () => {
+    setShowBundleCheckoutModal(false);
+    setSelectedBundle(null);
+    setBundleError(null);
+    createBundleCheckout.reset();
+    resetDiscountForm();
   };
 
   const handleRestorePurchases = async () => {
@@ -612,8 +679,7 @@ export default function PlansScreen() {
                     <AppButton
                       label={t('plans.upgrade_button')}
                       onPress={() => {
-                        setSelectedPlan(plan);
-                        setShowUpgradeModal(true);
+                        openUpgradeModal(plan);
                       }}
                       style={styles.planAction}
                       testID={`plans-action-${plan.slug}`}
@@ -622,8 +688,7 @@ export default function PlansScreen() {
                     <AppButton
                       label={t('plans.subscribe_button')}
                       onPress={() => {
-                        setSelectedPlan(plan);
-                        setShowUpgradeModal(true);
+                        openUpgradeModal(plan);
                       }}
                       style={styles.planAction}
                       testID={`plans-action-${plan.slug}`}
@@ -736,7 +801,7 @@ export default function PlansScreen() {
           visible={showUpgradeModal}
           transparent
           animationType="fade"
-          onRequestClose={() => setShowUpgradeModal(false)}
+          onRequestClose={resetModal}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent} testID="plans-upgrade-modal">
@@ -805,12 +870,92 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {t('plans.confirm_upgrade_message', { planName: selectedPlan?.name })}
                   </Text>
+                  {useStripeFlow && selectedPlan ? (
+                    <>
+                      <View style={styles.checkoutSummary}>
+                        <View style={styles.checkoutSummaryRow}>
+                          <Text style={styles.checkoutSummaryLabel}>{t('plans.discount.plan')}</Text>
+                          <Text style={styles.checkoutSummaryValue}>{selectedPlan.name}</Text>
+                        </View>
+                        <View style={styles.checkoutSummaryRow}>
+                          <Text style={styles.checkoutSummaryLabel}>
+                            {t('plans.discount.regular_price')}
+                          </Text>
+                          <Text style={styles.checkoutSummaryValue}>
+                            {formatPlanPrice(selectedPlan.priceMonthly, billingCurrency)}
+                          </Text>
+                        </View>
+                        {appliedDiscount ? (
+                          <View style={styles.checkoutSummaryRow}>
+                            <Text style={styles.checkoutSummaryLabel}>
+                              {t('plans.discount.discount')}
+                            </Text>
+                            <Text style={styles.discountSuccessText}>
+                              −{appliedDiscount.percentOff}%
+                            </Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.checkoutSummaryRow}>
+                          <Text style={styles.checkoutSummaryLabel}>
+                            {t('plans.discount.total_now')}
+                          </Text>
+                          <Text style={styles.checkoutTotalValue}>
+                            {appliedDiscount
+                              ? formatPrice(
+                                  appliedDiscount.finalAmountMinor,
+                                  appliedDiscount.pricingCurrency
+                                )
+                              : formatPlanPrice(selectedPlan.priceMonthly, billingCurrency)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.discountForm}>
+                        <Text style={styles.discountLabel}>{t('plans.discount.code_label')}</Text>
+                        <View style={styles.discountInputRow}>
+                          <TextInput
+                            style={styles.discountInput}
+                            value={discountCodeInput}
+                            onChangeText={(value) => {
+                              setDiscountCodeInput(value.toUpperCase());
+                              setAppliedDiscount(null);
+                              setDiscountValidationError(null);
+                            }}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            placeholder={t('plans.discount.code_placeholder')}
+                            placeholderTextColor={theme.colors.text.tertiary}
+                            testID="plans-discount-code"
+                          />
+                          <AppButton
+                            label={t('plans.discount.apply')}
+                            onPress={() => applyDiscountCode('subscription')}
+                            disabled={!discountCodeInput.trim() || previewDiscount.isPending}
+                            loading={previewDiscount.isPending}
+                            size="sm"
+                          />
+                        </View>
+                        {discountValidationError ? (
+                          <Text style={styles.discountErrorText}>{discountValidationError}</Text>
+                        ) : null}
+                        {appliedDiscount ? (
+                          <Text style={styles.discountAppliedText}>
+                            {appliedDiscount.durationMonths && appliedDiscount.estimatedEndsAt
+                              ? t('plans.discount.applied_until', {
+                                  date: new Date(
+                                    appliedDiscount.estimatedEndsAt
+                                  ).toLocaleDateString(i18n.language),
+                                })
+                              : t('plans.discount.applied_forever')}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </>
+                  ) : null}
                   <View style={styles.modalActions}>
                     <AppButton
                       label={t('common.cancel')}
                       onPress={() => {
-                        setShowUpgradeModal(false);
-                        setSelectedPlan(null);
+                        resetModal();
                       }}
                       variant="secondary"
                       style={styles.modalAction}
@@ -818,7 +963,130 @@ export default function PlansScreen() {
                     <AppButton
                       label={t('plans.confirm')}
                       onPress={handleUpgrade}
+                      disabled={
+                        !!discountCodeInput.trim() &&
+                        appliedDiscount?.code !== discountCodeInput.trim().toUpperCase()
+                      }
+                      style={styles.modalAction}
                       testID="plans-upgrade-confirm"
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showBundleCheckoutModal}
+          transparent
+          animationType="fade"
+          onRequestClose={resetBundleModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent} testID="bundle-checkout-modal">
+              {createBundleCheckout.isPending ? (
+                <>
+                  <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                  <Text style={styles.modalTitle}>{t('plans.discount.opening_checkout')}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.modalTitle}>{t('plans.discount.confirm_bundle')}</Text>
+                  <Text style={styles.modalMessage}>{selectedBundle?.name}</Text>
+                  {selectedBundle ? (
+                    <View style={styles.checkoutSummary}>
+                      <View style={styles.checkoutSummaryRow}>
+                        <Text style={styles.checkoutSummaryLabel}>
+                          {t('plans.discount.regular_price')}
+                        </Text>
+                        <Text style={styles.checkoutSummaryValue}>
+                          {formatPrice(selectedBundle.priceMinor, selectedBundle.pricingCurrency)}
+                        </Text>
+                      </View>
+                      {appliedDiscount ? (
+                        <View style={styles.checkoutSummaryRow}>
+                          <Text style={styles.checkoutSummaryLabel}>
+                            {t('plans.discount.discount')}
+                          </Text>
+                          <Text style={styles.discountSuccessText}>
+                            −{appliedDiscount.percentOff}%
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.checkoutSummaryRow}>
+                        <Text style={styles.checkoutSummaryLabel}>
+                          {t('plans.discount.total_now')}
+                        </Text>
+                        <Text style={styles.checkoutTotalValue}>
+                          {appliedDiscount
+                            ? formatPrice(
+                                appliedDiscount.finalAmountMinor,
+                                appliedDiscount.pricingCurrency
+                              )
+                            : formatPrice(
+                                selectedBundle.priceMinor,
+                                selectedBundle.pricingCurrency
+                              )}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  <View style={styles.discountForm}>
+                    <Text style={styles.discountLabel}>{t('plans.discount.code_label')}</Text>
+                    <View style={styles.discountInputRow}>
+                      <TextInput
+                        style={styles.discountInput}
+                        value={discountCodeInput}
+                        onChangeText={(value) => {
+                          setDiscountCodeInput(value.toUpperCase());
+                          setAppliedDiscount(null);
+                          setDiscountValidationError(null);
+                        }}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        placeholder={t('plans.discount.code_placeholder')}
+                        placeholderTextColor={theme.colors.text.tertiary}
+                      />
+                      <AppButton
+                        label={t('plans.discount.apply')}
+                        onPress={() => applyDiscountCode('bundle')}
+                        disabled={!discountCodeInput.trim() || previewDiscount.isPending}
+                        loading={previewDiscount.isPending}
+                        size="sm"
+                      />
+                    </View>
+                    {discountValidationError ? (
+                      <Text style={styles.discountErrorText}>{discountValidationError}</Text>
+                    ) : null}
+                    {appliedDiscount ? (
+                      <Text style={styles.discountAppliedText}>
+                        {t('plans.discount.bundle_applied')}
+                      </Text>
+                    ) : null}
+                    {bundleError ? <Text style={styles.discountErrorText}>{bundleError}</Text> : null}
+                  </View>
+                  <View style={styles.modalActions}>
+                    <AppButton
+                      label={t('common.cancel')}
+                      onPress={resetBundleModal}
+                      variant="secondary"
+                      style={styles.modalAction}
+                    />
+                    <AppButton
+                      label={t('plans.discount.continue_to_payment')}
+                      onPress={() =>
+                        selectedBundle &&
+                        handleBundlePurchase(
+                          selectedBundle.slug,
+                          appliedDiscount
+                        )
+                      }
+                      disabled={
+                        !selectedBundle ||
+                        (!!discountCodeInput.trim() &&
+                          appliedDiscount?.code !== discountCodeInput.trim().toUpperCase())
+                      }
                       style={styles.modalAction}
                     />
                   </View>
@@ -1128,6 +1396,80 @@ const styles = StyleSheet.create({
   },
   modalAction: {
     flex: 1,
+  },
+  checkoutSummary: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[4],
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[4],
+    backgroundColor: theme.colors.background.secondary,
+  },
+  checkoutSummaryRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  checkoutSummaryLabel: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  checkoutSummaryValue: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    textAlign: 'right',
+  },
+  checkoutTotalValue: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  discountSuccessText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.status.success,
+  },
+  discountForm: {
+    width: '100%',
+    marginBottom: theme.spacing[5],
+    gap: theme.spacing[2],
+  },
+  discountLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  discountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  discountInput: {
+    flex: 1,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: theme.colors.border.medium,
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[3],
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.primary,
+    fontSize: theme.typography.fontSize.base,
+    letterSpacing: 0.8,
+  },
+  discountErrorText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.error,
+  },
+  discountAppliedText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.success,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   bundleSection: {
     marginTop: theme.spacing[8],
