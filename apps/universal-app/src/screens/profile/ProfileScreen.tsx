@@ -425,7 +425,10 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={[styles.content, isMobile && styles.contentMobile]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, isMobile && styles.contentMobile]}
+        testID="profile-screen"
+      >
         <AnimatedSection delay={0} trigger={enterKey}>
           <View style={[styles.header, isMobile && styles.headerMobile]}>
             <Text style={styles.title}>{t('profile.title')}</Text>
@@ -649,6 +652,7 @@ export default function ProfileScreen() {
                 }
                 onPress={() => setShowChildModePasscodeModal(true)}
                 style={[styles.profileSaveAction, isMobile && styles.mobileFullWidthAction]}
+                testID="profile-child-mode-passcode-open"
               />
             </AnimatedSection>
 
@@ -994,7 +998,10 @@ export default function ProfileScreen() {
         onRequestClose={handleCloseChildModePasscodeModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.passcodeModal, isMobile && styles.passcodeModalMobile]}>
+          <View
+            style={[styles.passcodeModal, isMobile && styles.passcodeModalMobile]}
+            testID="profile-child-mode-passcode-modal"
+          >
             <View
               style={[styles.passcodeModalHeader, isMobile && styles.passcodeModalHeaderMobile]}
             >
@@ -1011,6 +1018,7 @@ export default function ProfileScreen() {
                 style={styles.passcodeModalClose}
                 disabled={updateChildModeExitPasscode.isPending}
                 accessibilityRole="button"
+                testID="profile-child-mode-passcode-close"
               >
                 <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
               </TouchableOpacity>
@@ -1027,6 +1035,7 @@ export default function ProfileScreen() {
                   placeholderTextColor={theme.colors.text.tertiary}
                   secureTextEntry
                   maxLength={128}
+                  testID="profile-child-mode-passcode-current"
                 />
               </View>
             ) : null}
@@ -1042,6 +1051,7 @@ export default function ProfileScreen() {
                   placeholderTextColor={theme.colors.text.tertiary}
                   secureTextEntry
                   maxLength={128}
+                  testID="profile-child-mode-passcode-new"
                 />
               </View>
               <View style={[styles.exitPasscodeField, isMobile && styles.exitPasscodeFieldMobile]}>
@@ -1055,6 +1065,7 @@ export default function ProfileScreen() {
                   secureTextEntry
                   maxLength={128}
                   onSubmitEditing={handleSaveChildModeExitPasscode}
+                  testID="profile-child-mode-passcode-confirm"
                 />
               </View>
             </View>
@@ -1069,6 +1080,7 @@ export default function ProfileScreen() {
                 variant="secondary"
                 size="md"
                 style={[styles.passcodeModalAction, isMobile && styles.mobileFullWidthAction]}
+                testID="profile-child-mode-passcode-cancel"
               />
               <AppButton
                 label={
@@ -1081,6 +1093,7 @@ export default function ProfileScreen() {
                 loading={updateChildModeExitPasscode.isPending}
                 size="md"
                 style={[styles.passcodeModalAction, isMobile && styles.mobileFullWidthAction]}
+                testID="profile-child-mode-passcode-save"
               />
             </View>
           </View>

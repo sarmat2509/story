@@ -66,12 +66,17 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
     character.turnaroundSheet?.url ??
     character.referencePhotos?.[0]?.url;
   const displayName = getCharacterDisplayName(character, i18n.language);
-  const imageContainerWebStyle =
-    Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
+  const imageContainerWebStyle: ViewStyle | null =
+    Platform.OS === 'web' ? { filter: 'contrast(1.05)' } : null;
 
   return (
-    <View style={styles.cardWrapper}>
-      <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <View style={styles.cardWrapper} testID={`character-card-${character.id}`}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={onPress}
+        activeOpacity={0.7}
+        testID={`character-card-button-${character.id}`}
+      >
         <View style={[styles.imageContainer, imageContainerWebStyle]}>
           {avatarUrl ? (
             <Image
@@ -97,6 +102,7 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
             state.pressed && styles.deleteButtonPressed,
           ]}
           onPress={() => onDelete(character.id, displayName)}
+          testID={`character-card-delete-${character.id}`}
         >
           <Ionicons name="trash-outline" size={18} color="#fff" />
         </Pressable>

@@ -78,7 +78,10 @@ export function PublishShareDialog({
   const isPostPublish = !!shareUrl;
 
   const coverAssetsWithImages = useMemo(
-    () => coverAssets.filter((asset): asset is CoverAssetOption & { imageUrl: string } => !!asset.imageUrl),
+    () =>
+      coverAssets.filter(
+        (asset): asset is CoverAssetOption & { imageUrl: string } => !!asset.imageUrl
+      ),
     [coverAssets]
   );
 
@@ -132,12 +135,13 @@ export function PublishShareDialog({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={styles.dialog}>
+        <View style={styles.dialog} testID="publish-share-dialog">
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onCancel}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             disabled={isLoading}
+            testID="publish-share-close"
           >
             <Ionicons name="close-outline" size={24} color={theme.colors.text.tertiary} />
           </TouchableOpacity>
@@ -174,12 +178,14 @@ export function PublishShareDialog({
                   editable={false}
                   selectTextOnFocus
                   multiline
+                  testID="publish-share-url"
                 />
                 <TouchableOpacity
                   style={styles.copyIconButton}
                   onPress={handleCopy}
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  testID="publish-share-copy"
                 >
                   <Ionicons
                     name="copy-outline"
@@ -197,6 +203,7 @@ export function PublishShareDialog({
                   variant="dangerSecondary"
                   size="sm"
                   style={styles.unpublishAction}
+                  testID="publish-share-unpublish"
                 />
               )}
             </>
@@ -228,6 +235,7 @@ export function PublishShareDialog({
                     value={pseudonymInput}
                     onChangeText={setPseudonymInput}
                     maxLength={100}
+                    testID="publish-share-pseudonym"
                   />
                 </View>
               )}
@@ -243,6 +251,7 @@ export function PublishShareDialog({
                     onChangeText={setAboutMeInput}
                     maxLength={1000}
                     multiline
+                    testID="publish-share-about-me"
                   />
                 </View>
               )}
@@ -266,6 +275,7 @@ export function PublishShareDialog({
                           style={[styles.thumbWrapper, isSelected && styles.thumbWrapperSelected]}
                           onPress={() => setSelectedCoverAssetId(asset.assetId)}
                           activeOpacity={0.8}
+                          testID={`publish-share-cover-${asset.assetId}`}
                         >
                           <Image
                             source={{ uri: formatAssetUrl(asset.imageUrl) ?? '' }}
@@ -296,6 +306,7 @@ export function PublishShareDialog({
                   ]}
                   onPress={() => setSelectedVisibility('public')}
                   activeOpacity={0.7}
+                  testID="publish-share-visibility-public"
                 >
                   <Ionicons
                     name="globe-outline"
@@ -325,6 +336,7 @@ export function PublishShareDialog({
                   ]}
                   onPress={() => setSelectedVisibility('unlisted')}
                   activeOpacity={0.7}
+                  testID="publish-share-visibility-unlisted"
                 >
                   <Ionicons
                     name="link-outline"
@@ -350,7 +362,11 @@ export function PublishShareDialog({
               </View>
 
               {selectedVisibility === 'public' && (
-                <View style={styles.publicVisibilityNotice} accessibilityRole="text">
+                <View
+                  style={styles.publicVisibilityNotice}
+                  accessibilityRole="text"
+                  testID="publish-share-public-notice"
+                >
                   <Ionicons
                     name="information-circle-outline"
                     size={18}
@@ -384,6 +400,7 @@ export function PublishShareDialog({
                 disabled={isLoading}
                 loading={isLoading}
                 style={styles.publishAction}
+                testID="publish-share-submit"
               />
             </>
           )}

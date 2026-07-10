@@ -21,6 +21,7 @@ import {
   useRevokeChildModeSessions,
   useUpdateChild,
   useUpdateChildModeControls,
+  type ChildModeSettings,
 } from '@/api/children';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useSubscriptionUsage } from '@/api/plans';
@@ -70,8 +71,11 @@ function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitial
       | undefined,
     authorPseudonym: (child.authorPseudonym ?? child.authorpseudonym) as string | null | undefined,
     authorAboutMe: (child.authorAboutMe ?? child.authoraboutme) as string | null | undefined,
-    storyTextSizeMultiplier: (child.storyTextSizeMultiplier ??
-      child.storytextsizemultiplier) as number | string | null | undefined,
+    storyTextSizeMultiplier: (child.storyTextSizeMultiplier ?? child.storytextsizemultiplier) as
+      | number
+      | string
+      | null
+      | undefined,
   };
 }
 
@@ -315,7 +319,9 @@ export default function ChildDetailScreen() {
     childModeEnabled: (childRecord.childModeEnabled ?? childRecord.childmodeenabled) as
       | boolean
       | undefined,
-    childModeSettings: (childRecord.childModeSettings ?? childRecord.childmodesettings) as any,
+    childModeSettings: (childRecord.childModeSettings ?? childRecord.childmodesettings) as
+      | Partial<ChildModeSettings>
+      | undefined,
     childModePasscodeConfigured: (childRecord.childModePasscodeConfigured ??
       childRecord.childmodepasscodeconfigured) as boolean | undefined,
     childModeActiveSessionCount: (childRecord.childModeActiveSessionCount ??
@@ -393,10 +399,7 @@ export default function ChildDetailScreen() {
   const headerAvatarWidth = childAvatarAspectRatio
     ? Math.max(
         HEADER_AVATAR_MIN_WIDTH,
-        Math.min(
-          HEADER_AVATAR_MAX_WIDTH,
-          Math.round(HEADER_AVATAR_HEIGHT * childAvatarAspectRatio)
-        )
+        Math.min(HEADER_AVATAR_MAX_WIDTH, Math.round(HEADER_AVATAR_HEIGHT * childAvatarAspectRatio))
       )
     : 56;
   const childModeStartActionLabel = childCardData.childModeEnabled
@@ -467,6 +470,7 @@ export default function ChildDetailScreen() {
         }
         style={[styles.headerStartAction, compact && styles.headerStartActionMobile]}
         labelStyle={compact ? styles.headerStartActionLabelMobile : undefined}
+        testID="child-detail-start-child-mode"
       />
     </View>
   );
@@ -483,7 +487,9 @@ export default function ChildDetailScreen() {
     {
       key: 'childProfile',
       icon: 'sparkles-outline',
-      label: t('children_screen.child_detail_child_profile_tab', { defaultValue: 'Child portrait' }),
+      label: t('children_screen.child_detail_child_profile_tab', {
+        defaultValue: 'Child portrait',
+      }),
     },
     {
       key: 'story',
@@ -523,7 +529,10 @@ export default function ChildDetailScreen() {
               )}
             </View>
             <View style={[styles.identityText, isMobile && styles.identityTextMobile]}>
-              <Text style={[styles.childName, isMobile && styles.childNameMobile]} numberOfLines={1}>
+              <Text
+                style={[styles.childName, isMobile && styles.childNameMobile]}
+                numberOfLines={1}
+              >
                 {child.name}
               </Text>
               <Text style={[styles.childMeta, isMobile && styles.childMetaMobile]}>
@@ -548,6 +557,7 @@ export default function ChildDetailScreen() {
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={tab.label}
+                testID={`child-detail-tab-${tab.key}`}
                 focusable
               >
                 <Ionicons
@@ -632,7 +642,9 @@ export default function ChildDetailScreen() {
                       <Text style={styles.storySetupTitle}>
                         {t('children_screen.story_setup_title')}
                       </Text>
-                      <Text style={styles.storySetupText}>{t('children_screen.story_setup_body')}</Text>
+                      <Text style={styles.storySetupText}>
+                        {t('children_screen.story_setup_body')}
+                      </Text>
                     </View>
                     <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
                       {(['instant', 'artisan'] as const).map((mode) => {

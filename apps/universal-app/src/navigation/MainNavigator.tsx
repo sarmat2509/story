@@ -159,6 +159,14 @@ function StoryReaderScreenWithAuth() {
   );
 }
 function ChildrenScreenWithAuth() {
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  if (sessionMode === 'child') {
+    return (
+      <AuthGuard>
+        <NotFoundScreen />
+      </AuthGuard>
+    );
+  }
   return (
     <AuthGuard>
       <ChildrenScreen />
@@ -166,6 +174,14 @@ function ChildrenScreenWithAuth() {
   );
 }
 function ChildDetailScreenWithAuth() {
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  if (sessionMode === 'child') {
+    return (
+      <AuthGuard>
+        <NotFoundScreen />
+      </AuthGuard>
+    );
+  }
   return (
     <AuthGuard>
       <ChildDetailScreen />
@@ -364,7 +380,13 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
         { name: 'Artifacts', icon: 'sparkles-outline', labelKey: 'navigation.artifacts' },
         { name: 'MapTiles', icon: 'map-outline', labelKey: 'navigation.map_tiles' },
         ...(childCanReadPublicStories
-          ? [{ name: 'Stories' as const, icon: 'newspaper-outline' as const, labelKey: 'navigation.published_stories' }]
+          ? [
+              {
+                name: 'Stories' as const,
+                icon: 'newspaper-outline' as const,
+                labelKey: 'navigation.published_stories',
+              },
+            ]
           : []),
       ]
     : isAuthenticated
@@ -391,6 +413,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
               style={mobileTabBarStyles.tabItem}
               onPress={() => handleTabPress(name)}
               activeOpacity={0.7}
+              testID={`nav-tab-${name}`}
             >
               <Ionicons name={TAB_ICONS[name]} size={24} color={color} />
               <Text style={[mobileTabBarStyles.tabLabel, { color }]} numberOfLines={1}>
@@ -404,6 +427,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
             style={mobileTabBarStyles.tabItem}
             onPress={() => setMoreVisible(true)}
             activeOpacity={0.7}
+            testID="nav-tab-more"
           >
             <Ionicons
               name="ellipsis-horizontal"
@@ -437,6 +461,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
                 style={mobileTabBarStyles.moreMenuItem}
                 onPress={() => handleMoreItemPress(item.name)}
                 activeOpacity={0.7}
+                testID={`nav-more-${item.name}`}
               >
                 <Ionicons
                   name={item.icon}
@@ -739,30 +764,26 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      {!isChildSession && (
-        <Tab.Screen
-          name="Children"
-          component={ChildrenScreenWithAuth}
-          options={{
-            title: t('navigation.children'),
-            tabBarLabel: t('navigation.tab_children'),
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people-outline" size={size} color={color} />
-            ),
-            tabBarButton: !isAuthenticated ? () => null : undefined,
-          }}
-        />
-      )}
-      {!isChildSession && (
-        <Tab.Screen
-          name="ChildDetail"
-          component={ChildDetailScreenWithAuth}
-          options={{
-            title: t('navigation.children'),
-            tabBarButton: () => null,
-          }}
-        />
-      )}
+      <Tab.Screen
+        name="Children"
+        component={ChildrenScreenWithAuth}
+        options={{
+          title: t('navigation.children'),
+          tabBarLabel: t('navigation.tab_children'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
+          tabBarButton: !isAuthenticated || isChildSession ? () => null : undefined,
+        }}
+      />
+      <Tab.Screen
+        name="ChildDetail"
+        component={ChildDetailScreenWithAuth}
+        options={{
+          title: t('navigation.children'),
+          tabBarButton: () => null,
+        }}
+      />
       {(!isInstantMode || isChildSession) && (
         <Tab.Screen
           name="Characters"
@@ -1069,29 +1090,25 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      {!isChildSession && (
-        <Drawer.Screen
-          name="Children"
-          component={ChildrenScreenWithAuth}
-          options={{
-            title: t('navigation.children'),
-            drawerIcon: ({ color, size }) => (
-              <Ionicons name="people-outline" size={size} color={color} />
-            ),
-            drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
-          }}
-        />
-      )}
-      {!isChildSession && (
-        <Drawer.Screen
-          name="ChildDetail"
-          component={ChildDetailScreenWithAuth}
-          options={{
-            title: t('navigation.children'),
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
-      )}
+      <Drawer.Screen
+        name="Children"
+        component={ChildrenScreenWithAuth}
+        options={{
+          title: t('navigation.children'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="ChildDetail"
+        component={ChildDetailScreenWithAuth}
+        options={{
+          title: t('navigation.children'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
       {(!isInstantMode || isChildSession) && (
         <Drawer.Screen
           name="Characters"

@@ -30,6 +30,7 @@ interface AppButtonProps {
   style?: StyleProp<ViewStyle>;
   labelStyle?: StyleProp<TextStyle>;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 type ExtendedPressableState = PressableStateCallbackType & {
@@ -73,6 +74,7 @@ export function AppButton({
   style,
   labelStyle,
   accessibilityLabel,
+  testID,
 }: AppButtonProps) {
   const isDisabled = disabled || loading;
   const isDanger = variant === 'danger' || variant === 'dangerSecondary';
@@ -90,6 +92,7 @@ export function AppButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
+      testID={testID}
       focusable
       style={(state: ExtendedPressableState) => [
         styles.button,
@@ -102,7 +105,10 @@ export function AppButton({
         state.hovered && !isDisabled && variant === 'primary' && styles.primaryHovered,
         state.hovered && !isDisabled && variant === 'secondary' && styles.secondaryHovered,
         state.hovered && !isDisabled && variant === 'danger' && styles.dangerHovered,
-        state.hovered && !isDisabled && variant === 'dangerSecondary' && styles.dangerSecondaryHovered,
+        state.hovered &&
+          !isDisabled &&
+          variant === 'dangerSecondary' &&
+          styles.dangerSecondaryHovered,
         state.hovered && !isDisabled && variant === 'ghost' && styles.ghostHovered,
         state.pressed && !isDisabled && styles.pressed,
         state.focused && !isDisabled && webFocusRing,

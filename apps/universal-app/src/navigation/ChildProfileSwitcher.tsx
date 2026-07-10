@@ -211,6 +211,7 @@ export function ChildProfileSwitcher({
           accessibilityLabel={t('child_mode.profile_switcher', {
             defaultValue: 'Switch profile',
           })}
+          testID="child-profile-switcher-trigger"
         >
           {triggerAvatarUrl ? (
             <ChildAvatarImage uri={triggerAvatarUrl} style={styles.avatarImage} />
@@ -225,7 +226,7 @@ export function ChildProfileSwitcher({
       <Modal visible={visible} transparent animationType="fade" onRequestClose={closeMenu}>
         <View style={styles.overlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
-          <View style={[styles.menu, menuStyle]}>
+          <View style={[styles.menu, menuStyle]} testID="child-profile-switcher-menu">
             <Text style={styles.menuTitle}>
               {target
                 ? t('child_mode.parent_gate_title', { defaultValue: 'Parent check' })
@@ -254,11 +255,13 @@ export function ChildProfileSwitcher({
                   secureTextEntry
                   autoFocus
                   onSubmitEditing={submitParentGate}
+                  testID="parent-gate-password"
                 />
                 <Pressable
                   style={({ pressed }) => [styles.recoveryLink, pressed && styles.buttonPressed]}
                   disabled={childModeRecovery.isPending}
                   onPress={requestRecoveryEmail}
+                  testID="parent-gate-recovery"
                 >
                   <Text style={styles.recoveryLinkText}>
                     {childModeRecovery.isPending
@@ -271,7 +274,7 @@ export function ChildProfileSwitcher({
                   </Text>
                 </Pressable>
                 {recoverySent ? (
-                  <Text style={styles.recoverySuccessText}>
+                  <Text style={styles.recoverySuccessText} testID="parent-gate-recovery-sent">
                     {t('child_mode.recovery_request_sent', {
                       defaultValue:
                         'A recovery link was sent to the parent email. It works for 30 minutes.',
@@ -292,6 +295,7 @@ export function ChildProfileSwitcher({
                       setError('');
                       setRecoverySent(false);
                     }}
+                    testID="parent-gate-cancel"
                   >
                     <Text style={styles.secondaryButtonText}>
                       {t('common.cancel', { defaultValue: 'Cancel' })}
@@ -305,6 +309,7 @@ export function ChildProfileSwitcher({
                     ]}
                     disabled={!password.trim() || isSubmitting}
                     onPress={submitParentGate}
+                    testID="parent-gate-submit"
                   >
                     {isSubmitting ? (
                       <ActivityIndicator size="small" color={theme.colors.text.inverse} />
@@ -338,6 +343,7 @@ export function ChildProfileSwitcher({
                         onPress={() => {
                           void requestTarget({ type: 'child', childId: child.id });
                         }}
+                        testID={`child-profile-switcher-child-${child.id}`}
                       >
                         {childAvatarUrl ? (
                           <ChildAvatarImage uri={childAvatarUrl} style={styles.itemAvatar} />
@@ -378,6 +384,7 @@ export function ChildProfileSwitcher({
                   onPress={() => {
                     void requestTarget({ type: 'parent' });
                   }}
+                  testID="child-profile-switcher-parent"
                 >
                   <View style={styles.itemAvatarFallback}>
                     <Ionicons

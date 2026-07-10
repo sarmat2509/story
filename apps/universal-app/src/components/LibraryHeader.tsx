@@ -81,10 +81,7 @@ function MobileFilterOption({
       ]}
     >
       <Text
-        style={[
-          styles.mobileFilterOptionText,
-          selected && styles.mobileFilterOptionTextActive,
-        ]}
+        style={[styles.mobileFilterOptionText, selected && styles.mobileFilterOptionTextActive]}
         numberOfLines={2}
       >
         {label}
@@ -100,6 +97,7 @@ function FilterDropdown({
   options,
   selectedValue,
   onSelect,
+  testID,
 }: {
   buttonLabel: string;
   isOpen: boolean;
@@ -107,6 +105,7 @@ function FilterDropdown({
   options: FilterOption[];
   selectedValue?: string | null;
   onSelect: (value: string | null) => void;
+  testID: string;
 }) {
   return (
     <View style={styles.dropdownWrapper}>
@@ -114,6 +113,7 @@ function FilterDropdown({
         onPress={onToggle}
         accessibilityRole="button"
         accessibilityState={{ expanded: isOpen }}
+        testID={`${testID}-button`}
         focusable
         style={(state: ExtendedPressableState) => [
           styles.dropdownButton,
@@ -150,6 +150,7 @@ function FilterDropdown({
                   Platform.OS === 'web' && state.focused && styles.dropdownItemFocused,
                 ]}
                 onPress={() => onSelect(option.value)}
+                testID={`${testID}-option-${option.value ?? 'all'}`}
               >
                 <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
                   {option.label}
@@ -190,9 +191,7 @@ const LibraryHeaderComponent = ({
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
   const [draftAudioFilter, setDraftAudioFilter] = useState(initialAudioFilter);
-  const [draftScenarioId, setDraftScenarioId] = useState<string | null>(
-    selectedScenarioId ?? null
-  );
+  const [draftScenarioId, setDraftScenarioId] = useState<string | null>(selectedScenarioId ?? null);
   const [draftAgeGroup, setDraftAgeGroup] = useState<string | null>(selectedAgeGroup ?? null);
   const [draftLanguage, setDraftLanguage] = useState<string | null>(selectedLanguage ?? null);
   const [draftReadingTime, setDraftReadingTime] = useState<string | null>(
@@ -335,7 +334,7 @@ const LibraryHeaderComponent = ({
 
   return (
     <>
-      <View style={styles.header}>
+      <View style={styles.header} testID="catalog-header">
         <View style={styles.leftControls}>
           {isMobile ? (
             <Pressable
@@ -365,6 +364,7 @@ const LibraryHeaderComponent = ({
                   }
                   options={scenarioOptions}
                   selectedValue={selectedScenarioId}
+                  testID="catalog-filter-scenario"
                   onSelect={(value) => {
                     onScenarioChange(value);
                     setOpenDropdown(null);
@@ -379,6 +379,7 @@ const LibraryHeaderComponent = ({
                   onToggle={() => setOpenDropdown((prev) => (prev === 'age' ? null : 'age'))}
                   options={ageOptions}
                   selectedValue={selectedAgeGroup}
+                  testID="catalog-filter-age"
                   onSelect={(value) => {
                     onAgeGroupChange(value);
                     setOpenDropdown(null);
@@ -395,6 +396,7 @@ const LibraryHeaderComponent = ({
                   }
                   options={languageOptions}
                   selectedValue={selectedLanguage}
+                  testID="catalog-filter-language"
                   onSelect={(value) => {
                     onLanguageChange(value);
                     setOpenDropdown(null);
@@ -411,6 +413,7 @@ const LibraryHeaderComponent = ({
                   }
                   options={readingTimeOptions}
                   selectedValue={selectedReadingTime}
+                  testID="catalog-filter-reading"
                   onSelect={(value) => {
                     onReadingTimeChange(value);
                     setOpenDropdown(null);
@@ -429,6 +432,7 @@ const LibraryHeaderComponent = ({
                   onPress={() => onPageChange(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                   focusable={currentPage !== 1}
+                  testID="catalog-page-prev"
                   style={(state: ExtendedPressableState) => [
                     styles.paginationButton,
                     currentPage === 1 && styles.paginationButtonDisabled,
@@ -462,6 +466,7 @@ const LibraryHeaderComponent = ({
                   onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   focusable={currentPage !== totalPages}
+                  testID="catalog-page-next"
                   style={(state: ExtendedPressableState) => [
                     styles.paginationButton,
                     currentPage === totalPages && styles.paginationButtonDisabled,
@@ -493,6 +498,7 @@ const LibraryHeaderComponent = ({
               accessibilityLabel={t(
                 viewMode === 'grid' ? 'library.switch_to_list_view' : 'library.switch_to_grid_view'
               )}
+              testID="catalog-view-toggle"
               focusable
               style={(state: ExtendedPressableState) => [
                 styles.viewToggle,

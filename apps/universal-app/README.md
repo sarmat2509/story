@@ -106,6 +106,14 @@ pnpm type-check
 pnpm lint
 ```
 
+### E2E
+
+```bash
+corepack pnpm test:e2e
+```
+
+Матрица сценариев и точечные Playwright-скрипты по каждому spec-файлу: [docs/e2e-test-coverage.md](../../docs/e2e-test-coverage.md).
+
 ### Building for Web
 
 ```bash

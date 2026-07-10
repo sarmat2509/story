@@ -51,6 +51,7 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
         <Pressable
           onPress={() => isActive && handleToggle()}
           accessibilityLabel={allStoriesLabel}
+          testID="catalog-audio-all"
           focusable
           style={(state: ExtendedPressableState) => [
             styles.segment,
@@ -68,6 +69,7 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
           onPress={handleToggle}
           accessibilityRole="switch"
           accessibilityState={{ checked: isActive }}
+          testID="catalog-audio-toggle"
           focusable
           style={(state: ExtendedPressableState) => [
             styles.toggleContainer,
@@ -100,6 +102,7 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
         <Pressable
           onPress={() => !isActive && handleToggle()}
           accessibilityLabel={audioOnlyLabel}
+          testID="catalog-audio-only"
           focusable
           style={(state: ExtendedPressableState) => [
             styles.segment,

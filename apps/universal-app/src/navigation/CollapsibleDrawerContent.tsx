@@ -112,6 +112,7 @@ function CollapsibleDrawerItem({
         pressColor={undefined}
         pressOpacity={0.7}
         style={styles.itemPressable}
+        testID={`nav-drawer-${route.name}`}
       >
         <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
           {iconNode}
@@ -267,6 +268,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                 pressColor={undefined}
                 pressOpacity={0.7}
                 style={styles.itemPressable}
+                testID="nav-drawer-Admin"
               >
                 <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
                   <Ionicons
@@ -276,10 +278,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                   />
                   {!collapsed ? (
                     <View style={[styles.labelContainer, styles.adminLabelContainer]}>
-                      <Text
-                        numberOfLines={2}
-                        style={[styles.labelText, styles.adminLabel]}
-                      >
+                      <Text numberOfLines={2} style={[styles.labelText, styles.adminLabel]}>
                         {t('navigation.admin', { defaultValue: 'Admin' })}
                       </Text>
                     </View>

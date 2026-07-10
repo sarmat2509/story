@@ -55,7 +55,7 @@ export function LanguageSelector({
   }, [languages, onSelect, selected]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="wizard-language-selector">
       <Text style={styles.label}>{t('wizard.language')}</Text>
       <View style={styles.chipsContainer}>
         {languages.map((lang) => (
@@ -64,6 +64,7 @@ export function LanguageSelector({
             style={[styles.chip, selected === lang.code && styles.chipSelected]}
             onPress={() => onSelect(lang.code)}
             activeOpacity={0.7}
+            testID={`wizard-language-${lang.code}`}
           >
             <Text style={styles.flag}>{lang.flag}</Text>
             <Text style={[styles.chipText, selected === lang.code && styles.chipTextSelected]}>

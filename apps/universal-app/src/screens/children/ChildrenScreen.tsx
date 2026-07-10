@@ -87,7 +87,7 @@ export default function ChildrenScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="children-screen">
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
         <Text style={styles.loadingText}>{t('children_screen.loading')}</Text>
       </View>
@@ -96,13 +96,13 @@ export default function ChildrenScreen() {
 
   if (error) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="children-screen">
         <Text style={styles.errorText}>{t('children_screen.error')}</Text>
       </View>
     );
   }
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView testID="children-screen" contentContainerStyle={styles.content}>
       <AnimatedSection delay={0} trigger={enterKey}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('children_screen.title')}</Text>
@@ -123,6 +123,7 @@ export default function ChildrenScreen() {
                   setIsModalVisible(true);
                 }}
                 style={styles.emptyAction}
+                testID="children-add"
               />
             )}
           </View>
@@ -180,6 +181,7 @@ export default function ChildrenScreen() {
                 }}
                 leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
                 style={styles.addChildAction}
+                testID="children-add"
               />
             </AnimatedSection>
           )}

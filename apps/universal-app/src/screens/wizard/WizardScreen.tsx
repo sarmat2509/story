@@ -669,6 +669,7 @@ export default function WizardScreen() {
       <LinearGradient colors={modernGradients.page} style={styles.page}>
         <ScrollView
           ref={wizardScrollRef}
+          testID="wizard-artisan-screen"
           contentContainerStyle={[
             styles.content,
             isMobile && styles.contentMobile,
@@ -721,6 +722,7 @@ export default function WizardScreen() {
                             activeOpacity={0.8}
                             accessibilityRole="button"
                             accessibilityLabel={step.label}
+                            testID={`wizard-step-${index}`}
                           >
                             <View
                               style={[
@@ -817,6 +819,7 @@ export default function WizardScreen() {
                                 ]}
                                 onPress={() => handleStoryFormatSelect(option.value)}
                                 activeOpacity={0.85}
+                                testID={`wizard-format-${option.value}`}
                               >
                                 <View
                                   style={[
@@ -1029,6 +1032,7 @@ export default function WizardScreen() {
                           />
                         }
                         style={styles.summaryBackButton}
+                        testID="wizard-back"
                       />
                     ) : null}
                     <AppButton
@@ -1064,6 +1068,7 @@ export default function WizardScreen() {
                         ) : undefined
                       }
                       style={styles.summaryPrimaryButton}
+                      testID={isLastStep ? 'wizard-create' : 'wizard-next'}
                     />
                   </View>
                 </View>
@@ -1152,6 +1157,7 @@ export default function WizardScreen() {
                       <Ionicons name="chevron-back" size={17} color={theme.colors.text.secondary} />
                     }
                     style={styles.mobileSummaryBackButton}
+                    testID="wizard-back"
                   />
                 ) : null}
                 <AppButton
@@ -1187,6 +1193,7 @@ export default function WizardScreen() {
                     ) : undefined
                   }
                   style={styles.mobileSummaryPrimaryButton}
+                  testID={isLastStep ? 'wizard-create' : 'wizard-next'}
                 />
               </View>
             </View>

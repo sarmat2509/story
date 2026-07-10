@@ -40,7 +40,7 @@ export function ConfirmDialog({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
+      <View style={styles.overlay} testID="confirm-dialog">
         <View style={styles.dialog}>
           {/* Icon */}
           <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
@@ -59,12 +59,14 @@ export function ConfirmDialog({
               onPress={onCancel}
               variant="secondary"
               style={styles.dialogAction}
+              testID="confirm-dialog-cancel"
             />
             <AppButton
               label={confirmText}
               onPress={onConfirm}
               variant={variant === 'danger' ? 'danger' : 'primary'}
               style={styles.dialogAction}
+              testID="confirm-dialog-confirm"
             />
           </View>
         </View>

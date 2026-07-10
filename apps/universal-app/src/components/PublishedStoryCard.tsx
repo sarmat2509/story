@@ -45,6 +45,7 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
           style={styles.gridCardTouchable}
           onPress={() => onPress(story.publishedSlug)}
           activeOpacity={0.7}
+          testID={`published-story-card-${story.publishedSlug}`}
         >
           {thumbnail ? (
             <Image source={{ uri: thumbnail }} style={styles.gridThumbnail} resizeMode="cover" />
@@ -89,6 +90,7 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
         style={styles.listCardTouchable}
         onPress={() => onPress(story.publishedSlug)}
         activeOpacity={0.7}
+        testID={`published-story-card-${story.publishedSlug}`}
       >
         {thumbnail ? (
           <Image source={{ uri: thumbnail }} style={styles.listThumbnail} resizeMode="cover" />

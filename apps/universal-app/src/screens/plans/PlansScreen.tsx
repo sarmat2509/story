@@ -459,6 +459,7 @@ export default function PlansScreen() {
           styles.scrollContent,
           { paddingTop: theme.spacing[6] + insets.top },
         ]}
+        testID="plans-screen"
       >
         <AnimatedSection delay={0} trigger={enterKey}>
           <View style={styles.header}>
@@ -478,6 +479,7 @@ export default function PlansScreen() {
                     disabled={selected || updateBillingCurrency.isPending}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
+                    testID={`plans-currency-${currency}`}
                   >
                     <Text
                       style={[
@@ -522,114 +524,119 @@ export default function PlansScreen() {
             }
 
             return (
-              <AnimatedSection
-                key={plan.id}
-                delay={cardDelay(planIndex)}
-                trigger={enterKey}
-                style={
-                  [
-                    styles.planCard,
-                    isWeb ? styles.planCardWeb : styles.planCardNative,
-                    isCurrent && styles.planCardCurrent,
-                  ] as ViewStyle[]
-                }
-              >
-                <Text style={styles.planName}>{plan.name}</Text>
-                {plan.description && <Text style={styles.planDescription}>{plan.description}</Text>}
-
-                <View style={styles.priceContainer}>
-                  <Text style={styles.price}>
-                    {formatPlanPrice(plan.priceMonthly, plan.pricingCurrency)}
-                  </Text>
-                  {plan.priceMonthly > 0 && (
-                    <Text style={styles.pricePeriod}>/{t('plans.per_month')}</Text>
+              <AnimatedSection key={plan.id} delay={cardDelay(planIndex)} trigger={enterKey}>
+                <View
+                  style={
+                    [
+                      styles.planCard,
+                      isWeb ? styles.planCardWeb : styles.planCardNative,
+                      isCurrent && styles.planCardCurrent,
+                    ] as ViewStyle[]
+                  }
+                  testID={`plans-card-${plan.slug}`}
+                >
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  {plan.description && (
+                    <Text style={styles.planDescription}>{plan.description}</Text>
                   )}
-                </View>
 
-                {usageHighlight && (
-                  <View style={styles.highlightFeature}>
-                    <Ionicons name="sparkles" size={20} color={theme.colors.interactive.primary} />
-                    <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
-                      {usageHighlight}
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.price}>
+                      {formatPlanPrice(plan.priceMonthly, plan.pricingCurrency)}
                     </Text>
+                    {plan.priceMonthly > 0 && (
+                      <Text style={styles.pricePeriod}>/{t('plans.per_month')}</Text>
+                    )}
                   </View>
-                )}
 
-                {/* Features list */}
-                <View style={styles.featuresContainer}>
-                  {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
-                    ([slug, feature]: [string, any]) => {
-                      const available = isPricingFeatureAvailable(feature);
+                  {usageHighlight && (
+                    <View style={styles.highlightFeature}>
+                      <Ionicons name="sparkles" size={20} color={theme.colors.interactive.primary} />
+                      <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
+                        {usageHighlight}
+                      </Text>
+                    </View>
+                  )}
 
-                      return (
-                        <View key={slug} style={styles.featureRow}>
-                          <Ionicons
-                            name={available ? 'checkmark-circle' : 'close-circle'}
-                            size={16}
-                            color={
-                              available ? theme.colors.status.success : theme.colors.text.tertiary
-                            }
-                          />
-                          <View style={styles.featureCopy}>
-                            <Text
-                              style={[
-                                styles.featureText,
-                                textWrapBalanceStyle,
-                                !available && styles.featureTextDisabled,
-                              ]}
-                            >
-                              {getPricingFeatureLabel(
-                                pricingLocale,
-                                translatePricing,
-                                slug,
-                                feature
-                              )}
-                            </Text>
+                  {/* Features list */}
+                  <View style={styles.featuresContainer}>
+                    {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
+                      ([slug, feature]: [string, any]) => {
+                        const available = isPricingFeatureAvailable(feature);
+
+                        return (
+                          <View key={slug} style={styles.featureRow}>
+                            <Ionicons
+                              name={available ? 'checkmark-circle' : 'close-circle'}
+                              size={16}
+                              color={
+                                available ? theme.colors.status.success : theme.colors.text.tertiary
+                              }
+                            />
+                            <View style={styles.featureCopy}>
+                              <Text
+                                style={[
+                                  styles.featureText,
+                                  textWrapBalanceStyle,
+                                  !available && styles.featureTextDisabled,
+                                ]}
+                              >
+                                {getPricingFeatureLabel(
+                                  pricingLocale,
+                                  translatePricing,
+                                  slug,
+                                  feature
+                                )}
+                              </Text>
+                            </View>
                           </View>
-                        </View>
-                      );
-                    }
+                        );
+                      }
+                    )}
+                  </View>
+
+                  {/* Action button based on user state and plan tier */}
+                  {buttonType === 'current' ? (
+                    <View style={styles.currentPlanButton} testID={`plans-current-${plan.slug}`}>
+                      <Text style={styles.currentPlanButtonText}>{t('plans.your_plan')}</Text>
+                    </View>
+                  ) : paidCtaDisabled ? (
+                    <View style={styles.unavailablePlanButton}>
+                      <Text style={styles.unavailablePlanButtonText}>
+                        {t('plans.payments_disabled_button', {
+                          defaultValue: 'Payments coming soon',
+                        })}
+                      </Text>
+                    </View>
+                  ) : buttonType === 'upgrade' ? (
+                    <AppButton
+                      label={t('plans.upgrade_button')}
+                      onPress={() => {
+                        setSelectedPlan(plan);
+                        setShowUpgradeModal(true);
+                      }}
+                      style={styles.planAction}
+                      testID={`plans-action-${plan.slug}`}
+                    />
+                  ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
+                    <AppButton
+                      label={t('plans.subscribe_button')}
+                      onPress={() => {
+                        setSelectedPlan(plan);
+                        setShowUpgradeModal(true);
+                      }}
+                      style={styles.planAction}
+                      testID={`plans-action-${plan.slug}`}
+                    />
+                  ) : (
+                    <AppButton
+                      label={t('plans.subscribe_button')}
+                      onPress={() => navigation.navigate('Welcome')}
+                      style={styles.planAction}
+                      testID={`plans-action-${plan.slug}`}
+                    />
                   )}
                 </View>
-
-                {/* Action button based on user state and plan tier */}
-                {buttonType === 'current' ? (
-                  <View style={styles.currentPlanButton}>
-                    <Text style={styles.currentPlanButtonText}>{t('plans.your_plan')}</Text>
-                  </View>
-                ) : paidCtaDisabled ? (
-                  <View style={styles.unavailablePlanButton}>
-                    <Text style={styles.unavailablePlanButtonText}>
-                      {t('plans.payments_disabled_button', {
-                        defaultValue: 'Payments coming soon',
-                      })}
-                    </Text>
-                  </View>
-                ) : buttonType === 'upgrade' ? (
-                  <AppButton
-                    label={t('plans.upgrade_button')}
-                    onPress={() => {
-                      setSelectedPlan(plan);
-                      setShowUpgradeModal(true);
-                    }}
-                    style={styles.planAction}
-                  />
-                ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
-                  <AppButton
-                    label={t('plans.subscribe_button')}
-                    onPress={() => {
-                      setSelectedPlan(plan);
-                      setShowUpgradeModal(true);
-                    }}
-                    style={styles.planAction}
-                  />
-                ) : (
-                  <AppButton
-                    label={t('plans.subscribe_button')}
-                    onPress={() => navigation.navigate('Welcome')}
-                    style={styles.planAction}
-                  />
-                )}
               </AnimatedSection>
             );
           })}
@@ -732,7 +739,7 @@ export default function PlansScreen() {
           onRequestClose={() => setShowUpgradeModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View style={styles.modalContent} testID="plans-upgrade-modal">
               {modalPending ? (
                 <>
                   <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
@@ -811,6 +818,7 @@ export default function PlansScreen() {
                     <AppButton
                       label={t('plans.confirm')}
                       onPress={handleUpgrade}
+                      testID="plans-upgrade-confirm"
                       style={styles.modalAction}
                     />
                   </View>

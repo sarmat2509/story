@@ -132,7 +132,11 @@ export function CharactersForm({
                   variant="secondary"
                   size="md"
                   leading={
-                    <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                    <Ionicons
+                      name="add-circle"
+                      size={20}
+                      color={theme.colors.interactive.primary}
+                    />
                   }
                 />
               )}
@@ -143,7 +147,11 @@ export function CharactersForm({
                   variant="secondary"
                   size="md"
                   leading={
-                    <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                    <Ionicons
+                      name="add-circle"
+                      size={20}
+                      color={theme.colors.interactive.primary}
+                    />
                   }
                 />
               )}
@@ -166,6 +174,7 @@ export function CharactersForm({
                   onPress={() => !isDisabled && toggleItem(item)}
                   disabled={isDisabled}
                   activeOpacity={0.7}
+                  testID={`wizard-character-${item.id}`}
                 >
                   <View style={styles.characterLeft}>
                     {item.avatarUrl ? (

@@ -6,9 +6,13 @@ import { theme } from '@/theme';
 
 interface FeedbackHeaderButtonProps {
   onPress: () => void;
+  testID?: string;
 }
 
-export function FeedbackHeaderButton({ onPress }: FeedbackHeaderButtonProps) {
+export function FeedbackHeaderButton({
+  onPress,
+  testID = 'feedback-header-button',
+}: FeedbackHeaderButtonProps) {
   const { t } = useTranslation();
 
   return (
@@ -17,6 +21,7 @@ export function FeedbackHeaderButton({ onPress }: FeedbackHeaderButtonProps) {
       style={styles.iconAction}
       accessibilityRole="button"
       accessibilityLabel={t('profile.report_problem')}
+      testID={testID}
       hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
     >
       <Ionicons name="bug-outline" size={22} color={theme.colors.text.tertiary} />

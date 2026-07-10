@@ -196,7 +196,7 @@ export default function PublishedStoriesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="published-stories-screen">
       <LibraryHeader
         viewMode={viewMode}
         currentPage={currentPage}

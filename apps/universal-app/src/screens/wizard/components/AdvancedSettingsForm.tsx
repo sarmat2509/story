@@ -86,6 +86,7 @@ export function AdvancedSettingsForm({
                   key={child.id}
                   style={[styles.chip, childProfileId === child.id && styles.chipSelected]}
                   onPress={() => onChildProfileChange(child.id)}
+                  testID={`wizard-child-${child.id}`}
                 >
                   <Text
                     style={[
@@ -108,6 +109,7 @@ export function AdvancedSettingsForm({
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={t('wizard.create_child_profile')}
+                testID="wizard-add-child"
               >
                 <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
                 {!compactAddChild ? (
@@ -131,6 +133,7 @@ export function AdvancedSettingsForm({
                 key={goal.slug}
                 style={[styles.chip, selectedGoals.includes(goal.slug) && styles.chipSelected]}
                 onPress={() => toggleGoal(goal.slug)}
+                testID={`wizard-goal-${goal.slug}`}
               >
                 <Text
                   style={[
@@ -156,6 +159,7 @@ export function AdvancedSettingsForm({
               key={style.slug}
               style={[styles.chip, imageStyle === style.slug && styles.chipSelected]}
               onPress={() => onImageStyleChange(imageStyle === style.slug ? undefined : style.slug)}
+              testID={`wizard-image-style-${style.slug}`}
             >
               <Text style={styles.styleIcon}>{style.icon}</Text>
               <Text style={[styles.chipText, imageStyle === style.slug && styles.chipTextSelected]}>
@@ -180,6 +184,7 @@ export function AdvancedSettingsForm({
             numberOfLines={4}
             maxLength={500}
             textAlignVertical="top"
+            testID="wizard-notes"
           />
           <Text style={styles.charCount}>{userNotes.length}/500</Text>
         </View>

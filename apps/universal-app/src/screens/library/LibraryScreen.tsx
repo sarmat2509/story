@@ -245,7 +245,7 @@ export default function LibraryScreen() {
 
   if (!stories || stories.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="library-screen">
         <LibraryHeader
           viewMode={viewMode}
           currentPage={currentPage}
@@ -286,7 +286,7 @@ export default function LibraryScreen() {
   // Grid view with CSS Grid (web) or FlatList (native)
   if (viewMode === 'grid') {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="library-screen">
         <LibraryHeader
           viewMode={viewMode}
           currentPage={currentPage}
@@ -364,7 +364,7 @@ export default function LibraryScreen() {
 
   // List view without numColumns
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="library-screen">
       <LibraryHeader
         viewMode={viewMode}
         currentPage={currentPage}

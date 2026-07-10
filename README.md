@@ -28,13 +28,13 @@ flowchart LR
         Store[Zustand + TanStack Query]
         Logic[Business Logic]
     end
-    
+
     subgraph build [Build Targets]
         Web[Web PWA]
         iOS[iOS App]
         Android[Android App]
     end
-    
+
     code -->|expo export:web| Web
     code -->|eas build| iOS
     code -->|eas build| Android
@@ -264,6 +264,14 @@ pnpm start
 # Or scan QR code with Expo Go
 ```
 
+### E2E Regression Suite
+
+```bash
+corepack pnpm test:e2e
+```
+
+Точечные Playwright-скрипты привязаны к каждому spec-файлу в [docs/e2e-test-coverage.md](./docs/e2e-test-coverage.md). Конфиг сам поднимает web-приложение; для запуска против уже работающего сервера используйте `PLAYWRIGHT_START_SERVER=0 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8082`.
+
 ### Production Builds (Future - EAS Build)
 ```bash
 # iOS
@@ -298,6 +306,7 @@ expo export:web
 ### Documentation
 
 - **[docs/README.md](./docs/README.md)** — индекс: архитектура, Docker, локальная разработка, деплой
+- **[docs/e2e-test-coverage.md](./docs/e2e-test-coverage.md)** — Playwright e2e matrix, targeted scripts, remaining coverage gaps
 - **[QUICK_RULES.md](./QUICK_RULES.md)** — правила слоёв API и общие требования к изменениям
 
 ### Deployment Scripts

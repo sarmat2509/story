@@ -80,7 +80,7 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
   const cardWidth = numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : '31.5%';
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="wizard-scenario-grid">
       <Text style={styles.label}>{t('wizard.theme_title')}</Text>
       <View style={styles.grid}>
         {allScenarios.map((scenario) => {
@@ -92,6 +92,7 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
               style={[styles.card, isDesktop && styles.cardDesktop, { width: cardWidth }]}
               onPress={() => onSelect(scenario.id)}
               activeOpacity={0.82}
+              testID={`wizard-scenario-${scenario.id || 'free'}`}
             >
               {isSelected ? <View pointerEvents="none" style={styles.selectedOutline} /> : null}
               <View style={[styles.imageFrame, isDesktop && styles.imageFrameDesktop]}>

@@ -110,6 +110,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
       <View style={styles.gridRoot}>
         <Pressable
           onPress={() => onPress(story.id)}
+          testID={`story-card-${story.id}`}
           style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
             styles.gridShadowOuter,
             Platform.OS === 'web' && hovered && styles.gridShadowOuterHover,
@@ -171,6 +172,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
             onPress={() => onDelete(story.id, displayTitle)}
             accessibilityRole="button"
             accessibilityLabel={deleteButtonTitle}
+            testID={`story-card-delete-${story.id}`}
             ref={deleteButtonRef}
           >
             <Ionicons name="trash-outline" size={20} color="#fff" />
@@ -183,7 +185,11 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
   // List variant: no image, text only with inline delete button
   return (
     <View style={styles.card}>
-      <TouchableOpacity style={styles.listCardTouchable} onPress={() => onPress(story.id)}>
+      <TouchableOpacity
+        style={styles.listCardTouchable}
+        onPress={() => onPress(story.id)}
+        testID={`story-card-${story.id}`}
+      >
         <View style={styles.content}>
           <Text style={styles.title} numberOfLines={2}>
             {displayTitle}
@@ -203,6 +209,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={deleteButtonTitle}
+          testID={`story-card-delete-${story.id}`}
           ref={deleteButtonRef}
         >
           <Ionicons name="trash-outline" size={20} color={theme.colors.text.tertiary} />

@@ -321,12 +321,14 @@ function SettingSwitch({
   value,
   disabled,
   onValueChange,
+  testID,
 }: {
   label: string;
   description?: string;
   value: boolean;
   disabled?: boolean;
   onValueChange: (value: boolean) => void;
+  testID?: string;
 }) {
   return (
     <View style={styles.settingRow}>
@@ -338,6 +340,7 @@ function SettingSwitch({
         value={value}
         disabled={disabled}
         onValueChange={onValueChange}
+        testID={testID}
         trackColor={{
           false: theme.colors.background.tertiary,
           true: theme.colors.interactive.secondary,
@@ -356,6 +359,7 @@ function MultiSelectChips({
   emptyText,
   disabled,
   onChange,
+  testIDPrefix,
 }: {
   label: string;
   selectedValues: string[];
@@ -364,6 +368,7 @@ function MultiSelectChips({
   emptyText?: string;
   disabled?: boolean;
   onChange: (value: string[]) => void;
+  testIDPrefix?: string;
 }) {
   const selectedSet = new Set(selectedValues);
   const displayedOptions: ChildModeOption[] = [
@@ -392,6 +397,7 @@ function MultiSelectChips({
           ]}
           disabled={disabled}
           onPress={() => onChange([])}
+          testID={testIDPrefix ? `${testIDPrefix}-all` : undefined}
         >
           <Text
             style={[
@@ -419,6 +425,7 @@ function MultiSelectChips({
               ]}
               disabled={disabled}
               onPress={() => toggleValue(option.value)}
+              testID={testIDPrefix ? `${testIDPrefix}-option-${option.value}` : undefined}
             >
               {option.icon ? <Text style={styles.optionChipIcon}>{option.icon}</Text> : null}
               <Text style={[styles.optionChipText, selected && styles.optionChipTextSelected]}>
@@ -458,8 +465,8 @@ export function ChildCard({
     child.turnaroundSheet?.frontUrl ??
     child.turnaroundSheet?.url ??
     child.referencePhotos?.[0]?.url;
-  const imageContainerWebStyle =
-    Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
+  const imageContainerWebStyle: ViewStyle | null =
+    Platform.OS === 'web' ? { filter: 'contrast(1.05)' } : null;
   const birthDateRaw = child.birthDate ?? child.birthdate;
   const subline = birthDateRaw
     ? (() => {
@@ -501,10 +508,14 @@ export function ChildCard({
   );
 
   return (
-    <View style={styles.cardWrapper}>
+    <View style={styles.cardWrapper} testID={`child-card-${child.id}`}>
       <View style={styles.card}>
         {showProfileSummary ? (
-          <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.7}
+            testID={`child-card-open-${child.id}`}
+          >
             <View style={[styles.imageContainer, imageContainerWebStyle]}>
               {avatarUrl ? (
                 <Image
@@ -551,6 +562,7 @@ export function ChildCard({
                 value={childModeEnabled}
                 disabled={childModeSwitchDisabled}
                 onValueChange={(enabled) => onChildModeEnabledChange?.(child.id, enabled)}
+                testID={`child-mode-enable-${child.id}`}
                 trackColor={{
                   false: theme.colors.background.tertiary,
                   true: theme.colors.interactive.secondary,
@@ -584,6 +596,7 @@ export function ChildCard({
                 }
                 loading={isEnteringChildMode}
                 onPress={() => onEnterChildMode?.(child.id, child.name)}
+                testID={`child-mode-start-${child.id}`}
                 leading={
                   <Ionicons
                     name="play-circle-outline"
@@ -644,6 +657,7 @@ export function ChildCard({
               onValueChange={(storyGenerationEnabled) =>
                 onChildModeSettingsChange?.(child.id, { storyGenerationEnabled })
               }
+              testID={`child-mode-setting-${child.id}-story-generation`}
             />
             <SettingSwitch
               label={labels.publicStories}
@@ -653,6 +667,7 @@ export function ChildCard({
               onValueChange={(publicStoriesEnabled) =>
                 onChildModeSettingsChange?.(child.id, { publicStoriesEnabled })
               }
+              testID={`child-mode-setting-${child.id}-public-stories`}
             />
             <SettingSwitch
               label={labels.freeText}
@@ -662,6 +677,7 @@ export function ChildCard({
               onValueChange={(freeTextPromptsEnabled) =>
                 onChildModeSettingsChange?.(child.id, { freeTextPromptsEnabled })
               }
+              testID={`child-mode-setting-${child.id}-free-text`}
             />
             <SettingSwitch
               label={labels.audio}
@@ -671,6 +687,7 @@ export function ChildCard({
               onValueChange={(audioGenerationEnabled) =>
                 onChildModeSettingsChange?.(child.id, { audioGenerationEnabled })
               }
+              testID={`child-mode-setting-${child.id}-audio`}
             />
             <SettingSwitch
               label={labels.quizzes}
@@ -680,6 +697,7 @@ export function ChildCard({
               onValueChange={(quizGenerationEnabled) =>
                 onChildModeSettingsChange?.(child.id, { quizGenerationEnabled })
               }
+              testID={`child-mode-setting-${child.id}-quizzes`}
             />
             <SettingSwitch
               label={labels.review}
@@ -689,6 +707,7 @@ export function ChildCard({
               onValueChange={(parentReviewRequired) =>
                 onChildModeSettingsChange?.(child.id, { parentReviewRequired })
               }
+              testID={`child-mode-setting-${child.id}-parent-review`}
             />
             <MultiSelectChips
               label={labels.themes}
@@ -699,6 +718,7 @@ export function ChildCard({
               onChange={(allowedThemeSlugs) =>
                 onChildModeSettingsChange?.(child.id, { allowedThemeSlugs })
               }
+              testIDPrefix={`child-mode-themes-${child.id}`}
             />
             <MultiSelectChips
               label={labels.languages}
@@ -709,6 +729,7 @@ export function ChildCard({
               onChange={(allowedLanguageCodes) =>
                 onChildModeSettingsChange?.(child.id, { allowedLanguageCodes })
               }
+              testIDPrefix={`child-mode-languages-${child.id}`}
             />
             <MultiSelectChips
               label={labels.characters}
@@ -720,6 +741,7 @@ export function ChildCard({
               onChange={(allowedCharacterIds) =>
                 onChildModeSettingsChange?.(child.id, { allowedCharacterIds })
               }
+              testIDPrefix={`child-mode-characters-${child.id}`}
             />
             <SettingSwitch
               label={labels.siblings}
@@ -729,6 +751,7 @@ export function ChildCard({
               onValueChange={(allowSiblingCharacters) =>
                 onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })
               }
+              testID={`child-mode-setting-${child.id}-siblings`}
             />
 
             <View style={styles.sessionsRow}>
@@ -742,6 +765,7 @@ export function ChildCard({
                   onPress={() => onRevokeChildModeSessions(child.id, child.name)}
                   variant="dangerSecondary"
                   size="sm"
+                  testID={`child-mode-revoke-sessions-${child.id}`}
                   leading={
                     <Ionicons name="log-out-outline" size={15} color={theme.colors.status.error} />
                   }
@@ -756,7 +780,9 @@ export function ChildCard({
             onPress={() => onRequestDataDeletion(child.id, child.name)}
             variant="secondary"
             size="sm"
-            leading={<Ionicons name="shield-outline" size={16} color={theme.colors.interactive.primary} />}
+            leading={
+              <Ionicons name="shield-outline" size={16} color={theme.colors.interactive.primary} />
+            }
             style={styles.privacyRequestAction}
           />
         ) : null}
@@ -1012,7 +1038,7 @@ const styles = StyleSheet.create<{
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
-    outlineStyle: 'none' as any,
+    outlineWidth: 0,
   },
   controlDisabled: {
     opacity: 0.55,

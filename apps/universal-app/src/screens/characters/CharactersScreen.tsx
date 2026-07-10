@@ -133,7 +133,7 @@ export default function CharactersScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} testID="characters-screen">
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
       </View>
     );
@@ -141,14 +141,14 @@ export default function CharactersScreen() {
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} testID="characters-screen">
         <Text style={styles.errorText}>Failed to load characters</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="characters-screen">
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Characters Grid */}
         {characters && characters.length > 0 ? (
@@ -194,6 +194,7 @@ export default function CharactersScreen() {
                 leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
                 disabled={characterQuotaExhausted}
                 style={styles.addCharacterAction}
+                testID="characters-add"
               />
               {characterQuotaText && (
                 <Text style={styles.characterQuotaText}>{characterQuotaText}</Text>
@@ -211,6 +212,7 @@ export default function CharactersScreen() {
                 onPress={handleAddCharacter}
                 disabled={characterQuotaExhausted}
                 style={styles.emptyAction}
+                testID="characters-add"
               />
               {characterQuotaText && (
                 <Text style={styles.emptyQuotaText}>{characterQuotaText}</Text>

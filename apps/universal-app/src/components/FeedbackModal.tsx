@@ -416,7 +416,7 @@ export function FeedbackModal({
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
         <View style={styles.overlay}>
-          <View style={styles.preparingDialog}>
+          <View style={styles.preparingDialog} testID="feedback-preparing-dialog">
             <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
             <Text style={styles.preparingTitle}>{t('feedback.title')}</Text>
             <Text style={styles.preparingText}>{t('feedback.preparing_screenshot')}</Text>
@@ -430,7 +430,7 @@ export function FeedbackModal({
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
         <View style={styles.overlay}>
-          <View style={styles.successDialog}>
+          <View style={styles.successDialog} testID="feedback-success-dialog">
             <View
               style={[
                 styles.iconContainer,
@@ -446,7 +446,7 @@ export function FeedbackModal({
                 : t('feedback.success_message')}
             </Text>
             {submittedReportId ? (
-              <Text style={styles.reportIdText}>
+              <Text style={styles.reportIdText} testID="feedback-report-id">
                 {t('feedback.report_id', { id: submittedReportId })}
               </Text>
             ) : null}
@@ -464,7 +464,7 @@ export function FeedbackModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
-        <View style={styles.dialog}>
+        <View style={styles.dialog} testID="feedback-dialog">
           <View style={styles.header}>
             <Text style={styles.title}>
               {isGeneratedContentReport ? t('feedback.content_report_title') : t('feedback.title')}
@@ -487,6 +487,7 @@ export function FeedbackModal({
                       key={screen}
                       style={[styles.pill, reportedScreen === screen && styles.pillSelected]}
                       onPress={() => setReportedScreen(screen)}
+                      testID={`feedback-screen-${screen}`}
                     >
                       <Text
                         style={[
@@ -501,7 +502,9 @@ export function FeedbackModal({
                 </View>
               </>
             ) : (
-              <Text style={styles.contentReportNotice}>{t('feedback.content_report_notice')}</Text>
+              <Text style={styles.contentReportNotice} testID="feedback-content-report-notice">
+                {t('feedback.content_report_notice')}
+              </Text>
             )}
 
             {/* Category */}
@@ -517,6 +520,7 @@ export function FeedbackModal({
                   key={topic}
                   style={[styles.pill, supportTopic === topic && styles.pillSelected]}
                   onPress={() => setSupportTopic(topic)}
+                  testID={`feedback-topic-${topic}`}
                 >
                   <Text
                     style={[styles.pillText, supportTopic === topic && styles.pillTextSelected]}
@@ -542,6 +546,7 @@ export function FeedbackModal({
               multiline
               numberOfLines={4}
               maxLength={2000}
+              testID="feedback-message"
             />
             <Text style={styles.hint}>{message.length}/2000</Text>
 
@@ -560,6 +565,7 @@ export function FeedbackModal({
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  testID="feedback-email"
                 />
               </>
             )}
@@ -587,6 +593,7 @@ export function FeedbackModal({
                           style={styles.replaceScreenshotButton}
                           onPress={handleAttachScreenshot}
                           disabled={isUploadingScreenshot}
+                          testID="feedback-replace-screenshot"
                         >
                           <Ionicons
                             name="refresh-outline"
@@ -600,6 +607,7 @@ export function FeedbackModal({
                         <TouchableOpacity
                           style={styles.removeScreenshotButton}
                           onPress={handleRemoveScreenshot}
+                          testID="feedback-remove-screenshot"
                         >
                           <Ionicons
                             name="trash-outline"
@@ -618,6 +626,7 @@ export function FeedbackModal({
                     style={styles.attachButton}
                     onPress={handleAttachScreenshot}
                     disabled={isUploadingScreenshot}
+                    testID="feedback-attach-screenshot"
                   >
                     {isUploadingScreenshot ? (
                       <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
@@ -645,6 +654,7 @@ export function FeedbackModal({
               onPress={handleClose}
               variant="secondary"
               style={styles.footerButton}
+              testID="feedback-cancel"
             />
             <AppButton
               label={t('feedback.submit')}
@@ -652,6 +662,7 @@ export function FeedbackModal({
               disabled={submitFeedback.isPending}
               loading={submitFeedback.isPending}
               style={styles.footerButton}
+              testID="feedback-submit"
             />
           </View>
         </View>

@@ -181,16 +181,21 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   const canAddMore = photos.length < maxPhotos && !disabled;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="photo-upload-grid">
       <View style={styles.grid}>
         {photos.map((photo, index) => {
           const photoWidth = getPhotoWidth(photoAspectRatios[photo.url]);
           return (
-            <View key={index} style={[styles.photoItem, { width: photoWidth }]}>
+            <View
+              key={index}
+              style={[styles.photoItem, { width: photoWidth }]}
+              testID={`photo-upload-item-${index}`}
+            >
               <Image
                 source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }}
                 style={[styles.image, { width: photoWidth }]}
                 resizeMode="contain"
+                testID={`photo-upload-image-${index}`}
                 onLoad={(event) => {
                   const source = event.nativeEvent.source;
                   if (!source?.width || !source?.height) return;
@@ -216,6 +221,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
                   onPress={() => removePhoto(index)}
                   style={styles.removeButton}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  testID={`photo-upload-remove-${index}`}
                 >
                   <Ionicons name="close-circle" size={24} color={theme.colors.status.error} />
                 </TouchableOpacity>
@@ -226,7 +232,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
         {/* Add photo button */}
         {canAddMore && (
-          <TouchableOpacity onPress={pickImage} style={styles.addButton}>
+          <TouchableOpacity onPress={pickImage} style={styles.addButton} testID="photo-upload-add">
             <Ionicons
               name="add-circle-outline"
               size={48}

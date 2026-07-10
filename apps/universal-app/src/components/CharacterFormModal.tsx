@@ -898,7 +898,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         onRequestClose={handleClose}
       >
         <View style={styles.overlay}>
-          <View style={styles.modal}>
+          <View style={styles.modal} testID="character-form-modal">
             {/* Header */}
             <View style={styles.header}>
               <View>
@@ -906,7 +906,11 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   {characterId ? t('character_form.title_edit') : t('character_form.title_create')}
                 </Text>
               </View>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.closeButton}
+                testID="character-form-close"
+              >
                 <Ionicons name="close" size={24} color={theme.colors.text.primary} />
               </TouchableOpacity>
             </View>
@@ -921,6 +925,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   onChangeText={setName}
                   placeholder={t('character_form.name_placeholder')}
                   placeholderTextColor={theme.colors.text.disabled}
+                  testID="character-form-name"
                 />
                 {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
               </View>
@@ -939,6 +944,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                           childProfileId === child.id && styles.childChipSelected,
                         ]}
                         onPress={() => setChildProfileId(child.id)}
+                        testID={`character-form-child-${child.id}`}
                       >
                         <Text
                           style={[
@@ -969,6 +975,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                         setType(category.value);
                         setSubtype(null); // Reset subtype when category changes
                       }}
+                      testID={`character-form-type-${category.value}`}
                     >
                       <Text style={styles.typeIcon}>{category.icon}</Text>
                       <Text
@@ -1070,6 +1077,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     numberOfLines={4}
                     textAlignVertical="top"
                     editable={!analyzeCharacter.isPending}
+                    testID="character-form-description"
                   />
                 )}
                 {description && !analyzeCharacter.isPending && (
@@ -1099,6 +1107,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                         }
                         placeholder={t('character_form.breed_placeholder')}
                         placeholderTextColor={theme.colors.text.disabled}
+                        testID="character-form-breed"
                       />
                     </View>
 
@@ -1434,6 +1443,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 onPress={handleClose}
                 variant="secondary"
                 style={styles.footerAction}
+                testID="character-form-cancel"
               />
 
               <AppButton
@@ -1450,6 +1460,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 }
                 loading={createCharacter.isPending || updateCharacter.isPending}
                 style={styles.footerAction}
+                testID="character-form-save"
               />
             </View>
 
@@ -1470,7 +1481,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         onRequestClose={() => {}}
       >
         <View style={styles.savingModalOverlay}>
-          <View style={styles.savingModalCard}>
+          <View style={styles.savingModalCard} testID="character-form-saving">
             <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
             <Text style={styles.savingModalMessage}>{t('character_form.creating_character')}</Text>
           </View>

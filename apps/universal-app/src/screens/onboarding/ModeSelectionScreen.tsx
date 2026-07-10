@@ -62,6 +62,7 @@ function ModeOption({
       activeOpacity={0.82}
       onPress={onPress}
       accessibilityRole="button"
+      testID={`mode-selection-mode-${mode}`}
     >
       <View style={[styles.modeIcon, selected && styles.modeIconSelected]}>
         <Ionicons
@@ -284,6 +285,7 @@ export default function ModeSelectionScreen() {
             }}
             placeholder={t('child_form.name_placeholder', { defaultValue: 'Emilia' })}
             placeholderTextColor={theme.colors.text.disabled}
+            testID="mode-selection-child-name"
           />
         </View>
 
@@ -300,6 +302,7 @@ export default function ModeSelectionScreen() {
                 const nextDate = new Date((event.target as HTMLInputElement).value);
                 if (!Number.isNaN(nextDate.getTime())) setBirthDate(nextDate);
               }}
+              data-testid="mode-selection-birth-date"
               style={styles.webDateInput as React.CSSProperties}
             />
           ) : (
@@ -340,6 +343,7 @@ export default function ModeSelectionScreen() {
                 style={[styles.languageChip, selected && styles.languageChipSelected]}
                 activeOpacity={0.75}
                 onPress={() => setStoryLanguage(language.code)}
+                testID={`mode-selection-language-${language.code}`}
               >
                 <Text style={styles.languageFlag}>{language.flag}</Text>
                 <Text style={[styles.languageText, selected && styles.languageTextSelected]}>
@@ -355,6 +359,7 @@ export default function ModeSelectionScreen() {
         style={styles.consentRow}
         activeOpacity={0.75}
         onPress={() => setConsentAccepted((value) => !value)}
+        testID="mode-selection-consent"
       >
         <View style={[styles.checkbox, consentAccepted && styles.checkboxChecked]}>
           {consentAccepted ? (
@@ -374,6 +379,7 @@ export default function ModeSelectionScreen() {
         onPress={() => setStep('setup')}
         disabled={!name.trim() || !consentAccepted}
         style={styles.onboardingPrimaryAction}
+        testID="mode-selection-continue"
       />
     </>
   );
@@ -412,6 +418,7 @@ export default function ModeSelectionScreen() {
           onPress={() => setStep('profile')}
           variant="secondary"
           style={styles.footerSecondaryAction}
+          testID="mode-selection-back"
         />
         <AppButton
           label={
@@ -423,6 +430,7 @@ export default function ModeSelectionScreen() {
           disabled={createChild.isPending}
           loading={createChild.isPending}
           style={styles.footerPrimaryAction}
+          testID="mode-selection-finish"
         />
       </View>
     </>
@@ -447,6 +455,7 @@ export default function ModeSelectionScreen() {
           disabled={isCompleting}
           loading={isCompleting}
           style={styles.doneAction}
+          testID="mode-selection-create-story"
         />
         <AppButton
           label={
@@ -461,12 +470,9 @@ export default function ModeSelectionScreen() {
           onPress={startChildMode}
           variant="secondary"
           style={styles.doneAction}
+          testID="mode-selection-start-child-mode"
           leading={
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color={theme.colors.text.primary}
-            />
+            <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.text.primary} />
           }
         />
         <AppButton
@@ -474,7 +480,10 @@ export default function ModeSelectionScreen() {
           onPress={resetForAnotherChild}
           variant="ghost"
           style={styles.doneAction}
-          leading={<Ionicons name="add-circle-outline" size={20} color={theme.colors.text.secondary} />}
+          testID="mode-selection-add-another-child"
+          leading={
+            <Ionicons name="add-circle-outline" size={20} color={theme.colors.text.secondary} />
+          }
         />
       </View>
     </>
@@ -486,7 +495,11 @@ export default function ModeSelectionScreen() {
       locations={[0, 0.58, 1]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        testID="mode-selection-screen"
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <GlassCard intensity="strong" style={styles.card}>
           <View style={styles.progressRow}>
             {(['profile', 'setup', 'done'] as OnboardingStep[]).map((item, index) => {
