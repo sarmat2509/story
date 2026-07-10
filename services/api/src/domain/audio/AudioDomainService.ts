@@ -1,7 +1,7 @@
 /**
  * Audio Domain Service (M5 Implementation)
  * Business logic for TTS/audio generation
- * 
+ *
  * Responsibilities:
  * - Text preprocessing and normalization
  * - Voice selection and validation
@@ -41,9 +41,9 @@ import { isGrokBlockedForStoryLanguage } from '../../providers/audio/grok/suppor
  * Voice parameters for audio generation
  */
 export interface VoiceParams {
-  voiceId?: string;       // Specific voice ID, falls back to default
-  speed?: number;         // 0.5 - 2.0, default 1.0
-  nightMode?: boolean;    // Enable night mode
+  voiceId?: string; // Specific voice ID, falls back to default
+  speed?: number; // 0.5 - 2.0, default 1.0
+  nightMode?: boolean; // Enable night mode
 }
 
 /**
@@ -104,10 +104,10 @@ export class AudioDomainService {
 
   /**
    * Synthesize story from scene groups (M5+ with parallel generation)
-   * 
+   *
    * Handles stories of any length by grouping scenes optimally and generating
    * multiple groups in parallel based on user's plan concurrency limit.
-   * 
+   *
    * @param story - Story metadata
    * @param sceneGroups - Pre-grouped scenes optimized for parallel generation
    * @param voiceParams - Voice parameters (voiceId, speed, nightMode)
@@ -125,11 +125,7 @@ export class AudioDomainService {
   ): Promise<AudioResult> {
     // 1. Select voice FIRST to determine provider
     logger.info({ storyId: story.id }, 'Step 1/7: Selecting voice');
-    const voice = await this.selectVoiceForStory(
-      story,
-      voiceParams.voiceId,
-      userPlanType
-    );
+    const voice = await this.selectVoiceForStory(story, voiceParams.voiceId, userPlanType);
 
     if (!voice) {
       throw new Error(`No voice available for language: ${story.language}`);
@@ -156,11 +152,11 @@ export class AudioDomainService {
       },
       'Voice selected for TTS'
     );
-    
+
     // 2. Get provider based on voice.provider
     const { getAudioProviderByName } = await import('../../services/aiService');
     const audioProvider = getAudioProviderByName(providerName);
-    
+
     logger.info(
       {
         storyId: story.id,
@@ -198,7 +194,8 @@ export class AudioDomainService {
     if (config.audio.deferAudioTagsToTts) {
       const catalog = audioProvider.getTtsSpeechTagCatalog();
       if (catalog.markupModel !== 'none_use_instructions') {
-        const { enrichDeferredProsodyForTtsChunk } = await import('../../services/ttsProsodyTaggingService');
+        const { enrichDeferredProsodyForTtsChunk } =
+          await import('../../services/ttsProsodyTaggingService');
         const voiceDbId = (voice as { dbId?: string }).dbId ?? null;
 
         const rawNarration =
@@ -226,7 +223,9 @@ export class AudioDomainService {
               reusedFullFromDb = true;
               if (priorAudio?.assetId) {
                 const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
-                const style = readVendorStylePromptEnFromGenerationParams(priorAsset?.generationParams);
+                const style = readVendorStylePromptEnFromGenerationParams(
+                  priorAsset?.generationParams
+                );
                 sharedVendorStylePromptEn = style || undefined;
               }
               logger.info(
@@ -411,7 +410,7 @@ export class AudioDomainService {
     // Process TTS chunks in batches
     for (let i = 0; i < groupsToSynth.length; i += concurrencyLimit) {
       const batch = groupsToSynth.slice(i, i + concurrencyLimit);
-      
+
       logger.info(
         {
           storyId: story.id,
@@ -427,7 +426,7 @@ export class AudioDomainService {
       const batchResults = await Promise.all(
         batch.map(async (group, batchIndex) => {
           const absoluteIndex = i + batchIndex;
-          
+
           // NEW: Check if we already have this group cached
           const existingBuffer = existingAssets[absoluteIndex];
           if (existingBuffer) {
@@ -440,7 +439,7 @@ export class AudioDomainService {
               },
               '✅ Using cached chunk - skipping generation'
             );
-            
+
             return {
               audioData: existingBuffer,
               durationSeconds: 0, // We'll calculate from metadata if needed
@@ -448,7 +447,7 @@ export class AudioDomainService {
               assetId: sceneGroupAssetIds[absoluteIndex],
             };
           }
-          
+
           // ✅ NEW: Retry logic (max 3 attempts with exponential backoff)
           let lastError: Error | null = null;
           for (let attempt = 1; attempt <= 3; attempt++) {
@@ -482,7 +481,12 @@ export class AudioDomainService {
               ttsChunksSynthesisTimeMs += generationTime;
 
               if (options?.onUsage) {
-                this.reportAudioUsage(options.onUsage, voice, group.text.length, result.durationSeconds);
+                this.reportAudioUsage(
+                  options.onUsage,
+                  voice,
+                  group.text.length,
+                  result.durationSeconds
+                );
               }
 
               logger.info(
@@ -510,7 +514,7 @@ export class AudioDomainService {
                 group.ttsStylePromptEn,
                 generationTime
               );
-              
+
               logger.info(
                 {
                   storyId: story.id,
@@ -519,7 +523,7 @@ export class AudioDomainService {
                 },
                 '💾 Partial chunk saved to storage and DB'
               );
-              
+
               // Update metadata
               sceneGroupAssetIds[absoluteIndex] = partialAssetId;
               workingAudioMetadata = {
@@ -546,7 +550,7 @@ export class AudioDomainService {
               };
             } catch (error) {
               lastError = error as Error;
-              
+
               if (attempt < 3) {
                 const backoffMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
                 logger.warn(
@@ -565,9 +569,9 @@ export class AudioDomainService {
                   },
                   `⚠️  Chunk generation failed, retrying after ${backoffMs}ms...`
                 );
-                
+
                 // Exponential backoff
-                await new Promise(resolve => setTimeout(resolve, backoffMs));
+                await new Promise((resolve) => setTimeout(resolve, backoffMs));
               } else {
                 logger.error(
                   {
@@ -587,7 +591,7 @@ export class AudioDomainService {
               }
             }
           }
-          
+
           // ✅ If all retries failed, throw error
           throw new Error(
             `Failed to generate scene group ${absoluteIndex} after 3 attempts: ${lastError?.message}`
@@ -601,7 +605,7 @@ export class AudioDomainService {
       }
 
       audioResults.push(...batchResults);
-      
+
       logger.info(
         {
           storyId: story.id,
@@ -618,10 +622,7 @@ export class AudioDomainService {
     // 5. Extract buffers and calculate estimated duration from chunks
     logger.info({ storyId: story.id }, 'Step 5/7: Extracting audio buffers from results');
     const audioBuffers = audioResults.map((r) => r.audioData);
-    let totalDuration = audioResults.reduce(
-      (sum, r) => sum + r.durationSeconds,
-      0
-    );
+    let totalDuration = audioResults.reduce((sum, r) => sum + r.durationSeconds, 0);
 
     logger.info(
       {
@@ -645,12 +646,15 @@ export class AudioDomainService {
       const { buffer, durationSeconds } = await concatenateAudioBuffers(audioBuffers);
       finalAudioData = buffer;
       totalDuration = durationSeconds; // Use actual duration
-      logger.info({ 
-        storyId: story.id, 
-        actualDuration: durationSeconds,
-        size: buffer.length,
-        estimatedWas: audioResults[0].durationSeconds 
-      }, '✅ Single buffer duration probed');
+      logger.info(
+        {
+          storyId: story.id,
+          actualDuration: durationSeconds,
+          size: buffer.length,
+          estimatedWas: audioResults[0].durationSeconds,
+        },
+        '✅ Single buffer duration probed'
+      );
     } else {
       logger.info(
         { storyId: story.id, numChunks: audioBuffers.length },
@@ -682,7 +686,7 @@ export class AudioDomainService {
       storyId: story.id,
       assetType: 'audio',
     });
-    
+
     logger.info(
       {
         storyId: story.id,
@@ -694,7 +698,9 @@ export class AudioDomainService {
 
     // 8. Create assets table record
     logger.info({ storyId: story.id }, 'Step 8/8: Saving final audio record to DB');
-    const vendorStyleFromChunks = groupsToSynth.map((g) => g.ttsStylePromptEn).find((s) => s && String(s).trim());
+    const vendorStyleFromChunks = groupsToSynth
+      .map((g) => g.ttsStylePromptEn)
+      .find((s) => s && String(s).trim());
     const assetRecord = await getAssetRepository().create({
       storyId: story.id,
       sceneId: null,
@@ -718,32 +724,36 @@ export class AudioDomainService {
         ttsBatchWallTimeMs,
         ttsSynthesisBatchesWallMs,
         ttsChunksParallelEstimateMs,
-        ...(vendorStyleFromChunks ? { vendorStylePromptEn: String(vendorStyleFromChunks).trim() } : {}),
+        ...(vendorStyleFromChunks
+          ? { vendorStylePromptEn: String(vendorStyleFromChunks).trim() }
+          : {}),
       },
       generationTimeMs:
-        Math.round(ttsSynthesisBatchesWallMs > 0 ? ttsSynthesisBatchesWallMs : ttsBatchWallTimeMs) || null,
+        Math.round(
+          ttsSynthesisBatchesWallMs > 0 ? ttsSynthesisBatchesWallMs : ttsBatchWallTimeMs
+        ) || null,
       status: 'completed',
     });
 
     // 9. Create audio_assets record (TTS metadata)
     await getAssetRepository().createAudioAssetIgnoreConflict({
-        storyId: story.id,
-        assetId: assetRecord.id,
-        voiceId: (voice as any).dbId || null, // Use DB UUID for cache
-        voiceName: voice.name,
-        language: story.language,
-        speed: speed.toString() as any,
-        pitchShift: 0,
-        nightMode: false,
-        textHash: this.cacheService.generateTextHash(fullText),
-        synthesisTaggedText: fullText,
-        durationSeconds: totalDuration.toString() as any,
-        provider: voice.provider || 'elevenlabs', // Use voice provider, not hardcoded
-        status: 'completed',
-        sceneGroupIndex: null, // ✅ NULL = final concatenated audio
-        isFinal: true, // ✅ Explicitly mark as final
-        retryCount: 0,
-      });
+      storyId: story.id,
+      assetId: assetRecord.id,
+      voiceId: (voice as any).dbId || null, // Use DB UUID for cache
+      voiceName: voice.name,
+      language: story.language,
+      speed: speed.toString() as any,
+      pitchShift: 0,
+      nightMode: false,
+      textHash: this.cacheService.generateTextHash(fullText),
+      synthesisTaggedText: fullText,
+      durationSeconds: totalDuration.toString() as any,
+      provider: voice.provider || 'elevenlabs', // Use voice provider, not hardcoded
+      status: 'completed',
+      sceneGroupIndex: null, // ✅ NULL = final concatenated audio
+      isFinal: true, // ✅ Explicitly mark as final
+      retryCount: 0,
+    });
 
     // 11. Update story metadata with final concatenated asset ID (M5.1)
     await this.updateStoryAudioMetadata(story.id, {
@@ -806,16 +816,10 @@ export class AudioDomainService {
     options?: AudioDomainOptions
   ): Promise<AudioResult> {
     // 1. Get or select voice
-    const voice = await this.selectVoiceForStory(
-      story,
-      voiceParams.voiceId,
-      userPlanType
-    );
+    const voice = await this.selectVoiceForStory(story, voiceParams.voiceId, userPlanType);
 
     if (!voice) {
-      throw new Error(
-        `No voice available for language: ${story.language}`
-      );
+      throw new Error(`No voice available for language: ${story.language}`);
     }
 
     // 2. Normalize text
@@ -837,13 +841,25 @@ export class AudioDomainService {
           const rawStored = priorAudio?.synthesisTaggedText?.trim();
           if (rawStored) {
             const { text: sanitized } = sanitizeVendorMarkup(rawStored, deferCatalog);
-            const sentenceInitial = moveApprovedBracketTagsToSentenceStarts(sanitized, deferCatalog);
-            if (validateTaggedAgainstCanon(sentenceInitial, normalizedText, deferCatalog, story.language)) {
+            const sentenceInitial = moveApprovedBracketTagsToSentenceStarts(
+              sanitized,
+              deferCatalog
+            );
+            if (
+              validateTaggedAgainstCanon(
+                sentenceInitial,
+                normalizedText,
+                deferCatalog,
+                story.language
+              )
+            ) {
               normalizedText = sentenceInitial;
               reusedFromDb = true;
               if (priorAudio?.assetId) {
                 const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
-                const style = readVendorStylePromptEnFromGenerationParams(priorAsset?.generationParams);
+                const style = readVendorStylePromptEnFromGenerationParams(
+                  priorAsset?.generationParams
+                );
                 deferredVendorStylePromptEn = style || undefined;
               }
               logger.info(
@@ -854,7 +870,8 @@ export class AudioDomainService {
           }
         }
         if (!reusedFromDb) {
-          const { enrichDeferredProsodyForTtsChunk } = await import('../../services/ttsProsodyTaggingService');
+          const { enrichDeferredProsodyForTtsChunk } =
+            await import('../../services/ttsProsodyTaggingService');
           const enriched = await enrichDeferredProsodyForTtsChunk({
             canonText: normalizedText,
             catalog: deferCatalog,
@@ -878,10 +895,7 @@ export class AudioDomainService {
     );
 
     if (cachedAudio) {
-      logger.info(
-        { storyId: story.id, voiceId: voice.id },
-        'Using cached audio'
-      );
+      logger.info({ storyId: story.id, voiceId: voice.id }, 'Using cached audio');
 
       return {
         assetId: cachedAudio.assetId,
@@ -950,21 +964,21 @@ export class AudioDomainService {
     const textHash = this.cacheService.generateTextHash(normalizedText);
 
     const audioAsset = await getAssetRepository().createAudioAsset({
-        storyId: story.id,
-        assetId: assetRecord.id,
-        voiceId: (voice as any).dbId || null, // Use DB UUID for cache
-        voiceName: voice.name,
-        language: story.language,
-        speed: speed.toString() as any,
-        pitchShift: 0,
-        nightMode: voiceParams.nightMode || false,
-        textHash,
-        synthesisTaggedText: normalizedText,
-        durationSeconds: result.durationSeconds.toString() as any,
-        provider: 'elevenlabs',
-        providerRequestId: result.providerRequestId,
-        status: 'completed',
-      });
+      storyId: story.id,
+      assetId: assetRecord.id,
+      voiceId: (voice as any).dbId || null, // Use DB UUID for cache
+      voiceName: voice.name,
+      language: story.language,
+      speed: speed.toString() as any,
+      pitchShift: 0,
+      nightMode: voiceParams.nightMode || false,
+      textHash,
+      synthesisTaggedText: normalizedText,
+      durationSeconds: result.durationSeconds.toString() as any,
+      provider: 'elevenlabs',
+      providerRequestId: result.providerRequestId,
+      status: 'completed',
+    });
 
     logger.info(
       {
@@ -1072,27 +1086,33 @@ export class AudioDomainService {
     const existingBuffers: (Buffer | null)[] = new Array(expectedChunkCount).fill(null);
 
     if (existingAssetIds.length === 0) {
-      logger.info({ storyId: story.id }, 'No existing scene group assets found - will generate all');
+      logger.info(
+        { storyId: story.id },
+        'No existing scene group assets found - will generate all'
+      );
       return existingBuffers;
     }
 
     for (let i = 0; i < Math.min(existingAssetIds.length, expectedChunkCount); i++) {
       const assetId = existingAssetIds[i];
-      
+
       if (!assetId) {
-        logger.debug({ storyId: story.id, groupIndex: i }, 'No asset ID for this group - will generate');
+        logger.debug(
+          { storyId: story.id, groupIndex: i },
+          'No asset ID for this group - will generate'
+        );
         continue; // Skip null entries
       }
-      
+
       try {
         logger.debug(
           { storyId: story.id, groupIndex: i, assetId },
           'Found asset ID, loading from storage'
         );
-        
+
         const buffer = await this.storageService.getAssetBuffer(assetId);
         existingBuffers[i] = buffer;
-        
+
         logger.info(
           { storyId: story.id, groupIndex: i, assetId, size: buffer.length },
           '✅ Partial chunk loaded from storage - will REUSE'
@@ -1105,9 +1125,9 @@ export class AudioDomainService {
         // Keep as null - will regenerate
       }
     }
-    
-    const cachedCount = existingBuffers.filter(b => b !== null).length;
-    const missingCount = existingBuffers.filter(b => !b).length;
+
+    const cachedCount = existingBuffers.filter((b) => b !== null).length;
+    const missingCount = existingBuffers.filter((b) => !b).length;
     const reusePercentage = ((cachedCount / expectedChunkCount) * 100).toFixed(1);
 
     logger.info(
@@ -1120,17 +1140,17 @@ export class AudioDomainService {
       },
       'Partial chunk loading complete'
     );
-    
+
     return existingBuffers;
   }
 
   /**
    * Save partial scene group audio to storage
-   * 
+   *
    * Immediately saves a generated scene group audio to storage and creates
    * an audio_assets record for tracking. This allows retry logic to skip
    * already-generated groups.
-   * 
+   *
    * @param story - Story object (contains userId and storyId)
    * @param groupIndex - Index of this scene group (0-based)
    * @param audioBuffer - Generated audio data
@@ -1196,7 +1216,7 @@ export class AudioDomainService {
 
     // Get voice record from database by UUID
     const voiceRecord = await getVoiceRepository().findById(voiceId);
-    
+
     if (!voiceRecord) {
       logger.warn({ voiceId }, 'Voice not found in database, saving without voice reference');
     }
@@ -1231,10 +1251,10 @@ export class AudioDomainService {
 
   /**
    * Update story audio metadata in database
-   * 
+   *
    * Updates the stories.audioMetadata jsonb field with new metadata,
    * including partial generation progress (sceneGroupAssetIds array).
-   * 
+   *
    * @param storyId - Story ID to update
    * @param audioMetadata - New audio metadata to save
    */
@@ -1248,10 +1268,10 @@ export class AudioDomainService {
     });
 
     logger.debug(
-      { 
-        storyId, 
+      {
+        storyId,
         sceneGroupCount: audioMetadata.sceneGroupAssetIds?.length,
-        completedGroups: audioMetadata.sceneGroupAssetIds?.filter(id => id !== null).length,
+        completedGroups: audioMetadata.sceneGroupAssetIds?.filter((id) => id !== null).length,
       },
       'Story audio metadata updated'
     );
@@ -1260,10 +1280,7 @@ export class AudioDomainService {
   /**
    * Regenerate audio with different voice
    */
-  async regenerateAudio(
-    storyId: string,
-    newVoiceId?: string
-  ): Promise<AudioResult> {
+  async regenerateAudio(storyId: string, newVoiceId?: string): Promise<AudioResult> {
     logger.info({ storyId, newVoiceId }, 'Regenerating audio');
 
     // Load story
@@ -1292,7 +1309,7 @@ export class AudioDomainService {
     if (explicitVoiceId) {
       // Get voice from database instead of ElevenLabs API
       const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
-      
+
       if (dbVoice) {
         const storyLanguage = story.language.slice(0, 2).toLowerCase();
         const supportedLanguages = dbVoice.supportedLanguages?.length
@@ -1318,7 +1335,10 @@ export class AudioDomainService {
             'Explicit Grok voice ignored for Ukrainian story; using automatic selection'
           );
         } else {
-          logger.info({ voiceId: explicitVoiceId, provider: dbVoice.provider }, 'Using explicit voice from database');
+          logger.info(
+            { voiceId: explicitVoiceId, provider: dbVoice.provider },
+            'Using explicit voice from database'
+          );
           return {
             id: dbVoice.providerVoiceId,
             name: dbVoice.name,
@@ -1329,16 +1349,13 @@ export class AudioDomainService {
           };
         }
       }
-      
+
       logger.warn(
         { voiceId: explicitVoiceId, language: story.language },
         'Explicit voice not found, using automatic selection'
       );
     }
 
-    // Check plan type (default to free)
-    const isPremium = userPlanType === 'premium';
-    
     // For now: both free and premium use single narrator voice
     // M6+ will implement multi-voice for premium
     // Note: story.ageGroup is a string like "4-5", not a UUID
@@ -1356,10 +1373,10 @@ export class AudioDomainService {
     }
 
     logger.info(
-      { 
-        voiceId: narratorVoice.id, 
+      {
+        voiceId: narratorVoice.id,
         voiceName: narratorVoice.name,
-        planType: userPlanType 
+        planType: userPlanType,
       },
       'Narrator voice selected'
     );
@@ -1378,9 +1395,12 @@ export class AudioDomainService {
     ageGroupId?: string
   ): Promise<Voice | null> {
     const voiceRepo = getVoiceRepository();
-    
-    logger.debug({ language, role, gender: characterGender, ageGroupId }, 'Selecting voice for role');
-    
+
+    logger.debug(
+      { language, role, gender: characterGender, ageGroupId },
+      'Selecting voice for role'
+    );
+
     // Query with optional age group filtering via repository
     const voices = await voiceRepo.findForSelection({
       language,
@@ -1388,34 +1408,37 @@ export class AudioDomainService {
       characterGender,
       ageGroupId,
     });
-    
+
     if (voices.length === 0) {
       logger.warn(
-        { language, role, gender: characterGender, ageGroupId }, 
+        { language, role, gender: characterGender, ageGroupId },
         'No voices found with filters, trying fallback'
       );
-      
+
       // Fallback: any active voice for language (ignore age group)
       const fallback = await voiceRepo.findFallbackByLanguage(language);
-      
+
       if (!fallback) {
         return null;
       }
-      
+
       return this.mapDbVoiceToProvider(fallback, language);
     }
-    
+
     // Prefer non-premium voices
-    const freeVoices = voices.filter(v => !v.isPremium);
+    const freeVoices = voices.filter((v) => !v.isPremium);
     const selectedDb = freeVoices.length > 0 ? freeVoices[0] : voices[0];
-    
-    logger.info({ 
-      voiceId: selectedDb.id, 
-      voiceName: selectedDb.name,
-      role,
-      gender: characterGender 
-    }, 'Voice selected for role');
-    
+
+    logger.info(
+      {
+        voiceId: selectedDb.id,
+        voiceName: selectedDb.name,
+        role,
+        gender: characterGender,
+      },
+      'Voice selected for role'
+    );
+
     return this.mapDbVoiceToProvider(selectedDb, language);
   }
 
@@ -1431,7 +1454,7 @@ export class AudioDomainService {
           providerVoiceId: dbVoice.providerVoiceId,
           name: dbVoice.name,
         },
-        'tts_voices row missing provider; cannot route TTS to the correct vendor',
+        'tts_voices row missing provider; cannot route TTS to the correct vendor'
       );
       throw new Error(
         `Voice catalog row ${dbVoice.id} (${dbVoice.name}) has no provider — re-seed or fix DB`
@@ -1450,46 +1473,6 @@ export class AudioDomainService {
       sampleUrl: dbVoice.providerPreviewUrl || dbVoice.sampleAudioUrl,
       isPremium: dbVoice.isPremium,
     };
-  }
-
-  /**
-   * Select voice for generation (DEPRECATED - use selectVoiceForStory)
-   */
-  private async selectVoice(
-    voiceId: string | undefined,
-    language: string
-  ): Promise<Voice | null> {
-    // If voice ID provided, use it
-    if (voiceId) {
-      const voice = await this.audioProvider.getVoice(voiceId);
-      
-      if (voice) {
-        return { ...voice, language };
-      }
-      
-      logger.warn(
-        { voiceId, language },
-        'Requested voice not found, using default'
-      );
-    }
-
-    // Voices are treated as multilingual, so don't filter by language here.
-    const voices = await this.audioProvider.getVoices();
-
-    if (voices.length === 0) {
-      logger.error({ language }, 'No voices available');
-      return null;
-    }
-
-    // Prefer non-premium voices for free users
-    const freeVoices = voices.filter((v) => !v.isPremium);
-    
-    if (freeVoices.length > 0) {
-      return { ...freeVoices[0], language };
-    }
-
-    // Fallback to any voice
-    return { ...voices[0], language };
   }
 
   /**
@@ -1524,7 +1507,7 @@ export class AudioDomainService {
   /**
    * Generate forced alignment for story audio (M6)
    * Works with audio from ANY provider (ElevenLabs, Google, OpenAI, Azure)
-   * 
+   *
    * @param storyId - Story ID
    * @param id - Either audio_assets.id (from on-demand route) or assets.id (from job processor)
    * @param alignmentProvider - Alignment provider instance (injected)
@@ -1536,40 +1519,44 @@ export class AudioDomainService {
     alignmentProvider: IAlignmentProvider
   ): Promise<AlignmentResult> {
     const startTime = Date.now();
-    
+
     try {
       // 1. Fetch story full text from DB
       const story = await getStoryRepository().findById(storyId);
-      
+
       if (!story) {
         throw new Error(`Story not found: ${storyId}`);
       }
-      
+
       // 2. Fetch audio asset metadata - try audio_assets.id first, then assets.id (job passes assetId)
       let audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAsset(id);
       if (!audioAssetResult) {
         audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAssetByAssetId(id);
       }
-      
+
       if (!audioAssetResult) {
         throw new Error(`Audio asset not found or not final: ${id}`);
       }
-      
+
       const { audioAsset, asset } = audioAssetResult;
-      
+
       // 3. Fetch audio buffer from storage (works for any audio provider)
-      logger.info({
-        storyId,
-        audioAssetId: audioAsset.id,
-        audioProvider: audioAsset.provider,
-        assetId: asset.id,
-      }, 'Fetching audio buffer for alignment generation');
-      
+      logger.info(
+        {
+          storyId,
+          audioAssetId: audioAsset.id,
+          audioProvider: audioAsset.provider,
+          assetId: asset.id,
+        },
+        'Fetching audio buffer for alignment generation'
+      );
+
       const audioBuffer = await this.storageService.getAssetBuffer(asset.id);
-      
+
       // 4. Call IAlignmentProvider (vendor-agnostic)
       const fromAudioAsset =
-        typeof audioAsset.synthesisTaggedText === 'string' && audioAsset.synthesisTaggedText.length > 0
+        typeof audioAsset.synthesisTaggedText === 'string' &&
+        audioAsset.synthesisTaggedText.length > 0
           ? audioAsset.synthesisTaggedText
           : null;
       const assetGen = asset.generationParams as Record<string, unknown> | null | undefined;
@@ -1578,52 +1565,64 @@ export class AudioDomainService {
           ? assetGen.ttsSynthesisText
           : null;
       const ttsSynthesisText =
-        fromAudioAsset ?? fromGenerationParams ?? this.normalizeText(story.fullText, story.language);
+        fromAudioAsset ??
+        fromGenerationParams ??
+        this.normalizeText(story.fullText, story.language);
 
       const { getAudioProviderByName } = await import('../../services/aiService');
       const voiceRow = audioAsset.voiceId
         ? await getVoiceRepository().findById(audioAsset.voiceId)
         : null;
-      const alignmentProviderName = (voiceRow?.provider || audioAsset.provider || 'elevenlabs') as string;
+      const alignmentProviderName = (voiceRow?.provider ||
+        audioAsset.provider ||
+        'elevenlabs') as string;
       const ttsProviderForAlignment = getAudioProviderByName(alignmentProviderName);
       const alignmentCatalog = ttsProviderForAlignment.getTtsSpeechTagCatalog();
       const alignmentPlain = stripApprovedCatalogMarkup(ttsSynthesisText, alignmentCatalog);
 
-      logger.info({
-        storyId,
-        audioProvider: audioAsset.provider,
-        alignmentProvider: alignmentProvider.getProviderName(),
-        textLength: alignmentPlain.length,
-        audioSize: audioBuffer.length,
-      }, 'Generating forced alignment');
-      
+      logger.info(
+        {
+          storyId,
+          audioProvider: audioAsset.provider,
+          alignmentProvider: alignmentProvider.getProviderName(),
+          textLength: alignmentPlain.length,
+          audioSize: audioBuffer.length,
+        },
+        'Generating forced alignment'
+      );
+
       const alignmentResult = await alignmentProvider.generateAlignment({
         audioBuffer,
         text: alignmentPlain,
         language: story.language,
         mimeType: asset.mimeType,
       });
-      
+
       // 5. Log providers used (audio + alignment)
-      logger.info({
-        storyId,
-        audioProvider: audioAsset.provider,
-        alignmentProvider: alignmentProvider.getProviderName(),
-        averageConfidence: alignmentResult.averageConfidence,
-        wordCount: alignmentResult.words.length,
-        characterCount: alignmentResult.characters.length,
-        durationMs: Date.now() - startTime,
-      }, 'Forced alignment generated successfully');
-      
+      logger.info(
+        {
+          storyId,
+          audioProvider: audioAsset.provider,
+          alignmentProvider: alignmentProvider.getProviderName(),
+          averageConfidence: alignmentResult.averageConfidence,
+          wordCount: alignmentResult.words.length,
+          characterCount: alignmentResult.characters.length,
+          durationMs: Date.now() - startTime,
+        },
+        'Forced alignment generated successfully'
+      );
+
       return alignmentResult;
-      
     } catch (error) {
-      logger.error({
-        err: error,
-        storyId,
-        id,
-        durationMs: Date.now() - startTime,
-      }, 'Failed to generate alignment for story');
+      logger.error(
+        {
+          err: error,
+          storyId,
+          id,
+          durationMs: Date.now() - startTime,
+        },
+        'Failed to generate alignment for story'
+      );
       throw error;
     }
   }
@@ -1639,22 +1638,25 @@ let audioDomainServiceInstance: AudioDomainService | null = null;
  */
 export function getAudioDomainService(): AudioDomainService {
   if (!audioDomainServiceInstance) {
-    logger.info({
-      hasApiKey: !!config.audio?.elevenlabs?.apiKey,
-      keyLength: config.audio?.elevenlabs?.apiKey?.length || 0,
-      keyPrefix: config.audio?.elevenlabs?.apiKey?.substring(0, 5) || '',
-      model: config.audio?.elevenlabs?.model,
-    }, 'Initializing AudioDomainService');
-    
+    logger.info(
+      {
+        hasApiKey: !!config.audio?.elevenlabs?.apiKey,
+        keyLength: config.audio?.elevenlabs?.apiKey?.length || 0,
+        keyPrefix: config.audio?.elevenlabs?.apiKey?.substring(0, 5) || '',
+        model: config.audio?.elevenlabs?.model,
+      },
+      'Initializing AudioDomainService'
+    );
+
     if (!config.audio?.elevenlabs?.apiKey) {
       throw new Error('ElevenLabs API key is required');
     }
-    
+
     const provider = new ElevenLabsProvider(
       config.audio.elevenlabs.apiKey,
       config.audio.elevenlabs.model
     );
-    
+
     audioDomainServiceInstance = new AudioDomainService(provider);
   }
   return audioDomainServiceInstance;

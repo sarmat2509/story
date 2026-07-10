@@ -14,7 +14,7 @@ export const STORY_TASKS = {
   GENERATING_AUDIO: 'generating_audio',
 } as const;
 
-export type StoryTask = typeof STORY_TASKS[keyof typeof STORY_TASKS];
+export type StoryTask = (typeof STORY_TASKS)[keyof typeof STORY_TASKS];
 
 /**
  * Estimated durations for each task type (in milliseconds).
@@ -22,13 +22,13 @@ export type StoryTask = typeof STORY_TASKS[keyof typeof STORY_TASKS];
  * Tasks not in this list default to 10 seconds.
  */
 const TASK_ESTIMATED_DURATIONS: Partial<Record<StoryTask, number>> = {
-  [STORY_TASKS.ANALYZING_PHOTOS]: 45000,     // 45s (dedup + analysis + turnaround for ALL character types)
-  [STORY_TASKS.GENERATING_TEXT]: 45000,      // 45s (LLM text generation)
-  [STORY_TASKS.PRODUCING_VISUALS]: 15000,    // 15s (Director/producer visual scene preparation)
-  [STORY_TASKS.VALIDATING]: 15000,           // 15s (content validation)
+  [STORY_TASKS.ANALYZING_PHOTOS]: 45000, // 45s (dedup + analysis + turnaround for ALL character types)
+  [STORY_TASKS.GENERATING_TEXT]: 45000, // 45s (LLM text generation)
+  [STORY_TASKS.PRODUCING_VISUALS]: 15000, // 15s (Director/producer visual scene preparation)
+  [STORY_TASKS.VALIDATING]: 15000, // 15s (content validation)
   [STORY_TASKS.GENERATING_PORTRAITS]: 15000, // 15s per portrait (default, overridden by estimatedMs from coefficients)
-  [STORY_TASKS.GENERATING_IMAGES]: 15000,    // 15s per image (default, overridden by estimatedMs from coefficients)
-  [STORY_TASKS.GENERATING_AUDIO]: 15000,     // 15s per audio chunk (default, overridden by estimatedMs from coefficients)
+  [STORY_TASKS.GENERATING_IMAGES]: 15000, // 15s per image (default, overridden by estimatedMs from coefficients)
+  [STORY_TASKS.GENERATING_AUDIO]: 15000, // 15s per audio chunk (default, overridden by estimatedMs from coefficients)
 };
 
 export interface ActiveTask {
@@ -73,17 +73,6 @@ const DEFAULT_PROGRESS: StoryProgress = {
   maxOverallProgress: 0,
 };
 
-function createEmptyProgress(): StoryProgress {
-  return {
-    overallProgress: 0,
-    activeTasks: [],
-    completedTasks: [],
-    plannedTasks: [],
-    taskTimeline: {},
-    maxOverallProgress: 0,
-  };
-}
-
 function normalizeProgress(progressData: StoryProgress | null | undefined): StoryProgress {
   const progress = progressData ?? DEFAULT_PROGRESS;
   return {
@@ -95,9 +84,7 @@ function normalizeProgress(progressData: StoryProgress | null | undefined): Stor
           ...(task.details ? { details: { ...task.details } } : {}),
         }))
       : [],
-    completedTasks: Array.isArray(progress.completedTasks)
-      ? [...progress.completedTasks]
-      : [],
+    completedTasks: Array.isArray(progress.completedTasks) ? [...progress.completedTasks] : [],
     plannedTasks: Array.isArray(progress.plannedTasks)
       ? progress.plannedTasks.map((task) => ({ ...task }))
       : [],
@@ -161,7 +148,10 @@ function buildPlannedTasks(inputs: PlannedTaskInput[]): PlannedStoryTask[] {
   });
 }
 
-function getOrCreateTimelineEntry(progress: StoryProgress, task: StoryTask): StoryTaskTimelineEntry {
+function getOrCreateTimelineEntry(
+  progress: StoryProgress,
+  task: StoryTask
+): StoryTaskTimelineEntry {
   const existing = progress.taskTimeline?.[task];
   if (existing) {
     return existing;
@@ -177,12 +167,11 @@ function getElapsedRatio(
   plannedTask: PlannedStoryTask | undefined,
   timelineEntry: StoryTaskTimelineEntry | undefined,
   fallbackTask: ActiveTask | undefined,
-  now: number,
+  now: number
 ): number {
   const startedAt = timelineEntry?.startedAt ?? fallbackTask?.details?.startedAt;
-  const estimatedMs = plannedTask?.estimatedMs
-    ?? timelineEntry?.estimatedMs
-    ?? fallbackTask?.details?.estimatedMs;
+  const estimatedMs =
+    plannedTask?.estimatedMs ?? timelineEntry?.estimatedMs ?? fallbackTask?.details?.estimatedMs;
 
   if (startedAt == null || estimatedMs == null || estimatedMs < 0) {
     return 0;
@@ -195,17 +184,13 @@ function getElapsedRatio(
   return clampRatio(elapsed / estimatedMs);
 }
 
-function calculateTaskProgressInRange(
-  rangeStart: number,
-  rangeEnd: number,
-  ratio: number,
-): number {
-  return rangeStart + ((rangeEnd - rangeStart) * clampRatio(ratio));
+function calculateTaskProgressInRange(rangeStart: number, rangeEnd: number, ratio: number): number {
+  return rangeStart + (rangeEnd - rangeStart) * clampRatio(ratio);
 }
 
 export function recalculateStoryProgress(
   progressData: StoryProgress | null | undefined,
-  now: number = Date.now(),
+  now: number = Date.now()
 ): StoryProgress {
   const progress = normalizeProgress(progressData);
 
@@ -230,7 +215,7 @@ export function recalculateStoryProgress(
       const taskProgress = calculateTaskProgressInRange(
         plannedTask.rangeStart,
         plannedTask.rangeEnd,
-        elapsedRatio,
+        elapsedRatio
       );
 
       overallProgress = Math.max(overallProgress, taskProgress);
@@ -243,10 +228,7 @@ export function recalculateStoryProgress(
   const maxDisplayProgress = maxDisplayProgressForState(progress);
   const monotonicProgress = Math.min(
     maxDisplayProgress,
-    Math.max(
-      progress.maxOverallProgress ?? 0,
-      clampPercent(overallProgress),
-    ),
+    Math.max(progress.maxOverallProgress ?? 0, clampPercent(overallProgress))
   );
 
   progress.overallProgress = monotonicProgress;
@@ -255,10 +237,7 @@ export function recalculateStoryProgress(
   return progress;
 }
 
-export async function setPlannedTasks(
-  requestId: string,
-  tasks: PlannedTaskInput[],
-): Promise<void> {
+export async function setPlannedTasks(requestId: string, tasks: PlannedTaskInput[]): Promise<void> {
   const storyRepo = getStoryRepository();
 
   await storyRepo.transaction(async (tx) => {
@@ -289,7 +268,7 @@ export async function setPlannedTasks(
         progress: nextProgress.overallProgress,
         updatedAt: new Date(),
       },
-      tx,
+      tx
     );
 
     logger.info(
@@ -302,7 +281,7 @@ export async function setPlannedTasks(
           rangeEnd: clampPercent(task.rangeEnd),
         })),
       },
-      'Story progress plan initialized',
+      'Story progress plan initialized'
     );
   });
 }
@@ -327,37 +306,41 @@ export async function updateTaskProgress(
     if (!request) {
       throw new Error(`Story request not found: ${requestId}`);
     }
-    
+
     // Get current progress
     const currentProgress = normalizeProgress(request.progressData as StoryProgress | null);
-    
+
     // DEBUG LOG - Before update
-    logger.debug({
-      requestId,
-      task,
-      newProgress: Math.round(progress * 100),
-      beforeUpdate: {
-        activeTasks: currentProgress.activeTasks.map(t => ({ task: t.task, progress: t.progress })),
-        completedTasks: currentProgress.completedTasks,
-        overallProgress: currentProgress.overallProgress,
-      }
-    }, '[PROGRESS DEBUG] Before update');
-    
+    logger.debug(
+      {
+        requestId,
+        task,
+        newProgress: Math.round(progress * 100),
+        beforeUpdate: {
+          activeTasks: currentProgress.activeTasks.map((t) => ({
+            task: t.task,
+            progress: t.progress,
+          })),
+          completedTasks: currentProgress.completedTasks,
+          overallProgress: currentProgress.overallProgress,
+        },
+      },
+      '[PROGRESS DEBUG] Before update'
+    );
+
     // Find or create active task
-    let activeTask = currentProgress.activeTasks.find(t => t.task === task);
-    
+    let activeTask = currentProgress.activeTasks.find((t) => t.task === task);
+
     if (!activeTask) {
       activeTask = { task, progress: 0 };
       currentProgress.activeTasks.push(activeTask);
     }
 
     const timelineEntry = getOrCreateTimelineEntry(currentProgress, task);
-    
+
     // Update progress
     activeTask.progress = clampPercent(progress * 100);
-    activeTask.details = details
-      ? { ...activeTask.details, ...details }
-      : activeTask.details;
+    activeTask.details = details ? { ...activeTask.details, ...details } : activeTask.details;
 
     if (details?.startedAt && !timelineEntry.startedAt) {
       timelineEntry.startedAt = details.startedAt;
@@ -371,32 +354,40 @@ export async function updateTaskProgress(
       timelineEntry.estimatedMs = getTaskDuration(task);
     }
     if (currentProgress.completedTasks.includes(task) && activeTask.progress < 100) {
-      currentProgress.completedTasks = currentProgress.completedTasks.filter((completedTask) => completedTask !== task);
+      currentProgress.completedTasks = currentProgress.completedTasks.filter(
+        (completedTask) => completedTask !== task
+      );
       timelineEntry.completedAt = undefined;
     }
-    
+
     // If completed (100%), move to completed tasks
     if (activeTask.progress >= 100) {
-      currentProgress.activeTasks = currentProgress.activeTasks.filter(t => t.task !== task);
+      currentProgress.activeTasks = currentProgress.activeTasks.filter((t) => t.task !== task);
       if (!currentProgress.completedTasks.includes(task)) {
         currentProgress.completedTasks.push(task);
       }
       timelineEntry.completedAt = Date.now();
     }
-    
+
     const nextProgress = recalculateStoryProgress(currentProgress);
-    
+
     // DEBUG LOG - After update
-    logger.debug({
-      requestId,
-      task,
-      afterUpdate: {
-        activeTasks: nextProgress.activeTasks.map(t => ({ task: t.task, progress: t.progress })),
-        completedTasks: nextProgress.completedTasks,
-        overallProgress: nextProgress.overallProgress,
-      }
-    }, '[PROGRESS DEBUG] After update');
-    
+    logger.debug(
+      {
+        requestId,
+        task,
+        afterUpdate: {
+          activeTasks: nextProgress.activeTasks.map((t) => ({
+            task: t.task,
+            progress: t.progress,
+          })),
+          completedTasks: nextProgress.completedTasks,
+          overallProgress: nextProgress.overallProgress,
+        },
+      },
+      '[PROGRESS DEBUG] After update'
+    );
+
     // Save with atomic update
     await storyRepo.updateRequest(
       requestId,
@@ -407,7 +398,7 @@ export async function updateTaskProgress(
       },
       tx
     );
-    
+
     logger.info(
       {
         requestId,
@@ -423,19 +414,24 @@ export async function updateTaskProgress(
           : undefined,
         plannedTask: nextProgress.plannedTasks?.find((entry) => entry.task === task)
           ? {
-              rangeStart: clampPercent(nextProgress.plannedTasks.find((entry) => entry.task === task)!.rangeStart),
-              rangeEnd: clampPercent(nextProgress.plannedTasks.find((entry) => entry.task === task)!.rangeEnd),
-              estimatedMs: nextProgress.plannedTasks.find((entry) => entry.task === task)!.estimatedMs,
+              rangeStart: clampPercent(
+                nextProgress.plannedTasks.find((entry) => entry.task === task)!.rangeStart
+              ),
+              rangeEnd: clampPercent(
+                nextProgress.plannedTasks.find((entry) => entry.task === task)!.rangeEnd
+              ),
+              estimatedMs: nextProgress.plannedTasks.find((entry) => entry.task === task)!
+                .estimatedMs,
             }
           : undefined,
         completedTasks: nextProgress.completedTasks,
       },
       'Task progress updated'
     );
-    
+
     // Verify update by re-reading
     const updated = await storyRepo.findRequestForUpdate(requestId, tx);
-    
+
     logger.debug(
       { requestId, dbProgress: updated?.progress, expectedProgress: nextProgress.overallProgress },
       'Progress verification'
@@ -447,10 +443,14 @@ export async function updateTaskProgress(
  * Helper to start a task (progress = 0)
  * @param details - Optional details including estimatedMs for time-based progress
  */
-export async function startTask(requestId: string, task: StoryTask, details?: Record<string, any>): Promise<void> {
+export async function startTask(
+  requestId: string,
+  task: StoryTask,
+  details?: Record<string, any>
+): Promise<void> {
   // Add estimated duration if not provided
   const estimatedMs = details?.estimatedMs ?? TASK_ESTIMATED_DURATIONS[task] ?? 10000;
-  
+
   const taskDetails = {
     ...details,
     estimatedMs,
@@ -473,7 +473,7 @@ export async function transitionTask(
   requestId: string,
   fromTask: StoryTask,
   toTask: StoryTask,
-  details?: Record<string, any>,
+  details?: Record<string, any>
 ): Promise<void> {
   const storyRepo = getStoryRepository();
 
@@ -486,7 +486,9 @@ export async function transitionTask(
     const currentProgress = normalizeProgress(request.progressData as StoryProgress | null);
     const now = Date.now();
 
-    currentProgress.activeTasks = currentProgress.activeTasks.filter((task) => task.task !== fromTask);
+    currentProgress.activeTasks = currentProgress.activeTasks.filter(
+      (task) => task.task !== fromTask
+    );
     if (!currentProgress.completedTasks.includes(fromTask)) {
       currentProgress.completedTasks.push(fromTask);
     }
@@ -507,13 +509,17 @@ export async function transitionTask(
       startedAt: now,
     };
 
-    currentProgress.activeTasks = currentProgress.activeTasks.filter((task) => task.task !== toTask);
+    currentProgress.activeTasks = currentProgress.activeTasks.filter(
+      (task) => task.task !== toTask
+    );
     currentProgress.activeTasks.push({
       task: toTask,
       progress: 0,
       details: nextTaskDetails,
     });
-    currentProgress.completedTasks = currentProgress.completedTasks.filter((task) => task !== toTask);
+    currentProgress.completedTasks = currentProgress.completedTasks.filter(
+      (task) => task !== toTask
+    );
 
     const toTimelineEntry = getOrCreateTimelineEntry(currentProgress, toTask);
     toTimelineEntry.startedAt = now;
@@ -529,7 +535,7 @@ export async function transitionTask(
         progress: nextProgress.overallProgress,
         updatedAt: new Date(now),
       },
-      tx,
+      tx
     );
 
     logger.info(
@@ -541,38 +547,8 @@ export async function transitionTask(
         activeTasks: nextProgress.activeTasks.map((task) => task.task),
         completedTasks: nextProgress.completedTasks,
       },
-      'Story progress task transitioned',
+      'Story progress task transitioned'
     );
-  });
-}
-
-/**
- * Get current progress for a story request
- */
-export async function getCurrentProgress(requestId: string): Promise<StoryProgress> {
-  const storyRepo = getStoryRepository();
-  const request = await storyRepo.findRequestById(requestId);
-  if (!request) {
-    throw new Error(`Story request not found: ${requestId}`);
-  }
-  
-  // Initialize progress if not exists
-  if (!request.progressData) {
-    return createEmptyProgress();
-  }
-  
-  return recalculateStoryProgress(request.progressData as StoryProgress);
-}
-
-/**
- * Save progress to database
- */
-async function saveProgress(requestId: string, progress: StoryProgress): Promise<void> {
-  const storyRepo = getStoryRepository();
-  await storyRepo.updateRequest(requestId, {
-    progressData: progress,
-    progress: progress.overallProgress,
-    updatedAt: new Date(),
   });
 }
 
@@ -580,26 +556,23 @@ async function saveProgress(requestId: string, progress: StoryProgress): Promise
  * Calculate overall progress based on elapsed time vs estimated duration.
  * Total time is fixed for the entire flow (all baseline tasks), preventing progress regression.
  */
-export function calculateOverallProgress(
-  completed: StoryTask[],
-  active: ActiveTask[]
-): number {
+export function calculateOverallProgress(completed: StoryTask[], active: ActiveTask[]): number {
   // Determine all tasks that WILL execute in this flow
   // Instant mode: analyzing_photos, generating_text, validating, producing_visuals?, generating_images
   // Standard mode: generating_text, validating, producing_visuals?, generating_images
-  
-  const seenTasks = new Set<StoryTask>([...completed, ...active.map(t => t.task)]);
-  
+
+  const seenTasks = new Set<StoryTask>([...completed, ...active.map((t) => t.task)]);
+
   // Detect flow type from seen tasks
   const isInstantMode = seenTasks.has(STORY_TASKS.ANALYZING_PHOTOS);
-  
+
   // Baseline tasks for standard flow
   const baselineTasks: StoryTask[] = [
     STORY_TASKS.GENERATING_TEXT,
     STORY_TASKS.VALIDATING,
     STORY_TASKS.GENERATING_IMAGES,
   ];
-  
+
   if (isInstantMode) {
     baselineTasks.unshift(STORY_TASKS.ANALYZING_PHOTOS);
   }
@@ -607,7 +580,7 @@ export function calculateOverallProgress(
   if (seenTasks.has(STORY_TASKS.PRODUCING_VISUALS)) {
     baselineTasks.splice(isInstantMode ? 3 : 2, 0, STORY_TASKS.PRODUCING_VISUALS);
   }
-  
+
   // Add optional tasks if they've appeared
   if (seenTasks.has(STORY_TASKS.GENERATING_PORTRAITS)) {
     baselineTasks.push(STORY_TASKS.GENERATING_PORTRAITS);
@@ -615,37 +588,33 @@ export function calculateOverallProgress(
   if (seenTasks.has(STORY_TASKS.GENERATING_AUDIO)) {
     baselineTasks.push(STORY_TASKS.GENERATING_AUDIO);
   }
-  
+
   // Calculate total time from ALL baseline tasks (fixed denominator)
   let totalTime = 0;
   for (const task of baselineTasks) {
     // For active tasks, use actual estimatedMs from details
-    const activeTask = active.find(t => t.task === task);
-    const duration = activeTask?.details?.estimatedMs 
-                  || TASK_ESTIMATED_DURATIONS[task] 
-                  || 10000;
+    const activeTask = active.find((t) => t.task === task);
+    const duration = activeTask?.details?.estimatedMs || TASK_ESTIMATED_DURATIONS[task] || 10000;
     totalTime += duration;
   }
-  
+
   let achievedTime = 0;
-  
+
   // Completed tasks: full duration
   for (const task of completed) {
     const duration = TASK_ESTIMATED_DURATIONS[task] ?? 10000;
     achievedTime += duration;
   }
-  
+
   // Active tasks: time-based progress with cap
   for (const activeTask of active) {
     const details = activeTask.details;
-    const duration = details?.estimatedMs 
-                  || TASK_ESTIMATED_DURATIONS[activeTask.task] 
-                  || 10000;
-    
+    const duration = details?.estimatedMs || TASK_ESTIMATED_DURATIONS[activeTask.task] || 10000;
+
     if (details?.startedAt) {
       const elapsed = Date.now() - details.startedAt;
       const ratio = elapsed / duration;
-      
+
       // Cap at 99% if elapsed exceeds estimated time
       let taskProgress: number;
       if (ratio <= 1) {
@@ -654,25 +623,18 @@ export function calculateOverallProgress(
         // After estimated time: cap at 99%
         taskProgress = 0.99;
       }
-      
+
       achievedTime += duration * taskProgress;
     } else {
       // Fallback: use manual progress if no timing data
       achievedTime += duration * (activeTask.progress / 100);
     }
   }
-  
+
   if (totalTime === 0) return 0;
-  
+
   const percentage = Math.round((achievedTime / totalTime) * 100);
-  
+
   // Cap at 99% - only completeTask can set to 100%
   return Math.min(percentage, 99);
-}
-
-/**
- * Reset progress for a story request (useful for retries)
- */
-export async function resetProgress(requestId: string): Promise<void> {
-  await saveProgress(requestId, createEmptyProgress());
 }

@@ -945,9 +945,10 @@ function buildGraphicNovelPanelValidationPrompt(params: {
       : '';
     const referenceIndex = findIdentityReferenceIndex(character.name, params.referenceImages);
     const reference = referenceIndex ? `; reference=Image ${referenceIndex}` : '';
-    const desc = !referenceIndex && character.description?.trim()
-      ? `; description=${character.description.trim()}`
-      : '';
+    const desc =
+      !referenceIndex && character.description?.trim()
+        ? `; description=${character.description.trim()}`
+        : '';
     const wardrobeCheck =
       options?.includeWardrobeCheck !== true
         ? ''
@@ -1074,9 +1075,9 @@ function buildSegmentedCharacterSceneBrief(
   const characterSceneRow =
     typeof cameraComposition === 'string'
       ? null
-      : cameraComposition.characters.find((character) =>
+      : (cameraComposition.characters.find((character) =>
           validationNamesMatch(character.name, characterName)
-        ) ?? null;
+        ) ?? null);
   const action = characterSceneRow?.description?.trim();
   if (!action) return null;
 
@@ -1344,8 +1345,7 @@ function buildSegmentedSceneQaPrompt(params: {
 }): string {
   const visual = params.sceneVisual;
   const cameraComposition = visual.cameraComposition;
-  const shot =
-    typeof cameraComposition === 'string' ? cameraComposition : cameraComposition.shot;
+  const shot = typeof cameraComposition === 'string' ? cameraComposition : cameraComposition.shot;
   const roster =
     params.expectedCharacters.length > 0
       ? params.expectedCharacters
@@ -1358,9 +1358,10 @@ function buildSegmentedSceneQaPrompt(params: {
               ? `; subtype=${character.speciesSubtype.trim()}`
               : '';
             const reference = referenceIndex ? `; identity reference=Image ${referenceIndex}` : '';
-            const desc = !referenceIndex && character.description?.trim()
-              ? `; description=${character.description.trim()}`
-              : '';
+            const desc =
+              !referenceIndex && character.description?.trim()
+                ? `; description=${character.description.trim()}`
+                : '';
             return `- ${character.name} (${character.characterKind}${subtype}${reference}${desc})`;
           })
           .join('\n')
@@ -1421,9 +1422,7 @@ function buildSegmentedSceneQaPrompt(params: {
     'Set unexpectedCharacterNotes to a concise visual description of extra character-like subjects, or null when none are visible.',
     'Set hasTextOrLetters=true for unwanted visible text/letters inside the artwork.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
-    params.includeLayoutChecks
-      ? 'Also validate layout/panel structure using the rules below.'
-      : '',
+    params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks
       ? 'No preset layout guide is attached; use only the page brief below and the visible generated page structure.'
       : '',
@@ -1621,10 +1620,7 @@ async function extractCharacterCropForValidation(params: {
   };
 }
 
-function buildValidationInputParts(
-  imageData: ImageData[],
-  prompt: string
-): MultimodalInputPart[] {
+function buildValidationInputParts(imageData: ImageData[], prompt: string): MultimodalInputPart[] {
   const parts: MultimodalInputPart[] = [];
   for (const image of imageData) {
     if (image.instructionText?.trim()) {
@@ -2115,8 +2111,7 @@ export async function runSegmentedProductImageValidation(
     .map((character) => findReferenceForCharacter(character.name, characterReferences, 'identity'))
     .filter((ref): ref is PreparedValidationReferenceImage => !!ref)
     .filter((ref, index, refs) => refs.indexOf(ref) === index);
-  const sceneQaReferenceImages =
-    input.expectedCharacters.length > 1 ? manifestReferenceImages : [];
+  const sceneQaReferenceImages = input.expectedCharacters.length > 1 ? manifestReferenceImages : [];
   const includeBubbleChecks = input.includeBubbleChecks !== false;
   const includeWardrobeChecks = input.includeWardrobeChecks !== false;
   const passesManifest: Array<Record<string, unknown>> = [];
@@ -2213,9 +2208,7 @@ export async function runSegmentedProductImageValidation(
         preparedGeneratedImage,
         'Image 1: GENERATED SCENE/PANEL IMAGE. Validate expected cast and global quality only.'
       ),
-      ...sceneQaReferenceImages.map((ref, index) =>
-        imageDataForReference(ref, index + 2)
-      ),
+      ...sceneQaReferenceImages.map((ref, index) => imageDataForReference(ref, index + 2)),
     ],
     input,
     operation,
@@ -2344,9 +2337,7 @@ export async function runSegmentedProductImageValidation(
         compactSegmentedCharacterResult(
           pass.result,
           character,
-          [identityReference].filter(
-            (ref): ref is PreparedValidationReferenceImage => !!ref
-          )
+          [identityReference].filter((ref): ref is PreparedValidationReferenceImage => !!ref)
         ),
         {
           characterBoundingBox: characterBoundingBoxForResult(characterBox),
@@ -2365,10 +2356,9 @@ export async function runSegmentedProductImageValidation(
       findCharacterBoundingBox(pass.character.name, characterBoxes)
     )
   );
-  const sceneQaMissingExpectedCharacters =
-    Array.isArray(sceneQa?.missingExpectedCharacters)
-      ? sceneQa.missingExpectedCharacters.filter((name): name is string => typeof name === 'string')
-      : [];
+  const sceneQaMissingExpectedCharacters = Array.isArray(sceneQa?.missingExpectedCharacters)
+    ? sceneQa.missingExpectedCharacters.filter((name): name is string => typeof name === 'string')
+    : [];
   const missingExpectedCharacters = Array.from(
     new Set([
       ...sceneQaMissingExpectedCharacters,
@@ -2750,8 +2740,8 @@ export async function runGraphicNovelPanelImageValidation(
 }
 
 /**
- * Run the same validation pipeline as production: Image 1 = generated scene, then identity refs;
- * prompt from buildImageValidationPrompt; schema IMAGE_VALIDATION_SCHEMA; temperature 0.2; relaxedSafety true.
+ * Run the compact validation pipeline: Image 1 = generated scene, then identity refs;
+ * cached rules plus the runtime prompt, IMAGE_VALIDATION_SCHEMA, temperature 0.2, relaxed safety.
  */
 export async function runProductImageValidation(
   textProvider: ITextProvider,
@@ -2944,10 +2934,7 @@ export async function runProductImageValidation(
       promptMode,
       includeWardrobeChecks
     );
-    const sceneContext = buildCompactValidationSceneManifest(
-      input.sceneVisual,
-      promptMode
-    );
+    const sceneContext = buildCompactValidationSceneManifest(input.sceneVisual, promptMode);
     const prompt = buildImageValidationRuntimePrompt({
       expectedCharacters: expectedCharactersForPrompt,
       sceneContext,

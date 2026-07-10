@@ -53,8 +53,6 @@ export interface ImageEditPromptParams {
    * the prompt template stays static, and only validator facts are inserted.
    */
   targetedRepairManifest?: ImageEditRepairManifest;
-  /** Deprecated fallback for older callers. Prefer targetedRepairManifest. */
-  targetedRepairInstruction?: string;
 }
 
 export function buildImageEditSystemInstruction(): string {
@@ -132,7 +130,9 @@ function visibleSubjectDescription(text: string | null | undefined): string | nu
 
 function looksLikeValidationProblem(text: string): boolean {
   const lower = text.toLowerCase();
-  if (/^(missing|lacks?|does not|doesn't|not enough|incorrect|wrong|should|needs?|must)\b/.test(lower)) {
+  if (
+    /^(missing|lacks?|does not|doesn't|not enough|incorrect|wrong|should|needs?|must)\b/.test(lower)
+  ) {
     return true;
   }
   return /\b(missing|mismatch|does not match|doesn't match|differs from|should be|needs to|validator|reference|signature|not visible|not present)\b/.test(
@@ -216,16 +216,9 @@ function editActionForIssue(kind: ImageEditRepairIssueKind): string {
  * The resulting prompt is sent alongside the original image to get a corrected version.
  */
 export function buildImageEditPrompt(params: ImageEditPromptParams): string {
-  const { validationResult, sceneDescription, targetedRepairInstruction, targetedRepairManifest } =
-    params;
+  const { validationResult, sceneDescription, targetedRepairManifest } = params;
   if (targetedRepairManifest) {
     return buildTargetedImageEditPrompt(targetedRepairManifest);
-  }
-  if (targetedRepairInstruction) {
-    return buildTargetedImageEditPrompt({
-      referenceMode: 'none',
-      issues: [{ kind: 'generic', note: targetedRepairInstruction }],
-    });
   }
 
   const issues: string[] = [];
@@ -335,9 +328,7 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
 
   // Build the expected character summary for context
   const expectedSummary = validationResult.characters.map((c) => c.name).join(', ');
-  const referenceInstructions = targetedRepairInstruction
-    ? `- ${targetedRepairInstruction}`
-    : `- Use labeled character references as the source for requested character replacements.
+  const referenceInstructions = `- Use labeled character references as the source for requested character replacements.
 - For a wrong visible character, replace the whole visible character with the matching labeled reference.`;
 
   let prompt = `This children's book illustration has quality issues that need to be corrected.

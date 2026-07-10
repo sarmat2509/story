@@ -346,12 +346,6 @@ export const useSaveStoryQuizAnswer = () => {
   });
 };
 
-/** Alias for useStory */
-export const useMyStory = useStory;
-
-/** Alias for useStories (list of current user's stories) */
-export const useMyStories = useStories;
-
 // Get lightweight generation status for polling (no scenes/assets)
 export const useStoryGenerationStatus = (id: string, enabled: boolean = true) => {
   return useQuery({
@@ -1027,9 +1021,6 @@ export function usePublicStory(slug: string | undefined, enabled = true) {
   }
   return query;
 }
-
-/** @deprecated Use usePublicStory */
-export const usePublishedStory = usePublicStory;
 
 /**
  * Fetch public story by share token (unlisted). No __INITIAL_STORY__ (SSR uses different path).

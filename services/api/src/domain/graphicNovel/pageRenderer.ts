@@ -7,7 +7,10 @@ import {
 import type { StoryEnvironment } from '../../ai/types';
 import type { ReferenceImage } from '../../providers/base/IImageProvider';
 import type { BubbleGeometry, PlannedGraphicNovelPage, Rect } from './types';
-import { buildImageSystemInstruction, buildSceneImagePrompt } from '../../prompts/image/ImagePrompts';
+import {
+  buildImageSystemInstruction,
+  buildSceneImagePrompt,
+} from '../../prompts/image/ImagePrompts';
 import { plannedCharacterReferenceIdForName } from '../../prompts/visualReferenceLabels';
 import {
   findCharacterReferenceBinding,
@@ -34,25 +37,6 @@ type PageSize = { width: number; height: number };
 
 function px(rect: Rect, pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE): Rect {
   return normalizeRect(rect, pageSize);
-}
-
-function roundedBubblePath(r: Rect, radius: number): string {
-  const x2 = r.x + r.width;
-  const y2 = r.y + r.height;
-  const radiusX = Math.min(radius, r.width / 2);
-  const radiusY = Math.min(radius, r.height / 2);
-  return [
-    `M ${r.x + radiusX} ${r.y}`,
-    `H ${x2 - radiusX}`,
-    `Q ${x2} ${r.y} ${x2} ${r.y + radiusY}`,
-    `V ${y2 - radiusY}`,
-    `Q ${x2} ${y2} ${x2 - radiusX} ${y2}`,
-    `H ${r.x + radiusX}`,
-    `Q ${r.x} ${y2} ${r.x} ${y2 - radiusY}`,
-    `V ${r.y + radiusY}`,
-    `Q ${r.x} ${r.y} ${r.x + radiusX} ${r.y}`,
-    'Z',
-  ].join(' ');
 }
 
 function n(value: number): string {
@@ -235,10 +219,6 @@ interface SpeechTailGeometry {
   tip: { x: number; y: number };
   mouth: { x: number; y: number };
   concaveSide: 'start' | 'end';
-}
-
-function distanceBetween(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function speechTailSegment(
@@ -784,7 +764,10 @@ function panelCharacterReferenceEntries(
           .filter((ref) => ref.referenceKind === 'character' && ref.characterName)
           .map((ref) => ref.characterName!)
       : composition.characters.map((character) => character.name);
-  const entries = new Map<string, { name: string; isTurnaround?: boolean; nameAliases?: string[] }>();
+  const entries = new Map<
+    string,
+    { name: string; isTurnaround?: boolean; nameAliases?: string[] }
+  >();
 
   for (const characterName of panelCharacterNames) {
     const directRef = findCharacterReferenceBinding(characterName, referenceImages);

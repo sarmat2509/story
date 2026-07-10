@@ -28,62 +28,24 @@ export class SceneRepository {
     const [scene] = await this.db
       .select()
       .from(schema.scenes)
-      .where(and(
-        eq(schema.scenes.storyId, storyId),
-        eq(schema.scenes.sceneId, sceneId)
-      ))
+      .where(and(eq(schema.scenes.storyId, storyId), eq(schema.scenes.sceneId, sceneId)))
       .limit(1);
     return scene || null;
   }
 
-  async findReferenceImages(storyId: string): Promise<schema.Scene[]> {
-    return this.db
-      .select()
-      .from(schema.scenes)
-      .where(and(
-        eq(schema.scenes.storyId, storyId),
-        eq(schema.scenes.isReferenceImage, true)
-      ))
-      .orderBy(schema.scenes.sceneId);
-  }
-
   async create(data: schema.NewScene, tx?: DbType): Promise<schema.Scene> {
     const conn = tx || this.db;
-    const [scene] = await conn
-      .insert(schema.scenes)
-      .values(data)
-      .returning();
+    const [scene] = await conn.insert(schema.scenes).values(data).returning();
     return scene;
   }
 
   async createMany(data: schema.NewScene[], tx?: DbType): Promise<schema.Scene[]> {
     if (data.length === 0) return [];
     const conn = tx || this.db;
-    return conn
-      .insert(schema.scenes)
-      .values(data)
-      .returning();
+    return conn.insert(schema.scenes).values(data).returning();
   }
 
   async update(id: string, data: Partial<schema.NewScene>): Promise<void> {
-    await this.db
-      .update(schema.scenes)
-      .set(data)
-      .where(eq(schema.scenes.id, id));
-  }
-
-  async markAsReference(
-    sceneDbId: string,
-    charactersPresent: string[],
-    imageUrl: string
-  ): Promise<void> {
-    await this.db
-      .update(schema.scenes)
-      .set({
-        isReferenceImage: true,
-        charactersPresent,
-        imageUrl,
-      })
-      .where(eq(schema.scenes.id, sceneDbId));
+    await this.db.update(schema.scenes).set(data).where(eq(schema.scenes.id, id));
   }
 }

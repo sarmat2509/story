@@ -61,7 +61,7 @@ Prompts:
 
 Validation code: `services/api/src/services/storyOrchestration/validation.ts`.
 
-- `validateStoryScenes` runs parallel per-scene validation via `StoryDomainService.validateScene`.
+- `validateStoryTextScenes` runs parallel per-scene validation via `StoryDomainService.validateScene`.
 - It can apply `correctedCameraComposition` directly to `sceneVisual`.
 - Failed scenes are regenerated selectively through `StoryDomainService.regenerateScenesBatch`.
 - Revalidation repeats until `maxRetries`; final failures throw and record moderation decisions.

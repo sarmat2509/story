@@ -12,7 +12,7 @@ Domain service factories:
 - `getGraphicNovelDomainService()`: graphic novel script/domain logic.
 - `getMixedStoryDomainService()`: mixed story script/domain logic.
 - `getMapTileImageDomainService()`: map tile image route.
-- `getAudioDomainService()`: TTS domain service.
+- `getAudioDomainService()` from `services/api/src/domain/audio`: TTS domain service.
 
 Orchestration should call these factories/domain services, not provider classes directly.
 

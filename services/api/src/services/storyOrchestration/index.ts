@@ -1,6 +1,6 @@
 /**
  * Story Orchestration - Unified API
- * 
+ *
  * This module provides unified generation logic for both standard and continuation stories.
  * All public functions maintain backward compatibility with the original API.
  */
@@ -12,11 +12,11 @@ export { processStoryRequest, processStoryImages } from '../storyOrchestrationSe
 export { generateStoryText, generateStoryImages } from './coreGeneration';
 
 // Export utilities
-export { 
+export {
   extractLlmCharactersFromText,
   createSceneRecords,
   handleRequestError,
-  buildInitialContext
+  buildInitialContext,
 } from './utilities';
 
 // Export story record creation
@@ -30,14 +30,14 @@ export {
 } from './storyRecords';
 
 // Export validation
-export { validateStoryTextScenes, validateStoryScenes } from './validation';
+export { validateStoryTextScenes } from './validation';
 
 // Export checkpoint management
-export { 
+export {
   saveTextGenerationCheckpoint,
   saveValidationCheckpoint,
   saveStoryCreationCheckpoint,
-  loadCheckpoint
+  loadCheckpoint,
 } from './checkpoints';
 
 // Export shared types

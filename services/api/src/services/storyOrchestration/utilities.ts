@@ -55,13 +55,13 @@ export function extractLlmCharactersFromText(text: any): any[] {
 export async function createSceneRecords(
   storyId: string,
   text: { scenes: any[] },
-  options?: { 
-    tx?: any; 
+  options?: {
+    tx?: any;
     includeWordCount?: boolean;
   }
 ): Promise<void> {
   await Promise.all(
-    text.scenes.map(scene => {
+    text.scenes.map((scene) => {
       const sceneVisual = limitSceneVisualCharacters(scene.sceneVisual);
       // Strip [ID: uuid] from cameraComposition character names before normalization
       const cam = sceneVisual?.cameraComposition;
@@ -71,29 +71,28 @@ export async function createSceneRecords(
         }
       }
 
-      const charNames = (cam && typeof cam !== 'string')
-        ? flattenCameraComposition(cam).characterNames
-        : (scene as any).characters || [];
+      const charNames =
+        cam && typeof cam !== 'string'
+          ? flattenCameraComposition(cam).characterNames
+          : (scene as any).characters || [];
       const normalizedCharacters = charNames.map((name: string) => normalizeCharacterName(name));
-      
+
       const cleanText = stripCharacterIds(scene.text);
 
       const sceneData: any = {
         storyId,
         sceneId: scene.sceneId,
         text: cleanText,
-        visualPrompt: sceneVisual
-          ? JSON.stringify(sceneVisual)
-          : (scene.visualPrompt ?? ''),
+        visualPrompt: sceneVisual ? JSON.stringify(sceneVisual) : (scene.visualPrompt ?? ''),
         charactersPresent: normalizedCharacters,
       };
-      
+
       if (options?.includeWordCount) {
         sceneData.generationParams = {
           wordCount: cleanText.split(/\s+/).length,
         };
       }
-      
+
       return getSceneRepository().create(sceneData, options?.tx);
     })
   );
@@ -105,25 +104,28 @@ export async function createSceneRecords(
 export async function handleRequestError(
   requestId: string,
   error: unknown,
-  context?: { 
-    logMessage?: string; 
+  context?: {
+    logMessage?: string;
     extraFields?: Record<string, any>;
   }
 ): Promise<never> {
-  logger.error({
-    error,
-    requestId,
-    errorMessage: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
-    ...context?.extraFields,
-  }, context?.logMessage ?? 'Story request failed');
+  logger.error(
+    {
+      error,
+      requestId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      ...context?.extraFields,
+    },
+    context?.logMessage ?? 'Story request failed'
+  );
 
   await getStoryRepository().updateRequest(requestId, {
     status: 'failed',
     errorMessage: error instanceof Error ? error.message : 'Unknown error',
     updatedAt: new Date(),
   });
-  
+
   throw error;
 }
 
@@ -143,11 +145,11 @@ export function buildInitialContext(
   const text = checkpoints.validatedText || checkpoints.text;
   const spec = checkpoints.spec;
   const mergedCharacters = checkpoints.mergedCharacters || [];
-  
+
   if (!storyId || !text) {
     throw new Error(`Missing storyId or text in intermediateData for request ${request.id}`);
   }
-  
+
   return { storyId, text, spec, mergedCharacters };
 }
 
@@ -157,7 +159,10 @@ export { parsePlainTextToScenes } from '../../domain/story/parsePlainText';
  * Block-start placement for Director flow: image i appears before scene (1 + i*blockSize), covers that block.
  * E.g. 9 scenes, 3 images → [1, 4, 7] (block 1: scenes 1-3, block 2: 4-6, block 3: 7-9).
  */
-export function getIllustrationBlockStartSceneIds(totalScenes: number, imagesPerStory: number): number[] {
+export function getIllustrationBlockStartSceneIds(
+  totalScenes: number,
+  imagesPerStory: number
+): number[] {
   if (imagesPerStory <= 0 || totalScenes <= 0) return [];
   if (imagesPerStory === 1) return [1];
   const blockSize = Math.ceil(totalScenes / imagesPerStory);
@@ -176,7 +181,7 @@ export function composeScenesIntoBlocks(
   return sceneIds.map((anchor, i) => {
     const sceneStart = anchor;
     const sceneEnd = Math.min(anchor + blockSize - 1, scenes.length);
-    const blockScenes = scenes.filter(s => s.sceneId >= sceneStart && s.sceneId <= sceneEnd);
+    const blockScenes = scenes.filter((s) => s.sceneId >= sceneStart && s.sceneId <= sceneEnd);
     const blockText = blockScenes
       .map((s) => `Scene ${s.sceneId}:\n${stripAllTags(s.text)}`)
       .join('\n\n');
@@ -189,7 +194,13 @@ export function composeScenesIntoBlocks(
  * Produces EpisodeText-like structure for downstream pipeline.
  */
 export function mergeDirectorIntoText(
-  plainText: { title: string; description: string; fullText: string; wordCount: number; scenes: Array<{ sceneId: number; text: string }> },
+  plainText: {
+    title: string;
+    description: string;
+    fullText: string;
+    wordCount: number;
+    scenes: Array<{ sceneId: number; text: string }>;
+  },
   directorResult: {
     characters: any[];
     environments: any[];
@@ -209,7 +220,7 @@ export function mergeDirectorIntoText(
 ): any {
   const sceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
   const blockSize = Math.ceil(plainText.scenes.length / imagesPerStory) || 1;
-  const sceneMap = new Map(plainText.scenes.map(s => [s.sceneId, { ...s }]));
+  const sceneMap = new Map(plainText.scenes.map((s) => [s.sceneId, { ...s }]));
 
   for (let i = 0; i < directorResult.illustrations.length && i < sceneIds.length; i++) {
     const anchor = sceneIds[i];
@@ -218,7 +229,7 @@ export function mergeDirectorIntoText(
     const sceneVisual = limitSceneVisualCharacters(
       ill?.sceneVisual,
       MAX_SCENE_IMAGE_CHARACTERS,
-      options?.preferredCharacterNames ?? [],
+      options?.preferredCharacterNames ?? []
     );
     const originalCharacterCount = getSceneVisualCharacterCount(ill?.sceneVisual);
     const limitedCharacterCount = getSceneVisualCharacterCount(sceneVisual);
@@ -267,31 +278,5 @@ export function mergeDirectorIntoText(
     scenes: Array.from(sceneMap.values()).sort((a, b) => a.sceneId - b.sceneId),
     fullText: plainText.fullText,
     wordCount: plainText.wordCount,
-  };
-}
-
-/**
- * Helper: Migrate old visualPrompt to structured sceneVisual
- */
-function migrateVisualPrompt(scene: any): any {
-  if (scene.sceneVisual) return scene.sceneVisual;
-
-  const vp = scene.visualPrompt || '';
-
-  if (vp.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(vp);
-      if (parsed && typeof parsed.setting === 'string' && parsed.cameraComposition !== undefined) {
-        return parsed;
-      }
-    } catch (_) {
-      // Not valid JSON
-    }
-  }
-
-  return {
-    setting: '',
-    cameraComposition: vp,
-    lighting: '',
   };
 }

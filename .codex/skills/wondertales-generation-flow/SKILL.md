@@ -29,10 +29,10 @@ Generation kind is stored in `story_requests.intermediate_data.generationKind`:
 
 ## Do Not Confuse These Paths
 
-- Text validation checks generated prose scenes through `StoryDomainService.validateScene` and `validateStoryScenes`.
+- Text validation checks generated prose scenes through `StoryDomainService.validateScene` and `validateStoryTextScenes`.
 - Scene image validation checks rendered illustrations through `ImageDomainService.validateGeneratedImageSegmented`.
 - Comic page validation checks panel arrays through `ImageDomainService.validateGraphicNovelPagePanels`.
-- `ImageDomainService.validateGeneratedImage` is only a legacy method name; it currently delegates to segmented validation.
+- Scene validation calls `ImageDomainService.validateGeneratedImageSegmented` directly.
 - `recheckProblemImageValidation.ts` is the older compact/debug-repair path. For current segmented graphic novel/comic validation, prefer `recheckGraphicNovelValidationVariance.ts` modes from `wondertales-verification-scripts`.
 
 ## Main Code Pivots

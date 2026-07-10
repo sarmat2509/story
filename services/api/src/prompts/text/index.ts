@@ -18,18 +18,15 @@ export {
 } from './DirectorPrompt';
 export {
   buildValidationPrompt,
-  buildBatchValidationPrompt,
   buildBatchValidationCachedPrefix,
   buildBatchValidationRuntimePrompt,
   TEXT_VALIDATION_CACHE_KEY,
 } from './ValidationPrompt';
 export {
-  buildBatchRegenerationPrompt,
   buildBatchRegenerationCachedPrefix,
   buildBatchRegenerationRuntimePrompt,
   TEXT_REGENERATION_CACHE_KEY,
 } from './RegenerationPrompt';
-export { buildContinuationPromptPlain } from './ContinuationPrompt';
 export {
   buildGraphicNovelPrompt,
   buildGraphicNovelPageRepairPrompt,
@@ -52,5 +49,4 @@ export {
 export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { ValidationPromptParams, BatchValidationPromptParams } from './ValidationPrompt';
 export type { BatchRegenerationPromptParams } from './RegenerationPrompt';
-export type { ContinuationPromptParams } from './ContinuationPrompt';
 export type { VisualCharacterReferenceLabel } from '../visualReferenceLabels';

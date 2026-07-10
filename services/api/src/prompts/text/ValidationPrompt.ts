@@ -37,8 +37,8 @@ function formatReservedCharacters(characters?: ReservedCharacter[]): string {
       role: character.role ?? null,
       visualReference: Boolean(
         (character as any).turnaroundSheet?.url ||
-          (character as any).turnaroundSheet?.frontUrl ||
-          (character.referencePhotos?.length || 0) > 0
+        (character as any).turnaroundSheet?.frontUrl ||
+        (character.referencePhotos?.length || 0) > 0
       ),
       description:
         (character as any).descriptionEn ||
@@ -122,9 +122,11 @@ ${validationRules}
 
 CORE VALIDATION RULES:
 - Flag only real issues.
-- ${isLastScene
-    ? 'This last scene must end positively with hope and resolution.'
-    : 'This scene should progress the story appropriately.'}
+- ${
+    isLastScene
+      ? 'This last scene must end positively with hope and resolution.'
+      : 'This scene should progress the story appropriately.'
+  }
 - Validate only the story prose and policy/identity rules. Do not infer, complete, rewrite, or repair illustration character rosters, cameraComposition, sceneVisual, or Director metadata.
 ${formatCharacterIdentityValidationRules(reservedCharacters)}
 
@@ -152,10 +154,7 @@ export function buildBatchValidationRuntimePrompt(params: BatchValidationPromptP
   const scenesBlock = scenes
     .map((scene, idx) => {
       const isLastScene = idx === scenes.length - 1;
-      return [
-        `SCENE ${scene.sceneId} | last=${isLastScene ? 'yes' : 'no'}`,
-        `TEXT: ${scene.text}`,
-      ]
+      return [`SCENE ${scene.sceneId} | last=${isLastScene ? 'yes' : 'no'}`, `TEXT: ${scene.text}`]
         .filter(Boolean)
         .join('\n');
     })
@@ -174,12 +173,4 @@ SCENES:
 ${scenesBlock}
 
 Return JSON only. Empty failedScenes array if all scenes pass.`;
-}
-
-/**
- * Build batch validation prompt - validate ALL scenes in one request.
- * Returns only failed scenes (minimal info) to save tokens.
- */
-export function buildBatchValidationPrompt(params: BatchValidationPromptParams): string {
-  return `${buildBatchValidationCachedPrefix()}\n\n${buildBatchValidationRuntimePrompt(params)}`;
 }

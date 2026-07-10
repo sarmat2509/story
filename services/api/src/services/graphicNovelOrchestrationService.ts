@@ -49,7 +49,11 @@ import {
   prepareSceneDressedTurnaroundReferences,
   type SceneCharacterReferenceData,
 } from './imageReferencePreparationService';
-import { createStoryStub, mergeCharacters, persistLlmCharacters } from './storyOrchestration/storyRecords';
+import {
+  createStoryStub,
+  mergeCharacters,
+  persistLlmCharacters,
+} from './storyOrchestration/storyRecords';
 import { getStoryCreationAttributionInputFromRequest } from './storyCreationAttributionService';
 import {
   GRAPHIC_NOVEL_USAGE_EVENT,
@@ -117,7 +121,6 @@ import { normalizeStoryArtifactImagePath } from './storyArtifactImageService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { logger } from '../utils/logger';
 import { buildImageEditSystemInstruction } from '../prompts/image';
-import type { GraphicNovelPanelValidationInput } from '../domain/image/imageValidationRun';
 import { crossScriptIdentityKey, toPhoneticKey } from '../utils/characterNormalization';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
 
@@ -130,8 +133,6 @@ const GRAPHIC_NOVEL_PROGRESS_STAGES = [
   'placing_bubbles',
   'generating_first_page',
 ] as const;
-const GRAPHIC_NOVEL_PANEL_REPAIR_INSET_PX = 4;
-
 type GraphicNovelStoryArtifactReference = NonNullable<StorySpec['closingArtifact']> & {
   storagePath: string | null;
   referenceBindingId: string;
@@ -331,10 +332,16 @@ function isIgnorableComicCharacterName(name: string): boolean {
 
 function inferComicLlmCharacterType(name: string, description: string): string {
   const text = `${name} ${description}`.toLowerCase();
-  if (/(robot|android|droid|automaton|clockwork|mechanical|робот|андроїд|дроїд|механіч)/i.test(text)) {
+  if (
+    /(robot|android|droid|automaton|clockwork|mechanical|робот|андроїд|дроїд|механіч)/i.test(text)
+  ) {
     return 'object';
   }
-  if (/(dog|cat|bird|fox|rabbit|bear|wolf|hamster|animal|пес|собак|кіт|кіш|птах|лис|крол|ведм|вовк|хом.?як|тварин)/i.test(text)) {
+  if (
+    /(dog|cat|bird|fox|rabbit|bear|wolf|hamster|animal|пес|собак|кіт|кіш|птах|лис|крол|ведм|вовк|хом.?як|тварин)/i.test(
+      text
+    )
+  ) {
     return 'animal';
   }
   if (/(girl|boy|child|kid|woman|man|human|person|дівчин|хлоп|дитин|жін|чолов|людин)/i.test(text)) {
@@ -373,11 +380,9 @@ function mergeComicLlmCharacterCandidate(
   const next: ComicLlmCharacter = {
     name: existing?.name || name,
     type: existing?.type || type || inferComicLlmCharacterType(name, description),
-    description: [existing?.description, description]
-      .filter(Boolean)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim() || fallbackDescription,
+    description:
+      [existing?.description, description].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() ||
+      fallbackDescription,
     ...(existing?.role || role ? { role: existing?.role || role } : {}),
     ...(existing?.personality || personality
       ? { personality: existing?.personality || personality }
@@ -413,7 +418,9 @@ function initialCharacterFingerprints(characters: CharacterData[]): Set<string> 
 }
 
 function isInitialCharacterName(name: string, fingerprints: Set<string>): boolean {
-  return fingerprints.has(normalizeCharacterName(name)) || fingerprints.has(crossScriptIdentityKey(name));
+  return (
+    fingerprints.has(normalizeCharacterName(name)) || fingerprints.has(crossScriptIdentityKey(name))
+  );
 }
 
 export function extractLlmCharactersFromComicScript(params: {
@@ -682,7 +689,13 @@ function mergeStoredLlmCharacters(
 }
 
 async function ensureGraphicNovelProjectManifestCharacters(params: {
-  project: { id: string; storyId: string; storyRequestId?: string | null; language?: string | null; layoutManifest?: unknown };
+  project: {
+    id: string;
+    storyId: string;
+    storyRequestId?: string | null;
+    language?: string | null;
+    layoutManifest?: unknown;
+  };
   story: { userId: string; metadata?: unknown } | null;
   userId: string;
   generationKind: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
@@ -1894,7 +1907,9 @@ function derivedGraphicNovelCharacterAliases(
     pushUniqueName(aliases, alias);
   }
 
-  const phoneticName = toPhoneticKey([character.name, character.canonicalName].filter(Boolean).join(' '));
+  const phoneticName = toPhoneticKey(
+    [character.name, character.canonicalName].filter(Boolean).join(' ')
+  );
   if (/grif+on|gryphon|griffin/.test(phoneticName)) {
     pushVisualAliasVariant(aliases, 'griffin');
     if (/maliuk|malyuk|maluk|baby|small|little|young/.test(phoneticName)) {
@@ -2084,7 +2099,10 @@ export function augmentGraphicNovelPagesWithMentionedCharacters(params: {
         const aliases = params.aliases[character.name] || [character.name];
         if (!aliases.some((alias) => visualAliasMatchesText(mentionText, alias))) continue;
 
-        if (composition.characters.length + additions.length >= GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS) {
+        if (
+          composition.characters.length + additions.length >=
+          GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS
+        ) {
           logger.warn(
             {
               pageNumber: page.pageNumber,
@@ -2406,9 +2424,7 @@ function characterManifestMatchesPage(
     character.canonicalName,
     character.referenceBindingId,
     ...(character.nameAliases || []),
-  ].filter(
-    (value): value is string => !!value
-  );
+  ].filter((value): value is string => !!value);
   return names.some((name) => pageNames.has(normalizeCharacterName(name)));
 }
 
@@ -3001,27 +3017,6 @@ function pixelCropRectFromNormalizedRect(
   };
 }
 
-function insetPixelCropRect(
-  rect: PixelCropRect,
-  imageWidth: number,
-  imageHeight: number,
-  insetPx: number
-): PixelCropRect {
-  const insetX = Math.min(Math.max(0, insetPx), Math.floor((rect.width - 1) / 2));
-  const insetY = Math.min(Math.max(0, insetPx), Math.floor((rect.height - 1) / 2));
-  const left = clampNumber(rect.left + insetX, 0, imageWidth - 1);
-  const top = clampNumber(rect.top + insetY, 0, imageHeight - 1);
-  const right = clampNumber(rect.left + rect.width - insetX, left + 1, imageWidth);
-  const bottom = clampNumber(rect.top + rect.height - insetY, top + 1, imageHeight);
-
-  return {
-    left,
-    top,
-    width: right - left,
-    height: bottom - top,
-  };
-}
-
 async function buildTemplateGraphicNovelPanelBounds(params: {
   page: PlannedGraphicNovelPage;
   imageData: Buffer;
@@ -3323,7 +3318,10 @@ export function selectGraphicNovelPanelReferenceImagesForGeneration(params: {
     const isStoryArtifact =
       ref.source === 'story_artifact' || ref.type === 'story_artifact_reference';
     if (!isStoryArtifact || !params.panel || !params.storyArtifactReference) return true;
-    return graphicNovelPanelNeedsStoryArtifactReference(params.panel, params.storyArtifactReference);
+    return graphicNovelPanelNeedsStoryArtifactReference(
+      params.panel,
+      params.storyArtifactReference
+    );
   });
 
   return prepareGraphicNovelPageReferences({
@@ -4233,18 +4231,16 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         })
     );
 
-    const {
-      characters: graphicNovelCharacters,
-      llmCharacters: graphicNovelLlmCharacters,
-    } = await prepareGraphicNovelCharactersForScript({
-      storyId,
-      storyRequestId: requestId,
-      userId: request.userId,
-      generationKind: GRAPHIC_NOVEL_KIND,
-      spec,
-      script,
-      imageStyle: (spec as any).imageStyle,
-    });
+    const { characters: graphicNovelCharacters, llmCharacters: graphicNovelLlmCharacters } =
+      await prepareGraphicNovelCharactersForScript({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: GRAPHIC_NOVEL_KIND,
+        spec,
+        script,
+        imageStyle: (spec as any).imageStyle,
+      });
 
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 20_000,
@@ -4640,18 +4636,16 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         })
     );
 
-    const {
-      characters: mixedStoryCharacters,
-      llmCharacters: mixedStoryLlmCharacters,
-    } = await prepareGraphicNovelCharactersForScript({
-      storyId,
-      storyRequestId: requestId,
-      userId: request.userId,
-      generationKind: MIXED_STORY_KIND,
-      spec,
-      script,
-      imageStyle: (spec as any).imageStyle,
-    });
+    const { characters: mixedStoryCharacters, llmCharacters: mixedStoryLlmCharacters } =
+      await prepareGraphicNovelCharactersForScript({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: MIXED_STORY_KIND,
+        spec,
+        script,
+        imageStyle: (spec as any).imageStyle,
+      });
 
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 15_000,

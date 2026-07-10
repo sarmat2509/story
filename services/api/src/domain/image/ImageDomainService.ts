@@ -611,38 +611,6 @@ export class ImageDomainService {
     }
   }
 
-  async validateGeneratedImage(params: {
-    imageData: Buffer;
-    mimeType: string;
-    expectedCharacters: Array<{
-      name: string;
-      /** 3-way roster kind; must match CHARACTER TYPE from the story (person/child => human, animal, imaginary). */
-      characterKind: 'human' | 'animal' | 'imaginary';
-      /** Optional species/role hint (hamster, dragon, cat, fairy). Input-only. */
-      speciesSubtype?: string;
-      description?: string;
-      validateOutfit?: boolean;
-    }>;
-    sceneVisual: SceneVisual;
-    referenceImages?: Array<{
-      characterName: string;
-      imageData?: string; // base64 (optional when fileUri provided)
-      fileUri?: string; // Files API URI — when present, used instead of inline data
-      mimeType: string;
-      referenceKind?: 'identity' | 'layout_template';
-      identitySource?: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
-    }>;
-    logContext?: { storyId?: string; sceneId?: number; attempt?: number };
-    onUsage?: (usage: UsageMetadata) => void;
-    includeLayoutChecks?: boolean;
-    includeBubbleChecks?: boolean;
-    includeWardrobeChecks?: boolean;
-  }): Promise<ImageValidationResult> {
-    // Legacy method name kept for callers, but the old single-pass validator is disabled.
-    // All production validation now runs as segmented layout + per-character passes.
-    return this.validateGeneratedImageSegmented(params);
-  }
-
   async validateGeneratedImageSegmented(params: {
     imageData: Buffer;
     mimeType: string;
@@ -731,7 +699,6 @@ export class ImageDomainService {
     }>;
     systemInstruction?: string;
     targetedRepairManifest?: ImageEditRepairManifest;
-    targetedRepairInstruction?: string;
     personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
     onUsage?: (usage: UsageMetadata) => void;
     operation?: string;
@@ -745,7 +712,6 @@ export class ImageDomainService {
       validationResult: params.validationResult,
       sceneDescription: params.sceneDescription,
       targetedRepairManifest: params.targetedRepairManifest,
-      targetedRepairInstruction: params.targetedRepairInstruction,
     });
 
     logger.info(
@@ -756,7 +722,6 @@ export class ImageDomainService {
         imageSize: params.imageSize,
         referenceCount: params.referenceImages?.length || 0,
         targetedRepairManifest: params.targetedRepairManifest ?? null,
-        targetedRepairInstruction: params.targetedRepairInstruction ?? null,
         hasSystemInstruction: !!params.systemInstruction,
         operation: params.operation,
       },

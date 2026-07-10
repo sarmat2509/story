@@ -51,8 +51,7 @@ Production runner: `services/api/src/domain/image/imageValidationRun.ts`.
 
 Important facts:
 
-- `ImageDomainService.validateGeneratedImage` is a legacy method name and delegates to `validateGeneratedImageSegmented`.
-- `validateGeneratedImageSegmented` calls `runSegmentedProductImageValidation`.
+- `ImageDomainService.validateGeneratedImageSegmented` calls `runSegmentedProductImageValidation` directly.
 - It sends one generated image plus full-character identity references.
 - It runs optional layout pass and per-character identity passes.
 - Request manifest records image order, reference metadata, model, pass data.
@@ -87,7 +86,7 @@ Exact prompt builder:
 - `services/api/src/prompts/image/ImageEditPrompt.ts`
 - `buildImageEditPrompt(...)` returns the edit instruction string.
 - `buildImageEditSystemInstruction()` returns the separate system instruction used for validation repair edits.
-- `targetedRepairManifest` is the preferred structured input. `targetedRepairInstruction` is a deprecated fallback for older callers.
+- `targetedRepairManifest` is the structured input for targeted validation repair edits.
 
 Runtime call path:
 

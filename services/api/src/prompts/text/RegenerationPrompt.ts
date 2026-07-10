@@ -76,11 +76,3 @@ ${helpers.formatSceneLevelRules({ ageGroup: spec.ageGroup })}
 
 Include exactly ${failedScenes.length} corrected scenes in the same order.`;
 }
-
-/**
- * Build batch regeneration prompt - fix ALL failed scenes in one request.
- * Returns JSON with all corrected scenes.
- */
-export function buildBatchRegenerationPrompt(params: BatchRegenerationPromptParams): string {
-  return `${buildBatchRegenerationCachedPrefix()}\n\n${buildBatchRegenerationRuntimePrompt(params)}`;
-}

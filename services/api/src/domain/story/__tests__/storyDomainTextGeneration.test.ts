@@ -121,30 +121,6 @@ async function testGenerateTextPlainRejectsEmptyWriterOutput() {
   );
 }
 
-async function testGenerateTextCompatibilityUsesPlainWriter() {
-  const stub = new PlainOnlyStubTextProvider();
-  const domain = new StoryDomainService(stub);
-
-  const result = await domain.generateText(STATIC_STORY_SPEC);
-
-  assert.strictEqual(result.title, 'The Tiny Light');
-  assert.strictEqual(result.language, 'en');
-  assert.strictEqual(result.scenes.length, 2);
-  assert.deepStrictEqual(
-    result.characters,
-    [],
-    'plain Writer does not create a JSON character roster'
-  );
-  assert.deepStrictEqual(
-    result.environments,
-    [],
-    'visual environments belong to Director, not Writer'
-  );
-  assert.deepStrictEqual(result.outfits, [], 'outfits belong to Director, not Writer');
-  assert.ok(stub.lastGenerateTextRequest, 'provider received a plain text request');
-  assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
-}
-
 async function testWriterPromptDoesNotExposeCharacterIds() {
   const stub = new PlainOnlyStubTextProvider();
   const domain = new StoryDomainService(stub);
@@ -321,7 +297,6 @@ async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() 
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
   await testGenerateTextPlainRejectsEmptyWriterOutput();
-  await testGenerateTextCompatibilityUsesPlainWriter();
   await testWriterPromptDoesNotExposeCharacterIds();
   await testContinuationWriterPromptDoesNotExposeIds();
   await testValidateSceneFailsClosedWhenProviderBlocksValidation();

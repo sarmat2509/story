@@ -14,11 +14,11 @@ export interface ImageValidationPromptParams {
   expectedCharacters: Array<{
     name: string;
     characterKind: ImageValidationCharacterKind;
-	    /** Optional species/role hint (e.g. 'hamster', 'dragon', 'cat'). Input-only — not part of model output. */
-	    speciesSubtype?: string;
-	    description?: string;
-	    validateOutfit?: boolean;
-	  }>;
+    /** Optional species/role hint (e.g. 'hamster', 'dragon', 'cat'). Input-only — not part of model output. */
+    speciesSubtype?: string;
+    description?: string;
+    validateOutfit?: boolean;
+  }>;
   sceneContext?: string;
   referenceImages?: Array<{
     characterName: string;
@@ -68,8 +68,8 @@ function validationRefLabel(
 ): string {
   const role =
     ref.identitySource === 'dressed_turnaround'
-        ? 'dressed turnaround identity reference'
-        : ref.identitySource === 'turnaround'
+      ? 'dressed turnaround identity reference'
+      : ref.identitySource === 'turnaround'
         ? 'turnaround identity reference'
         : 'identity reference';
   return `Image ${imageIndex}: ${role} for "${ref.characterName}"`;
@@ -183,7 +183,9 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
             const subtype = c.speciesSubtype?.trim() ? ` | SUBTYPE=${c.speciesSubtype.trim()}` : '';
             const desc = c.description ? ` | ${c.description}` : '';
             const wardrobeCheck =
-              c.validateOutfit === true ? ' | WARDROBE_CHECK=enabled' : ' | WARDROBE_CHECK=disabled';
+              c.validateOutfit === true
+                ? ' | WARDROBE_CHECK=enabled'
+                : ' | WARDROBE_CHECK=disabled';
             return `${i + 1}. "${c.name}" | KIND=${kind}${subtype}${desc}${wardrobeCheck}`;
           })
           .join('\n')
@@ -213,7 +215,7 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
             const kind = row ? promptKindLabel(row.characterKind) : 'CHARACTER';
             const role =
               ref.identitySource === 'dressed_turnaround'
-                  ? 'DRESSED_TURNAROUND'
+                ? 'DRESSED_TURNAROUND'
                 : ref.identitySource === 'turnaround'
                   ? 'IDENTITY_TURNAROUND'
                   : 'IDENTITY';
@@ -263,9 +265,4 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
   ]
     .filter(Boolean)
     .join('\n\n');
-}
-
-export function buildImageValidationPrompt(params: ImageValidationPromptParams): string {
-  const cached = getImageValidationCachedPrefix((params.referenceImages?.length ?? 0) > 0);
-  return `${cached.content}\n\n${buildImageValidationRuntimePrompt(params)}`;
 }

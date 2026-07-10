@@ -21,7 +21,6 @@ import { GrokTTSProvider } from '../providers/audio/grok/GrokTTSProvider';
 import { ElevenLabsAlignmentProvider } from '../providers/alignment/elevenlabs/ElevenLabsAlignmentProvider';
 import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
-import { AudioDomainService } from '../domain/audio';
 import { GraphicNovelDomainService } from '../domain/graphicNovel';
 import { MixedStoryDomainService } from '../domain/mixedStory';
 import { ChildPhotoValidationService } from './childPhotoValidationService';
@@ -42,7 +41,6 @@ let storyDomainService: StoryDomainService | null = null;
 let imageDomainService: ImageDomainService | null = null;
 let complexImageDomainService: ImageDomainService | null = null;
 let mapTileImageDomainService: ImageDomainService | null = null;
-let audioDomainService: AudioDomainService | null = null;
 let graphicNovelDomainService: GraphicNovelDomainService | null = null;
 let mixedStoryDomainService: MixedStoryDomainService | null = null;
 let childPhotoValidationService: ChildPhotoValidationService | null = null;
@@ -158,24 +156,6 @@ export function getMapTileImageDomainService(): ImageDomainService {
   }
 
   return mapTileImageDomainService;
-}
-
-/**
- * Get Audio Domain Service instance
- * M5: Returns full implementation with ElevenLabs
- */
-export function getAudioDomainService(): AudioDomainService {
-  if (!audioDomainService) {
-    logger.info('Initializing Audio Domain Service');
-    
-    // Create provider (hidden from orchestration)
-    const provider = getAudioProviderInternal();
-    
-    // Create domain service with provider
-    audioDomainService = new AudioDomainService(provider);
-  }
-  
-  return audioDomainService;
 }
 
 /**
@@ -469,7 +449,6 @@ export function getBatchImageProvider(): IImageProvider | null {
 
 /**
  * Get audio provider instance (private)
- * Only called by getAudioDomainService()
  * M5: Supports ElevenLabs, Google Cloud TTS, OpenAI TTS, Grok (xAI) TTS
  */
 function getAudioProviderInternal(): IAudioProvider {
@@ -564,7 +543,7 @@ export function getImageRateLimiter(): ImageRateLimiter {
 
 /**
  * Get Audio Provider instance (exported for testing/seeding)
- * Usually should call getAudioDomainService() instead
+ * Prefer the domain/audio singleton when full synthesis orchestration is needed.
  */
 export function getAudioProvider(): IAudioProvider {
   return getAudioProviderInternal();
@@ -721,7 +700,6 @@ export function resetServices(): void {
   imageDomainService = null;
   complexImageDomainService = null;
   mapTileImageDomainService = null;
-  audioDomainService = null;
   graphicNovelDomainService = null;
   mixedStoryDomainService = null;
   childPhotoValidationService = null;

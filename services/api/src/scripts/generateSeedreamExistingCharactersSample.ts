@@ -96,7 +96,8 @@ async function loadExistingReferences(): Promise<{
   emily: ExistingReference;
 }> {
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://kazka:devpass@localhost:5432/kazka_dev',
+    connectionString:
+      process.env.DATABASE_URL || 'postgresql://kazka:devpass@localhost:5432/kazka_dev',
   });
 
   try {
@@ -238,7 +239,9 @@ function summarizeValidation(
   return {
     status: validation.validationStatus || 'completed',
     score,
-    passed: validation.validationStatus === 'provider_blocked' || (score !== null && score > minAcceptScore),
+    passed:
+      validation.validationStatus === 'provider_blocked' ||
+      (score !== null && score > minAcceptScore),
     minAcceptScore,
     characterCount: validation.characterCount,
     expectedCharacterCount: validation.expectedCharacterCount,
@@ -347,7 +350,7 @@ async function main(): Promise<void> {
     validateOutfit: ref.characterKind === 'human',
   }));
   const validationRefs = validationReferenceImages(characterRefs);
-  const validation = await imageDomain.validateGeneratedImage({
+  const validation = await imageDomain.validateGeneratedImageSegmented({
     imageData: image.imageData,
     mimeType: image.mimeType,
     expectedCharacters,
@@ -381,9 +384,9 @@ async function main(): Promise<void> {
     })),
     imageIndexMap: {
       environment: 1,
-      'Тік': 2,
+      Тік: 2,
       'Snow Spirit': 3,
-      'Емілія': 4,
+      Емілія: 4,
     },
     validation: summarizeValidation(validation, score, config.image.validationMinAcceptScore),
     usageEvents,

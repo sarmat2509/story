@@ -44,7 +44,8 @@ function formatContinuationCharacters(chars: any[]): any[] {
       if (char?.id) (base as any).id = char.id;
       if (char?.subtype) (base as any).subtype = char.subtype;
       if (char?.childProfileId) (base as any).childProfileId = char.childProfileId;
-      if (Array.isArray(char?.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
+      if (Array.isArray(char?.referencePhotos))
+        (base as any).referencePhotos = char.referencePhotos;
       if (char?.turnaroundSheet && typeof char.turnaroundSheet === 'object') {
         (base as any).turnaroundSheet = char.turnaroundSheet;
       }
@@ -58,7 +59,10 @@ function mergeContinuationCharacters(preferred: any[], fallback: any[]): any[] {
   const merged: any[] = [];
   const seen = new Set<string>();
 
-  for (const char of [...formatContinuationCharacters(preferred), ...formatContinuationCharacters(fallback)]) {
+  for (const char of [
+    ...formatContinuationCharacters(preferred),
+    ...formatContinuationCharacters(fallback),
+  ]) {
     const keys = continuationCharacterKeys(char);
     if (keys.some((key) => seen.has(key))) continue;
     merged.push(char);
@@ -68,7 +72,10 @@ function mergeContinuationCharacters(preferred: any[], fallback: any[]): any[] {
   return merged;
 }
 
-function removeCharactersAlreadyRequired(optionalCharacters: any[], requiredCharacters: any[]): any[] {
+function removeCharactersAlreadyRequired(
+  optionalCharacters: any[],
+  requiredCharacters: any[]
+): any[] {
   const requiredKeys = new Set(requiredCharacters.flatMap(continuationCharacterKeys));
   return formatContinuationCharacters(optionalCharacters).filter(
     (char) => !continuationCharacterKeys(char).some((key) => requiredKeys.has(key))
@@ -87,7 +94,10 @@ async function normalizeExistingContinuationContext(story: Story, series: any): 
   const linkedRequired = await buildRequiredCharactersFromLinkedStory(anchorStoryId);
   if (linkedRequired.length === 0) return ctx;
 
-  const requiredCharacters = mergeContinuationCharacters(linkedRequired, ctx.requiredCharacters || []);
+  const requiredCharacters = mergeContinuationCharacters(
+    linkedRequired,
+    ctx.requiredCharacters || []
+  );
   const optionalCharacters = removeCharactersAlreadyRequired(
     ctx.optionalCharacters || [],
     requiredCharacters
@@ -127,34 +137,34 @@ export async function getOrCreateSeries(storyId: string): Promise<{
 }> {
   // 1. Get the original story
   const story = await getStoryRepository().findById(storyId);
-  
+
   if (!story) {
     throw new Error(`Story not found: ${storyId}`);
   }
-  
+
   // 2. Check if story already belongs to a series
   if (story.seriesId) {
     const series = await getStoryRepository().findSeriesById(story.seriesId);
-    
+
     if (!series) {
       throw new Error(`Series not found: ${story.seriesId}`);
     }
-    
+
     const continuationContext = await normalizeExistingContinuationContext(story, series);
     logger.info({ seriesId: series.id, totalParts: series.totalParts }, 'Found existing series');
-    
+
     return {
       seriesId: series.id,
       partNumber: series.totalParts,
       continuationContext,
     };
   }
-  
+
   // 3. Create new series with this story as Part 1
   const baseTitle = story.title.replace(/\s*-\s*Частина\s+\d+/i, ''); // Remove part number if exists
-  
+
   logger.info({ storyId, baseTitle }, 'Creating new series');
-  
+
   const newSeries = await getStoryRepository().createSeries({
     userId: story.userId,
     childProfileId: story.childProfileId,
@@ -166,12 +176,12 @@ export async function getOrCreateSeries(storyId: string): Promise<{
     storyIds: [storyId],
     continuationContext: await buildInitialContext(story),
   });
-  
+
   // 4. Update original story with series_id
   await getStoryRepository().updateStory(storyId, { seriesId: newSeries.id, partNumber: 1 });
-  
+
   logger.info({ seriesId: newSeries.id }, 'Created new series');
-  
+
   return {
     seriesId: newSeries.id,
     partNumber: 1,
@@ -187,52 +197,63 @@ async function buildInitialContext(story: Story): Promise<any> {
   const metadata = story.metadata as any;
   const scenes = story.scenes as any[]; // Actual scene data with text
   const linkedCharacters = await getStoryRepository().findLinkedCharactersByStoryId(story.id);
-  
+
   // Separate user-provided characters (from wizard) and LLM-generated characters
   const linkedRequiredCharacters = linkedCharacters.filter((char) => !char.isHidden);
   const linkedOptionalCharacters = linkedCharacters.filter((char) => char.isHidden);
   const userProvidedCharacters =
-    linkedRequiredCharacters.length > 0 ? linkedRequiredCharacters : metadata?.mergedCharacters || [];
+    linkedRequiredCharacters.length > 0
+      ? linkedRequiredCharacters
+      : metadata?.mergedCharacters || [];
   const llmGeneratedCharacters =
-    linkedOptionalCharacters.length > 0 ? linkedOptionalCharacters : metadata?.llmGeneratedCharacters || [];
-  
+    linkedOptionalCharacters.length > 0
+      ? linkedOptionalCharacters
+      : metadata?.llmGeneratedCharacters || [];
+
   // DEBUG: Log raw character data
-  logger.debug({
-    storyId: story.id,
-    userProvidedRaw: userProvidedCharacters.map(c => ({
-      name: c.name,
-      type: c.type,
-      description: c.description,
-      appearance: c.appearance,
-      personality: c.personality,
-      traits: c.traits,
-    })),
-    llmGeneratedRaw: llmGeneratedCharacters.map(c => ({
-      name: c.name,
-      type: c.type,
-      description: c.description,
-      appearance: c.appearance,
-      personality: c.personality,
-    })),
-  }, 'Raw character data before formatting');
-  
+  logger.debug(
+    {
+      storyId: story.id,
+      userProvidedRaw: userProvidedCharacters.map((c) => ({
+        name: c.name,
+        type: c.type,
+        description: c.description,
+        appearance: c.appearance,
+        personality: c.personality,
+        traits: c.traits,
+      })),
+      llmGeneratedRaw: llmGeneratedCharacters.map((c) => ({
+        name: c.name,
+        type: c.type,
+        description: c.description,
+        appearance: c.appearance,
+        personality: c.personality,
+      })),
+    },
+    'Raw character data before formatting'
+  );
+
   // Extract scene summaries - handle both outline mode and direct mode
   const sceneSummaries = [];
-  
+
   // First try to get summaries from outline
   if (outline?.scenes && Array.isArray(outline.scenes)) {
     for (let i = 0; i < outline.scenes.length; i++) {
       const outlineScene = outline.scenes[i];
       const actualScene = scenes?.[i]; // Match by index
-      
+
       // Priority order: goal -> setting -> sceneVisual.setting -> visualPrompt -> first 200 chars of actual scene text
-      let summary = outlineScene.goal || outlineScene.setting || outlineScene.sceneVisual?.setting || outlineScene.visualPrompt;
-      
+      let summary =
+        outlineScene.goal ||
+        outlineScene.setting ||
+        outlineScene.sceneVisual?.setting ||
+        outlineScene.visualPrompt;
+
       // If no summary fields, use beginning of actual scene text
       if ((!summary || !summary.trim()) && actualScene?.text) {
         summary = actualScene.text.slice(0, 200).trim();
       }
-      
+
       if (summary && summary.trim()) {
         sceneSummaries.push(summary.trim());
       }
@@ -246,10 +267,19 @@ async function buildInitialContext(story: Story): Promise<any> {
       }
     }
   }
-  
+
   // Extract environments for continuation (metadata.environments or fallback from scenes)
-  let previousEnvironments: Array<{ id: string; name: string; description: string; characterOutfits?: string }> = [];
-  if (metadata?.environments && Array.isArray(metadata.environments) && metadata.environments.length > 0) {
+  let previousEnvironments: Array<{
+    id: string;
+    name: string;
+    description: string;
+    characterOutfits?: string;
+  }> = [];
+  if (
+    metadata?.environments &&
+    Array.isArray(metadata.environments) &&
+    metadata.environments.length > 0
+  ) {
     previousEnvironments = metadata.environments.map((e: any) => ({
       id: e.id || '',
       name: e.name || e.id || '',
@@ -273,25 +303,30 @@ async function buildInitialContext(story: Story): Promise<any> {
     }
   }
 
-  logger.debug({
-    userProvidedCount: userProvidedCharacters.length,
-    llmGeneratedCount: llmGeneratedCharacters.length,
-    sceneSummariesCount: sceneSummaries.length,
-    firstSummaryPreview: sceneSummaries[0]?.slice(0, 50),
-    previousEnvironmentsCount: previousEnvironments.length,
-  }, 'Building initial context');
+  logger.debug(
+    {
+      userProvidedCount: userProvidedCharacters.length,
+      llmGeneratedCount: llmGeneratedCharacters.length,
+      sceneSummariesCount: sceneSummaries.length,
+      firstSummaryPreview: sceneSummaries[0]?.slice(0, 50),
+      previousEnvironmentsCount: previousEnvironments.length,
+    },
+    'Building initial context'
+  );
 
   const previousOutfits = Array.isArray(metadata?.outfits) ? metadata.outfits : [];
 
   return {
-    previousOutlines: [{
-      title: story.title,
-      moral: outline?.moral || '',
-      scenes: sceneSummaries.map((summary, idx) => ({
-        setting: '', // Not critical for continuation
-        goal: summary, // Use summary as goal
-      })),
-    }],
+    previousOutlines: [
+      {
+        title: story.title,
+        moral: outline?.moral || '',
+        scenes: sceneSummaries.map((summary, idx) => ({
+          setting: '', // Not critical for continuation
+          goal: summary, // Use summary as goal
+        })),
+      },
+    ],
     requiredCharacters: formatContinuationCharacters(userProvidedCharacters), // User-provided = MUST use
     optionalCharacters: removeCharactersAlreadyRequired(
       llmGeneratedCharacters,
@@ -304,16 +339,6 @@ async function buildInitialContext(story: Story): Promise<any> {
 }
 
 /**
- * Extract plot elements to avoid repetition
- */
-function extractUsedPlots(outline: any): string[] {
-  if (!outline?.scenes) return [];
-  
-  // Extract high-level plot beats from scene goals
-  return outline.scenes.map((s: any) => s.goal.toLowerCase());
-}
-
-/**
  * Update series after generating continuation
  */
 export async function addContinuationToSeries(
@@ -322,31 +347,35 @@ export async function addContinuationToSeries(
   newStory: Story
 ): Promise<void> {
   const series = await getStoryRepository().findSeriesById(seriesId);
-  
+
   if (!series) {
     throw new Error(`Series not found: ${seriesId}`);
   }
-  
+
   const metadata = newStory.metadata as any;
   const llmGeneratedCharacters = metadata?.llmGeneratedCharacters || [];
   const outline = newStory.outline as any;
   const scenes = newStory.scenes as any[]; // Actual scene data with text
-  
+
   // Extract scene summaries - handle both outline mode and direct mode
   const sceneSummaries = [];
   if (outline?.scenes && Array.isArray(outline.scenes)) {
     for (let i = 0; i < outline.scenes.length; i++) {
       const outlineScene = outline.scenes[i];
       const actualScene = scenes?.[i]; // Match by index
-      
+
       // Priority order: goal -> setting -> sceneVisual.setting -> visualPrompt -> first 200 chars of actual scene text
-      let summary = outlineScene.goal || outlineScene.setting || outlineScene.sceneVisual?.setting || outlineScene.visualPrompt;
-      
+      let summary =
+        outlineScene.goal ||
+        outlineScene.setting ||
+        outlineScene.sceneVisual?.setting ||
+        outlineScene.visualPrompt;
+
       // If no summary fields, use beginning of actual scene text
       if ((!summary || !summary.trim()) && actualScene?.text) {
         summary = actualScene.text.slice(0, 200).trim();
       }
-      
+
       if (summary && summary.trim()) {
         sceneSummaries.push(summary.trim());
       }
@@ -360,18 +389,38 @@ export async function addContinuationToSeries(
       }
     }
   }
-  
+
   // Format character descriptions while preserving reference images (same as buildInitialContext)
   const formatCharacters = (chars: any[]) => {
     return chars.map((char: any) => {
       let description = '';
-      if (char.description && typeof char.description === 'string' && char.description.trim() && char.description !== 'undefined') {
+      if (
+        char.description &&
+        typeof char.description === 'string' &&
+        char.description.trim() &&
+        char.description !== 'undefined'
+      ) {
         description = char.description.trim();
-      } else if (char.appearance && typeof char.appearance === 'string' && char.appearance.trim() && char.appearance !== 'undefined') {
+      } else if (
+        char.appearance &&
+        typeof char.appearance === 'string' &&
+        char.appearance.trim() &&
+        char.appearance !== 'undefined'
+      ) {
         description = char.appearance.trim();
-      } else if (char.personality && typeof char.personality === 'string' && char.personality.trim() && char.personality !== 'undefined') {
+      } else if (
+        char.personality &&
+        typeof char.personality === 'string' &&
+        char.personality.trim() &&
+        char.personality !== 'undefined'
+      ) {
         description = char.personality.trim();
-      } else if (char.traits && typeof char.traits === 'string' && char.traits.trim() && char.traits !== 'undefined') {
+      } else if (
+        char.traits &&
+        typeof char.traits === 'string' &&
+        char.traits.trim() &&
+        char.traits !== 'undefined'
+      ) {
         description = char.traits.trim();
       }
       const base = {
@@ -381,25 +430,46 @@ export async function addContinuationToSeries(
         role: char.role || 'character',
       };
       if (char.id) (base as any).id = char.id;
-      if (char.referencePhotos && Array.isArray(char.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
-      if (char.turnaroundSheet && typeof char.turnaroundSheet === 'object') (base as any).turnaroundSheet = char.turnaroundSheet;
-      if (char.appearance && typeof char.appearance === 'string') (base as any).appearance = char.appearance;
+      if (char.referencePhotos && Array.isArray(char.referencePhotos))
+        (base as any).referencePhotos = char.referencePhotos;
+      if (char.turnaroundSheet && typeof char.turnaroundSheet === 'object')
+        (base as any).turnaroundSheet = char.turnaroundSheet;
+      if (char.appearance && typeof char.appearance === 'string')
+        (base as any).appearance = char.appearance;
       return base;
     });
   };
-  
+
   const ctx = (series.continuationContext || {}) as {
-    previousOutlines: Array<{ title: string; moral: string; scenes: Array<{ setting: string; goal: string }> }>;
+    previousOutlines: Array<{
+      title: string;
+      moral: string;
+      scenes: Array<{ setting: string; goal: string }>;
+    }>;
     requiredCharacters: any[];
     optionalCharacters: any[];
     usedPlots: string[];
-    previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+    previousEnvironments?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      characterOutfits?: string;
+    }>;
     previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
   };
 
   // Extract new environments from this episode (metadata.environments or scenes)
-  const newEnvs: Array<{ id: string; name: string; description: string; characterOutfits?: string }> = [];
-  if (metadata?.environments && Array.isArray(metadata.environments) && metadata.environments.length > 0) {
+  const newEnvs: Array<{
+    id: string;
+    name: string;
+    description: string;
+    characterOutfits?: string;
+  }> = [];
+  if (
+    metadata?.environments &&
+    Array.isArray(metadata.environments) &&
+    metadata.environments.length > 0
+  ) {
     for (const e of metadata.environments) {
       newEnvs.push({
         id: e.id || '',
@@ -435,11 +505,8 @@ export async function addContinuationToSeries(
     }
   }
 
-  const newOutfitRows: Array<{ id: string; characterName: string; description: string }> = Array.isArray(
-    metadata?.outfits,
-  )
-    ? metadata.outfits
-    : [];
+  const newOutfitRows: Array<{ id: string; characterName: string; description: string }> =
+    Array.isArray(metadata?.outfits) ? metadata.outfits : [];
   const existingOutfitIds = new Set((ctx.previousOutfits || []).map((o) => o.id));
   const mergedOutfits = [...(ctx.previousOutfits || [])];
   for (const o of newOutfitRows) {
@@ -480,20 +547,20 @@ export async function addContinuationToSeries(
     requiredCharacters,
     // Merge new optional characters (LLM-generated from this episode)
     optionalCharacters: mergeCharacters(existingOptionalCharacters, newOptionalCharacters),
-    usedPlots: [
-      ...(ctx.usedPlots || []),
-      ...sceneSummaries,
-    ],
+    usedPlots: [...(ctx.usedPlots || []), ...sceneSummaries],
     previousEnvironments: mergedEnvs,
     previousOutfits: mergedOutfits,
   };
-  
-  logger.info({
-    seriesId,
-    newPartNumber: series.totalParts + 1,
-    totalOptionalChars: updatedContext.optionalCharacters.length,
-  }, 'Adding continuation to series');
-  
+
+  logger.info(
+    {
+      seriesId,
+      newPartNumber: series.totalParts + 1,
+      totalOptionalChars: updatedContext.optionalCharacters.length,
+    },
+    'Adding continuation to series'
+  );
+
   await getStoryRepository().updateSeries(seriesId, {
     totalParts: series.totalParts + 1,
     storyIds: [...(series.storyIds as string[]), newStoryId],
@@ -507,13 +574,13 @@ export async function addContinuationToSeries(
  */
 function mergeCharacters(existing: any[], newChars: any[]): any[] {
   const merged = [...existing];
-  
+
   for (const char of newChars) {
-    if (!merged.find(c => c.name.toLowerCase() === char.name.toLowerCase())) {
+    if (!merged.find((c) => c.name.toLowerCase() === char.name.toLowerCase())) {
       merged.push(char);
     }
   }
-  
+
   return merged;
 }
 
@@ -527,7 +594,11 @@ export async function listUserSeries(userId: string): Promise<
     baseTitle: string;
     totalParts: number;
     storyIds: string[];
-    lastStories: Array<{ id: string; coverImageUrl: string | null; coverThumbnailUrl: string | null }>;
+    lastStories: Array<{
+      id: string;
+      coverImageUrl: string | null;
+      coverThumbnailUrl: string | null;
+    }>;
   }>
 > {
   const allSeries = await getStoryRepository().findSeriesByUserId(userId);
@@ -586,29 +657,35 @@ export async function getSeriesInfo(storyId: string): Promise<{
   storyIds: string[];
 } | null> {
   const story = await getStoryRepository().findById(storyId);
-  
-  logger.debug({ 
-    storyId, 
-    foundStory: !!story,
-    hasSeriesId: !!story?.seriesId,
-    seriesId: story?.seriesId,
-    partNumber: story?.partNumber,
-  }, 'getSeriesInfo - story lookup');
-  
+
+  logger.debug(
+    {
+      storyId,
+      foundStory: !!story,
+      hasSeriesId: !!story?.seriesId,
+      seriesId: story?.seriesId,
+      partNumber: story?.partNumber,
+    },
+    'getSeriesInfo - story lookup'
+  );
+
   if (!story || !story.seriesId) {
     return null;
   }
-  
+
   const series = await getStoryRepository().findSeriesById(story.seriesId);
-  
-  logger.debug({
-    storyId,
-    seriesId: story.seriesId,
-    foundSeries: !!series,
-    totalParts: series?.totalParts,
-    storyIdsCount: (series?.storyIds as string[])?.length,
-  }, 'getSeriesInfo - series lookup');
-  
+
+  logger.debug(
+    {
+      storyId,
+      seriesId: story.seriesId,
+      foundSeries: !!series,
+      totalParts: series?.totalParts,
+      storyIdsCount: (series?.storyIds as string[])?.length,
+    },
+    'getSeriesInfo - series lookup'
+  );
+
   if (!series) {
     return null;
   }
@@ -627,11 +704,14 @@ export async function getSeriesInfo(storyId: string): Promise<{
     storyTitles,
   };
 
-  logger.info({
-    storyId,
-    result,
-  }, 'getSeriesInfo - returning result');
-  
+  logger.info(
+    {
+      storyId,
+      result,
+    },
+    'getSeriesInfo - returning result'
+  );
+
   return result;
 }
 
@@ -639,66 +719,69 @@ export async function getSeriesInfo(storyId: string): Promise<{
  * Remove story from series and update related data
  * Called when a story part is deleted
  */
-export async function removeStoryFromSeries(
-  storyId: string,
-  seriesId: string
-): Promise<void> {
+export async function removeStoryFromSeries(storyId: string, seriesId: string): Promise<void> {
   const series = await getStoryRepository().findSeriesById(seriesId);
-  
+
   if (!series) {
     logger.warn({ seriesId, storyId }, 'Series not found when removing story');
     return;
   }
-  
+
   const storyIds = series.storyIds as string[];
   const deletedIndex = storyIds.indexOf(storyId);
-  
+
   if (deletedIndex === -1) {
     logger.warn({ seriesId, storyId }, 'Story not found in series');
     return;
   }
-  
+
   // Remove story from array
-  const updatedStoryIds = storyIds.filter(id => id !== storyId);
-  
+  const updatedStoryIds = storyIds.filter((id) => id !== storyId);
+
   // If only one story remains, delete the series entirely
   if (updatedStoryIds.length === 1) {
-    logger.info({
-      seriesId,
-      storyId,
-      remainingStoryId: updatedStoryIds[0],
-    }, 'Only one story remains, deleting series');
-    
+    logger.info(
+      {
+        seriesId,
+        storyId,
+        remainingStoryId: updatedStoryIds[0],
+      },
+      'Only one story remains, deleting series'
+    );
+
     // Remove series_id and part_number from remaining story
     await getStoryRepository().updateStory(updatedStoryIds[0], {
       seriesId: null,
       partNumber: null,
     });
-    
+
     // Delete the series
     await getStoryRepository().deleteSeries(seriesId);
-    
+
     logger.info({ seriesId }, 'Series deleted - only one story remained');
     return;
   }
-  
+
   // Update series
   await getStoryRepository().updateSeries(seriesId, {
     totalParts: series.totalParts - 1,
     storyIds: updatedStoryIds,
     updatedAt: new Date(),
   });
-  
+
   // Update part_number for remaining stories
   // Stories after the deleted one need their part_number decremented
   for (let i = deletedIndex; i < updatedStoryIds.length; i++) {
     await getStoryRepository().updateStory(updatedStoryIds[i], { partNumber: i + 1 });
   }
-  
-  logger.info({
-    seriesId,
-    storyId,
-    newTotalParts: series.totalParts - 1,
-    remainingStories: updatedStoryIds.length,
-  }, 'Story removed from series');
+
+  logger.info(
+    {
+      seriesId,
+      storyId,
+      newTotalParts: series.totalParts - 1,
+      remainingStories: updatedStoryIds.length,
+    },
+    'Story removed from series'
+  );
 }

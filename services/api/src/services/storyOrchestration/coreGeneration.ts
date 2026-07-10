@@ -11,9 +11,19 @@ import { startTask, completeTask, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
 import { extractLlmCharactersFromText, handleRequestError } from './utilities';
-import { mergeCharacters, persistLlmCharacters, createStoryStub, enrichStoryRecord } from './storyRecords';
+import {
+  mergeCharacters,
+  persistLlmCharacters,
+  createStoryStub,
+  enrichStoryRecord,
+} from './storyRecords';
 import { validateStoryTextScenes } from './validation';
-import { saveStoryStubCheckpoint, saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
+import {
+  saveStoryStubCheckpoint,
+  saveTextGenerationCheckpoint,
+  saveValidationCheckpoint,
+  saveStoryCreationCheckpoint,
+} from './checkpoints';
 import type { GenerateTextParams, GenerateTextResult } from './types';
 import type { CharacterData } from '../types';
 import { getStoryCreationAttributionInputFromRequest } from '../storyCreationAttributionService';
@@ -24,19 +34,19 @@ import { getStoryCreationAttributionInputFromRequest } from '../storyCreationAtt
 export async function generateStoryText(params: GenerateTextParams): Promise<GenerateTextResult> {
   const { requestId, request, generationType, continuationContext } = params;
   const startTime = Date.now();
-  
+
   try {
     const storyDomain = getStoryDomainService();
     const coefficients = await getGenerationCoefficients();
-    
+
     // Update status to 'processing'
     await getStoryRepository().updateRequest(requestId, {
       status: 'processing',
       updatedAt: new Date(),
     });
-    
+
     logger.info({ requestId, generationType }, 'Starting unified text generation');
-    
+
     // Build story spec (import from parent service)
     const { buildStorySpec } = require('../storyOrchestrationService');
     const specData = await buildStorySpec(request);
@@ -52,18 +62,21 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       childProfileId: request.childProfileId,
       ...getStoryCreationAttributionInputFromRequest(request),
       spec,
-      ...(generationType === 'continuation' && continuationContext && {
-        seriesData: {
-          seriesId: continuationContext.seriesId,
-          partNumber: continuationContext.partNumber,
-        },
-      }),
+      ...(generationType === 'continuation' &&
+        continuationContext && {
+          seriesData: {
+            seriesId: continuationContext.seriesId,
+            partNumber: continuationContext.partNumber,
+          },
+        }),
     });
     await saveStoryStubCheckpoint(requestId, storyId);
 
     // Task 1: Generate Text
     const textGenStart = Date.now();
-    await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
+    await startTask(requestId, STORY_TASKS.GENERATING_TEXT, {
+      estimatedMs: coefficients.avgTextMs,
+    });
 
     const usageContext = { userId: request.userId, storyId };
     let plainText: any;
@@ -73,16 +86,16 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       });
     } else {
       // Continuation
-      plainText = await storyDomain.generateContinuationPlain(
-        {
-          spec,
+      plainText = await storyDomain.generateTextPlain(spec, {
+        isContinuation: true,
+        continuationContext: {
           previousOutlines: continuationContext!.previousOutlines,
           requiredCharacters: continuationContext!.requiredCharacters,
           optionalCharacters: continuationContext!.optionalCharacters,
           usedPlots: continuationContext!.usedPlots,
         },
-        { onUsage: (u) => recordUsage(u, usageContext) }
-      );
+        onUsage: (u) => recordUsage(u, usageContext),
+      });
     }
     const text: any = {
       title: plainText.title,
@@ -95,36 +108,52 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       fullText: plainText.fullText,
       wordCount: plainText.wordCount,
     };
-    
+
     const textGenerationTimeMs = Date.now() - textGenStart;
     await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
-    
-    logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs, generationType }, 'Text generated');
-    
+
+    logger.info(
+      {
+        requestId,
+        title: text.title,
+        wordCount: text.wordCount,
+        textGenerationTimeMs,
+        generationType,
+      },
+      'Text generated'
+    );
+
     // Extract LLM characters
     const llmCharacters = extractLlmCharactersFromText(text);
-    
-    logger.info({
-      requestId,
-      llmCharacterCount: llmCharacters.length,
-      llmCharacterNames: llmCharacters.map(c => c.name).join(', ')
-    }, 'Extracted LLM-generated characters');
-    
+
+    logger.info(
+      {
+        requestId,
+        llmCharacterCount: llmCharacters.length,
+        llmCharacterNames: llmCharacters.map((c) => c.name).join(', '),
+      },
+      'Extracted LLM-generated characters'
+    );
+
     // Merge characters (unified logic for both flows)
-    const initialCharacters = generationType === 'standard'
-      ? selectedCharacters as CharacterData[]
-      : [...(continuationContext!.requiredCharacters || []), ...(continuationContext!.optionalCharacters || [])];
-    
+    const initialCharacters =
+      generationType === 'standard'
+        ? (selectedCharacters as CharacterData[])
+        : [
+            ...(continuationContext!.requiredCharacters || []),
+            ...(continuationContext!.optionalCharacters || []),
+          ];
+
     const mergedCharacters = mergeCharacters(initialCharacters, llmCharacters);
-    
+
     // Persist LLM characters (unified for both flows)
     const llmCharacterResults = await persistLlmCharacters(
       request.userId,
       llmCharacters,
       initialCharacters,
-      spec.language,
+      spec.language
     );
-    
+
     // Enrich mergedCharacters with DB IDs
     for (const char of mergedCharacters) {
       if (char.source === 'llm_generated' && !char.id) {
@@ -137,14 +166,20 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         }
       }
     }
-    
-    logger.info({
-      requestId,
-      llmCharacterResults: Array.from(llmCharacterResults.entries()).map(([name, r]) => ({
-        name, characterId: r.characterId, isNew: r.isNew, hasTurnaround: r.hasTurnaround,
-      })),
-    }, 'LLM characters persisted and enriched');
-    
+
+    logger.info(
+      {
+        requestId,
+        llmCharacterResults: Array.from(llmCharacterResults.entries()).map(([name, r]) => ({
+          name,
+          characterId: r.characterId,
+          isNew: r.isNew,
+          hasTurnaround: r.hasTurnaround,
+        })),
+      },
+      'LLM characters persisted and enriched'
+    );
+
     // Save text generation checkpoint
     await saveTextGenerationCheckpoint(requestId, {
       text,
@@ -157,7 +192,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         partNumber: continuationContext!.partNumber,
       }),
     });
-    
+
     // Validation (unified for both flows)
     const validationResult = await validateStoryTextScenes({
       requestId,
@@ -167,11 +202,11 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       spec,
       maxRetries: 2,
     });
-    
+
     const validatedText = validationResult.validatedText;
     const validationTimeMs = validationResult.validationTimeMs;
     const textValidation = validationResult.textValidation;
-    
+
     // Save validation checkpoint (standard flow saves it, continuation doesn't need separate checkpoint)
     if (generationType === 'standard') {
       await saveValidationCheckpoint(requestId, validatedText, validationTimeMs, {
@@ -181,7 +216,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         selectedCharacters,
       });
     }
-    
+
     // Enrich story stub with full content (unified for both flows)
     await enrichStoryRecord(storyId, {
       userId: request.userId,
@@ -213,7 +248,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         },
       }),
     });
-    
+
     // Save story creation checkpoint
     await saveStoryCreationCheckpoint(requestId, storyId, {
       text: validatedText,
@@ -224,9 +259,12 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       validatedText,
       validationTimeMs,
     });
-    
-    logger.info({ requestId, storyId, duration: Date.now() - startTime, generationType }, 'Text generation phase completed');
-    
+
+    logger.info(
+      { requestId, storyId, duration: Date.now() - startTime, generationType },
+      'Text generation phase completed'
+    );
+
     return {
       text: validatedText,
       llmCharacters,
@@ -238,15 +276,18 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       textValidation,
       storyId,
     };
-    
   } catch (error) {
-    const checkpoints = (await getStoryRepository().findRequestById(requestId))?.intermediateData as Record<string, unknown> | null;
+    const checkpoints = (await getStoryRepository().findRequestById(requestId))
+      ?.intermediateData as Record<string, unknown> | null;
     const stubStoryId = checkpoints?.storyId as string | undefined;
     if (stubStoryId) {
       const existingStory = await getStoryRepository().findById(stubStoryId);
       if (existingStory?.title === 'Generating...') {
         await getStoryRepository().deleteStory(stubStoryId, request.userId);
-        logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after text generation failure');
+        logger.info(
+          { requestId, storyId: stubStoryId },
+          'Deleted story stub after text generation failure'
+        );
       }
     }
     await handleRequestError(requestId, error, {

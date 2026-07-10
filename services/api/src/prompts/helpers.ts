@@ -716,7 +716,7 @@ export function formatWritingStyle(spec: StorySpec, _vocabLevel: string): string
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Story Rules — PLOT structure, PACING, HOOKS, VOCAB.
-// Used by DirectTextPrompt, ContinuationPrompt. Scene-level only for RegenerationPrompt.
+// Used by DirectTextPrompt. Scene-level only for RegenerationPrompt.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -1154,7 +1154,7 @@ export function formatSceneLevelRules(params: { ageGroup: string }): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared visual story rules — used by TextPrompt, DirectTextPrompt,
-// ContinuationPrompt (via composite), and RegenerationPrompt (individual).
+// and RegenerationPrompt.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -1405,7 +1405,7 @@ export function formatWriterPlainSceneRules(opts?: {
  */
 /**
  * Composite function: all shared visual story rules in one call.
- * Used by TextPrompt, DirectTextPrompt, and ContinuationPrompt.
+ * Used by TextPrompt and DirectTextPrompt.
  * Uses getContentPolicy for audio tags when policyProfile provided.
  */
 export function formatVisualStoryRules(opts?: {

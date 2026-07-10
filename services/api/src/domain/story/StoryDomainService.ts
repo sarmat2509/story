@@ -1,7 +1,7 @@
 /**
  * Story Domain Service
  * Business logic for story generation - provider-agnostic
- * 
+ *
  * Rules:
  * - MUST contain ONLY business logic (getSceneCount, getVocabularyLevel, etc.)
  * - MUST coordinate Prompt Builders and Providers
@@ -25,11 +25,32 @@ export interface StoryDomainOptions {
   /** When true, uses continuation prompt with previousOutlines, usedPlots, required/optional characters */
   isContinuation?: boolean;
   continuationContext?: {
-    previousOutlines: Array<{ title: string; moral: string; scenes: Array<{ setting: string; goal: string }> }>;
-    requiredCharacters: Array<{ name: string; type: string; description?: string; appearance?: string; role?: string }>;
-    optionalCharacters: Array<{ name: string; type: string; description?: string; appearance?: string; role?: string }>;
+    previousOutlines: Array<{
+      title: string;
+      moral: string;
+      scenes: Array<{ setting: string; goal: string }>;
+    }>;
+    requiredCharacters: Array<{
+      name: string;
+      type: string;
+      description?: string;
+      appearance?: string;
+      role?: string;
+    }>;
+    optionalCharacters: Array<{
+      name: string;
+      type: string;
+      description?: string;
+      appearance?: string;
+      role?: string;
+    }>;
     usedPlots: string[];
-    previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+    previousEnvironments?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      characterOutfits?: string;
+    }>;
     previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
   };
 }
@@ -68,7 +89,9 @@ function assertPlainStoryHasReadableScenes(parsed: {
   scenes: Array<{ sceneId: number; text: string }>;
 }): void {
   const scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
-  const hasReadableScene = scenes.some((scene) => typeof scene.text === 'string' && scene.text.trim().length > 0);
+  const hasReadableScene = scenes.some(
+    (scene) => typeof scene.text === 'string' && scene.text.trim().length > 0
+  );
   if (scenes.length < MIN_GENERATED_SCENES || !parsed.fullText.trim() || !hasReadableScene) {
     throw new Error('Writer returned no readable story scenes');
   }
@@ -94,7 +117,9 @@ function buildProviderBlockedViolation() {
   };
 }
 
-function scoreSceneValidationResult(validation: Pick<SceneValidationResult, 'isValid' | 'violations'>): number {
+function scoreSceneValidationResult(
+  validation: Pick<SceneValidationResult, 'isValid' | 'violations'>
+): number {
   if (validation.isValid && validation.violations.length === 0) {
     return 100;
   }
@@ -118,7 +143,7 @@ export class StoryDomainService {
   constructor(
     private textProvider: ITextProvider,
     private directorTextProvider: ITextProvider = textProvider,
-    private validationTextProvider: ITextProvider = textProvider,
+    private validationTextProvider: ITextProvider = textProvider
   ) {}
 
   private getValidationModelOverride(): string | undefined {
@@ -126,30 +151,14 @@ export class StoryDomainService {
   }
 
   /**
-   * Compatibility wrapper for older call sites. The Writer now always returns plain prose;
-   * DirectorPrompt is the only step that creates visual metadata.
-   */
-  async generateText(spec: StorySpec, options?: StoryDomainOptions): Promise<EpisodeText> {
-    const plainText = await this.generateTextPlain(spec, options);
-    return {
-      title: plainText.title,
-      language: spec.language,
-      description: plainText.description,
-      characters: [],
-      environments: [],
-      outfits: [],
-      scenes: plainText.scenes.map((scene) => ({ ...scene })),
-      fullText: plainText.fullText,
-      wordCount: plainText.wordCount,
-    } as EpisodeText;
-  }
-
-  /**
    * Generate story text in plain format (Director flow)
    * Returns title, description, fullText, scenes — no JSON, no sceneVisual
    * When isContinuation=true, uses continuation-specific prompt sections
    */
-  async generateTextPlain(spec: StorySpec, options?: StoryDomainOptions): Promise<{
+  async generateTextPlain(
+    spec: StorySpec,
+    options?: StoryDomainOptions
+  ): Promise<{
     title: string;
     description: string;
     fullText: string;
@@ -165,10 +174,20 @@ export class StoryDomainService {
     const sceneCount = this.getSceneCount(spec.ageGroup);
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
 
-    const promptParams: Parameters<typeof buildDirectTextPromptPlain>[0] = { spec, sceneCount, vocabLevel };
+    const promptParams: Parameters<typeof buildDirectTextPromptPlain>[0] = {
+      spec,
+      sceneCount,
+      vocabLevel,
+    };
     if (isContinuation && options?.continuationContext) {
       const ctx = options.continuationContext;
-      const toContinuationChar = (c: { name: string; type: string; description?: string; appearance?: string; role?: string }) => ({
+      const toContinuationChar = (c: {
+        name: string;
+        type: string;
+        description?: string;
+        appearance?: string;
+        role?: string;
+      }) => ({
         name: c.name,
         type: c.type,
         description: c.description || c.appearance || c.name,
@@ -179,7 +198,9 @@ export class StoryDomainService {
       promptParams.usedPlots = ctx.usedPlots;
       promptParams.requiredCharacters = ctx.requiredCharacters.map(toContinuationChar);
       promptParams.optionalCharacters =
-        ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
+        ctx.optionalCharacters?.length > 0
+          ? ctx.optionalCharacters.map(toContinuationChar)
+          : undefined;
       promptParams.previousEnvironments = ctx.previousEnvironments;
       promptParams.previousOutfits = ctx.previousOutfits;
     }
@@ -204,14 +225,19 @@ export class StoryDomainService {
       assertPlainStoryHasReadableScenes(parsed);
       const wordCount = countNarrationWords(parsed.fullText);
 
-      logger.info({ wordCount, sceneCount: parsed.scenes.length }, 'Story text (plain) generated successfully');
+      logger.info(
+        { wordCount, sceneCount: parsed.scenes.length },
+        'Story text (plain) generated successfully'
+      );
       return {
         ...parsed,
         wordCount,
       };
     } catch (error) {
       logger.error({ error }, 'Failed to generate plain text');
-      throw new Error(`Plain text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Plain text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -220,7 +246,12 @@ export class StoryDomainService {
    */
   async callDirector(
     params: {
-      blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
+      blocks: Array<{
+        blockIndex: number;
+        sceneStart: number;
+        sceneEnd: number;
+        blockText: string;
+      }>;
       imagesPerStory: number;
       spec: StorySpec;
       /** User characters with IDs — same format as main flow */
@@ -228,7 +259,13 @@ export class StoryDomainService {
     },
     options?: StoryDomainOptions
   ): Promise<{
-    characters: Array<{ name: string; type: string; description: string; role?: string; personality?: string }>;
+    characters: Array<{
+      name: string;
+      type: string;
+      description: string;
+      role?: string;
+      personality?: string;
+    }>;
     environments: Array<{ id: string; name: string; description: string }>;
     outfits: Array<{ id: string; characterName: string; description: string }>;
     mapTile: {
@@ -256,7 +293,7 @@ export class StoryDomainService {
         blockCount: params.blocks.length,
         promptLength: prompt.length,
       },
-      'Calling Director',
+      'Calling Director'
     );
 
     if (config.features.logDirectorFullPrompt) {
@@ -295,7 +332,7 @@ export class StoryDomainService {
                 outputTokens: usage.outputUnits ?? 0,
                 costUsd,
               },
-              'Director LLM request usage (estimated cost USD)',
+              'Director LLM request usage (estimated cost USD)'
             );
           }
           parentOnUsage?.(usage);
@@ -315,7 +352,10 @@ export class StoryDomainService {
         ...result,
         mapTile: {
           ...(result.mapTile ?? {}),
-          description: typeof result.mapTile?.description === 'string' ? result.mapTile.description.trim() : '',
+          description:
+            typeof result.mapTile?.description === 'string'
+              ? result.mapTile.description.trim()
+              : '',
           requiredFeatures: canonicalizeMapTileFeatures(
             Array.isArray(result.mapTile?.requiredFeatures) ? result.mapTile.requiredFeatures : []
           ),
@@ -323,7 +363,9 @@ export class StoryDomainService {
       } as any;
     } catch (error) {
       logger.error({ error }, 'Director call failed');
-      throw new Error(`Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -334,7 +376,12 @@ export class StoryDomainService {
    */
   async generateMapTileBrief(
     params: {
-      blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
+      blocks: Array<{
+        blockIndex: number;
+        sceneStart: number;
+        sceneEnd: number;
+        blockText: string;
+      }>;
       imagesPerStory: number;
       spec: StorySpec;
       userCharacters: Array<{ id?: string; name: string }>;
@@ -352,7 +399,7 @@ export class StoryDomainService {
         blockCount: params.blocks.length,
         promptLength: prompt.length,
       },
-      'Calling map tile brief Director',
+      'Calling map tile brief Director'
     );
 
     try {
@@ -380,7 +427,7 @@ export class StoryDomainService {
                 outputTokens: usage.outputUnits ?? 0,
                 costUsd,
               },
-              'Map tile brief LLM request usage (estimated cost USD)',
+              'Map tile brief LLM request usage (estimated cost USD)'
             );
           }
           parentOnUsage?.(usage);
@@ -392,13 +439,17 @@ export class StoryDomainService {
         description: typeof result.description === 'string' ? result.description.trim() : '',
         requiredFeatures: canonicalizeMapTileFeatures(
           Array.isArray(result.requiredFeatures)
-            ? result.requiredFeatures.filter((feature): feature is string => typeof feature === 'string')
+            ? result.requiredFeatures.filter(
+                (feature): feature is string => typeof feature === 'string'
+              )
             : []
         ),
       };
     } catch (error) {
       logger.error({ error }, 'Map tile brief Director call failed');
-      throw new Error(`Map tile brief Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Map tile brief Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -410,7 +461,7 @@ export class StoryDomainService {
     policy: PolicyProfile,
     isLastScene: boolean,
     scenarioCardId?: string,
-    options?: StoryDomainOptions,
+    options?: StoryDomainOptions
   ): Promise<SceneValidationResult> {
     const operation = options?.operation ?? 'validateScene';
     const model = this.getValidationModelOverride();
@@ -430,7 +481,7 @@ export class StoryDomainService {
         promptPreview: prompt.slice(0, 500),
         fullPrompt: prompt,
       },
-      'Scene validation prompt',
+      'Scene validation prompt'
     );
 
     const requestManifest = {
@@ -451,14 +502,15 @@ export class StoryDomainService {
     };
 
     try {
-      const validation = await this.validationTextProvider.generateStructured<SceneValidationResult>({
-        prompt,
-        schema: VALIDATION_SCHEMA,
-        temperature: 0.3,
-        model,
-        onUsage: options?.onUsage,
-        operation,
-      });
+      const validation =
+        await this.validationTextProvider.generateStructured<SceneValidationResult>({
+          prompt,
+          schema: VALIDATION_SCHEMA,
+          temperature: 0.3,
+          model,
+          onUsage: options?.onUsage,
+          operation,
+        });
 
       logger.info(
         {
@@ -466,7 +518,7 @@ export class StoryDomainService {
           isValid: validation.isValid,
           violationCount: validation.violations.length,
         },
-        'Scene validation complete',
+        'Scene validation complete'
       );
 
       return {
@@ -480,7 +532,7 @@ export class StoryDomainService {
       if (isProviderContentBlockedError(errorMsg)) {
         logger.warn(
           { sceneId: sceneText.sceneId, error: errorMsg },
-          'Scene validation blocked by provider content filter - failing closed',
+          'Scene validation blocked by provider content filter - failing closed'
         );
         return {
           validationStatus: 'provider_blocked',
@@ -518,7 +570,10 @@ export class StoryDomainService {
       content: buildBatchValidationCachedPrefix(),
       displayName: TEXT_VALIDATION_CACHE_KEY,
     };
-    logger.info({ sceneCount: scenes.length, promptLength: prompt.length }, 'Batch validating scenes');
+    logger.info(
+      { sceneCount: scenes.length, promptLength: prompt.length },
+      'Batch validating scenes'
+    );
 
     logger.debug(
       {
@@ -564,7 +619,10 @@ export class StoryDomainService {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       if (isProviderContentBlockedError(errorMsg)) {
-        logger.warn({ error: errorMsg }, 'Batch validation blocked by provider content filter - failing closed');
+        logger.warn(
+          { error: errorMsg },
+          'Batch validation blocked by provider content filter - failing closed'
+        );
         return {
           failedScenes: scenes.map((scene) => ({
             sceneId: scene.sceneId,
@@ -588,14 +646,23 @@ export class StoryDomainService {
     options?: StoryDomainOptions
   ): Promise<Array<{ sceneId: number; text: string }>> {
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
-    const prompt = buildBatchRegenerationRuntimePrompt({ spec, sceneCount, failedScenes, vocabLevel });
+    const prompt = buildBatchRegenerationRuntimePrompt({
+      spec,
+      sceneCount,
+      failedScenes,
+      vocabLevel,
+    });
     const cachedPrefix = {
       key: TEXT_REGENERATION_CACHE_KEY,
       content: buildBatchRegenerationCachedPrefix(),
       displayName: TEXT_REGENERATION_CACHE_KEY,
     };
     logger.info(
-      { failedCount: failedScenes.length, sceneIds: failedScenes.map((f) => f.sceneId), promptLength: prompt.length },
+      {
+        failedCount: failedScenes.length,
+        sceneIds: failedScenes.map((f) => f.sceneId),
+        promptLength: prompt.length,
+      },
       'Batch regenerating scenes'
     );
 
@@ -610,7 +677,9 @@ export class StoryDomainService {
     );
 
     try {
-      const result = await this.textProvider.generateStructured<{ scenes: Array<{ sceneId: number; text: string }> }>({
+      const result = await this.textProvider.generateStructured<{
+        scenes: Array<{ sceneId: number; text: string }>;
+      }>({
         prompt,
         cachedPrefix,
         schema: BATCH_REGENERATION_SCHEMA,
@@ -645,62 +714,10 @@ export class StoryDomainService {
       return scenes;
     } catch (error) {
       logger.error({ error }, 'Batch regeneration failed');
-      throw new Error(`Batch regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Batch regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
-  }
-
-  /**
-   * Generate continuation for an existing story series
-   * Delegates to generateText with isContinuation and continuationContext
-   * @deprecated Use generateText with isContinuation and continuationContext options
-   */
-  async generateContinuation(
-    params: {
-      spec: StorySpec;
-      previousOutlines: any[];
-      requiredCharacters: any[];
-      optionalCharacters: any[];
-      usedPlots: string[];
-    },
-    options?: StoryDomainOptions
-  ): Promise<EpisodeText> {
-    return this.generateText(params.spec, {
-      ...options,
-      isContinuation: true,
-      continuationContext: {
-        previousOutlines: params.previousOutlines,
-        requiredCharacters: params.requiredCharacters,
-        optionalCharacters: params.optionalCharacters,
-        usedPlots: params.usedPlots,
-      },
-    });
-  }
-
-  /**
-   * Generate continuation in plain text format (Director flow)
-   * Delegates to generateTextPlain with isContinuation and continuationContext
-   * @deprecated Use generateTextPlain with isContinuation and continuationContext options
-   */
-  async generateContinuationPlain(
-    params: {
-      spec: StorySpec;
-      previousOutlines: any[];
-      requiredCharacters: any[];
-      optionalCharacters: any[];
-      usedPlots: string[];
-    },
-    options?: StoryDomainOptions
-  ): Promise<{ title: string; description: string; fullText: string; wordCount: number; scenes: Array<{ sceneId: number; text: string }> }> {
-    return this.generateTextPlain(params.spec, {
-      ...options,
-      isContinuation: true,
-      continuationContext: {
-        previousOutlines: params.previousOutlines,
-        requiredCharacters: params.requiredCharacters,
-        optionalCharacters: params.optionalCharacters,
-        usedPlots: params.usedPlots,
-      },
-    });
   }
 
   /**
@@ -708,14 +725,14 @@ export class StoryDomainService {
    */
   private getSceneCount(ageGroup: string): number {
     const counts: Record<string, number> = {
-      '0-1': 5,   // was 3 (1.5x = 4.5, rounded up)
-      '1y': 5,    // was 3 (1.5x = 4.5, rounded up)
-      '2-3': 6,   // was 4 (1.5x = 6)
-      '4-5': 8,   // was 5 (1.5x = 7.5, rounded up)
-      '6-8': 9,   // was 6 (1.5x = 9)
-      '9-12': 11  // was 7 (1.5x = 10.5, rounded up)
+      '0-1': 5, // was 3 (1.5x = 4.5, rounded up)
+      '1y': 5, // was 3 (1.5x = 4.5, rounded up)
+      '2-3': 6, // was 4 (1.5x = 6)
+      '4-5': 8, // was 5 (1.5x = 7.5, rounded up)
+      '6-8': 9, // was 6 (1.5x = 9)
+      '9-12': 11, // was 7 (1.5x = 10.5, rounded up)
     };
-    return counts[ageGroup] || 6;  // was 4
+    return counts[ageGroup] || 6; // was 4
   }
 
   /**
@@ -728,7 +745,7 @@ export class StoryDomainService {
       '2-3': 'basic',
       '4-5': 'basic',
       '6-8': 'intermediate',
-      '9-12': 'advanced'
+      '9-12': 'advanced',
     };
     return levels[ageGroup] || 'basic';
   }

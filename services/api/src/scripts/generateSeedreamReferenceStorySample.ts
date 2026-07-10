@@ -287,7 +287,9 @@ function summarizeValidation(
   return {
     status: validation.validationStatus || 'completed',
     score,
-    passed: validation.validationStatus === 'provider_blocked' || (score !== null && score > minAcceptScore),
+    passed:
+      validation.validationStatus === 'provider_blocked' ||
+      (score !== null && score > minAcceptScore),
     minAcceptScore,
     characterCount: validation.characterCount,
     expectedCharacterCount: validation.expectedCharacterCount,
@@ -348,31 +350,25 @@ async function main(): Promise<void> {
   const lunaReference = saveImage(
     args.outDir,
     'reference-luna',
-    await imageDomain.generateImageWithInstructions(
-      {
-        prompt:
-          `${LUNA_DESCRIPTION} Full-body character reference sheet pose, three-quarter view, friendly expression, storybook watercolor style, plain warm off-white background.`,
-        aspectRatio: '1:1',
-        systemInstruction: referenceSystemInstruction,
-        onUsage,
-        operation: 'image_character_reference',
-      }
-    )
+    await imageDomain.generateImageWithInstructions({
+      prompt: `${LUNA_DESCRIPTION} Full-body character reference sheet pose, three-quarter view, friendly expression, storybook watercolor style, plain warm off-white background.`,
+      aspectRatio: '1:1',
+      systemInstruction: referenceSystemInstruction,
+      onUsage,
+      operation: 'image_character_reference',
+    })
   );
 
   const miroReference = saveImage(
     args.outDir,
     'reference-miro',
-    await imageDomain.generateImageWithInstructions(
-      {
-        prompt:
-          `${MIRO_DESCRIPTION} Full-body character reference sheet pose, three-quarter view, friendly expression, storybook watercolor style, plain warm off-white background.`,
-        aspectRatio: '1:1',
-        systemInstruction: referenceSystemInstruction,
-        onUsage,
-        operation: 'image_character_reference',
-      }
-    )
+    await imageDomain.generateImageWithInstructions({
+      prompt: `${MIRO_DESCRIPTION} Full-body character reference sheet pose, three-quarter view, friendly expression, storybook watercolor style, plain warm off-white background.`,
+      aspectRatio: '1:1',
+      systemInstruction: referenceSystemInstruction,
+      onUsage,
+      operation: 'image_character_reference',
+    })
   );
 
   const providerRefs = providerReferenceImages(lunaReference, miroReference);
@@ -406,7 +402,7 @@ async function main(): Promise<void> {
     );
     const saved = saveImage(args.outDir, `scene-${storyScene.sceneId}`, image);
 
-    const validation = await imageDomain.validateGeneratedImage({
+    const validation = await imageDomain.validateGeneratedImageSegmented({
       imageData: saved.imageData,
       mimeType: saved.mimeType,
       expectedCharacters: expected,

@@ -1,4 +1,10 @@
-import type { EpisodeText, SceneValidationResult, StoryEnvironment, StoryOutfitRow, StorySpec } from '../../ai/types';
+import type {
+  EpisodeText,
+  SceneValidationResult,
+  StoryEnvironment,
+  StoryOutfitRow,
+  StorySpec,
+} from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { CameraCharacterComposition } from '../../services/types';
@@ -38,9 +44,7 @@ function isProviderContentBlockedError(error: unknown): boolean {
 }
 
 class GraphicNovelScriptTextValidationError extends Error {
-  constructor(
-    public readonly failures: GraphicNovelScriptTextValidationFailure[]
-  ) {
+  constructor(public readonly failures: GraphicNovelScriptTextValidationFailure[]) {
     super(
       `Graphic novel script text validation failed: ${failures
         .flatMap((failure) =>
@@ -450,7 +454,11 @@ function normalizePanelVisual(
   };
 }
 
-function fallbackPanel(pageNumber: number, panelIndex: number, spec: StorySpec): GraphicNovelPanelScript {
+function fallbackPanel(
+  pageNumber: number,
+  panelIndex: number,
+  spec: StorySpec
+): GraphicNovelPanelScript {
   const heroName =
     (spec.characters || []).find(
       (character) => String(character.type || '').toLowerCase() === 'child'
@@ -585,10 +593,19 @@ function graphicNovelPageToValidationScene(
       null,
       2
     )}`,
-    primaryRead: panels.map((panel) => panel.visual.primaryRead).filter(Boolean).join(' | '),
+    primaryRead: panels
+      .map((panel) => panel.visual.primaryRead)
+      .filter(Boolean)
+      .join(' | '),
     sceneVisual: {
-      setting: panels.map((panel) => panel.visual.setting).filter(Boolean).join(' | '),
-      lighting: panels.map((panel) => panel.visual.lighting).filter(Boolean).join(' | '),
+      setting: panels
+        .map((panel) => panel.visual.setting)
+        .filter(Boolean)
+        .join(' | '),
+      lighting: panels
+        .map((panel) => panel.visual.lighting)
+        .filter(Boolean)
+        .join(' | '),
       cameraComposition: {
         shot: `graphic novel page ${sceneId}`,
         characters: panels.flatMap((panel) => {
@@ -645,14 +662,15 @@ export class GraphicNovelDomainService {
         'Graphic novel page text validation prompt'
       );
 
-      const validation = await this.validationTextProvider.generateStructured<SceneValidationResult>({
-        prompt,
-        schema: VALIDATION_SCHEMA,
-        temperature: 0.1,
-        model: this.getValidationModelOverride(),
-        onUsage: params.onUsage,
-        operation: 'validateScene',
-      });
+      const validation =
+        await this.validationTextProvider.generateStructured<SceneValidationResult>({
+          prompt,
+          schema: VALIDATION_SCHEMA,
+          temperature: 0.1,
+          model: this.getValidationModelOverride(),
+          onUsage: params.onUsage,
+          operation: 'validateScene',
+        });
 
       const violations = Array.isArray(validation.violations) ? validation.violations : [];
       logger.info(
@@ -678,17 +696,6 @@ export class GraphicNovelDomainService {
     }
 
     return failures;
-  }
-
-  private async validateScriptText(params: {
-    script: GraphicNovelScript;
-    spec: StorySpec;
-    onUsage?: (usage: UsageMetadata) => void;
-  }): Promise<void> {
-    const failures = await this.collectScriptTextValidationFailures(params);
-    if (failures.length > 0) {
-      throw new GraphicNovelScriptTextValidationError(failures);
-    }
   }
 
   private async regeneratePageWithValidationFeedback(params: {
@@ -735,7 +742,9 @@ export class GraphicNovelDomainService {
     });
 
     if (!result?.page || !Array.isArray(result.page.panels) || result.page.panels.length === 0) {
-      throw new Error(`Graphic novel page repair returned no usable page for page ${params.failure.pageNumber}`);
+      throw new Error(
+        `Graphic novel page repair returned no usable page for page ${params.failure.pageNumber}`
+      );
     }
 
     return {

@@ -27,7 +27,6 @@ import {
   getStoryDomainService,
   getImageDomainService,
   getComplexImageDomainService,
-  getAudioDomainService,
 } from './aiService';
 import { recordUsage } from './aiUsageService';
 import { getAssetStorageService } from './assetStorageService';
@@ -50,11 +49,7 @@ import {
 } from '../domain/image/imageValidationRun';
 import { logger } from '../utils/logger';
 import { incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
-import {
-  extractClosingKeepsakeFromEpisodeText,
-  stripCharacterIds,
-  stripAllTags,
-} from '../utils/audioTags';
+import { stripCharacterIds, stripAllTags } from '../utils/audioTags';
 import {
   parseCharacterOutfitsString,
   serializeCharacterOutfitsToStr,
@@ -67,20 +62,13 @@ import {
 } from './referenceImageBuckets';
 import { referenceBindingIdFor } from './referenceBinding';
 import {
-  omitOutfitProseForDefaultOutfitCharacters,
-  omitOutfitProseForNonHumanCharacters,
-} from './outfitPlateService';
-import {
   applySceneDressedTurnaroundOverrides,
   prepareSceneDressedTurnaroundReferences,
   resolveSceneCharacterOutfits,
   type SceneDressedTurnaroundPending,
   type SceneOutfitPlatePending,
 } from './imageReferencePreparationService';
-import type { CharacterReference } from '../prompts/image';
-import {
-  buildImageSystemInstruction,
-} from '../prompts/image';
+import { buildImageSystemInstruction } from '../prompts/image';
 import {
   buildImageEditSystemInstruction,
   type ImageEditRepairManifest,
@@ -126,14 +114,10 @@ import {
   matchCharacterNames,
   toPhoneticKey,
   crossScriptIdentityKey,
-  type NormalizedCharacter,
 } from '../utils/characterNormalization';
 import { loadReferenceImageData } from './referenceImageTracker';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
-import {
-  getOrCreateEnvironmentImage,
-  type EnvImageData,
-} from './environmentReferenceImageService';
+import { getOrCreateEnvironmentImage, type EnvImageData } from './environmentReferenceImageService';
 import {
   createStoryStub,
   enrichStoryRecord,
@@ -164,11 +148,7 @@ import {
 } from './storyQuotaService';
 import { syncChildProfileCharacter } from './childProfileService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
-import {
-  recordStageTiming,
-  withStageTiming,
-} from './generationStageTimingService';
-import { assertVoiceAccessForUser } from './voiceAccessService';
+import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
 import { localizeCharacterNames } from './translationService';
 import {
@@ -192,7 +172,7 @@ const IMAGE_PROMPT_DEBUG_ROOT = path.resolve(__dirname, '../../../..', 'image-pr
 
 function buildDirectorDebugMetadata(
   rawResponse: StructuredRawResponse | undefined,
-  parsedResponse: unknown,
+  parsedResponse: unknown
 ): Record<string, unknown> | undefined {
   if (!rawResponse && parsedResponse === undefined) return undefined;
   const fallbackText =
@@ -842,7 +822,12 @@ export async function processStoryRequest(requestId: string): Promise<{
       };
 
       logger.info(
-        { requestId, title: validatedPlainText.title, wordCount: validatedPlainText.wordCount, textGenerationTimeMs },
+        {
+          requestId,
+          title: validatedPlainText.title,
+          wordCount: validatedPlainText.wordCount,
+          textGenerationTimeMs,
+        },
         'Writer text generated'
       );
 
@@ -872,7 +857,9 @@ export async function processStoryRequest(requestId: string): Promise<{
         durationMs: validationTimeMs ?? 0,
         metadata: {
           maxRetries: 2,
-          sceneCount: Array.isArray(validatedPlainText?.scenes) ? validatedPlainText.scenes.length : 0,
+          sceneCount: Array.isArray(validatedPlainText?.scenes)
+            ? validatedPlainText.scenes.length
+            : 0,
           validationTarget: 'writer_text',
         },
       });
@@ -881,13 +868,9 @@ export async function processStoryRequest(requestId: string): Promise<{
       if (imagesPerStory > 0) {
         const blocks = composeScenesIntoBlocks(validatedPlainText.scenes, imagesPerStory);
         const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
-        await startTask(
-          requestId,
-          STORY_TASKS.PRODUCING_VISUALS,
-          {
-            estimatedMs: estimateProducerMs(blocks.length),
-          }
-        );
+        await startTask(requestId, STORY_TASKS.PRODUCING_VISUALS, {
+          estimatedMs: estimateProducerMs(blocks.length),
+        });
         const directorResult = await withStageTiming(
           {
             storyId,
@@ -969,7 +952,13 @@ export async function processStoryRequest(requestId: string): Promise<{
       }
 
       logger.info(
-        { requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs, validationTimeMs },
+        {
+          requestId,
+          title: text.title,
+          wordCount: text.wordCount,
+          textGenerationTimeMs,
+          validationTimeMs,
+        },
         'Text generated and validated'
       );
 
@@ -1447,9 +1436,7 @@ function normalizeStoredLlmCharactersForImageFlow(rawCharacters: any[]): any[] {
 
 function isUserSelectedCharacterSource(source: unknown): boolean {
   return (
-    source === 'user_provided' ||
-    source === 'child_profile' ||
-    source === 'user_enriched_by_llm'
+    source === 'user_provided' || source === 'child_profile' || source === 'user_enriched_by_llm'
   );
 }
 
@@ -2201,7 +2188,9 @@ export async function processStoryImages(
     const mergedCharacters = checkpoints.mergedCharacters || [];
     timingStoryId = storyId;
     timingUserId = request.userId;
-    timingRequestCreatedAt = request.createdAt ? new Date(request.createdAt as Date) : batchStartedAt;
+    timingRequestCreatedAt = request.createdAt
+      ? new Date(request.createdAt as Date)
+      : batchStartedAt;
     if (Number.isNaN(timingRequestCreatedAt.getTime())) {
       timingRequestCreatedAt = batchStartedAt;
     }
@@ -2626,27 +2615,28 @@ export async function processStoryImages(
           })();
 
           const defaultOutfitCharacterKeys = new Set<string>();
-          const dressedTurnaroundRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
-            prepareSceneDressedTurnaroundReferences({
-              storyId,
-              storyRequestId: requestId,
-              userId: request.userId,
-              normalizedCharacters,
-              characterDescriptionMap,
-              characterReferenceData,
-              scene,
-              currentEnvironmentId,
-              currentEnvironment,
-              storyOutfits: storyOutfitsList.length > 0 ? storyOutfitsList : undefined,
-              imageStyle: (spec as any).imageStyle,
-              ageGroup: spec.ageGroup,
-              scenarioCardId: spec.scenarioCard?.id,
-              assetStorage,
-              imageDomain,
-              outfitPlatePending,
-              dressedTurnaroundPending,
-              defaultOutfitCharacterKeys,
-            })
+          const dressedTurnaroundRefsPromise = characterReferencesPromise.then(
+            (characterReferenceData) =>
+              prepareSceneDressedTurnaroundReferences({
+                storyId,
+                storyRequestId: requestId,
+                userId: request.userId,
+                normalizedCharacters,
+                characterDescriptionMap,
+                characterReferenceData,
+                scene,
+                currentEnvironmentId,
+                currentEnvironment,
+                storyOutfits: storyOutfitsList.length > 0 ? storyOutfitsList : undefined,
+                imageStyle: (spec as any).imageStyle,
+                ageGroup: spec.ageGroup,
+                scenarioCardId: spec.scenarioCard?.id,
+                assetStorage,
+                imageDomain,
+                outfitPlatePending,
+                dressedTurnaroundPending,
+                defaultOutfitCharacterKeys,
+              })
           );
 
           const [envImageData, characterReferenceData, dressedTurnaroundRefs] = await Promise.all([
@@ -2672,7 +2662,7 @@ export async function processStoryImages(
 
           const effectiveCharacterReferenceData = applySceneDressedTurnaroundOverrides(
             characterReferenceData,
-            dressedTurnaroundRefs,
+            dressedTurnaroundRefs
           );
           let referenceImageDataArray = [
             ...envRefEntry,
@@ -3084,9 +3074,11 @@ export interface ContinuationContext {
   previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
 }
 
-function characterIdentityKeys(character: Pick<CharacterData, 'id' | 'name' | 'canonicalName'> & {
-  nameAliases?: string[];
-}): string[] {
+function characterIdentityKeys(
+  character: Pick<CharacterData, 'id' | 'name' | 'canonicalName'> & {
+    nameAliases?: string[];
+  }
+): string[] {
   const keys: string[] = [];
   if (character.id) keys.push(`id:${character.id}`);
   const names = [character.name, character.canonicalName, ...(character.nameAliases || [])];
@@ -3216,10 +3208,7 @@ export async function buildStorySpec(
       );
       optionalCharacters =
         optionalFromContext.length > 0
-          ? mergeCharacterDataForContinuation(
-              optionalFromContext,
-              []
-            ).filter(
+          ? mergeCharacterDataForContinuation(optionalFromContext, []).filter(
               (character) =>
                 !characterIdentityKeys(character).some((key) =>
                   selectedCharacters.some((selected) =>
@@ -3228,7 +3217,10 @@ export async function buildStorySpec(
                 )
             )
           : undefined;
-      allCharacters = mergeCharacterDataForContinuation(selectedCharacters, optionalCharacters || []);
+      allCharacters = mergeCharacterDataForContinuation(
+        selectedCharacters,
+        optionalCharacters || []
+      );
       logger.info(
         {
           requestId: request.id,
@@ -3259,7 +3251,9 @@ export async function buildStorySpec(
       ]);
       const childProfileCharacters =
         childProfilesToInclude.length > 0
-          ? await Promise.all(childProfilesToInclude.map((child) => syncChildProfileCharacter(child)))
+          ? await Promise.all(
+              childProfilesToInclude.map((child) => syncChildProfileCharacter(child))
+            )
           : [];
       const characterRowsById = new Map<string, (typeof loadedUserCharacters)[number]>();
       for (const character of [...loadedUserCharacters, ...childProfileCharacters]) {
@@ -3868,7 +3862,10 @@ async function generateWithRetry(
 
 const API_ASSET_ROUTE_PREFIX = '/api/v1/assets/';
 
-function normalizeReferenceStoragePath(ref: { storagePath?: unknown; url?: unknown }): string | null {
+function normalizeReferenceStoragePath(ref: {
+  storagePath?: unknown;
+  url?: unknown;
+}): string | null {
   const explicitPath = typeof ref.storagePath === 'string' ? ref.storagePath.trim() : '';
   if (explicitPath) return explicitPath;
 
@@ -3879,9 +3876,7 @@ function normalizeReferenceStoragePath(ref: { storagePath?: unknown; url?: unkno
 
   const assetPrefixIndex = rawUrl.indexOf(API_ASSET_ROUTE_PREFIX);
   if (assetPrefixIndex >= 0) {
-    return rawUrl
-      .slice(assetPrefixIndex + API_ASSET_ROUTE_PREFIX.length)
-      .split(/[?#]/)[0] || null;
+    return rawUrl.slice(assetPrefixIndex + API_ASSET_ROUTE_PREFIX.length).split(/[?#]/)[0] || null;
   }
 
   if (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('gs://')) {
@@ -4311,7 +4306,9 @@ function validationCharacterNeedsOutfitRepair(c: ImageValidationResult['characte
 }
 
 function isDressedTurnaroundRepairReference(ref: EditRepairReferenceImage): boolean {
-  return ref.source === 'character_outfit_turnaround' || ref.type === 'dressed_turnaround_reference';
+  return (
+    ref.source === 'character_outfit_turnaround' || ref.type === 'dressed_turnaround_reference'
+  );
 }
 
 function isIdentityRepairReference(ref: EditRepairReferenceImage): boolean {
@@ -4326,7 +4323,9 @@ function isIdentityRepairReference(ref: EditRepairReferenceImage): boolean {
 }
 
 function editRepairReferenceLabel(ref: EditRepairReferenceImage): string {
-  return ref.referenceBindingId || (ref.imageIndex ? `REF_IMAGE_${ref.imageIndex}` : 'REF_CHARACTER');
+  return (
+    ref.referenceBindingId || (ref.imageIndex ? `REF_IMAGE_${ref.imageIndex}` : 'REF_CHARACTER')
+  );
 }
 
 function anonymizeEditRepairReference(ref: EditRepairReferenceImage): EditRepairReferenceImage {
@@ -4518,19 +4517,18 @@ export function buildTargetedEditRepairPlan(
     manifest: {
       referenceMode: mode,
       issues,
-      subjectReplacements: Array.from(needsByName.entries())
-        .map(([key, need]) => {
-          const ref = selectedIdentityRefByName.get(key);
-          return {
-            characterName: need.displayName,
-            referenceId: ref ? editRepairReferenceLabel(ref) : undefined,
-            actualVisibleDescription: need.actualVisibleDescription ?? null,
-            sceneSlotDescription: need.sceneSlotDescription ?? null,
-            validatorNote: need.validatorNote ?? null,
-            found: need.found,
-            repairKinds: Array.from(need.repairKinds),
-          };
-        })
+      subjectReplacements: Array.from(needsByName.entries()).map(([key, need]) => {
+        const ref = selectedIdentityRefByName.get(key);
+        return {
+          characterName: need.displayName,
+          referenceId: ref ? editRepairReferenceLabel(ref) : undefined,
+          actualVisibleDescription: need.actualVisibleDescription ?? null,
+          sceneSlotDescription: need.sceneSlotDescription ?? null,
+          validatorNote: need.validatorNote ?? null,
+          found: need.found,
+          repairKinds: Array.from(need.repairKinds),
+        };
+      }),
     },
   };
 }
@@ -5025,7 +5023,8 @@ async function generateSceneImageWithReference(
 
     // Build reference images array with Google Asset Graph numbered labels
     const sceneReferenceDataArray = (resolvedReferenceImageDataArray ?? []).filter(
-      (ref) => (ref as any).source !== 'outfit_plate' && (ref as any).type !== 'outfit_plate_reference'
+      (ref) =>
+        (ref as any).source !== 'outfit_plate' && (ref as any).type !== 'outfit_plate_reference'
     );
     const referenceImagesArray = sceneReferenceDataArray.map((ref, index) => {
       const refSource = (ref as any).source;
@@ -5037,11 +5036,11 @@ async function generateSceneImageWithReference(
           refSource === 'environment'
             ? 'environment'
             : refSource === 'imaginary_friend' ||
-                  refSource === 'child_reference' ||
-                  refSource === 'character_reference' ||
-                  refSource === 'character_outfit_turnaround'
-                ? (refSource as ReferenceMetadata['source'])
-                : 'previous_scene',
+                refSource === 'child_reference' ||
+                refSource === 'character_reference' ||
+                refSource === 'character_outfit_turnaround'
+              ? (refSource as ReferenceMetadata['source'])
+              : 'previous_scene',
         characterName: (ref as any).characterName || 'unknown',
         currentEnvironmentId: context.currentEnvironmentId,
         referenceBindingId: (ref as any).referenceBindingId,
@@ -5077,10 +5076,7 @@ async function generateSceneImageWithReference(
         referenceEnvironmentId: (ref as any).referenceEnvironmentId,
         outfitId: (ref as any).outfitId,
         storagePath: (ref as any).storagePath,
-        referenceKind:
-          refSource === 'environment'
-            ? ('object' as const)
-            : ('character' as const),
+        referenceKind: refSource === 'environment' ? ('object' as const) : ('character' as const),
       };
     });
 
@@ -5168,8 +5164,8 @@ async function generateSceneImageWithReference(
     const maxAttempts = isInitialEditRepair
       ? 1
       : config.image.enableValidation
-      ? Math.min(config.image.validationMaxRetries + 1, 2)
-      : 1;
+        ? Math.min(config.image.validationMaxRetries + 1, 2)
+        : 1;
     const validationRetryImageDomain = context.complexImageDomain ?? context.imageDomain;
     const validationRetryImageRoute: SceneImageRoute = context.complexImageDomain
       ? 'complex'
@@ -5788,7 +5784,9 @@ async function generateSceneImageWithReference(
         hasSceneVisual: !!scene.sceneVisual,
         referenceImages:
           resolvedReferenceImageDataArray?.map((ref, index) => {
-            const storagePath = normalizeReferenceStoragePath(ref as { storagePath?: unknown; url?: unknown });
+            const storagePath = normalizeReferenceStoragePath(
+              ref as { storagePath?: unknown; url?: unknown }
+            );
             return {
               index: index + 1,
               imageIndex: (ref as any).imageIndex ?? index + 1,
@@ -6130,7 +6128,7 @@ async function buildValidationReferenceImages(params: {
             storagePath: generatedIdentityRef.storagePath,
             url: generatedIdentityRef.url,
           },
-          'Selected delivered identity reference for image validation',
+          'Selected delivered identity reference for image validation'
         );
         continue;
       } catch (err) {
@@ -6141,7 +6139,7 @@ async function buildValidationReferenceImages(params: {
             url: generatedIdentityRef.url,
             err: err instanceof Error ? err.message : String(err),
           },
-          'Failed to load delivered validation identity reference',
+          'Failed to load delivered validation identity reference'
         );
       }
     }
@@ -6175,210 +6173,6 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
             ? 'a character identity turnaround reference'
             : 'a character identity reference';
   return `The next image is ${id}: ${label}.`;
-}
-
-/**
- * Save generated story to database
- * M4: Also saves scenes to separate table and llmGeneratedCharacters to metadata
- * Uses transaction for atomic operations
- */
-async function saveStory(
-  request: {
-    id: string;
-    userId: string;
-    childProfileId?: string | null;
-    goal?: string | null;
-    createdByMode?: string | null;
-    createdByChildProfileId?: string | null;
-    parentReviewRequired?: boolean | null;
-  },
-  spec: StorySpec,
-  text: {
-    title: string;
-    language: string;
-    scenes: any[];
-    fullText: string;
-    wordCount: number;
-    characters?: any[];
-    mapTile?: any;
-  },
-  mergedCharacters: CharacterReference[],
-  generationTimeMs: number,
-  timingData?: {
-    textGenerationTimeMs?: number;
-    validationTimeMs?: number;
-    sceneCount?: number;
-    fullTextLength?: number;
-    textValidation?: TextValidationSummary;
-  },
-  chosenPlotExampleId?: string,
-  chosenWorldRuleId?: string
-): Promise<string> {
-  try {
-    // Extract LLM-generated characters
-    const llmCharacters = (text as any).characters || [];
-    const attribution = buildStoryCreationAttribution({
-      createdByMode: request.createdByMode,
-      createdByChildProfileId: request.createdByChildProfileId,
-      fallbackChildProfileId: request.childProfileId,
-      parentReviewRequired: request.parentReviewRequired,
-    });
-
-    // Use transaction for atomic story creation
-    const storyId = await getStoryRepository().transaction(async (tx) => {
-      // Create story record with metadata
-      const story = await getStoryRepository().createStory(
-        {
-          userId: request.userId,
-          childProfileId: request.childProfileId,
-          storyRequestId: request.id,
-          createdByMode: attribution.createdByMode,
-          createdByChildProfileId: attribution.createdByChildProfileId,
-          parentReviewStatus: attribution.parentReviewStatus,
-          title: text.title,
-          language: text.language,
-          ageGroup: spec.ageGroup,
-          moralTheme: request.goal,
-          outline: null,
-          scenes: text.scenes, // Keep for backward compatibility
-          fullText: text.fullText,
-          wordCount: text.wordCount,
-          closingKeepsakeLabel: extractClosingKeepsakeFromEpisodeText({
-            fullText: text.fullText,
-            scenes: text.scenes,
-          }),
-          closingArtifactId: spec.closingArtifact?.id ?? null,
-          modelVersion: config.ai.modelVersion,
-          generationTimeMs,
-          metadata: {
-            llmGeneratedCharacters: llmCharacters,
-            imageStyle: (spec as any).imageStyle,
-            mergedCharacters: mergedCharacters,
-            mapTile: (text as any).mapTile ?? null,
-            ...(chosenPlotExampleId && { plotExampleId: chosenPlotExampleId }),
-            ...(chosenWorldRuleId && { worldRuleId: chosenWorldRuleId }),
-            ...(spec.closingArtifact && {
-              storyArtifactId: spec.closingArtifact.id,
-              storyArtifactCode: spec.closingArtifact.artifactCode,
-              storyArtifactTitle: spec.closingArtifact.title,
-              storyArtifactImagePath: spec.closingArtifact.imagePath,
-              storyArtifactSelection: (spec.closingArtifact as any).selection,
-            }),
-            // Generation timing data for coefficient calculation
-            ...(timingData && {
-              textGenerationTimeMs: timingData.textGenerationTimeMs,
-              validationTimeMs: timingData.validationTimeMs,
-              sceneCount: timingData.sceneCount,
-              fullTextLength: timingData.fullTextLength,
-            }),
-          },
-          policyChecks: {
-            outlineValidated: true,
-            textValidated: true,
-            ...(timingData?.textValidation && {
-              textValidation: timingData.textValidation,
-            }),
-            timestamp: new Date().toISOString(),
-          },
-          isPublished: false,
-          isFavorite: false,
-        },
-        tx
-      );
-
-      logger.info({ storyId: story.id }, 'Story saved to database');
-
-      // Save all scenes in parallel within transaction
-      await Promise.all(
-        text.scenes.map((scene) => {
-          // Derive charactersPresent from cameraComposition.characters (single source of truth)
-          const cam = scene.sceneVisual?.cameraComposition;
-          const charNames =
-            cam && typeof cam !== 'string'
-              ? flattenCameraComposition(cam).characterNames
-              : (scene as any).characters || [];
-          const normalizedCharacters = charNames.map((name: string) =>
-            normalizeCharacterName(name)
-          );
-
-          return getSceneRepository().create(
-            {
-              storyId: story.id,
-              sceneId: scene.sceneId,
-              text: scene.text,
-              visualPrompt: scene.sceneVisual
-                ? JSON.stringify(scene.sceneVisual) // Store structured as JSON string for DB
-                : scene.visualPrompt, // Fallback for old format
-              charactersPresent: normalizedCharacters,
-              generationParams: {
-                wordCount: scene.text.split(/\s+/).length,
-              },
-            },
-            tx
-          );
-        })
-      );
-
-      logger.info({ storyId: story.id, sceneCount: text.scenes.length }, 'Scenes saved to table');
-
-      // Link characters: user characters from spec + LLM characters from mergedCharacters
-      // Collect all unique character IDs to link (exclude children — they're in child_profiles)
-      const characterIdsToLink = new Set<string>();
-      const characterRoles = new Map<string, string>();
-
-      for (const character of spec.characters) {
-        if (character.id && character.type !== 'child') {
-          characterIdsToLink.add(character.id);
-          characterRoles.set(character.id, character.role || 'supporting');
-        }
-      }
-      // Also link LLM characters that now have DB IDs
-      for (const mc of mergedCharacters as any[]) {
-        if (mc.id && mc.source === 'llm_generated') {
-          characterIdsToLink.add(mc.id);
-          characterRoles.set(mc.id, mc.role || 'supporting');
-        }
-      }
-
-      if (characterIdsToLink.size > 0) {
-        await Promise.all(
-          Array.from(characterIdsToLink).map((characterId) =>
-            getStoryRepository()
-              .createStoryCharacter(
-                {
-                  storyId: story.id,
-                  characterId,
-                  role: characterRoles.get(characterId) || 'supporting',
-                },
-                tx
-              )
-              .catch((err) => {
-                if (!err.message.includes('duplicate')) {
-                  logger.error({ error: err, characterId }, 'Failed to link character');
-                  throw err;
-                }
-              })
-          )
-        );
-
-        logger.info(
-          {
-            storyId: story.id,
-            characterCount: characterIdsToLink.size,
-            totalInSpec: spec.characters.length,
-          },
-          'Characters linked to story (user + LLM, children excluded)'
-        );
-      }
-
-      return story.id;
-    });
-
-    return storyId;
-  } catch (error) {
-    logger.error({ error, requestId: request.id }, 'Failed to save story');
-    throw error;
-  }
 }
 
 // ── Per-User Job Limit ──
@@ -6447,7 +6241,10 @@ export async function retryStoryImages(
     updatedAt: new Date(),
   });
   await enqueueImageJobForGenerationKind(requestId, storyId, generationKind, isContinuation);
-  logger.info({ requestId, storyId, userId, generationKind, imageJobType }, 'Retry images enqueued');
+  logger.info(
+    { requestId, storyId, userId, generationKind, imageJobType },
+    'Retry images enqueued'
+  );
   return { id: requestId, status: 'processing' };
 }
 
@@ -6773,7 +6570,9 @@ export async function getStory(storyId: string, userId: string) {
     {
       excludeChildProfileIds: new Set(
         linkedCharactersRaw
-          .filter((char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string')
+          .filter(
+            (char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string'
+          )
           .map((char: any) => char.childProfileId as string)
       ),
     }
@@ -7424,7 +7223,9 @@ export async function getStoryManifest(storyId: string) {
       ...(await fetchStoryChildren(story.storyRequestId, story.childProfileId, story.userId, {
         excludeChildProfileIds: new Set(
           linkedCharactersRaw
-            .filter((char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string')
+            .filter(
+              (char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string'
+            )
             .map((char: any) => char.childProfileId as string)
         ),
       })),
@@ -7846,7 +7647,7 @@ export async function regenerateSceneImage(
 
   const effectiveCharacterReferenceData = applySceneDressedTurnaroundOverrides(
     characterReferenceData,
-    dressedTurnaroundRefs,
+    dressedTurnaroundRefs
   );
   let referenceImageDataArray = [
     ...envRefEntry,
@@ -7964,95 +7765,4 @@ export async function regenerateSceneImage(
   }
 
   logger.info({ storyId, sceneId }, 'Scene image regenerated successfully');
-}
-
-/**
- * Generate audio for story (M5)
- */
-export async function generateStoryAudio(
-  storyId: string,
-  voiceId?: string,
-  options?: {
-    speed?: number;
-    nightMode?: boolean;
-  }
-): Promise<void> {
-  // Validate inputs
-  if (!isUUID(storyId)) {
-    throw new Error('Invalid story ID format');
-  }
-
-  logger.info({ storyId, voiceId, options }, 'Generating story audio');
-
-  const story = await getStoryRepository().findById(storyId);
-
-  if (!story) {
-    throw new Error('Story not found');
-  }
-
-  // Check if audio already exists (skip if so)
-  const existingAudio = await getAssetRepository().findAudioAssetsByStoryId(storyId);
-  const completedAudio = existingAudio.filter((a) => a.status === 'completed');
-
-  if (completedAudio.length > 0 && !voiceId) {
-    logger.info({ storyId }, 'Audio already exists, skipping generation');
-    return;
-  }
-
-  await assertVoiceAccessForUser(story.userId, voiceId);
-
-  try {
-    // Get audio domain service
-    const audioDomain = getAudioDomainService();
-
-    // Load user subscription to determine plan type
-    const { getUserSubscription, getPlanById } = await import('./planService');
-    const subscription = await getUserSubscription(story.userId);
-
-    let planType: 'free' | 'premium' = 'free';
-    if (subscription) {
-      const plan = await getPlanById(subscription.planId);
-      // Determine if premium based on plan slug
-      planType = plan && plan.slug !== 'free' ? 'premium' : 'free';
-    }
-
-    // Generate audio with plan type
-    const usageContext = { userId: story.userId, storyId };
-    const result = await audioDomain.synthesizeStory(
-      story,
-      {
-        voiceId,
-        speed: options?.speed,
-        nightMode: options?.nightMode,
-      },
-      planType, // Pass plan type for voice selection logic
-      { onUsage: (u) => recordUsage(u, usageContext) }
-    );
-
-    // Update story metadata
-    await getStoryRepository().updateStory(storyId, {
-      audioMetadata: {
-        voiceId: result.voiceId,
-        voiceName: result.voiceName,
-        totalDuration: result.duration,
-        generatedAt: new Date().toISOString(),
-        nightMode: options?.nightMode || false,
-      } as any,
-      updatedAt: new Date(),
-    });
-
-    logger.info(
-      {
-        storyId,
-        duration: result.duration,
-        voiceName: result.voiceName,
-        cached: result.cached,
-      },
-      'Story audio generated successfully'
-    );
-  } catch (error) {
-    logger.error({ error, storyId }, 'Audio generation failed');
-
-    throw error;
-  }
 }
