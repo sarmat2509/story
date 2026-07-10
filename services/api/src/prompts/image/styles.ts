@@ -53,7 +53,8 @@ export const ART_STYLES: Record<string, StyleDefinition> = {
   
   colored_pencil: {
     imagePrefix: [
-      'hand-drawn colored pencil illustration on textured paper',
+      'hand-drawn colored pencil illustration with tactile paper-grain texture',
+      'full-bleed artwork extending past all four image edges; never show a paper sheet, page edge, blank margin, mat, border, frame, or vignette',
       'visible waxy pencil strokes and layered burnishing',
       'cross-hatching and gentle scribble shading',
       'paper grain clearly showing through lighter areas',

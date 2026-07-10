@@ -161,15 +161,17 @@ function testHtmlTextOverlaySeparatesRawArtifactText(): void {
 function testPanelCropInstructionsUseScenePrompt(): void {
   const page = samplePage();
   const systemInstruction = buildGraphicNovelPanelCropSystemInstruction({
-    style: 'warm_3d',
+    style: 'colored_pencil',
     ageGroup: '6-8',
   });
   const prompt = buildGraphicNovelPanelCropInstructions(page, 0, new Map(), [], {
-    style: 'warm_3d',
+    style: 'colored_pencil',
     ageGroup: '6-8',
   });
 
   assert.match(systemInstruction, /edge-to-edge/);
+  assert.match(systemInstruction, /full-bleed artwork extending past all four image edges/i);
+  assert.doesNotMatch(systemInstruction, /illustration on textured paper/i);
   assert.match(prompt, /- Scene: Mira finds a glowing button/);
   assert.match(prompt, /- Composition: medium shot, eye level/);
   assert.doesNotMatch(prompt, /replacement comic panel crop/i);

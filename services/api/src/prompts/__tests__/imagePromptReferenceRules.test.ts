@@ -328,6 +328,17 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   assert.ok(systemInstruction.includes('Keep the same location and spatial relationships'));
 }
 
+function testColoredPencilSystemInstructionForcesFullBleedArtwork() {
+  const systemInstruction = buildImageSystemInstruction({
+    style: 'colored_pencil',
+    ageGroup: '6-8',
+  });
+
+  assert.match(systemInstruction, /full-bleed artwork extending past all four image edges/i);
+  assert.match(systemInstruction, /never show a paper sheet, page edge, blank margin, mat, border, frame, or vignette/i);
+  assert.doesNotMatch(systemInstruction, /illustration on textured paper/i);
+}
+
 function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
   const gardenPrompt = buildEnvironmentImagePrompt({
     environment: {
@@ -480,6 +491,7 @@ testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes();
 testTextOnlyCharacterDoesNotReceiveLegacyOutfitText();
 testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter();
 testSystemInstructionStatesReferenceIdentityWins();
+testColoredPencilSystemInstructionForcesFullBleedArtwork();
 testEnvironmentPromptSanitizesCharacterOwnedLocations();
 
 async function main() {
