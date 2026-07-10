@@ -9,6 +9,7 @@ cd "${PROJECT_ROOT}"
 DROPLET_IP="${DROPLET_IP:-167.172.102.75}"
 DROPLET_USER="${DROPLET_USER:-root}"
 DROPLET_PATH="${DROPLET_PATH:-/var/www/kazka}"
+SHARED_PROXY_PATH="${SHARED_PROXY_PATH:-/var/www/proxy}"
 REMOTE="${DROPLET_USER}@${DROPLET_IP}"
 
 create_deploy_tarball() {
@@ -60,4 +61,16 @@ docker run --rm \
   nginx:alpine nginx -t
 
 echo "Kazka handoff config synced and validated"
+
+if [ -d "${SHARED_PROXY_PATH}/nginx" ] && docker ps --format '{{.Names}}' | grep -qx 'shared-nginx-proxy'; then
+  echo "Syncing active shared proxy config"
+  mkdir -p "${SHARED_PROXY_PATH}/nginx/conf.d" "${SHARED_PROXY_PATH}/nginx/includes"
+  cp nginx/conf.d/kazka.conf "${SHARED_PROXY_PATH}/nginx/conf.d/kazka.conf"
+  cp nginx/includes/*.conf "${SHARED_PROXY_PATH}/nginx/includes/"
+  docker exec shared-nginx-proxy nginx -t
+  docker exec shared-nginx-proxy nginx -s reload
+  echo "Active shared proxy config synced and reloaded"
+else
+  echo "Shared proxy path or container not found; active public proxy was not reloaded"
+fi
 EOF
