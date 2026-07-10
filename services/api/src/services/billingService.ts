@@ -298,7 +298,9 @@ export async function createBundleCheckoutSession(
 
   const priceRow = await bundleRepo.findPriceForPlanAndBundle(plan.id, bundle.id, billingCurrency);
   if (!priceRow) {
-    throw new Error(`No ${billingCurrency} bundle price for plan ${plan.slug} and bundle ${bundleSlug}`);
+    throw new Error(
+      `No ${billingCurrency} bundle price for plan ${plan.slug} and bundle ${bundleSlug}`
+    );
   }
 
   const stripePriceId = bundleService.resolveBundleStripePriceId(
@@ -312,7 +314,9 @@ export async function createBundleCheckoutSession(
 
   const period = resolveActiveSubscriptionPeriod(subscription);
   if (period.expiredStripePeriod) {
-    throw new Error('Subscription billing period is expired; wait for Stripe status refresh before buying bundles.');
+    throw new Error(
+      'Subscription billing period is expired; wait for Stripe status refresh before buying bundles.'
+    );
   }
   if (period.shouldReset && period.resetPatch) {
     await planRepo.updateSubscription(userId, period.resetPatch);
@@ -595,10 +599,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = resolveStripeInvoiceSubscriptionId(invoice);
-      logger.warn(
-        { invoiceId: invoice.id, subscriptionId },
-        'Stripe invoice payment failed'
-      );
+      logger.warn({ invoiceId: invoice.id, subscriptionId }, 'Stripe invoice payment failed');
       if (subscriptionId) {
         await planService.markStripeSubscriptionPaymentFailed(subscriptionId);
       }
@@ -624,7 +625,9 @@ type RevenueCatWebhookPayload = {
   };
 };
 
-function getRevenueCatPlanSlug(event: NonNullable<RevenueCatWebhookPayload['event']>): string | null {
+function getRevenueCatPlanSlug(
+  event: NonNullable<RevenueCatWebhookPayload['event']>
+): string | null {
   const entitlementIds = Array.isArray(event.entitlement_ids)
     ? event.entitlement_ids.filter((value): value is string => typeof value === 'string')
     : [];
@@ -637,10 +640,13 @@ function getRevenueCatPlanSlug(event: NonNullable<RevenueCatWebhookPayload['even
     if (planSlug) return planSlug;
   }
 
-  return event.product_id ? config.revenueCat.productPlanMap[event.product_id] ?? null : null;
+  return event.product_id ? (config.revenueCat.productPlanMap[event.product_id] ?? null) : null;
 }
 
-export async function handleRevenueCatWebhook(rawBody: Buffer, authorizationHeader?: string): Promise<void> {
+export async function handleRevenueCatWebhook(
+  rawBody: Buffer,
+  authorizationHeader?: string
+): Promise<void> {
   if (!config.revenueCat.webhookAuthorization) {
     throw new Error('REVENUECAT_WEBHOOK_AUTHORIZATION is not configured');
   }
@@ -655,12 +661,15 @@ export async function handleRevenueCatWebhook(rawBody: Buffer, authorizationHead
     throw new Error('RevenueCat webhook missing event type or app_user_id');
   }
 
-  logger.info({
-    eventId: event.id ?? null,
-    type: event.type,
-    userId: event.app_user_id,
-    productId: event.product_id ?? null,
-  }, 'Processing RevenueCat webhook');
+  logger.info(
+    {
+      eventId: event.id ?? null,
+      type: event.type,
+      userId: event.app_user_id,
+      productId: event.product_id ?? null,
+    },
+    'Processing RevenueCat webhook'
+  );
 
   switch (event.type) {
     case 'INITIAL_PURCHASE':
@@ -671,11 +680,14 @@ export async function handleRevenueCatWebhook(rawBody: Buffer, authorizationHead
     case 'NON_RENEWING_PURCHASE': {
       const planSlug = getRevenueCatPlanSlug(event);
       if (!planSlug) {
-        logger.warn({
-          eventId: event.id ?? null,
-          productId: event.product_id ?? null,
-          entitlementIds: event.entitlement_ids ?? null,
-        }, 'Could not resolve plan from RevenueCat webhook');
+        logger.warn(
+          {
+            eventId: event.id ?? null,
+            productId: event.product_id ?? null,
+            entitlementIds: event.entitlement_ids ?? null,
+          },
+          'Could not resolve plan from RevenueCat webhook'
+        );
         return;
       }
       await planService.updateSubscriptionFromRevenueCat({

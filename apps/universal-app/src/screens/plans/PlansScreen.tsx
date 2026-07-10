@@ -75,8 +75,7 @@ function getPlanFeatureLimit(
   slug: string
 ): number | null {
   const value = features?.[slug]?.value;
-  const limit =
-    value && typeof value === 'object' && 'limit' in value ? Number(value.limit) : null;
+  const limit = value && typeof value === 'object' && 'limit' in value ? Number(value.limit) : null;
   return typeof limit === 'number' && Number.isFinite(limit) && limit > 0 ? limit : null;
 }
 
@@ -107,9 +106,9 @@ export default function PlansScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const bundleGridLayout = isWeb || windowWidth >= 720;
-  const [selectedBillingCurrency, setSelectedBillingCurrency] = useState<BillingCurrency | undefined>(
-    undefined
-  );
+  const [selectedBillingCurrency, setSelectedBillingCurrency] = useState<
+    BillingCurrency | undefined
+  >(undefined);
 
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -162,7 +161,11 @@ export default function PlansScreen() {
     'EUR';
 
   useEffect(() => {
-    if (!selectedBillingCurrency && effectiveIsAuthenticated && authData?.preferredBillingCurrency) {
+    if (
+      !selectedBillingCurrency &&
+      effectiveIsAuthenticated &&
+      authData?.preferredBillingCurrency
+    ) {
       setSelectedBillingCurrency(authData.preferredBillingCurrency);
     }
   }, [authData?.preferredBillingCurrency, effectiveIsAuthenticated, selectedBillingCurrency]);
@@ -325,7 +328,9 @@ export default function PlansScreen() {
   );
   const formatPlanPrice = useCallback(
     (priceMonthly: number, currency: string) =>
-      priceMonthly === 0 ? formatZeroPlanPrice(pricingLocale, currency) : formatPrice(priceMonthly, currency),
+      priceMonthly === 0
+        ? formatZeroPlanPrice(pricingLocale, currency)
+        : formatPrice(priceMonthly, currency),
     [formatPrice, pricingLocale]
   );
 
@@ -618,7 +623,11 @@ export default function PlansScreen() {
 
                   {usageHighlight && (
                     <View style={styles.highlightFeature}>
-                      <Ionicons name="sparkles" size={20} color={theme.colors.interactive.primary} />
+                      <Ionicons
+                        name="sparkles"
+                        size={20}
+                        color={theme.colors.interactive.primary}
+                      />
                       <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
                         {usageHighlight}
                       </Text>
@@ -684,7 +693,8 @@ export default function PlansScreen() {
                       style={styles.planAction}
                       testID={`plans-action-${plan.slug}`}
                     />
-                  ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
+                  ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType ===
+                    'downgrade' ? (
                     <AppButton
                       label={t('plans.subscribe_button')}
                       onPress={() => {
@@ -817,7 +827,12 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {getLocalizedApiError(t, modalErrorData, 'plans.upgrade_error_message')}
                   </Text>
-                  <AppButton label={t('common.close')} onPress={resetModal} style={styles.modalAction} />
+                  <AppButton
+                    label={t('common.close')}
+                    onPress={resetModal}
+                    style={styles.modalAction}
+                    testID="plans-upgrade-close"
+                  />
                 </>
               ) : useRevenueCatFlow && nativeBillingSuccess ? (
                 <>
@@ -826,7 +841,12 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {t('plans.revenuecat_success_message', { planName: selectedPlan?.name })}
                   </Text>
-                  <AppButton label={t('common.got_it')} onPress={resetModal} style={styles.modalAction} />
+                  <AppButton
+                    label={t('common.got_it')}
+                    onPress={resetModal}
+                    style={styles.modalAction}
+                    testID="plans-upgrade-close"
+                  />
                 </>
               ) : !useStripeFlow && !useRevenueCatFlow && upgradePlan.isSuccess ? (
                 <>
@@ -862,7 +882,12 @@ export default function PlansScreen() {
                         }
                       )}
                   </View>
-                  <AppButton label={t('common.got_it')} onPress={resetModal} style={styles.modalAction} />
+                  <AppButton
+                    label={t('common.got_it')}
+                    onPress={resetModal}
+                    style={styles.modalAction}
+                    testID="plans-upgrade-close"
+                  />
                 </>
               ) : (
                 <>
@@ -959,6 +984,7 @@ export default function PlansScreen() {
                       }}
                       variant="secondary"
                       style={styles.modalAction}
+                      testID="plans-upgrade-cancel"
                     />
                     <AppButton
                       label={t('plans.confirm')}

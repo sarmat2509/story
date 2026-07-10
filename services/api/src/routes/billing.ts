@@ -8,10 +8,7 @@ import { requireAuth, requireParentSession } from '../middleware/authMiddleware'
 import config from '../config';
 import * as billingService from '../services/billingService';
 import { logger } from '../utils/logger';
-import {
-  buildBillingCheckoutReturnUrls,
-  buildBillingPortalReturnUrl,
-} from './billingReturnUrls';
+import { buildBillingCheckoutReturnUrls, buildBillingPortalReturnUrl } from './billingReturnUrls';
 import { SUPPORTED_BILLING_CURRENCIES } from '../services/planPresentationService';
 import { DiscountCodeError, previewDiscount } from '../services/discountService';
 
@@ -226,36 +223,41 @@ router.post(
 );
 
 // POST /api/v1/billing/portal-session - Create Stripe Customer Portal session
-router.post('/portal-session', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    if (!config.features.enableRealPayments) {
-      return res.status(501).json({
+router.post(
+  '/portal-session',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      if (!config.features.enableRealPayments) {
+        return res.status(501).json({
+          status: 'error',
+          message: 'Real payments disabled.',
+          code: 'REAL_PAYMENTS_DISABLED',
+        });
+      }
+
+      const userId = req.user!.id;
+      const returnUrl = buildBillingPortalReturnUrl(
+        config.web?.webAppUrl || '',
+        req.user!.preferredLocale
+      );
+
+      const url = await billingService.createPortalSession(userId, returnUrl);
+
+      res.json({
+        status: 'success',
+        url,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Create portal session failed');
+      const message = error instanceof Error ? error.message : 'Failed to create portal session';
+      res.status(500).json({
         status: 'error',
-        message: 'Real payments disabled.',
-        code: 'REAL_PAYMENTS_DISABLED',
+        message,
       });
     }
-
-    const userId = req.user!.id;
-    const returnUrl = buildBillingPortalReturnUrl(
-      config.web?.webAppUrl || '',
-      req.user!.preferredLocale
-    );
-
-    const url = await billingService.createPortalSession(userId, returnUrl);
-
-    res.json({
-      status: 'success',
-      url,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Create portal session failed');
-    const message = error instanceof Error ? error.message : 'Failed to create portal session';
-    res.status(500).json({
-      status: 'error',
-      message,
-    });
   }
-});
+);
 
 export default router;
