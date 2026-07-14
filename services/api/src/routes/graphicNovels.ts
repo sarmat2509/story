@@ -20,6 +20,7 @@ import {
   releaseGraphicNovelQuotaReservationForRequest,
 } from '../services/graphicNovelQuotaService';
 import { logger } from '../utils/logger';
+import { isStoryCharacterSelectionLimitError } from '../services/storyCharacterSelectionLimitService';
 
 const router = Router();
 
@@ -34,7 +35,10 @@ async function releaseStoryQuotaReservationOnCreateFailure(
       errorMessage: error instanceof Error ? error.message : String(error),
     });
   } catch (releaseError) {
-    logger.error({ err: releaseError, requestId }, 'Failed to release story quota after graphic novel create failure');
+    logger.error(
+      { err: releaseError, requestId },
+      'Failed to release story quota after graphic novel create failure'
+    );
   }
 }
 
@@ -83,6 +87,20 @@ function sendStoryQuotaError(res: Response, error: unknown): boolean {
   return true;
 }
 
+function sendStoryCharacterSelectionLimitError(res: Response, error: unknown): boolean {
+  if (!isStoryCharacterSelectionLimitError(error)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    selected: error.selected,
+    imagesPerStory: error.imagesPerStory,
+  });
+  return true;
+}
+
 function sendGraphicNovelQuotaError(res: Response, error: unknown): boolean {
   if (!isGraphicNovelQuotaError(error)) return false;
   res.status(error.statusCode).json({
@@ -122,12 +140,15 @@ router.post(
       const jobId = await storyJobQueue.addJob(requestId);
       queued = true;
 
-      logger.info({
-        userId: req.user!.id,
-        requestId,
-        jobId,
-        language: validatedData.storyLanguage,
-      }, 'Graphic novel request created');
+      logger.info(
+        {
+          userId: req.user!.id,
+          requestId,
+          jobId,
+          language: validatedData.storyLanguage,
+        },
+        'Graphic novel request created'
+      );
 
       res.status(201).json({
         status: 'success',
@@ -147,6 +168,7 @@ router.post(
       }
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
+      if (sendStoryCharacterSelectionLimitError(res, error)) return;
       if (sendGraphicNovelQuotaError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create graphic novel request failed');
@@ -182,7 +204,10 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       graphicNovel: result,
     });
   } catch (error) {
-    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get graphic novel failed');
+    logger.error(
+      { err: error, userId: req.user?.id, storyId: req.params.id },
+      'Get graphic novel failed'
+    );
     res.status(500).json({
       status: 'error',
       message: 'Failed to get graphic novel',
@@ -205,7 +230,10 @@ router.get('/:id/generation-status', requireAuth, async (req: Request, res: Resp
       generationStatus: status,
     });
   } catch (error) {
-    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get graphic novel generation status failed');
+    logger.error(
+      { err: error, userId: req.user?.id, storyId: req.params.id },
+      'Get graphic novel generation status failed'
+    );
     res.status(500).json({
       status: 'error',
       message: 'Failed to get graphic novel generation status',

@@ -11,6 +11,7 @@ export {
 export {
   buildDirectorPrompt,
   buildDirectorPromptCachedPrefix,
+  buildDirectorSelectedCharacterCoverageRetryPrompt,
   buildMapTileBriefPrompt,
   buildMapTileBriefPromptCachedPrefix,
   DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT,

@@ -112,6 +112,8 @@ export interface SubscriptionUsageData {
     planLimit?: number;
     bundleBonus?: number;
   };
+  imagesPerStory: number;
+  storyCharacterSelectionLimit: number;
   resetsAt: string;
   currentPeriodEnd?: string;
   subscriptionStatus?: string;
@@ -121,6 +123,8 @@ export interface SubscriptionUsageData {
 }
 
 type SubscriptionUsageApiData = SubscriptionUsageData & {
+  images_per_story?: number;
+  story_character_selection_limit?: number;
   current_period_end?: string;
   subscription_status?: string;
   cancel_at_period_end?: boolean;
@@ -178,6 +182,9 @@ function normalizeSubscriptionUsage(data: SubscriptionUsageApiData): Subscriptio
         ? normalizeUsageBucket(data.mixed_stories)
         : undefined,
     audio: normalizeUsageBucket(data.audio),
+    imagesPerStory: data.imagesPerStory ?? data.images_per_story ?? 1,
+    storyCharacterSelectionLimit:
+      data.storyCharacterSelectionLimit ?? data.story_character_selection_limit ?? 3,
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd ?? data.current_period_end,
     subscriptionStatus: data.subscriptionStatus ?? data.subscription_status,

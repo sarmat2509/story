@@ -24,6 +24,7 @@ const API_ERROR_KEY_BY_CODE: Record<string, string> = {
   SUBSCRIPTION_PERIOD_EXPIRED: 'subscription_period_expired',
   STORY_LIMIT_EXCEEDED: 'story_limit_exceeded',
   CHARACTER_LIMIT_EXCEEDED: 'character_limit_exceeded',
+  STORY_CHARACTER_SELECTION_LIMIT_EXCEEDED: 'story_character_selection_limit_exceeded',
   IMAGE_GENERATION_NOT_AVAILABLE: 'image_generation_not_available',
   IMAGES_PER_STORY_LIMIT_EXCEEDED: 'images_per_story_limit_exceeded',
   AUDIO_LIMIT_EXCEEDED: 'audio_limit_exceeded',

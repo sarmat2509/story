@@ -59,6 +59,7 @@ import {
   buildDirectTextPromptPlainCachedPrefix,
   buildDirectorPrompt,
   buildDirectorPromptCachedPrefix,
+  buildDirectorSelectedCharacterCoverageRetryPrompt,
   buildMapTileBriefPrompt,
   buildMapTileBriefPromptCachedPrefix,
   buildValidationPrompt,
@@ -80,6 +81,7 @@ import { VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA }
 import { DIRECTOR_SCHEMA, MAP_TILE_BRIEF_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
 import { countNarrationWords } from '../../utils/audioTags';
+import { evaluateDirectorSelectedCharacterCoverage } from './directorCharacterCoverage';
 
 /** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
 const PLAIN_WRITER_MAX_OUTPUT_TOKENS = 16384;
@@ -305,44 +307,80 @@ export class StoryDomainService {
 
     try {
       const parentOnUsage = options?.onUsage;
-      const result = await this.directorTextProvider.generateStructured<{
-        characters: any[];
-        environments: any[];
-        outfits: any[];
-        mapTile: any;
-        illustrations: Array<{
-          environmentId: string;
-          primaryRead: string;
-          sceneVisual: any;
-        }>;
-      }>({
-        prompt,
-        cachedPrefix: {
-          key: DIRECTOR_CACHE_KEY,
-          content: buildDirectorPromptCachedPrefix(),
-          displayName: DIRECTOR_CACHE_KEY,
-        },
-        schema: DIRECTOR_SCHEMA,
-        temperature: 0.7,
-        onUsage: (usage) => {
-          if (usage.operation === 'director') {
-            const costUsd = estimateUsageCostUsd(usage);
-            logger.info(
-              {
-                provider: usage.provider,
-                model: usage.model,
-                inputTokens: usage.inputUnits,
-                outputTokens: usage.outputUnits ?? 0,
-                costUsd,
-              },
-              'Director LLM request usage (estimated cost USD)'
-            );
-          }
-          parentOnUsage?.(usage);
-        },
-        operation: 'director',
-        onRawResponse: options?.onRawResponse,
+      const generateDirectorResult = (attemptPrompt: string) =>
+        this.directorTextProvider.generateStructured<{
+          characters: any[];
+          environments: any[];
+          outfits: any[];
+          mapTile: any;
+          illustrations: Array<{
+            environmentId: string;
+            primaryRead: string;
+            sceneVisual: any;
+          }>;
+        }>({
+          prompt: attemptPrompt,
+          cachedPrefix: {
+            key: DIRECTOR_CACHE_KEY,
+            content: buildDirectorPromptCachedPrefix(),
+            displayName: DIRECTOR_CACHE_KEY,
+          },
+          schema: DIRECTOR_SCHEMA,
+          temperature: 0.7,
+          onUsage: (usage) => {
+            if (usage.operation === 'director') {
+              const costUsd = estimateUsageCostUsd(usage);
+              logger.info(
+                {
+                  provider: usage.provider,
+                  model: usage.model,
+                  inputTokens: usage.inputUnits,
+                  outputTokens: usage.outputUnits ?? 0,
+                  costUsd,
+                },
+                'Director LLM request usage (estimated cost USD)'
+              );
+            }
+            parentOnUsage?.(usage);
+          },
+          operation: 'director',
+          onRawResponse: options?.onRawResponse,
+        });
+
+      let result = await generateDirectorResult(prompt);
+      let coverage = evaluateDirectorSelectedCharacterCoverage({
+        userCharacters: params.userCharacters,
+        illustrations: result.illustrations,
+        imagesPerStory: params.imagesPerStory,
       });
+
+      if (!coverage.ok) {
+        logger.warn(
+          {
+            imagesPerStory: params.imagesPerStory,
+            missingCharacters: coverage.missingCharacters,
+          },
+          'Director omitted selected characters; retrying visual plan once'
+        );
+        result = await generateDirectorResult(
+          buildDirectorSelectedCharacterCoverageRetryPrompt({
+            originalPrompt: prompt,
+            missingCharacters: coverage.missingCharacters,
+            imagesPerStory: params.imagesPerStory,
+          })
+        );
+        coverage = evaluateDirectorSelectedCharacterCoverage({
+          userCharacters: params.userCharacters,
+          illustrations: result.illustrations,
+          imagesPerStory: params.imagesPerStory,
+        });
+      }
+
+      if (!coverage.ok) {
+        throw new Error(
+          `Selected characters are missing from the Director image plan: ${coverage.missingCharacters.join(', ')}`
+        );
+      }
 
       if (!result.illustrations || result.illustrations.length !== params.imagesPerStory) {
         logger.warn(

@@ -2,7 +2,12 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { THEME_PALETTE_IDS, UpdateChildModeExitPasscodeSchema } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
-import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
+import {
+  getUserWithOAuth,
+  updateUser,
+  deleteUser,
+  countUserOAuthIdentities,
+} from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
 import {
   ChildModePasscodeError,
@@ -14,7 +19,11 @@ import {
   createDataPrivacyRequest,
   listUserDataPrivacyRequests,
 } from '../services/dataPrivacyRequestService';
-import { toChildSafeSubscriptionUsageView, type SubscriptionUsageView } from '../services/subscriptionUsageView';
+import {
+  toChildSafeSubscriptionUsageView,
+  type SubscriptionUsageView,
+} from '../services/subscriptionUsageView';
+import { getStoryCharacterSelectionLimit } from '../domain/story/storyCharacterSelectionLimit';
 import { logger } from '../utils/logger';
 import { toUserResponse } from '../utils/userResponse';
 
@@ -43,7 +52,7 @@ const DataPrivacyRequestBodySchema = z
 router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userWithOAuth = await getUserWithOAuth(req.user!.id);
-    
+
     res.json({
       status: 'success',
       user: userWithOAuth ? toUserResponse(userWithOAuth) : null,
@@ -62,7 +71,7 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
   try {
     // Validate request body
     const validationResult = updateUserSchema.safeParse(req.body);
-    
+
     if (!validationResult.success) {
       res.status(400).json({
         status: 'error',
@@ -71,8 +80,17 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
       });
       return;
     }
-    
-    const { displayName, avatarUrl, preferredLocale, mode, onboardingCompleted, pseudonym, aboutMe, themePalette } = validationResult.data;
+
+    const {
+      displayName,
+      avatarUrl,
+      preferredLocale,
+      mode,
+      onboardingCompleted,
+      pseudonym,
+      aboutMe,
+      themePalette,
+    } = validationResult.data;
 
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
@@ -85,8 +103,23 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
       themePalette,
     });
 
-    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, onboardingCompleted, pseudonym, aboutMe, themePalette } }, 'User profile updated');
-    
+    logger.info(
+      {
+        userId: req.user!.id,
+        updates: {
+          displayName,
+          avatarUrl,
+          preferredLocale,
+          mode,
+          onboardingCompleted,
+          pseudonym,
+          aboutMe,
+          themePalette,
+        },
+      },
+      'User profile updated'
+    );
+
     res.json({
       status: 'success',
       user: toUserResponse(updatedUser),
@@ -101,50 +134,55 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
 });
 
 // Set or rotate the account-level Child Mode exit passcode
-router.patch('/child-mode-exit-passcode', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const validationResult = UpdateChildModeExitPasscodeSchema.safeParse(req.body);
+router.patch(
+  '/child-mode-exit-passcode',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const validationResult = UpdateChildModeExitPasscodeSchema.safeParse(req.body);
 
-    if (!validationResult.success) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Invalid request data',
-        details: validationResult.error.errors,
+      if (!validationResult.success) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid request data',
+          details: validationResult.error.errors,
+        });
+        return;
+      }
+
+      const result = await updateChildModeExitPasscode(req.user!.id, validationResult.data);
+
+      res.json({
+        status: 'success',
+        user: toUserResponse(result.user),
+        childModeExitPasscode: result.childModeExitPasscode,
       });
-      return;
-    }
+    } catch (error) {
+      if (error instanceof ChildModePasscodeError) {
+        return res.status(error.statusCode).json({
+          status: 'error',
+          code: error.code,
+          message: error.message,
+        });
+      }
 
-    const result = await updateChildModeExitPasscode(req.user!.id, validationResult.data);
-
-    res.json({
-      status: 'success',
-      user: toUserResponse(result.user),
-      childModeExitPasscode: result.childModeExitPasscode,
-    });
-  } catch (error) {
-    if (error instanceof ChildModePasscodeError) {
-      return res.status(error.statusCode).json({
+      logger.error({ err: error, userId: req.user?.id }, 'Update Child Mode exit passcode failed');
+      res.status(500).json({
         status: 'error',
-        code: error.code,
-        message: error.message,
+        message: 'Failed to update Child Mode exit passcode',
       });
     }
-
-    logger.error({ err: error, userId: req.user?.id }, 'Update Child Mode exit passcode failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to update Child Mode exit passcode',
-    });
   }
-});
+);
 
 // Delete account
 router.delete('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     await deleteUser(req.user!.id);
-    
+
     logger.info({ userId: req.user!.id }, 'User account deleted');
-    
+
     res.json({
       status: 'success',
       message: 'Account deleted successfully',
@@ -159,69 +197,81 @@ router.delete('/', requireAuth, requireParentSession, async (req: Request, res: 
 });
 
 // List current user's data privacy requests
-router.get('/privacy-requests', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const requests = await listUserDataPrivacyRequests(req.user!.id);
+router.get(
+  '/privacy-requests',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const requests = await listUserDataPrivacyRequests(req.user!.id);
 
-    res.json({
-      status: 'success',
-      data: requests,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'List data privacy requests failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to list privacy requests',
-    });
-  }
-});
-
-// Create export/deletion support request
-router.post('/privacy-requests', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const parsed = DataPrivacyRequestBodySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
+      res.json({
+        status: 'success',
+        data: requests,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'List data privacy requests failed');
+      res.status(500).json({
         status: 'error',
-        message: 'Invalid request data',
-        details: parsed.error.flatten(),
+        message: 'Failed to list privacy requests',
       });
     }
-
-    const request = await createDataPrivacyRequest({
-      userId: req.user!.id,
-      requesterEmail: req.user!.email,
-      requestType: parsed.data.requestType,
-      message: parsed.data.message,
-    });
-
-    logger.info({
-      userId: req.user!.id,
-      requestId: request.id,
-      requestType: request.requestType,
-    }, 'Data privacy request created');
-
-    return res.status(201).json({
-      status: 'success',
-      data: request,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Create data privacy request failed');
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to create privacy request',
-    });
   }
-});
+);
+
+// Create export/deletion support request
+router.post(
+  '/privacy-requests',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const parsed = DataPrivacyRequestBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid request data',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const request = await createDataPrivacyRequest({
+        userId: req.user!.id,
+        requesterEmail: req.user!.email,
+        requestType: parsed.data.requestType,
+        message: parsed.data.message,
+      });
+
+      logger.info(
+        {
+          userId: req.user!.id,
+          requestId: request.id,
+          requestType: request.requestType,
+        },
+        'Data privacy request created'
+      );
+
+      return res.status(201).json({
+        status: 'success',
+        data: request,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Create data privacy request failed');
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to create privacy request',
+      });
+    }
+  }
+);
 
 // Get subscription usage (stories + audio remaining, resetsAt)
 router.get('/subscription-usage', requireAuth, async (req: Request, res: Response) => {
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
-    const { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } = await import(
-      '../services/bundleService'
-    );
+    const { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } =
+      await import('../services/bundleService');
     const { getGraphicNovelUsageForPeriod } = await import('../services/graphicNovelQuotaService');
     const usageOwnerId = req.parentUserId || req.user!.id;
     const childSafe = req.sessionMode === 'child';
@@ -282,7 +332,8 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       graphicNovels: {
         used: graphicNovelsUsed,
         limit: graphicNovelsLimit,
-        remaining: graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
+        remaining:
+          graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
         plan_limit: graphicNovelsPlanLimit,
         bundle_bonus: graphicNovelsBundleBonus,
       },
@@ -300,6 +351,8 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
         plan_limit: audioPlanLimit,
         bundle_bonus: bundleBonus.extraAudio,
       },
+      imagesPerStory: features.imagesPerStory,
+      storyCharacterSelectionLimit: getStoryCharacterSelectionLimit(features.imagesPerStory),
       resetsAt: subscription.resetAt,
       currentPeriodEnd: subscription.currentPeriodEnd,
       subscriptionStatus: subscription.status,
@@ -325,7 +378,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
 router.get('/sessions', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const sessions = await getUserSessions(req.user!.id);
-    
+
     // Mark current session
     const sessionsWithCurrent = sessions.map((session) => ({
       id: session.id,
@@ -336,7 +389,7 @@ router.get('/sessions', requireAuth, requireParentSession, async (req: Request, 
       lastActiveAt: session.lastActiveAt,
       isCurrent: session.token === req.sessionId,
     }));
-    
+
     res.json({
       status: 'success',
       sessions: sessionsWithCurrent,
@@ -351,26 +404,31 @@ router.get('/sessions', requireAuth, requireParentSession, async (req: Request, 
 });
 
 // Revoke specific session
-router.delete('/sessions/:sessionToken', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const { sessionToken } = req.params;
-    
-    await deleteSession(sessionToken);
-    
-    logger.info({ userId: req.user!.id, revokedSessionToken: sessionToken }, 'Session revoked');
-    
-    res.json({
-      status: 'success',
-      message: 'Session revoked successfully',
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Revoke session failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to revoke session',
-    });
+router.delete(
+  '/sessions/:sessionToken',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const { sessionToken } = req.params;
+
+      await deleteSession(sessionToken);
+
+      logger.info({ userId: req.user!.id, revokedSessionToken: sessionToken }, 'Session revoked');
+
+      res.json({
+        status: 'success',
+        message: 'Session revoked successfully',
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Revoke session failed');
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to revoke session',
+      });
+    }
   }
-});
+);
 
 // List user's story series (requires series_enabled feature)
 router.get('/series', requireAuth, requireParentSession, async (req: Request, res: Response) => {
@@ -404,79 +462,94 @@ router.get('/series', requireAuth, requireParentSession, async (req: Request, re
 });
 
 // Get linked OAuth providers
-router.get('/oauth-providers', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const userWithOAuth = await getUserWithOAuth(req.user!.id);
-    
-    res.json({
-      status: 'success',
-      providers: userWithOAuth?.oauthProviders || [],
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Get OAuth providers failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to fetch OAuth providers',
-    });
+router.get(
+  '/oauth-providers',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const userWithOAuth = await getUserWithOAuth(req.user!.id);
+
+      res.json({
+        status: 'success',
+        providers: userWithOAuth?.oauthProviders || [],
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Get OAuth providers failed');
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to fetch OAuth providers',
+      });
+    }
   }
-});
+);
 
 // Link additional OAuth provider
-router.post('/oauth-providers', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    // TODO: Implement OAuth linking flow
-    res.status(501).json({
-      status: 'error',
-      message: 'OAuth linking not implemented yet',
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Link OAuth provider failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to link OAuth provider',
-    });
+router.post(
+  '/oauth-providers',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      // TODO: Implement OAuth linking flow
+      res.status(501).json({
+        status: 'error',
+        message: 'OAuth linking not implemented yet',
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Link OAuth provider failed');
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to link OAuth provider',
+      });
+    }
   }
-});
+);
 
 // Unlink OAuth provider
-router.delete('/oauth-providers/:provider', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    const { provider } = req.params;
-    
-    if (provider !== 'google' && provider !== 'apple') {
-      res.status(400).json({
-        status: 'error',
-        message: 'Invalid provider',
+router.delete(
+  '/oauth-providers/:provider',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const { provider } = req.params;
+
+      if (provider !== 'google' && provider !== 'apple') {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid provider',
+        });
+        return;
+      }
+
+      // Check if user has multiple OAuth providers
+      const identityCount = await countUserOAuthIdentities(req.user!.id);
+
+      if (identityCount <= 1) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Cannot unlink the only authentication method',
+        });
+        return;
+      }
+
+      await unlinkOAuthProvider(req.user!.id, provider);
+
+      logger.info({ userId: req.user!.id, provider }, 'OAuth provider unlinked');
+
+      res.json({
+        status: 'success',
+        message: `${provider} unlinked successfully`,
       });
-      return;
-    }
-    
-    // Check if user has multiple OAuth providers
-    const identityCount = await countUserOAuthIdentities(req.user!.id);
-    
-    if (identityCount <= 1) {
-      res.status(400).json({
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Unlink OAuth provider failed');
+      res.status(500).json({
         status: 'error',
-        message: 'Cannot unlink the only authentication method',
+        message: 'Failed to unlink OAuth provider',
       });
-      return;
     }
-    
-    await unlinkOAuthProvider(req.user!.id, provider);
-    
-    logger.info({ userId: req.user!.id, provider }, 'OAuth provider unlinked');
-    
-    res.json({
-      status: 'success',
-      message: `${provider} unlinked successfully`,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Unlink OAuth provider failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to unlink OAuth provider',
-    });
   }
-});
+);
 
 export default router;

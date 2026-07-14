@@ -11,6 +11,8 @@ export type SubscriptionUsageView = {
   graphicNovels: UsageBucketView;
   mixedStories: UsageBucketView;
   audio: UsageBucketView;
+  imagesPerStory: number;
+  storyCharacterSelectionLimit: number;
   resetsAt: Date | null;
   currentPeriodEnd: Date | null;
   subscriptionStatus?: string;
@@ -27,12 +29,16 @@ function childSafeBucket(bucket: UsageBucketView): UsageBucketView {
   };
 }
 
-export function toChildSafeSubscriptionUsageView(data: SubscriptionUsageView): SubscriptionUsageView {
+export function toChildSafeSubscriptionUsageView(
+  data: SubscriptionUsageView
+): SubscriptionUsageView {
   return {
     stories: childSafeBucket(data.stories),
     graphicNovels: childSafeBucket(data.graphicNovels),
     mixedStories: childSafeBucket(data.mixedStories),
     audio: childSafeBucket(data.audio),
+    imagesPerStory: data.imagesPerStory,
+    storyCharacterSelectionLimit: data.storyCharacterSelectionLimit,
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd,
   };

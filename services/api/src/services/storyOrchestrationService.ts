@@ -149,6 +149,10 @@ import {
 } from './storyQuotaService';
 import { syncChildProfileCharacter } from './childProfileService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
+import {
+  assertStoryCharacterSelectionLimit,
+  isStoryCharacterSelectionLimitError,
+} from './storyCharacterSelectionLimitService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
 import { localizeCharacterNames } from './translationService';
@@ -471,6 +475,16 @@ export async function createStoryRequest(
     logger.info({ userId, language: input.storyLanguage }, 'Creating story request');
 
     const quotaSource = options?.quotaSource;
+    const characterSelection = await assertStoryCharacterSelectionLimit(userId, input);
+    logger.debug(
+      {
+        userId,
+        selectedCharacterCount: characterSelection.selected,
+        selectionLimit: characterSelection.limit,
+        imagesPerStory: characterSelection.imagesPerStory,
+      },
+      'Validated story character selection limit'
+    );
     assertStoryPromptSafety({
       userId,
       goal: input.goal,
@@ -525,7 +539,11 @@ export async function createStoryRequest(
     logger.info({ requestId }, 'Story request created');
     return requestId;
   } catch (error) {
-    if (isStoryQuotaError(error) || isPromptSafetyError(error)) {
+    if (
+      isStoryQuotaError(error) ||
+      isPromptSafetyError(error) ||
+      isStoryCharacterSelectionLimitError(error)
+    ) {
       throw error;
     }
     logger.error(
@@ -913,7 +931,10 @@ export async function processStoryRequest(requestId: string): Promise<{
         directorParsedResponse = directorResult;
         await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
         text = mergeDirectorIntoText(validatedPlainText, directorResult, imagesPerStory, {
-          preferredCharacterNames: getPreferredSceneCharacterNamesForLimit(spec),
+          preferredCharacterNames: getPreferredSceneCharacterNamesForLimit(
+            spec,
+            selectedCharacters
+          ),
         });
         text.language = spec.language;
         const anchorSceneIds = getIllustrationBlockStartSceneIds(
@@ -1482,9 +1503,19 @@ function isChildProfileMirrorCharacterRow(char: unknown): boolean {
 }
 
 function getPreferredSceneCharacterNamesForLimit(
-  spec: StorySpec & { childProfile?: ChildProfileData }
+  spec: StorySpec & { childProfile?: ChildProfileData },
+  selectedCharacters: CharacterData[] = []
 ): string[] {
   const names: string[] = [];
+  for (const character of selectedCharacters) {
+    if (character.name?.trim()) {
+      names.push(character.name.trim());
+    }
+    const canonicalName = (character as { canonicalName?: unknown }).canonicalName;
+    if (typeof canonicalName === 'string' && canonicalName.trim()) {
+      names.push(canonicalName.trim());
+    }
+  }
   if (typeof spec.childName === 'string' && spec.childName.trim()) {
     names.push(spec.childName.trim());
   }
@@ -1738,7 +1769,7 @@ function assertSceneTurnaroundReferencesDelivered(
     characterName?: string;
     isTurnaround?: boolean;
   }>,
-  context: { storyId: string; sceneId: number },
+  context: { storyId: string; sceneId: number }
 ): void {
   const missing: string[] = [];
   for (const normalized of normalizedCharacters) {
@@ -1748,14 +1779,14 @@ function assertSceneTurnaroundReferencesDelivered(
       (reference) =>
         reference.source !== 'environment' &&
         reference.isTurnaround === true &&
-        sameCharacterIdentity(reference.characterName, characterName),
+        sameCharacterIdentity(reference.characterName, characterName)
     );
     if (!delivered) missing.push(characterName);
   }
 
   if (missing.length > 0) {
     throw new Error(
-      `Story ${context.storyId}, scene ${context.sceneId} cannot be generated without required turnaround references: ${missing.join(', ')}`,
+      `Story ${context.storyId}, scene ${context.sceneId} cannot be generated without required turnaround references: ${missing.join(', ')}`
     );
   }
 }
@@ -1985,7 +2016,6 @@ function buildCharacterReferencePathMetadataMap(
         type,
       });
     }
-
   }
 
   return byPath;
@@ -2326,7 +2356,7 @@ export async function processStoryImages(
           const sceneCharNames = collectSceneVisualCharacterNames(
             sceneVisualRaw,
             listedSceneCharacterNames,
-            mergedCharacters as any[],
+            mergedCharacters as any[]
           );
           const matched = matchCharacterNames(sceneCharNames, characterRegistry);
           for (const normalizedName of matched) {
@@ -2560,7 +2590,7 @@ export async function processStoryImages(
           const sceneCharNames = collectSceneVisualCharacterNames(
             sceneVisualRaw,
             listedSceneCharacterNames,
-            mergedCharacters as any[],
+            mergedCharacters as any[]
           );
           const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
 
@@ -2700,7 +2730,7 @@ export async function processStoryImages(
             normalizedCharacters,
             characterDescriptionMap,
             referenceImageDataArray,
-            { storyId, sceneId: scene.sceneId },
+            { storyId, sceneId: scene.sceneId }
           );
           logReferenceBucketDelivery({
             storyId,
@@ -5936,7 +5966,7 @@ export function buildExpectedCharactersForValidation(
   const sceneCharacterNames = collectSceneVisualCharacterNames(
     sv,
     listedSceneCharacterNames,
-    characters as any[],
+    characters as any[]
   );
 
   // refSource index by normalized character name; used only as fallback when charData.type is unknown.
@@ -7485,7 +7515,7 @@ export async function regenerateSceneImage(
     typeof sceneVisualForNames.cameraComposition !== 'string'
   ) {
     listedSceneCharacterNames = flattenCameraComposition(
-      sceneVisualForNames.cameraComposition,
+      sceneVisualForNames.cameraComposition
     ).characterNames;
   } else {
     listedSceneCharacterNames =
@@ -7497,7 +7527,7 @@ export async function regenerateSceneImage(
   const sceneCharNames = collectSceneVisualCharacterNames(
     sceneVisualForNames,
     listedSceneCharacterNames,
-    mergedCharacters as any[],
+    mergedCharacters as any[]
   );
   const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
   const characterNamesInIllustratedScenes = new Set(normalizedCharacters);
@@ -7652,7 +7682,7 @@ export async function regenerateSceneImage(
     normalizedCharacters,
     characterDescriptionMap,
     referenceImageDataArray,
-    { storyId, sceneId },
+    { storyId, sceneId }
   );
   logReferenceBucketDelivery({
     storyId,

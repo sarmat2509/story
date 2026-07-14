@@ -107,9 +107,9 @@ export function buildMapTileBriefPrompt(params: DirectorPromptParams): string {
 
   const blocksText =
     imagesPerStory === 1
-      ? blocks.map(b => `STORY (all scenes):\n${stripAllTags(b.blockText)}`).join('\n\n')
+      ? blocks.map((b) => `STORY (all scenes):\n${stripAllTags(b.blockText)}`).join('\n\n')
       : blocks
-          .map(b =>
+          .map((b) =>
             b.sceneStart === b.sceneEnd
               ? `BLOCK ${b.blockIndex + 1} — planned illustration ${b.blockIndex + 1} = Scene ${b.sceneStart}:\n${stripAllTags(b.blockText)}`
               : `BLOCK ${b.blockIndex + 1} — planned illustration ${b.blockIndex + 1} would depict Scene ${b.sceneStart}. Scenes ${b.sceneStart + 1}-${b.sceneEnd} are context:\n${stripAllTags(b.blockText)}`
@@ -157,9 +157,9 @@ export function buildDirectorPrompt(params: DirectorPromptParams): string {
 
   const blocksText =
     imagesPerStory === 1
-      ? blocks.map(b => `STORY (all scenes):\n${stripAllTags(b.blockText)}`).join('\n\n')
+      ? blocks.map((b) => `STORY (all scenes):\n${stripAllTags(b.blockText)}`).join('\n\n')
       : blocks
-          .map(b =>
+          .map((b) =>
             b.sceneStart === b.sceneEnd
               ? `BLOCK ${b.blockIndex + 1} — ILLUSTRATION ${b.blockIndex + 1} = Scene ${b.sceneStart}:\n${stripAllTags(b.blockText)}`
               : `BLOCK ${b.blockIndex + 1} — ILLUSTRATION ${b.blockIndex + 1} MUST depict Scene ${b.sceneStart}. Scenes ${b.sceneStart + 1}-${b.sceneEnd} are CONTEXT:\n${stripAllTags(b.blockText)}`
@@ -177,6 +177,18 @@ export function buildDirectorPrompt(params: DirectorPromptParams): string {
   let instructionBlock: string;
   const costumeRules = helpers.formatDirectorCostumeContinuityRules();
   const wardrobeContract = helpers.formatDirectorWardrobeContract({ imagesPerStory });
+  const selectedCharacterCoverageRules =
+    userCharacters.length === 0
+      ? ''
+      : imagesPerStory === 1
+        ? `SELECTED CHARACTER IMAGE COVERAGE — HARD REQUIREMENT:
+- The single illustration MUST visibly include EVERY USER-SELECTED CHARACTER listed above, using the exact Name [ID: ...] label in cameraComposition.characters[].name.
+- USER-SELECTED CHARACTERS take priority over invented, supporting, and background characters. The camera roster allows at most ${MAX_SCENE_IMAGE_CHARACTERS} characters, so omit or replace non-selected characters before omitting any selected character.
+- Before returning JSON, verify that every selected ID appears in the single cameraComposition.characters roster.`
+        : `SELECTED CHARACTER IMAGE COVERAGE — HARD REQUIREMENT:
+- EVERY USER-SELECTED CHARACTER listed above MUST visibly appear in at least one illustration, using the exact Name [ID: ...] label in cameraComposition.characters[].name.
+- Distribute selected characters across illustrations when needed; never exceed ${MAX_SCENE_IMAGE_CHARACTERS} visible characters in one illustration.
+- USER-SELECTED CHARACTERS take priority over invented, supporting, and background characters. Before returning JSON, verify that every selected ID appears in at least one cameraComposition.characters roster.`;
 
   if (imagesPerStory === 1) {
     instructionBlock = `Create ONE summary illustration that captures the most important moments of the story. Do not tie it to a single scene — show the essence of the whole story.
@@ -226,11 +238,17 @@ ${contentPolicy.textPromptSection}
 VISUAL RULES:
 ${visualRules}
 
-${userCharacters.length > 0 ? `USER-SELECTED CHARACTERS (must appear in story): ${helpers.formatUserCharactersWithIds(userCharacters)}
+${
+  userCharacters.length > 0
+    ? `USER-SELECTED CHARACTERS (must appear in story): ${helpers.formatUserCharactersWithIds(userCharacters)}
 
 IMPORTANT: When referencing these user characters in your output (characters array and cameraComposition.characters), use the exact format with ID: "Name [ID: uuid]". This preserves identity for image generation.
 USER-SELECTED CHARACTERS are reference-grounded identities in the downstream image pipeline. Do NOT invent or overwrite a new canonical face, hair, body, skin-tone, or default-clothing specification for them in characters[].description.
-For these user-selected characters, keep characters[].description minimal and reference-compatible. Use it only for a short neutral anchor when required by the schema. In sceneVisual.cameraComposition.characters[].description, describe only the frozen-moment information: pose, expression, gaze, head turn, hand use, action, placement, and temporary visibility/occlusion. Do NOT restate, paraphrase, or sneak in stable identity traits there such as hairstyle, ponytail/braid details, hair color, eye color, freckles, face shape, skin tone, body build, age markers, or other enduring appearance details. If you catch yourself naming a permanent face/hair feature from the sheet, remove it and replace it with a neutral visible action description. Put wardrobe only in outfits[].description.` : ''}
+For these user-selected characters, keep characters[].description minimal and reference-compatible. Use it only for a short neutral anchor when required by the schema. In sceneVisual.cameraComposition.characters[].description, describe only the frozen-moment information: pose, expression, gaze, head turn, hand use, action, placement, and temporary visibility/occlusion. Do NOT restate, paraphrase, or sneak in stable identity traits there such as hairstyle, ponytail/braid details, hair color, eye color, freckles, face shape, skin tone, body build, age markers, or other enduring appearance details. If you catch yourself naming a permanent face/hair feature from the sheet, remove it and replace it with a neutral visible action description. Put wardrobe only in outfits[].description.`
+    : ''
+}
+
+${selectedCharacterCoverageRules}
 
 STORY BLOCKS (one block per illustration):
 ${blocksText}
@@ -255,5 +273,26 @@ Wardrobe descriptions must match weather, season, and indoor/outdoor context of 
 All descriptions must be IN ENGLISH.
 
 CHARACTERS ARRAY: Include all characters who appear. User-selected characters (from context) are reference-defined identities downstream, so do NOT rewrite their full visual identity here; keep their characters[].description brief, neutral, and non-conflicting. NEW characters introduced in the story — add to characters array with DETAILED visual description (appearance, colors, size, distinctive features) for image generation.
+`;
+}
+
+export function buildDirectorSelectedCharacterCoverageRetryPrompt(params: {
+  originalPrompt: string;
+  missingCharacters: string[];
+  imagesPerStory: number;
+}): string {
+  const placementRule =
+    params.imagesPerStory === 1
+      ? 'Put every missing selected character into the single illustration camera roster.'
+      : 'Put every missing selected character into at least one illustration camera roster, distributing them across images when needed.';
+
+  return helpers.cleanTemplate`
+${params.originalPrompt}
+
+CORRECTION REQUIRED — SELECTED CHARACTERS WERE OMITTED FROM THE IMAGE PLAN:
+The previous result omitted these required selected identities: ${params.missingCharacters.join(', ')}.
+Regenerate the entire JSON result. ${placementRule}
+Use each exact Name [ID: ...] label in cameraComposition.characters[].name. Keep at most ${MAX_SCENE_IMAGE_CHARACTERS} visible characters per illustration. Remove invented or supporting characters when necessary; never remove a user-selected character to make room.
+Do not return the previous invalid roster.
 `;
 }

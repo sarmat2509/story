@@ -13,6 +13,7 @@ import {
 import { isPromptSafetyError } from '../services/promptSafetyService';
 import { isMixedStoryAccessError } from '../services/mixedStoryAccessService';
 import { logger } from '../utils/logger';
+import { isStoryCharacterSelectionLimitError } from '../services/storyCharacterSelectionLimitService';
 
 const router = Router();
 
@@ -27,7 +28,10 @@ async function releaseStoryQuotaReservationOnCreateFailure(
       errorMessage: error instanceof Error ? error.message : String(error),
     });
   } catch (releaseError) {
-    logger.error({ err: releaseError, requestId }, 'Failed to release story quota after mixed story create failure');
+    logger.error(
+      { err: releaseError, requestId },
+      'Failed to release story quota after mixed story create failure'
+    );
   }
 }
 
@@ -54,6 +58,20 @@ function sendStoryQuotaError(res: Response, error: unknown): boolean {
     used: error.used,
     remaining: error.remaining,
     resetsAt: error.resetsAt?.toISOString() ?? null,
+  });
+  return true;
+}
+
+function sendStoryCharacterSelectionLimitError(res: Response, error: unknown): boolean {
+  if (!isStoryCharacterSelectionLimitError(error)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    selected: error.selected,
+    imagesPerStory: error.imagesPerStory,
   });
   return true;
 }
@@ -121,6 +139,7 @@ router.post(
       }
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
+      if (sendStoryCharacterSelectionLimitError(res, error)) return;
       if (sendMixedStoryAccessError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create mixed story request failed');

@@ -90,6 +90,7 @@ import { setLegacyPublicStoriesDeprecationHeaders } from '../utils/deprecatedPub
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
 import { requireGenerationAvailable } from '../middleware/maintenanceMiddleware';
 import { generateMapTile } from '../services/mapTileGenerationService';
+import { isStoryCharacterSelectionLimitError } from '../services/storyCharacterSelectionLimitService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -169,6 +170,23 @@ function sendStoryQuotaError(res: Response, error: unknown): boolean {
     used: error.used,
     remaining: error.remaining,
     resetsAt: error.resetsAt?.toISOString() ?? null,
+  });
+  return true;
+}
+
+function sendStoryCharacterSelectionLimitError(res: Response, error: unknown): boolean {
+  if (!isStoryCharacterSelectionLimitError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    selected: error.selected,
+    imagesPerStory: error.imagesPerStory,
   });
   return true;
 }
@@ -457,6 +475,7 @@ router.post(
       }
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
+      if (sendStoryCharacterSelectionLimitError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create story request failed');
 
@@ -570,6 +589,7 @@ router.post(
       if (sendChildModePolicyError(res, error)) return;
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
+      if (sendStoryCharacterSelectionLimitError(res, error)) return;
 
       logger.error(
         { err: error, userId: req.user?.id, childProfileId: req.childProfileId },
@@ -785,6 +805,7 @@ router.post(
       if (sendChildModePolicyError(res, error)) return;
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
+      if (sendStoryCharacterSelectionLimitError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Generate from photos failed');
 

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { toChildSafeSubscriptionUsageView, type SubscriptionUsageView } from '../subscriptionUsageView';
+import {
+  toChildSafeSubscriptionUsageView,
+  type SubscriptionUsageView,
+} from '../subscriptionUsageView';
 
 const usage: SubscriptionUsageView = {
   stories: {
@@ -29,6 +32,8 @@ const usage: SubscriptionUsageView = {
     plan_limit: 1,
     bundle_bonus: 2,
   },
+  imagesPerStory: 1,
+  storyCharacterSelectionLimit: 3,
   resetsAt: new Date('2026-06-01T00:00:00.000Z'),
   currentPeriodEnd: new Date('2026-06-02T00:00:00.000Z'),
   subscriptionStatus: 'active',
@@ -60,6 +65,8 @@ assert.deepEqual(childSafe, {
     limit: 3,
     remaining: 2,
   },
+  imagesPerStory: 1,
+  storyCharacterSelectionLimit: 3,
   resetsAt: usage.resetsAt,
   currentPeriodEnd: usage.currentPeriodEnd,
 });

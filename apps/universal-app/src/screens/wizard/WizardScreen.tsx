@@ -56,8 +56,6 @@ import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 
-const MAX_STORY_CHARACTER_SELECTIONS = 5;
-
 type StoryFormat = 'story' | 'comic' | 'mixed';
 
 function isChildProfileCharacter(character: { type?: string; subtype?: string | null }): boolean {
@@ -135,6 +133,7 @@ export default function WizardScreen() {
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
+  const maxStoryCharacterSelections = usage?.storyCharacterSelectionLimit ?? 3;
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallKind, setPaywallKind] = useState<'stories' | 'graphicNovels' | 'mixedStories'>(
     'stories'
@@ -259,6 +258,14 @@ export default function WizardScreen() {
   }, [characters, childModeSettings?.allowedCharacterIds, childProfileId, isChildSession]);
 
   useEffect(() => {
+    setSelectedCharacters((current) =>
+      current.length > maxStoryCharacterSelections
+        ? current.slice(0, maxStoryCharacterSelections)
+        : current
+    );
+  }, [maxStoryCharacterSelections]);
+
+  useEffect(() => {
     if (!childProfileId) return;
     if (!isChildSession && route.params?.childId !== childProfileId) return;
 
@@ -271,10 +278,16 @@ export default function WizardScreen() {
 
     setSelectedCharacters((current) => {
       if (current.includes(childCharacter.id)) return current;
-      if (current.length >= MAX_STORY_CHARACTER_SELECTIONS) return current;
+      if (current.length >= maxStoryCharacterSelections) return current;
       return [...current, childCharacter.id];
     });
-  }, [availableCharacters, childProfileId, isChildSession, route.params?.childId]);
+  }, [
+    availableCharacters,
+    childProfileId,
+    isChildSession,
+    maxStoryCharacterSelections,
+    route.params?.childId,
+  ]);
 
   const scenarioOptions = useMemo(() => {
     const freeThemeCard = {
@@ -926,6 +939,7 @@ export default function WizardScreen() {
                     <CharactersForm
                       characters={availableCharacters}
                       selectedCharacters={selectedCharacters}
+                      maxSelections={maxStoryCharacterSelections}
                       onCharactersChange={setSelectedCharacters}
                       onAddCharacter={() => setIsCharacterModalVisible(true)}
                       onAddChild={

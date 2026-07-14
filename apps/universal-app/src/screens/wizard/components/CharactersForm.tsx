@@ -28,13 +28,12 @@ interface DisplayItem {
 interface Props {
   characters?: Character[];
   selectedCharacters: string[];
+  maxSelections: number;
   onCharactersChange: (ids: string[]) => void;
 
   onAddCharacter?: () => void;
   onAddChild?: () => void;
 }
-
-const MAX_STORY_CHARACTER_SELECTIONS = 5;
 
 function isChildProfileCharacter(character: Character): boolean {
   return character.type === 'child' || character.subtype === 'child';
@@ -47,6 +46,7 @@ function getCharacterSortRank(character: Character): number {
 export function CharactersForm({
   characters = [],
   selectedCharacters,
+  maxSelections,
   onCharactersChange,
   onAddCharacter,
   onAddChild,
@@ -57,7 +57,7 @@ export function CharactersForm({
     if (selectedCharacters.includes(item.id)) {
       onCharactersChange(selectedCharacters.filter((id) => id !== item.id));
     } else {
-      if (selectedCharacters.length < MAX_STORY_CHARACTER_SELECTIONS) {
+      if (selectedCharacters.length < maxSelections) {
         onCharactersChange([...selectedCharacters, item.id]);
       }
     }
@@ -118,7 +118,9 @@ export function CharactersForm({
     <View style={styles.container}>
       {/* Characters and Children List */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{t('characters.select_characters')}</Text>
+        <Text style={styles.sectionLabel}>
+          {t('characters.select_characters', { count: maxSelections })}
+        </Text>
 
         {!hasAnyItems ? (
           <View style={styles.emptyState}>
@@ -161,7 +163,7 @@ export function CharactersForm({
           <View style={styles.charactersList}>
             {allItems.map((item) => {
               const isSelected = selectedCharacters.includes(item.id);
-              const isDisabled = !isSelected && totalSelected >= MAX_STORY_CHARACTER_SELECTIONS;
+              const isDisabled = !isSelected && totalSelected >= maxSelections;
 
               return (
                 <TouchableOpacity
