@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -198,19 +198,8 @@ const LibraryHeaderComponent = ({
     selectedReadingTime ?? null
   );
 
-  // Use ref to store labels - updates on language change but doesn't cause re-creation
-  const labelsRef = useRef({
-    allStories: t('library.all_stories'),
-    audioOnly: t('library.audio_only'),
-  });
-
-  // Update labels when translation changes
-  useEffect(() => {
-    labelsRef.current = {
-      allStories: t('library.all_stories'),
-      audioOnly: t('library.audio_only'),
-    };
-  }, [t]);
+  const allStoriesLabel = t('library.all_stories');
+  const audioOnlyLabel = t('library.audio_only');
 
   // Memoize AudioFilterToggle element - only recreate if ref or callback changes
   // Note: initialAudioFilter intentionally NOT in deps - only used for initial mount
@@ -220,13 +209,13 @@ const LibraryHeaderComponent = ({
         ref={audioToggleRef}
         initialValue={initialAudioFilter}
         onToggle={onToggleAudioFilter}
-        allStoriesLabel={labelsRef.current.allStories}
-        audioOnlyLabel={labelsRef.current.audioOnly}
+        allStoriesLabel={allStoriesLabel}
+        audioOnlyLabel={audioOnlyLabel}
       />
     );
     // initialAudioFilter is intentionally only read on mount.
     // eslint-disable-next-line
-  }, [audioToggleRef, onToggleAudioFilter]);
+  }, [allStoriesLabel, audioOnlyLabel, audioToggleRef, onToggleAudioFilter]);
 
   const scenarioOptions = useMemo<FilterOption[]>(
     () => [
@@ -556,12 +545,12 @@ const LibraryHeaderComponent = ({
               <View style={styles.mobileFilterGroup}>
                 <View style={styles.mobileFilterOptions}>
                   <MobileFilterOption
-                    label={labelsRef.current.allStories}
+                    label={allStoriesLabel}
                     selected={!draftAudioFilter}
                     onPress={() => setDraftAudioFilter(false)}
                   />
                   <MobileFilterOption
-                    label={labelsRef.current.audioOnly}
+                    label={audioOnlyLabel}
                     selected={draftAudioFilter}
                     onPress={() => setDraftAudioFilter(true)}
                   />

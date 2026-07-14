@@ -1,10 +1,20 @@
-import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
-  View,
-  Text,
+  Animated,
+  Easing,
+  Platform,
   Pressable,
   StyleSheet,
-  Platform,
+  Text,
+  View,
+  type LayoutChangeEvent,
   type PressableStateCallbackType,
 } from 'react-native';
 import { theme } from '@/theme';
@@ -18,9 +28,16 @@ type ExtendedPressableState = PressableStateCallbackType & {
 interface Props {
   allStoriesLabel: string;
   audioOnlyLabel: string;
-  initialValue?: boolean; // Only used for initial useState, NOT reactive
+  initialValue?: boolean;
   onToggle: (newValue: boolean) => void;
 }
+
+interface SegmentLayout {
+  x: number;
+  width: number;
+}
+
+type SegmentLayouts = Record<'all' | 'audio', SegmentLayout | null>;
 
 export interface AudioFilterToggleRef {
   setValue: (value: boolean) => void;
@@ -28,106 +45,128 @@ export interface AudioFilterToggleRef {
 
 const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
   ({ allStoriesLabel, audioOnlyLabel, initialValue = false, onToggle }, ref) => {
-    // LOCAL state - initialized ONLY on first render (lazy initialization)
-    const [isActive, setIsActive] = useState(() => initialValue);
+    const [audioOnly, setAudioOnly] = useState(() => initialValue);
+    const [segmentLayouts, setSegmentLayouts] = useState<SegmentLayouts>({
+      all: null,
+      audio: null,
+    });
+    const bubbleLeft = useRef(new Animated.Value(0)).current;
+    const bubbleWidth = useRef(new Animated.Value(0)).current;
+    const hasPositionedBubble = useRef(false);
 
-    // Expose imperative method to parent (no re-render)
     useImperativeHandle(ref, () => ({
       setValue: (value: boolean) => {
-        setIsActive(value);
+        setAudioOnly(value);
       },
     }));
 
-    // Handle click - update local state and notify parent
-    const handleToggle = () => {
-      const newValue = !isActive;
+    useEffect(() => {
+      const target = audioOnly ? segmentLayouts.audio : segmentLayouts.all;
+      if (!target) return;
 
-      setIsActive(newValue);
-      onToggle(newValue);
+      if (!hasPositionedBubble.current) {
+        bubbleLeft.setValue(target.x);
+        bubbleWidth.setValue(target.width);
+        hasPositionedBubble.current = true;
+        return;
+      }
+
+      Animated.parallel([
+        Animated.timing(bubbleLeft, {
+          toValue: target.x,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(bubbleWidth, {
+          toValue: target.width,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }, [audioOnly, bubbleLeft, bubbleWidth, segmentLayouts]);
+
+    const recordSegmentLayout = useCallback(
+      (segment: keyof SegmentLayouts, event: LayoutChangeEvent) => {
+        const { x, width } = event.nativeEvent.layout;
+        setSegmentLayouts((current) => {
+          const previous = current[segment];
+          if (previous?.x === x && previous.width === width) {
+            return current;
+          }
+          return { ...current, [segment]: { x, width } };
+        });
+      },
+      []
+    );
+
+    const selectSegment = useCallback(
+      (nextAudioOnly: boolean) => {
+        if (nextAudioOnly === audioOnly) return;
+        setAudioOnly(nextAudioOnly);
+        onToggle(nextAudioOnly);
+      },
+      [audioOnly, onToggle]
+    );
+
+    const renderSegment = (
+      value: boolean,
+      label: string,
+      segment: keyof SegmentLayouts,
+      testID: string
+    ) => {
+      const selected = audioOnly === value;
+      return (
+        <Pressable
+          onPress={() => selectSegment(value)}
+          onLayout={(event) => recordSegmentLayout(segment, event)}
+          accessibilityRole="radio"
+          accessibilityLabel={label}
+          accessibilityState={{ selected }}
+          testID={testID}
+          focusable
+          style={(state: ExtendedPressableState) => [
+            styles.segment,
+            Platform.OS === 'web' && state.hovered && !selected && styles.segmentHovered,
+            state.pressed && styles.segmentPressed,
+            Platform.OS === 'web' && state.focused && styles.segmentFocused,
+          ]}
+        >
+          <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>{label}</Text>
+        </Pressable>
+      );
     };
 
     return (
-      <View style={styles.segmentedControl}>
-        <Pressable
-          onPress={() => isActive && handleToggle()}
-          accessibilityLabel={allStoriesLabel}
-          testID="catalog-audio-all"
-          focusable
-          style={(state: ExtendedPressableState) => [
-            styles.segment,
-            Platform.OS === 'web' && state.hovered && styles.segmentHovered,
-            state.pressed && styles.segmentPressed,
-            Platform.OS === 'web' && state.focused && styles.segmentFocused,
+      <View
+        style={styles.segmentedControl}
+        accessibilityRole="radiogroup"
+        testID="catalog-audio-toggle"
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.activeBubble,
+            {
+              left: bubbleLeft,
+              width: bubbleWidth,
+            },
           ]}
-        >
-          <Text style={[styles.segmentText, !isActive && styles.segmentTextActive]}>
-            {allStoriesLabel}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={handleToggle}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: isActive }}
-          testID="catalog-audio-toggle"
-          focusable
-          style={(state: ExtendedPressableState) => [
-            styles.toggleContainer,
-            Platform.OS === 'web' && state.hovered && styles.toggleContainerHovered,
-            state.pressed && styles.toggleContainerPressed,
-            Platform.OS === 'web' && state.focused && styles.toggleContainerFocused,
-          ]}
-        >
-          <View
-            style={[
-              styles.toggleTrack,
-              {
-                backgroundColor: isActive
-                  ? theme.colors.interactive.primary
-                  : theme.colors.neutral[300],
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.toggleThumb,
-                {
-                  transform: [{ translateX: isActive ? 20 : 0 }],
-                },
-              ]}
-            />
-          </View>
-        </Pressable>
-
-        <Pressable
-          onPress={() => !isActive && handleToggle()}
-          accessibilityLabel={audioOnlyLabel}
-          testID="catalog-audio-only"
-          focusable
-          style={(state: ExtendedPressableState) => [
-            styles.segment,
-            Platform.OS === 'web' && state.hovered && styles.segmentHovered,
-            state.pressed && styles.segmentPressed,
-            Platform.OS === 'web' && state.focused && styles.segmentFocused,
-          ]}
-        >
-          <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-            {audioOnlyLabel}
-          </Text>
-        </Pressable>
+          testID="catalog-audio-active-bubble"
+        />
+        {renderSegment(false, allStoriesLabel, 'all', 'catalog-audio-all')}
+        {renderSegment(true, audioOnlyLabel, 'audio', 'catalog-audio-only')}
       </View>
     );
   }
 );
 
-// Memoize to prevent re-renders when parent re-renders (e.g., totalPages change)
-// Only re-render when labels or onToggle change
 export const AudioFilterToggle = React.memo(AudioFilterToggleComponent, (prevProps, nextProps) => {
   return (
     prevProps.allStoriesLabel === nextProps.allStoriesLabel &&
     prevProps.audioOnlyLabel === nextProps.audioOnlyLabel &&
     prevProps.onToggle === nextProps.onToggle
-    // Intentionally skip initialValue - it's only for initial useState
   );
 });
 
@@ -135,113 +174,75 @@ AudioFilterToggle.displayName = 'AudioFilterToggle';
 
 const styles = StyleSheet.create({
   segmentedControl: {
+    position: 'relative',
+    alignSelf: 'flex-start',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
+    alignItems: 'stretch',
+    padding: 3,
+    overflow: 'hidden',
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.primary[200],
+    backgroundColor: theme.colors.background.secondary,
+  },
+  activeBubble: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.primary[300],
+    backgroundColor: theme.colors.primary[50],
+    shadowColor: theme.colors.primary[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 2,
   },
   segment: {
-    flexDirection: 'row',
+    zIndex: 1,
+    minHeight: 40,
+    minWidth: 0,
     alignItems: 'center',
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
-    borderRadius: theme.borders.radius.md,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.borders.radius.full,
     ...Platform.select({
       web: {
         cursor: 'pointer',
-        transition: 'background-color 180ms ease, box-shadow 180ms ease',
+        transition: 'background-color 160ms ease, opacity 160ms ease',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     }),
   },
   segmentHovered: Platform.select({
     web: {
-      backgroundColor: theme.colors.primary[50],
-      boxShadow: `0 1px 6px ${hexAlpha(theme.colors.primary[900], 0.08)}`,
+      backgroundColor: hexAlpha(theme.colors.primary[500], 0.06),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
     default: {},
   }),
   segmentPressed: {
-    opacity: 0.9,
+    opacity: 0.82,
   },
   segmentFocused: Platform.select({
     web: {
       outlineStyle: 'solid',
       outlineWidth: 2,
       outlineColor: theme.colors.primary[500],
-      outlineOffset: 2,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-  }),
-  segmentText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.tertiary,
-  },
-  segmentTextActive: {
-    color: theme.colors.interactive.primary,
-  },
-  toggleContainer: {
-    padding: theme.spacing[1],
-    borderRadius: theme.borders.radius.full,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'box-shadow 180ms ease',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
-    }),
-  },
-  toggleContainerHovered: Platform.select({
-    web: {
-      boxShadow: `0 2px 10px ${hexAlpha(theme.colors.primary[900], 0.18)}`,
+      outlineOffset: -2,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
     default: {},
   }),
-  toggleContainerPressed: {
-    opacity: 0.92,
+  segmentText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
-  toggleContainerFocused: Platform.select({
-    web: {
-      outlineStyle: 'solid',
-      outlineWidth: 2,
-      outlineColor: theme.colors.primary[500],
-      outlineOffset: 3,
-      borderRadius: 9999,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-  }),
-  toggleTrack: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    padding: 2,
-    ...Platform.select({
-      web: {
-        // @ts-ignore - CSS property for web
-        transition: 'background-color 200ms ease-in-out',
-      },
-    }),
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: theme.colors.background.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-    ...Platform.select({
-      web: {
-        // @ts-ignore - CSS property for web
-        transition: 'transform 200ms ease-in-out',
-      },
-    }),
+  segmentTextActive: {
+    color: theme.colors.interactive.primary,
   },
 });
