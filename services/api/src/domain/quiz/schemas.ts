@@ -12,7 +12,7 @@ import type { JsonSchema } from '../../providers/base/JsonSchema';
 
 export const QUIZ_AGE_BUCKETS: StoryQuizAgeBucket[] = ['1y', '2-3', '4-5', '6-8', '9-12'];
 
-export const QUIZ_PROMPT_VERSION = 'quiz-v21';
+export const QUIZ_PROMPT_VERSION = 'quiz-v22';
 
 export const STORY_QUIZ_GENERATION_STALE_MS = 10 * 60 * 1000;
 
