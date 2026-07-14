@@ -176,7 +176,7 @@ ${panelDensityRules(spec.ageGroup, comicBlockCount)}
 - visual.primaryRead: short English phrase, 3-10 words, naming the main visual read. Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside visual text.
 - visual.sceneVisual.setting, cameraComposition.shot, cameraComposition.characters, and lighting must describe ONE moment.
 - ${MIXED_STORY_PANEL_VISUAL_STAGING_RULE}
-${comicPanelCameraVarietyRules()}
+${comicPanelCameraVarietyRules({ includeDynamicForeshortening: true })}
 - The main acted-on subject of primaryRead/setting counts as a visible character when it is a named story helper, creature, animal, robot, object, or person. Include it in cameraComposition.characters[] even if it is not speaking.
 - visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside visual text.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include position.

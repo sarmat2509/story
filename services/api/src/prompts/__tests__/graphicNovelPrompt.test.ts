@@ -267,6 +267,10 @@ assert.match(prompt, /COMIC CAMERA VARIETY/);
 assert.match(prompt, /wide\/establishing shot/);
 assert.match(prompt, /at least one extreme close-up/);
 assert.match(prompt, /far-left zone, far-right zone, central object\/detail, and full wide view/);
+assert.match(prompt, /RARE DYNAMIC FORESHORTENING OPTION/);
+assert.match(prompt, /Use this perspective in at most ONE panel across the entire story/);
+assert.match(prompt, /extreme dynamic foreshortening/);
+assert.match(prompt, /Preserve the requested imageStyle/);
 assert.match(
   prompt,
   /what the rope, vine, lever, bridge, key, light, spell, water, or object is attached to/
@@ -303,6 +307,7 @@ assert.match(
 assert.match(fallbackPrompt, /visual\.sceneVisual\.setting must be a visual staging delta/);
 assert.match(fallbackPrompt, /COMIC CAMERA VARIETY/);
 assert.match(fallbackPrompt, /Do not repeat the same shot scale, camera angle, or environment slice/);
+assert.doesNotMatch(fallbackPrompt, /RARE DYNAMIC FORESHORTENING OPTION/);
 assert.match(
   fallbackPrompt,
   /main acted-on subject of primaryRead\/setting counts as a visible character/

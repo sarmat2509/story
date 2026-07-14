@@ -1049,6 +1049,24 @@ export function formatDirectorImagePromptRules(): string {
   ].join('\n');
 }
 
+export function formatDynamicForeshorteningRules(params: {
+  unit: 'illustration' | 'panel';
+}): string {
+  const unitLabel = params.unit === 'panel' ? 'panel' : 'illustration';
+
+  return [
+    'RARE DYNAMIC FORESHORTENING OPTION:',
+    `- Use this perspective in at most ONE ${unitLabel} across the entire story. It is an optional accent, not the default camera style.`,
+    '- Use it only when the depicted moment naturally contains strong movement toward or away from the viewer: a safe jump, flight, dive, swing, controlled descent, rapid reach, or a large safe story object moving along the camera axis.',
+    '- In cameraComposition.shot, explicitly write "extreme dynamic foreshortening" and place the camera directly on the action axis. Let the nearest safe hand, foot, or story object dominate the foreground at exaggerated apparent scale while the body recedes sharply into depth with strong converging perspective lines.',
+    '- Keep the character face visible, readable, and recognizable. Preserve believable anatomy, stable identity, and one clear frozen moment despite the perspective distortion.',
+    '- Use only scene-supported motion accents such as flying leaves, snow, water spray, dust, fabric, or harmless fragments. They must reinforce the existing action rather than invent a new event.',
+    '- Do not use this perspective for calm dialogue, reading, precise hand-object contact, small clues, crowded compositions, or any scene where distortion would weaken primaryRead.',
+    '- Do not point weapons, dangerous tools, sharp tips, or threatening objects at the viewer. Use child-safe action and props.',
+    '- Preserve the requested imageStyle. Do not add anime genga, construction-pencil lines, storyboard marks, or another art medium unless that style was independently requested.',
+  ].join('\n');
+}
+
 /**
  * Director-only: create one compact story-level map-tile brief.
  */

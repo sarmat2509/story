@@ -7,6 +7,7 @@ import {
   formatContinuationStoryContext,
   formatContactGeometryWriterRule,
   formatContentPolicySection,
+  formatDynamicForeshorteningRules,
   formatReferenceGroundedCharacterRules,
   formatSceneVisualStagingDeltaRule,
   formatStoryTitleSection,
@@ -518,14 +519,22 @@ export function thoughtBubbleRules(ageGroup: string, pageCount: number): string 
   return 'Use thoughts sparingly, only when the inner reaction is clearer or funnier than spoken dialogue.';
 }
 
-export function comicPanelCameraVarietyRules(): string {
-  return [
+export function comicPanelCameraVarietyRules(options?: {
+  includeDynamicForeshortening?: boolean;
+}): string {
+  const rules = [
     'COMIC CAMERA VARIETY:',
     '- Across each multi-panel page, vary cameraComposition.shot. Do not repeat the same shot scale, camera angle, or environment slice in every panel.',
     '- Pages with 3+ panels must include at least one wide/establishing shot and at least one extreme close-up on hands, face, a story object, or a key detail. Pages with 4+ panels should mix wide, medium, close-up/extreme close-up, and a distinct side/low/high/over-shoulder angle when the story allows.',
     '- When panels reuse one environment, choose different fixed-location slices: far-left zone, far-right zone, central object/detail, and full wide view. Name visible landmarks from environment.description in the shot, such as door/steps, railing/bench/sea, telescope/cliffs/shoreline, or the full terrace view when those landmarks exist.',
     '- cameraComposition.shot must state shot scale + viewpoint/angle + environment slice, not only "medium shot".',
-  ].join('\n');
+  ];
+
+  if (options?.includeDynamicForeshortening) {
+    rules.push('', formatDynamicForeshorteningRules({ unit: 'panel' }));
+  }
+
+  return rules.join('\n');
 }
 
 export function closingArtifactRules(
@@ -696,7 +705,7 @@ ${formatReferenceGroundedCharacterRules({ includeGraphicDetails: true })}
 
 ${formatStructuredEnvironmentRules({ target: 'pages', includePanelDeltaRule: true })}
 
-${comicPanelCameraVarietyRules()}
+${comicPanelCameraVarietyRules({ includeDynamicForeshortening: true })}
 
 PAGE ROLES:
 - Page 1: opening

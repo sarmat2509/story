@@ -68,6 +68,7 @@ import {
   buildBatchRegenerationRuntimePrompt,
   DIRECTOR_CACHE_KEY,
   MAP_TILE_BRIEF_CACHE_KEY,
+  shouldEnableDirectorDynamicForeshortening,
   TEXT_REGENERATION_CACHE_KEY,
   TEXT_VALIDATION_CACHE_KEY,
   WRITER_PLAIN_CACHE_KEY,
@@ -286,12 +287,14 @@ export class StoryDomainService {
     }>;
   }> {
     const prompt = buildDirectorPrompt(params);
+    const dynamicForeshorteningEnabled = shouldEnableDirectorDynamicForeshortening(params);
 
     logger.info(
       {
         imagesPerStory: params.imagesPerStory,
         blockCount: params.blocks.length,
         promptLength: prompt.length,
+        dynamicForeshorteningEnabled,
       },
       'Calling Director'
     );

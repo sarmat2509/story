@@ -13,8 +13,10 @@ export {
   buildDirectorPromptCachedPrefix,
   buildMapTileBriefPrompt,
   buildMapTileBriefPromptCachedPrefix,
+  DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT,
   DIRECTOR_CACHE_KEY,
   MAP_TILE_BRIEF_CACHE_KEY,
+  shouldEnableDirectorDynamicForeshortening,
 } from './DirectorPrompt';
 export {
   buildValidationPrompt,

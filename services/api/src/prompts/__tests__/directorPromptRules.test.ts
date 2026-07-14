@@ -4,8 +4,10 @@ import {
   buildDirectorPromptCachedPrefix,
   buildMapTileBriefPrompt,
   buildMapTileBriefPromptCachedPrefix,
+  DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT,
   DIRECTOR_CACHE_KEY,
   MAP_TILE_BRIEF_CACHE_KEY,
+  shouldEnableDirectorDynamicForeshortening,
 } from '../text';
 
 function testDirectorCachedPrefixContainsImagePromptRules() {
@@ -151,6 +153,74 @@ function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
   assert.ok(!prompt.includes('landscapeLayout'));
 }
 
+function testDirectorDynamicForeshorteningIsRareAndDeterministic() {
+  const makeParams = (seed: number) => ({
+    imagesPerStory: 4,
+    blocks: [
+      {
+        blockIndex: 0,
+        sceneStart: 1,
+        sceneEnd: 1,
+        blockText: `Mia swings through a shower of autumn leaves. Variation ${seed}.`,
+      },
+    ],
+    spec: {
+      language: 'en',
+      ageGroup: '6-8',
+      characters: [],
+      imageStyle: 'soft_watercolor',
+      policyProfile: {
+        ageGroup: '6-8',
+        language: 'en',
+        allowedConflicts: [],
+        constraints: {
+          mustHaveHappyEnding: true,
+          noShamingLanguage: true,
+        },
+        readability: {
+          maxSentenceLen: 12,
+          targetWordsRange: [60, 90],
+          dialogRatio: 0.3,
+        },
+        promptGuidelines: '',
+      },
+    } as any,
+    userCharacters: [{ id: 'u-123', name: 'Mia' }],
+  });
+
+  const decisions = Array.from({ length: 200 }, (_, seed) =>
+    shouldEnableDirectorDynamicForeshortening(makeParams(seed))
+  );
+  const enabledCount = decisions.filter(Boolean).length;
+  const enabledSeed = decisions.findIndex(Boolean);
+  const disabledSeed = decisions.findIndex((enabled) => !enabled);
+
+  assert.strictEqual(DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT, 20);
+  assert.ok(
+    enabledCount >= 25 && enabledCount <= 55,
+    `unexpected enabled count: ${enabledCount}`
+  );
+  assert.ok(enabledSeed >= 0);
+  assert.ok(disabledSeed >= 0);
+  assert.strictEqual(
+    shouldEnableDirectorDynamicForeshortening(makeParams(enabledSeed)),
+    shouldEnableDirectorDynamicForeshortening(makeParams(enabledSeed))
+  );
+
+  const enabledPrompt = buildDirectorPrompt(makeParams(enabledSeed));
+  const disabledPrompt = buildDirectorPrompt(makeParams(disabledSeed));
+
+  assert.match(enabledPrompt, /DYNAMIC FORESHORTENING VARIATION: ENABLED FOR THIS STORY/);
+  assert.match(enabledPrompt, /RARE DYNAMIC FORESHORTENING OPTION/);
+  assert.match(enabledPrompt, /extreme dynamic foreshortening/);
+  assert.match(enabledPrompt, /camera directly on the action axis/);
+  assert.match(enabledPrompt, /Keep the character face visible, readable, and recognizable/);
+  assert.match(enabledPrompt, /Do not point weapons, dangerous tools, sharp tips/);
+  assert.match(enabledPrompt, /Preserve the requested imageStyle/);
+  assert.match(disabledPrompt, /DYNAMIC FORESHORTENING VARIATION: DISABLED FOR THIS STORY/);
+  assert.doesNotMatch(disabledPrompt, /RARE DYNAMIC FORESHORTENING OPTION/);
+}
+
 function testMapTileBriefPromptIsLightweightBackfillOnly() {
   const cached = buildMapTileBriefPromptCachedPrefix();
   const prompt = buildMapTileBriefPrompt({
@@ -197,5 +267,6 @@ function testMapTileBriefPromptIsLightweightBackfillOnly() {
 
 testDirectorCachedPrefixContainsImagePromptRules();
 testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules();
+testDirectorDynamicForeshorteningIsRareAndDeterministic();
 testMapTileBriefPromptIsLightweightBackfillOnly();
 console.log('directorPromptRules tests passed');

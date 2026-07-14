@@ -40,6 +40,35 @@ function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
   assert.ok(!prompt.includes('yellow raincoat'));
 }
 
+function testDynamicForeshorteningShotPassesThroughToImagePrompt() {
+  const prompt = buildSceneImagePrompt({
+    sceneVisual: {
+      setting: 'Autumn leaves lift from the path around the moving character.',
+      cameraComposition: {
+        shot: 'Extreme dynamic foreshortening with the camera directly on the action axis, one hand dominating the foreground while the body recedes sharply into depth',
+        characters: [
+          {
+            name: 'Mia',
+            description:
+              'center, swinging safely toward the viewer, face visible, joyful expression',
+            outfitId: 'o_mia_1',
+          },
+        ],
+      },
+      lighting: 'Warm afternoon light through the leaves',
+    },
+    ageGroup: '6-8',
+    style: 'soft_watercolor',
+    hasReferences: true,
+    referenceCharacterNames: [{ name: 'Mia', isTurnaround: true }],
+    imageIndexMap: new Map([['Mia', 1]]),
+  });
+
+  assert.match(prompt, /Composition: Extreme dynamic foreshortening/);
+  assert.match(prompt, /camera directly on the action axis/);
+  assert.match(prompt, /body recedes sharply into depth/);
+}
+
 function testLegacyUserPromptKeepsTextBanInSystemOnly() {
   const prompt = buildSceneImagePrompt({
     visualPrompt: 'A bright meadow with a red kite flying over flowers.',
@@ -482,6 +511,7 @@ async function testImageDomainSceneIllustrationUsesSystemOnlyTextBan() {
 }
 
 testReferenceBackedCharacterDoesNotDuplicateTextIdentity();
+testDynamicForeshorteningShotPassesThroughToImagePrompt();
 testLegacyUserPromptKeepsTextBanInSystemOnly();
 testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise();
 testStructuredPromptReplacesLocalizedCharacterNameAliases();

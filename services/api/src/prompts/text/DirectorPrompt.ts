@@ -16,6 +16,34 @@ export interface DirectorPromptParams {
   userCharacters: Array<{ id?: string; name: string }>;
 }
 
+/** Stable opt-in rate: retries for the same story keep the same camera-variation decision. */
+export const DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT = 20;
+
+function stableDirectorVariationHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function shouldEnableDirectorDynamicForeshortening(params: DirectorPromptParams): boolean {
+  if (params.imagesPerStory <= 0 || params.blocks.length === 0) return false;
+
+  const seed = [
+    params.imagesPerStory,
+    params.spec.language,
+    params.spec.ageGroup,
+    params.spec.imageStyle ?? '',
+    ...params.blocks.map(
+      (block) => `${block.blockIndex}:${block.sceneStart}:${block.sceneEnd}:${block.blockText}`
+    ),
+  ].join('\u241e');
+
+  return stableDirectorVariationHash(seed) % 100 < DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT;
+}
+
 export const DIRECTOR_CACHE_KEY = 'director_rules_v26';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
@@ -137,6 +165,9 @@ export function buildDirectorPrompt(params: DirectorPromptParams): string {
   const deicticActions = helpers.formatDirectorDeicticActionsRules();
   const functionalDeviceComposition = helpers.formatDirectorFunctionalDeviceCompositionRules();
   const mapTileRules = helpers.formatDirectorMapTileRules();
+  const dynamicForeshorteningRules = shouldEnableDirectorDynamicForeshortening(params)
+    ? `DYNAMIC FORESHORTENING VARIATION: ENABLED FOR THIS STORY\n${helpers.formatDynamicForeshorteningRules({ unit: 'illustration' })}`
+    : 'DYNAMIC FORESHORTENING VARIATION: DISABLED FOR THIS STORY. Use normal readable camera composition.';
 
   let instructionBlock: string;
   const costumeRules = helpers.formatDirectorCostumeContinuityRules();
@@ -203,6 +234,8 @@ ${physicalReadability}
 ${deicticActions}
 
 ${functionalDeviceComposition}
+
+${dynamicForeshorteningRules}
 
 ${mapTileRules}
 
