@@ -153,6 +153,50 @@ export default function PublishedStoriesScreen() {
     ],
     [t]
   );
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+
+    if (audioFilter) {
+      labels.push(t('library.audio_only'));
+    }
+    if (scenarioFilter) {
+      labels.push(scenarioCards.find((card) => card.id === scenarioFilter)?.name ?? scenarioFilter);
+    }
+    if (ageFilter) {
+      labels.push(ageOptions.find((option) => option.value === ageFilter)?.label ?? ageFilter);
+    }
+    if (languageFilter) {
+      labels.push(
+        languageOptions.find((option) => option.value === languageFilter)?.label ?? languageFilter
+      );
+    }
+    if (readingTimeFilter) {
+      labels.push(
+        readingTimeOptions.find((option) => option.value === readingTimeFilter)?.label ??
+          readingTimeFilter
+      );
+    }
+
+    return labels;
+  }, [
+    ageFilter,
+    ageOptions,
+    audioFilter,
+    languageFilter,
+    languageOptions,
+    readingTimeFilter,
+    readingTimeOptions,
+    scenarioCards,
+    scenarioFilter,
+    t,
+  ]);
+  const hasActiveFilters = activeFilterLabels.length > 0;
+  const emptyTitle = hasActiveFilters
+    ? activeFilterLabels.length === 1
+      ? t('library.empty_for_filter', { filter: activeFilterLabels[0] })
+      : t('library.empty_filtered')
+    : t('library.empty');
+  const emptyMessage = hasActiveFilters ? t('library.adjust_filters') : t('library.create_first');
 
   const { data, isLoading, error } = usePublishedStories({
     limit: ITEMS_PER_PAGE,
@@ -212,7 +256,7 @@ export default function PublishedStoriesScreen() {
         onToggleAudioFilter={handleAudioFilterToggle}
         onPageChange={handlePageChange}
         t={t}
-        scenarioCards={scenarioCards.map((c) => ({ id: c.id, name: c.name, icon: c.icon }))}
+        scenarioCards={scenarioCards.map((c) => ({ id: c.id, name: c.name }))}
         selectedScenarioId={scenarioFilter}
         onScenarioChange={handleScenarioFilterChange}
         ageOptions={ageOptions}
@@ -229,8 +273,8 @@ export default function PublishedStoriesScreen() {
       {!stories.length ? (
         <View style={styles.centerContainer}>
           <Text style={styles.emptyIcon}>📚</Text>
-          <Text style={styles.emptyTitle}>{t('library.empty')}</Text>
-          <Text style={styles.emptyMessage}>{t('library.create_first')}</Text>
+          <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+          <Text style={styles.emptyMessage}>{emptyMessage}</Text>
         </View>
       ) : viewMode === 'grid' ? (
         <ScrollView contentContainerStyle={styles.grid}>

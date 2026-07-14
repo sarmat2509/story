@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AudioFilterToggle, AudioFilterToggleRef } from './AudioFilterToggle';
+import { ScenarioTopicIcon } from './icons/ScenarioTopicIcon';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -23,12 +24,12 @@ type ExtendedPressableState = PressableStateCallbackType & {
 interface ScenarioCard {
   id: string;
   name: string;
-  icon?: string;
 }
 
 interface FilterOption {
   label: string;
   value: string | null;
+  scenarioId?: string;
 }
 
 interface Props {
@@ -59,10 +60,12 @@ type DropdownKey = 'scenario' | 'age' | 'language' | 'reading';
 
 function MobileFilterOption({
   label,
+  scenarioId,
   selected,
   onPress,
 }: {
   label: string;
+  scenarioId?: string;
   selected: boolean;
   onPress: () => void;
 }) {
@@ -80,12 +83,21 @@ function MobileFilterOption({
         Platform.OS === 'web' && state.focused && styles.mobileFilterOptionFocused,
       ]}
     >
-      <Text
-        style={[styles.mobileFilterOptionText, selected && styles.mobileFilterOptionTextActive]}
-        numberOfLines={2}
-      >
-        {label}
-      </Text>
+      <View style={styles.mobileFilterOptionContent}>
+        {scenarioId ? (
+          <ScenarioTopicIcon
+            scenarioId={scenarioId}
+            size={20}
+            color={selected ? theme.colors.interactive.primary : theme.colors.text.secondary}
+          />
+        ) : null}
+        <Text
+          style={[styles.mobileFilterOptionText, selected && styles.mobileFilterOptionTextActive]}
+          numberOfLines={2}
+        >
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -158,11 +170,22 @@ function FilterDropdown({
                   onPress={() => onSelect(option.value)}
                   testID={`${testID}-option-${option.value ?? 'all'}`}
                 >
-                  <Text
-                    style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}
-                  >
-                    {option.label}
-                  </Text>
+                  <View style={styles.dropdownItemContent}>
+                    {option.scenarioId ? (
+                      <ScenarioTopicIcon
+                        scenarioId={option.scenarioId}
+                        size={22}
+                        color={
+                          isActive ? theme.colors.interactive.primary : theme.colors.text.secondary
+                        }
+                      />
+                    ) : null}
+                    <Text
+                      style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })}
@@ -231,7 +254,8 @@ const LibraryHeaderComponent = ({
       { value: null, label: t('library.all_scenarios') },
       ...scenarioCards.map((card) => ({
         value: card.id,
-        label: `${card.icon ? `${card.icon} ` : ''}${card.name}`,
+        label: card.name,
+        scenarioId: card.id,
       })),
     ],
     [scenarioCards, t]
@@ -321,6 +345,7 @@ const LibraryHeaderComponent = ({
             <MobileFilterOption
               key={`${option.value ?? 'all'}-${index}`}
               label={option.label}
+              scenarioId={option.scenarioId}
               selected={(selectedValue ?? null) === option.value}
               onPress={() => onSelect(option.value)}
             />
@@ -912,6 +937,11 @@ const styles = StyleSheet.create({
   dropdownItemActive: {
     backgroundColor: theme.colors.primary[50],
   },
+  dropdownItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
   dropdownItemText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
@@ -1038,6 +1068,11 @@ const styles = StyleSheet.create({
   mobileFilterOptionActive: {
     backgroundColor: theme.colors.primary[50],
     borderColor: theme.colors.interactive.primary,
+  },
+  mobileFilterOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
   },
   mobileFilterOptionHovered: Platform.select({
     web: {

@@ -89,6 +89,30 @@ export default function LibraryScreen() {
       })),
     ];
   }, [languageCodes, t]);
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+
+    if (audioFilter) {
+      labels.push(t('library.audio_only'));
+    }
+    if (scenarioFilter) {
+      labels.push(scenarioCards.find((card) => card.id === scenarioFilter)?.name ?? scenarioFilter);
+    }
+    if (languageFilter) {
+      labels.push(
+        languageOptions.find((option) => option.value === languageFilter)?.label ?? languageFilter
+      );
+    }
+
+    return labels;
+  }, [audioFilter, languageFilter, languageOptions, scenarioCards, scenarioFilter, t]);
+  const hasActiveFilters = activeFilterLabels.length > 0;
+  const emptyTitle = hasActiveFilters
+    ? activeFilterLabels.length === 1
+      ? t('library.empty_for_filter', { filter: activeFilterLabels[0] })
+      : t('library.empty_filtered')
+    : t('library.empty');
+  const emptyMessage = hasActiveFilters ? t('library.adjust_filters') : t('library.create_first');
 
   useEffect(() => {
     if (languageFilter && languageCodes.length > 0 && !languageCodes.includes(languageFilter)) {
@@ -275,8 +299,8 @@ export default function LibraryScreen() {
             color={theme.colors.text.tertiary}
             style={styles.emptyIcon}
           />
-          <Text style={styles.emptyText}>{t('library.empty')}</Text>
-          <Text style={styles.emptySubtext}>{t('library.create_first')}</Text>
+          <Text style={styles.emptyText}>{emptyTitle}</Text>
+          <Text style={styles.emptySubtext}>{emptyMessage}</Text>
         </View>
 
         <FeedbackModal
