@@ -3338,7 +3338,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rightColumnContent: {
-    paddingLeft: theme.spacing[6],
+    paddingLeft: 0,
     paddingRight: theme.spacing[6],
     paddingVertical: theme.spacing[6],
     paddingBottom: theme.spacing[12],

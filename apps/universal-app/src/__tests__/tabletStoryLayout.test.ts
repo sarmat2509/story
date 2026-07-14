@@ -43,6 +43,16 @@ assert.match(
   /singleColumnTextSection:\s*\{\s*paddingHorizontal:\s*theme\.spacing\[6\]/s,
   'post-story activities should use the same 24px horizontal padding as story text'
 );
+assert.match(
+  storyViewerSource,
+  /leftColumn:\s*\{\s*flex:\s*1,\s*paddingHorizontal:\s*theme\.spacing\[6\]/s,
+  'the story column should keep a 24px inset from the navigation'
+);
+assert.match(
+  storyViewerSource,
+  /rightColumnContent:\s*\{\s*paddingLeft:\s*0,/s,
+  'the sidebar should not add a second inset to the 24px story-column gap'
+);
 assert.ok(
   (navigatorSource.match(/numberOfLines=\{2\}/g) ?? []).length >= 2,
   'tablet navigation labels should wrap to a second line'
