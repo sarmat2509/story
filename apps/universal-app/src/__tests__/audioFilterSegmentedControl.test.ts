@@ -40,10 +40,10 @@ const activeBubbleStyles = toggleSource.match(
   /activeBubble:\s*\{([\s\S]*?)\n\s*\},\n\s*segment:/
 )?.[1];
 assert.ok(activeBubbleStyles, 'the moving bubble styles should be present');
-assert.doesNotMatch(
+assert.match(
   activeBubbleStyles,
-  /border(?:Color|Width)|shadow|elevation/,
-  'the moving bubble should not carry the old outlined shadow treatment'
+  /borderWidth:[\s\S]*?borderColor:[\s\S]*?shadowColor:[\s\S]*?shadowOpacity:\s*0\.12[\s\S]*?shadowRadius:\s*5/,
+  'the single moving bubble should carry the outlined shadow treatment'
 );
 const segmentStyles = toggleSource.match(
   /segment:\s*\{([\s\S]*?)\n\s*\},\n\s*segmentPressed:/
