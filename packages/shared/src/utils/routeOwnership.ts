@@ -3,13 +3,13 @@ import { DEFAULT_LOCALE, LOCALE_IDS } from '../config/languages';
 export const DEFAULT_PUBLIC_SEO_LOCALE = 'en' as const;
 
 export const PUBLIC_TRANSLATION_LOCALES = LOCALE_IDS;
-export type PublicSeoLocale = typeof PUBLIC_TRANSLATION_LOCALES[number];
+export type PublicSeoLocale = (typeof PUBLIC_TRANSLATION_LOCALES)[number];
 
 export const PUBLIC_SEO_LOCALES = PUBLIC_TRANSLATION_LOCALES;
-export type IndexedPublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
+export type IndexedPublicSeoLocale = (typeof PUBLIC_SEO_LOCALES)[number];
 
 export const APP_SUPPORTED_LOCALES = PUBLIC_TRANSLATION_LOCALES;
-export type AppSupportedLocale = typeof APP_SUPPORTED_LOCALES[number];
+export type AppSupportedLocale = (typeof APP_SUPPORTED_LOCALES)[number];
 
 export type RouteOwner = 'api-ssr' | 'spa' | 'api';
 export type RobotsPolicy = 'index,follow' | 'noindex,nofollow' | 'noindex,follow';
@@ -52,6 +52,13 @@ export const PUBLIC_STATIC_ROUTE_CONTRACTS = [
   {
     id: 'blog-index',
     path: '/blog',
+    owner: 'api-ssr',
+    robots: 'index,follow',
+    sitemap: true,
+  },
+  {
+    id: 'updates',
+    path: '/updates',
     owner: 'api-ssr',
     robots: 'index,follow',
     sitemap: true,
@@ -199,10 +206,7 @@ export function normalizeAppSupportedLocale(locale?: string | null): AppSupporte
 function stripAppLocalePrefix(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const [pathname, suffix = ''] = normalizedPath.split(/([?#].*)/, 2);
-  const firstSegment = pathname
-    .split('/')
-    .filter(Boolean)[0]
-    ?.toLowerCase();
+  const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase();
 
   if (!firstSegment || !APP_SUPPORTED_LOCALES.includes(firstSegment as AppSupportedLocale)) {
     return normalizedPath;
@@ -295,6 +299,11 @@ export function buildPublicBlogArticlePath(slug: string, locale?: string | null)
   return `${buildPublicBlogIndexPath(locale)}/${cleanSlug}`;
 }
 
+export function buildPublicUpdatesPath(locale?: string | null): string {
+  const normalized = normalizePublicSeoLocale(locale);
+  return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/updates' : `/${normalized}/updates`;
+}
+
 export function buildPublicSupportPath(locale?: string | null): string {
   const normalized = normalizePublicSeoLocale(locale);
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/support' : `/${normalized}/support`;
@@ -315,13 +324,13 @@ export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
 }
 
 export function buildPublicSeoSitemapStaticRoutes(): Array<{
-  id: 'landing' | 'pricing' | 'stories-catalog' | 'blog-index' | 'support';
+  id: 'landing' | 'pricing' | 'stories-catalog' | 'blog-index' | 'updates' | 'support';
   path: string;
   locale: PublicSeoLocale;
   changefreq: 'weekly';
   priority: string;
 }> {
-  return PUBLIC_SEO_LOCALES.flatMap((locale) => ([
+  return PUBLIC_SEO_LOCALES.flatMap((locale) => [
     {
       id: 'landing' as const,
       path: buildPublicLandingPath(locale),
@@ -351,11 +360,18 @@ export function buildPublicSeoSitemapStaticRoutes(): Array<{
       priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.82' : '0.72',
     },
     {
+      id: 'updates' as const,
+      path: buildPublicUpdatesPath(locale),
+      locale,
+      changefreq: 'weekly' as const,
+      priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.72' : '0.62',
+    },
+    {
       id: 'support' as const,
       path: buildPublicSupportPath(locale),
       locale,
       changefreq: 'weekly' as const,
       priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.55' : '0.45',
     },
-  ]));
+  ]);
 }

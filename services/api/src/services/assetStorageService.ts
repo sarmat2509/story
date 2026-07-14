@@ -22,7 +22,7 @@ interface UploadUserPhotoParams {
   photoType: PhotoType;
 }
 
-interface AssetStorageResult {
+export interface AssetStorageResult {
   storagePath: string;
   storageUrl: string | null;
   signedUrl: string | null;
@@ -270,6 +270,39 @@ export class AssetStorageService {
     } else {
       return await this.uploadToS3(storagePath, buffer, mimeType);
     }
+  }
+
+  /** Store an optimized, publicly readable image used only by release emails. */
+  async uploadPublicAppReleaseImage(params: {
+    buffer: Buffer;
+    mimeType: string;
+    releaseId: string;
+  }): Promise<AssetStorageResult & { width: number; height: number }> {
+    await this.ensureInitialized();
+    if (params.buffer.length > 5 * 1024 * 1024) {
+      throw new Error('Release image exceeds the 5 MB limit');
+    }
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(params.mimeType)) {
+      throw new Error('Release image must be PNG, JPEG or WebP');
+    }
+    await this.validateMimeType(params.buffer, params.mimeType);
+
+    const optimized = await sharp(params.buffer)
+      .rotate()
+      .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 84, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+    const storagePath = `app-releases/${this.sanitizePath(params.releaseId)}/${crypto.randomUUID()}.jpg`;
+    const stored = this.provider === 'local'
+      ? await this.uploadToLocal(storagePath, optimized.data, 'image/jpeg')
+      : await this.uploadToS3(storagePath, optimized.data, 'image/jpeg');
+
+    return {
+      ...stored,
+      width: optimized.info.width,
+      height: optimized.info.height,
+    };
   }
   
   /**

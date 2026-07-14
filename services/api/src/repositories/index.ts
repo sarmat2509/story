@@ -49,6 +49,7 @@ import { OpsRuntimeRepository } from './OpsRuntimeRepository';
 import { GenerationJobRepository } from './GenerationJobRepository';
 import { StoryGenerationStageEventRepository } from './StoryGenerationStageEventRepository';
 import { DiscountRepository } from './DiscountRepository';
+import { AppReleaseRepository } from './AppReleaseRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -93,6 +94,7 @@ export { OpsRuntimeRepository } from './OpsRuntimeRepository';
 export { GenerationJobRepository } from './GenerationJobRepository';
 export { StoryGenerationStageEventRepository } from './StoryGenerationStageEventRepository';
 export { DiscountRepository } from './DiscountRepository';
+export { AppReleaseRepository } from './AppReleaseRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -137,6 +139,7 @@ let opsRuntimeRepo: OpsRuntimeRepository;
 let generationJobRepo: GenerationJobRepository;
 let storyGenerationStageEventRepo: StoryGenerationStageEventRepository;
 let discountRepo: DiscountRepository;
+let appReleaseRepo: AppReleaseRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -352,4 +355,9 @@ export function getStoryGenerationStageEventRepository(): StoryGenerationStageEv
 export function getDiscountRepository(): DiscountRepository {
   if (!discountRepo) discountRepo = new DiscountRepository(db);
   return discountRepo;
+}
+
+export function getAppReleaseRepository(): AppReleaseRepository {
+  if (!appReleaseRepo) appReleaseRepo = new AppReleaseRepository(db);
+  return appReleaseRepo;
 }

@@ -182,16 +182,27 @@ export function formatStructuredStoryInputSection(
   spec: StorySpec,
   options: { includeIllustrationStyle?: boolean } = {}
 ): string {
+  const themeGuidance = spec.scenarioCard?.promptGuidance?.trim();
+  const creativeSeed = spec.scenarioGuidance?.trim();
+  const hasDistinctThemeGuidance =
+    !!themeGuidance && (!creativeSeed || themeGuidance !== creativeSeed);
   const lines = [
     'STORY INPUT:',
     `- Language: ${spec.language}`,
     `- Age group: ${spec.ageGroup}`,
     `- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}`,
     `- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}`,
-    `- Scenario plot guidance: ${spec.scenarioGuidance || spec.scenarioCard?.promptGuidance || 'none'}`,
+    `- Theme guidance (binding): ${hasDistinctThemeGuidance ? themeGuidance : 'none'}`,
+    `- Creative seed (loose direction, not an outline): ${creativeSeed || 'none'}`,
     `- World rule: ${spec.worldRule ? `${spec.worldRule.name}: ${spec.worldRule.description}` : 'none'}`,
     `- User notes: ${(spec as any).userNotes || 'none'}`,
   ];
+
+  if (creativeSeed) {
+    lines.push(
+      "- Creative latitude: keep the seed's core thematic direction, but freely invent the conflict, story events, supporting cast, surprises, and resolution. Do not treat the seed as a required scene sequence."
+    );
+  }
 
   if (options.includeIllustrationStyle) {
     lines.push(`- Illustration style: ${(spec as any).imageStyle || 'soft_watercolor'}`);
@@ -551,11 +562,22 @@ export function formatStoryRequirements(params: {
 
   // Add scenario/theme with detailed guidance
   if (params.spec.scenarioCard) {
+    const themeGuidance = params.spec.scenarioCard.promptGuidance?.trim();
+    const creativeSeed = params.spec.scenarioGuidance?.trim();
+    const hasDistinctThemeGuidance =
+      !!themeGuidance && (!creativeSeed || themeGuidance !== creativeSeed);
+
     parts.push(
       `- Theme/Scenario: ${params.spec.scenarioCard.name} - ${params.spec.scenarioCard.description}`
     );
-    if (params.spec.scenarioGuidance) {
-      parts.push(`  Setting & Premise: ${params.spec.scenarioGuidance}`);
+    if (hasDistinctThemeGuidance) {
+      parts.push(`  Theme guidance (binding): ${themeGuidance}`);
+    }
+    if (creativeSeed) {
+      parts.push(`  Creative seed (loose direction, not an outline): ${creativeSeed}`);
+      parts.push(
+        "  Creative latitude: keep the seed's core thematic direction, but freely invent the conflict, story events, supporting cast, surprises, and resolution. Do not treat the seed as a required scene sequence."
+      );
     }
   }
 

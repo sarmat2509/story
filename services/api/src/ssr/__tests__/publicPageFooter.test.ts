@@ -6,6 +6,7 @@ import {
   buildPublicLandingPath,
   buildPublicPricingPath,
   buildPublicStoriesPath,
+  buildPublicUpdatesPath,
 } from '@wondertales/shared';
 import {
   PUBLIC_HEADER_STYLES,
@@ -15,20 +16,20 @@ import {
 } from '../publicPageFooter';
 
 const footerLabels = {
-  uk: ['Тарифи', 'Історії', 'Блог', 'Умови користування', 'Політика конфіденційності', 'Підтримка', 'Мова'],
-  en: ['Pricing', 'Stories', 'Blog', 'Terms', 'Privacy', 'Support', 'Language'],
-  ru: ['Тарифы', 'Истории', 'Блог', 'Условия', 'Конфиденциальность', 'Поддержка', 'Язык'],
-  es: ['Precios', 'Cuentos', 'Blog', 'Términos', 'Privacidad', 'Soporte', 'Idioma'],
-  de: ['Preise', 'Geschichten', 'Blog', 'Nutzungsbedingungen', 'Datenschutz', 'Support', 'Sprache'],
-  fr: ['Tarifs', 'Histoires', 'Blog', 'Conditions', 'Confidentialité', 'Assistance', 'Langue'],
-  pl: ['Cennik', 'Historie', 'Blog', 'Warunki', 'Prywatność', 'Pomoc', 'Język'],
+  uk: ['Тарифи', 'Історії', 'Блог', 'Оновлення', 'Умови користування', 'Політика конфіденційності', 'Підтримка', 'Мова'],
+  en: ['Pricing', 'Stories', 'Blog', 'Updates', 'Terms', 'Privacy', 'Support', 'Language'],
+  ru: ['Тарифы', 'Истории', 'Блог', 'Обновления', 'Условия', 'Конфиденциальность', 'Поддержка', 'Язык'],
+  es: ['Precios', 'Historias', 'Blog', 'Novedades', 'Términos', 'Privacidad', 'Soporte', 'Idioma'],
+  de: ['Preise', 'Geschichten', 'Blog', 'Neuigkeiten', 'Nutzungsbedingungen', 'Datenschutz', 'Support', 'Sprache'],
+  fr: ['Tarifs', 'Histoires', 'Blog', 'Nouveautés', 'Conditions', 'Confidentialité', 'Assistance', 'Langue'],
+  pl: ['Cennik', 'Historie', 'Blog', 'Aktualności', 'Warunki', 'Prywatność', 'Pomoc', 'Język'],
 } as const;
 
 const headerLabels = {
   uk: ['Тарифи', 'Історії', 'Блог'],
   en: ['Pricing', 'Stories', 'Blog'],
   ru: ['Тарифы', 'Истории', 'Блог'],
-  es: ['Precios', 'Cuentos', 'Blog'],
+  es: ['Precios', 'Historias', 'Blog'],
   de: ['Preise', 'Geschichten', 'Blog'],
   fr: ['Tarifs', 'Histoires', 'Blog'],
   pl: ['Cennik', 'Historie', 'Blog'],
@@ -67,6 +68,7 @@ for (const locale of PUBLIC_SEO_LOCALES) {
     html,
     new RegExp(`href="${escapeRegExp(buildAbsoluteRouteUrl('https://wondertales.art', buildPublicPricingPath(locale)))}" class="active" aria-current="page"`)
   );
+  assert.match(html, new RegExp(`href="${escapeRegExp(buildAbsoluteRouteUrl('https://wondertales.art', buildPublicUpdatesPath(locale)))}"`));
 
   const headerHtml = renderPublicPageHeader('https://wondertales.art', locale, 'pricing');
   assert.match(headerHtml, /<header class="site-header" data-site-header>/);

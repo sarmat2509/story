@@ -47,8 +47,9 @@ const spec: StorySpec = {
     id: 'space-rescue',
     name: 'Space Rescue',
     description: 'A friendly space mission.',
-    promptGuidance: 'A sleepy comet needs help finding its orbit before sunrise.',
+    promptGuidance: 'Keep the adventure hopeful and grounded in cooperative discovery.',
   },
+  scenarioGuidance: 'A sleepy comet appears near a family space station before sunrise.',
   worldRule: {
     name: 'Gentle Gravity',
     description: 'Kind words make floating objects drift closer.',
@@ -147,6 +148,18 @@ const repairPrompt = buildGraphicNovelPageRepairPrompt({
 });
 
 assert.match(prompt, /Create exactly 8 pages/);
+assert.match(
+  prompt,
+  /Theme guidance \(binding\): Keep the adventure hopeful and grounded in cooperative discovery\./
+);
+assert.match(
+  prompt,
+  /Creative seed \(loose direction, not an outline\): A sleepy comet appears near a family space station before sunrise\./
+);
+assert.match(
+  prompt,
+  /freely invent the conflict, story events, supporting cast, surprises, and resolution/
+);
 assert.match(prompt, /ROLE BOUNDARY/);
 assert.match(prompt, /not the visual identity director/);
 assert.match(prompt, /CONTENT POLICY/);
@@ -250,9 +263,11 @@ assert.match(prompt, /Do not output coordinates or bubble placement metadata/);
 assert.match(prompt, /2 dialogue lines from 2 speakers/);
 assert.match(prompt, /must not override the downstream reference image/);
 assert.match(prompt, /No fixed keepsake artifact is required/);
-assert.match(prompt, /A sleepy comet needs help finding its orbit/);
+assert.match(prompt, /A sleepy comet appears near a family space station before sunrise/);
 assert.match(prompt, /Gentle Gravity: Kind words make floating objects drift closer/);
-assert.match(prompt, /Do not replace a specific plot seed/);
+assert.match(prompt, /CREATIVE SEED FIDELITY/);
+assert.match(prompt, /Treat the creative seed as a thematic direction, not an outline/);
+assert.match(prompt, /Do not replace the seed's core direction with an unrelated generic quest/);
 assert.match(prompt, /Maintain panel-to-panel continuity/);
 assert.match(prompt, /off-screen story\/event that was never shown/);
 assert.match(prompt, /Every panel must add a new story beat/);

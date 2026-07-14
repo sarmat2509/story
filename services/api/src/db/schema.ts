@@ -253,6 +253,89 @@ export const userConsentRecords = pgTable(
 export type UserConsentRecord = typeof userConsentRecords.$inferSelect;
 export type NewUserConsentRecord = typeof userConsentRecords.$inferInsert;
 
+// Public release notes and their email-only long-form content. A release is
+// published only when every system locale has a complete localization (also
+// enforced by a deferred database constraint trigger in the migration).
+export const appReleases = pgTable(
+  'app_releases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    version: varchar('version', { length: 40 }),
+    releaseDate: date('release_date').notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('draft'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    contentRevision: integer('content_revision').notNull().default(1),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    publishedByUserId: uuid('published_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    statusDateIdx: index('app_releases_status_date_idx').on(
+      table.status,
+      table.releaseDate,
+      table.createdAt
+    ),
+  })
+);
+
+export const appReleaseLocalizations = pgTable(
+  'app_release_localizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    releaseId: uuid('release_id')
+      .references(() => appReleases.id, { onDelete: 'cascade' })
+      .notNull(),
+    locale: varchar('locale', { length: 5 }).notNull(),
+    title: varchar('title', { length: 160 }).notNull(),
+    changes: jsonb('changes').notNull(),
+    emailSubject: varchar('email_subject', { length: 200 }).notNull(),
+    emailPreheader: varchar('email_preheader', { length: 240 }).notNull(),
+    emailBody: jsonb('email_body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    releaseLocaleIdx: uniqueIndex('app_release_localizations_release_locale_uidx').on(
+      table.releaseId,
+      table.locale
+    ),
+    localeIdx: index('app_release_localizations_locale_idx').on(table.locale, table.releaseId),
+  })
+);
+
+export const appReleaseMedia = pgTable(
+  'app_release_media',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    releaseId: uuid('release_id')
+      .references(() => appReleases.id, { onDelete: 'cascade' })
+      .notNull(),
+    storagePath: text('storage_path').notNull(),
+    publicUrl: text('public_url').notNull(),
+    mimeType: varchar('mime_type', { length: 100 }).notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    fileSize: integer('file_size').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    storagePathIdx: uniqueIndex('app_release_media_storage_path_uidx').on(table.storagePath),
+    releaseIdx: index('app_release_media_release_id_idx').on(table.releaseId, table.createdAt),
+  })
+);
+
+export type AppRelease = typeof appReleases.$inferSelect;
+export type NewAppRelease = typeof appReleases.$inferInsert;
+export type AppReleaseLocalization = typeof appReleaseLocalizations.$inferSelect;
+export type NewAppReleaseLocalization = typeof appReleaseLocalizations.$inferInsert;
+export type AppReleaseMedia = typeof appReleaseMedia.$inferSelect;
+export type NewAppReleaseMedia = typeof appReleaseMedia.$inferInsert;
+
 // Plans table
 export const plans = pgTable(
   'plans',
@@ -823,14 +906,14 @@ export const scenarioCards = pgTable('scenario_cards', {
   nameKey: varchar('name_key', { length: 100 }).notNull(),
   descriptionKey: varchar('description_key', { length: 100 }).notNull(),
   icon: varchar('icon', { length: 50 }),
-  promptGuidance: text('prompt_guidance').notNull(), // Detailed plot guidance (30-50 words)
+  promptGuidance: text('prompt_guidance').notNull(), // Binding theme guidance shared by every story
   suggestedGoals: text('suggested_goals').notNull(), // JSON array
   ageGroups: text('age_groups').notNull(), // JSON array
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
 });
 
-// Scenario plot examples table (diverse settings per scenario card)
+// Loose creative premise seeds per scenario card (the legacy column name is `setting`)
 export const scenarioPlotExamples = pgTable('scenario_plot_examples', {
   id: uuid('id').primaryKey().defaultRandom(),
   scenarioCardId: varchar('scenario_card_id', { length: 100 })

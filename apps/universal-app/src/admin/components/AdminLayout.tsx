@@ -9,6 +9,7 @@ type AdminRouteName =
   | 'AdminStories'
   | 'AdminUsers'
   | 'AdminDiscountCodes'
+  | 'AdminAppReleases'
   | 'AdminFeedback'
   | 'AdminPrivacyRequests'
   | 'AdminValidations'
@@ -35,6 +36,7 @@ const sections: Array<{
     title: 'Content',
     items: [
       { key: 'AdminContentConfig', label: 'Content Config', routeName: 'AdminContentConfig' },
+      { key: 'AdminAppReleases', label: 'Updates', routeName: 'AdminAppReleases' },
       { key: 'AdminVoices', label: 'Voices', routeName: 'AdminVoices' },
     ],
   },

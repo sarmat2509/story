@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
+import type {
+  AppReleaseChange,
+  AppReleaseEmailBlock,
+  AppReleaseInput,
+  AppReleaseStatus,
+  FeedbackCategory,
+  FeedbackTopic,
+} from '@wondertales/shared';
 import apiClient from '@/api/client';
 
 export type AdminStoryListItem = {
@@ -68,6 +75,130 @@ export type AdminDiscountOptions = {
   plans: Array<{ id: string; slug: string; name: string }>;
   bundles: Array<{ id: string; slug: string; name: string }>;
 };
+
+export type AdminAppReleaseListItem = {
+  id: string;
+  version: string | null;
+  releaseDate: string;
+  status: AppReleaseStatus;
+  publishedAt: string | null;
+  contentRevision: number;
+  translationCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminAppReleaseMedia = {
+  id: string;
+  releaseId: string;
+  storagePath: string;
+  publicUrl: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  fileSize: number;
+  createdAt: string;
+};
+
+export type AdminAppReleaseDetail = Omit<AdminAppReleaseListItem, 'translationCount'> & {
+  translations: Array<{
+    locale: string;
+    title: string;
+    changes: AppReleaseChange[];
+    emailSubject: string;
+    emailPreheader: string;
+    emailBody: AppReleaseEmailBlock[];
+  }>;
+  media: AdminAppReleaseMedia[];
+};
+
+export function useAdminAppReleases() {
+  return useQuery({
+    queryKey: ['admin', 'app-releases'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: AdminAppReleaseListItem[] }>(
+        '/api/v1/admin/app-releases'
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useAdminAppRelease(id?: string) {
+  return useQuery({
+    queryKey: ['admin', 'app-release', id ?? ''],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: AdminAppReleaseDetail }>(
+        `/api/v1/admin/app-releases/${id}`
+      );
+      return response.data.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateAdminAppRelease() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: AppReleaseInput) => {
+      const response = await apiClient.post<{ status: string; data: AdminAppReleaseDetail }>(
+        '/api/v1/admin/app-releases', input
+      );
+      return response.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'app-releases'] }),
+  });
+}
+
+export function useUpdateAdminAppRelease() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: AppReleaseInput }) => {
+      const response = await apiClient.put<{ status: string; data: AdminAppReleaseDetail }>(
+        `/api/v1/admin/app-releases/${id}`, input
+      );
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'app-releases'] });
+      queryClient.setQueryData(['admin', 'app-release', data.id], data);
+    },
+  });
+}
+
+export function useUploadAdminAppReleaseMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ releaseId, formData }: { releaseId: string; formData: FormData }) => {
+      const response = await apiClient.post<{ status: string; data: AdminAppReleaseMedia }>(
+        `/api/v1/admin/app-releases/${releaseId}/media`, formData
+      );
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'app-release', variables.releaseId] });
+    },
+  });
+}
+
+export function useDeleteAdminAppReleaseMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ releaseId, mediaId }: { releaseId: string; mediaId: string }) => {
+      await apiClient.delete(`/api/v1/admin/app-releases/${releaseId}/media/${mediaId}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'app-release', variables.releaseId] });
+    },
+  });
+}
+
+export async function fetchAdminAppReleaseEmailPreview(id: string, locale: string): Promise<string> {
+  const response = await apiClient.get<string>(
+    `/api/v1/admin/app-releases/${id}/email-preview/${locale}`
+  );
+  return response.data;
+}
 
 export type AdminFeedbackListItem = {
   id: string;

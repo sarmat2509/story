@@ -166,9 +166,9 @@ export interface StorySpec {
     id: string;
     name: string;
     description: string;
-    promptGuidance?: string; // NEW: Detailed plot guidance
+    promptGuidance?: string; // Binding theme guidance shared by every story in this scenario
   };
-  scenarioGuidance?: string; // NEW: Detailed plot guidance (30-50 words)
+  scenarioGuidance?: string; // Randomly selected loose creative premise, not a scene outline
   worldRule?: { name: string; description: string }; // World rule for scenario (randomly selected)
   closingArtifact?: {
     id: string;

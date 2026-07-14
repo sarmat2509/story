@@ -14,6 +14,7 @@ import {
   buildPublicSeoSitemapStaticRoutes,
   buildPublicStoriesPath,
   buildPublicSupportPath,
+  buildPublicUpdatesPath,
 } from '@wondertales/shared';
 import { buildSitemapXmlForStories } from '../../services/sitemapService';
 import { getBlogSlugs } from '../blogContent';
@@ -65,6 +66,7 @@ assert.deepEqual(
     buildPublicPricingPath(locale),
     buildPublicStoriesPath(locale),
     buildPublicBlogIndexPath(locale),
+    buildPublicUpdatesPath(locale),
     buildPublicSupportPath(locale),
   ]),
   'sitemap static SEO routes should come from the shared route manifest'
@@ -76,6 +78,7 @@ for (const locale of PUBLIC_SEO_LOCALES) {
   assertSitemapLoc(emptySitemap, buildPublicPricingPath(locale));
   assertSitemapLoc(emptySitemap, buildPublicStoriesPath(locale));
   assertSitemapLoc(emptySitemap, buildPublicBlogIndexPath(locale));
+  assertSitemapLoc(emptySitemap, buildPublicUpdatesPath(locale));
   assertSitemapLoc(emptySitemap, buildPublicSupportPath(locale));
   assertSitemapLoc(emptySitemap, buildPublicBlogArticlePath('adhd-story-attention', locale));
 }
@@ -87,6 +90,8 @@ assert.equal(buildPublicStoriesPath('en'), '/stories');
 assert.equal(buildPublicStoriesPath('uk'), '/uk/stories');
 assert.equal(buildPublicBlogIndexPath('en'), '/blog');
 assert.equal(buildPublicBlogIndexPath('uk'), '/uk/blog');
+assert.equal(buildPublicUpdatesPath('en'), '/updates');
+assert.equal(buildPublicUpdatesPath('uk'), '/uk/updates');
 assert.equal(buildPublicBlogArticlePath('adhd-story-attention', 'en'), '/blog/adhd-story-attention');
 assert.equal(buildPublicBlogArticlePath('adhd-story-attention', 'uk'), '/uk/blog/adhd-story-attention');
 assert.equal(buildPublicBlogArticlePath('adhd-story-attention', 'ru'), '/ru/blog/adhd-story-attention');
@@ -106,7 +111,7 @@ assert.equal(getBlogSlugs().length, 14, 'public blog set should contain the expe
 for (const { name, value } of nginxConfigs) {
   assert.match(value, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/, `${name} should route public pricing to API SSR`);
   assert.match(value, /location = \/en\s*\{[\s\S]*?return 301 \//, `${name} should redirect legacy /en to the unprefixed English landing page`);
-  assert.match(value, /location ~ \^\/en\/\(pricing\|stories\|blog\|terms\|privacy\|support\)\/\?\$\s*\{[\s\S]*?return 301 \/\$1/, `${name} should redirect legacy English public pages`);
+  assert.match(value, /location ~ \^\/en\/\(pricing\|stories\|blog\|updates\|terms\|privacy\|support\)\/\?\$\s*\{[\s\S]*?return 301 \/\$1/, `${name} should redirect legacy English public pages`);
   assert.match(value, /location ~ \^\/en\/blog\/\(\[\^\/\?\]\+\)\/\?\$\s*\{[\s\S]*?return 301 \/blog\/\$1/, `${name} should redirect legacy English blog articles`);
   assert.match(value, /location ~ \^\/en\/\(wizard\|welcome\|register\)\/\?\$\s*\{[\s\S]*?return 301 \/\$1\?locale=en/, `${name} should preserve English on legacy app entry redirects`);
   assert.match(value, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/, `${name} should route default terms to API SSR`);
@@ -116,6 +121,8 @@ for (const { name, value } of nginxConfigs) {
   assert.match(value, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/, `${name} should route exact /stories to API SSR`);
   assert.match(value, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/, `${name} should route localized stories route to API SSR`);
   assert.match(value, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/, `${name} should route localized support route to API SSR`);
+  assert.match(value, /location = \/updates\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/updates/, `${name} should route updates to API SSR`);
+  assert.match(value, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/updates\/\?\$\s*\{[\s\S]*?\/ssr\/updates\/\$1/, `${name} should route localized updates to API SSR`);
   assert.match(value, /location = \/blog\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/blog/, `${name} should route blog index to API SSR`);
   assert.match(value, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/blog\/\?\$\s*\{[\s\S]*?\/ssr\/blog\/index\/\$1/, `${name} should route localized blog index to API SSR`);
   assert.match(value, /location \^~ \/blog\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/blog\//, `${name} should route blog articles to API SSR`);
@@ -141,7 +148,7 @@ assert.match(
 
 assert.match(commonSsrRoutes, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/);
 assert.match(commonSsrRoutes, /location = \/en\s*\{[\s\S]*?return 301 \//);
-assert.match(commonSsrRoutes, /location ~ \^\/en\/\(pricing\|stories\|blog\|terms\|privacy\|support\)\/\?\$\s*\{[\s\S]*?return 301 \/\$1/);
+assert.match(commonSsrRoutes, /location ~ \^\/en\/\(pricing\|stories\|blog\|updates\|terms\|privacy\|support\)\/\?\$\s*\{[\s\S]*?return 301 \/\$1/);
 assert.match(commonSsrRoutes, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/);
 assert.match(commonSsrRoutes, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/\$1/);
@@ -149,6 +156,8 @@ assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/privac
 assert.match(commonSsrRoutes, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/);
+assert.match(commonSsrRoutes, /location = \/updates\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/updates/);
+assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/updates\/\?\$\s*\{[\s\S]*?\/ssr\/updates\/\$1/);
 assert.match(commonSsrRoutes, /location = \/blog\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/blog/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(uk\|ru\|es\|de\|fr\|pl\)\/blog\/\?\$\s*\{[\s\S]*?\/ssr\/blog\/index\/\$1/);
 assert.match(commonSsrRoutes, /location \^~ \/blog\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/blog\//);

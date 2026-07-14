@@ -327,6 +327,7 @@ const linking: any = {
           AdminVoices: 'voices',
           AdminUsers: 'users',
           AdminDiscountCodes: 'discounts',
+          AdminAppReleases: 'updates',
           AdminValidations: 'validations',
           AdminValidationDetail: 'validations/:id',
           AdminImageGenerationDetail:

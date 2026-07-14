@@ -18,6 +18,7 @@ import graphicNovelsRoutes from './routes/graphicNovels';
 import mixedStoriesRoutes from './routes/mixedStories';
 import imageValidationsRoutes from './routes/imageValidations';
 import adminRoutes from './routes/admin';
+import adminAppReleasesRoutes from './routes/adminAppReleases';
 import publicStoriesRoutes from './routes/publicStories';
 import publicAuthorsRoutes from './routes/publicAuthors';
 import publicUnlistedRoutes from './routes/publicUnlisted';
@@ -32,6 +33,7 @@ import ssrPricingRoutes from './routes/ssrPricing';
 import ssrLegalRoutes from './routes/ssrLegal';
 import ssrSupportRoutes from './routes/ssrSupport';
 import ssrBlogRoutes from './routes/ssrBlog';
+import ssrUpdatesRoutes from './routes/ssrUpdates';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
 import billingRoutes from './routes/billing';
@@ -216,6 +218,7 @@ app.use('/api/v1/stories', storyWriteLimiter, apiLimiter, storiesRoutes); // M3:
 app.use('/api/v1/graphic-novels', storyWriteLimiter, apiLimiter, graphicNovelsRoutes);
 app.use('/api/v1/mixed-stories', storyWriteLimiter, apiLimiter, mixedStoriesRoutes);
 app.use('/api/v1/image-validations', apiLimiter, imageValidationsRoutes);
+app.use('/api/v1/admin/app-releases', apiLimiter, adminAppReleasesRoutes);
 app.use('/api/v1/admin', apiLimiter, adminRoutes);
 app.use('/api/v1/public/stories', apiLimiter, publicStoriesRoutes); // Public catalog + single story
 app.use('/api/v1/public/authors', apiLimiter, publicAuthorsRoutes); // Public author pages
@@ -228,6 +231,7 @@ app.use('/ssr/pricing', ssrPricingRoutes); // Static pricing page for SEO
 app.use('/ssr/legal', ssrLegalRoutes); // Terms of Service, Privacy Policy
 app.use('/ssr/support', ssrSupportRoutes); // Support/contact page
 app.use('/ssr/blog', ssrBlogRoutes); // Static blog pages for SEO
+app.use('/ssr/updates', ssrUpdatesRoutes); // Localized release notes for SEO
 app.use('/share-card', apiLimiter, shareCardRoutes); // og:image 1200×630
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices

@@ -646,10 +646,10 @@ ${closingArtifactRules(
   visualArtifactReferenceLabel ? { referenceId: visualArtifactReferenceLabel } : undefined
 )}
 
-PLOT FIDELITY:
-- Use the scenario plot guidance as the concrete story seed.
-- Do not replace a specific plot seed with an unrelated generic quest.
-- If the guidance names a creature, problem, object, place, or rule, it must appear in dialogue and panel visual fields where relevant.
+CREATIVE SEED FIDELITY:
+- Treat the creative seed as a thematic direction, not an outline or required page sequence.
+- Preserve its core direction, such as a named holiday, relationship, central curiosity, or unusual situation, but freely invent the conflict, events, supporting cast, surprises, and resolution.
+- Do not replace the seed's core direction with an unrelated generic quest. Details and examples inside the seed are optional unless binding theme guidance or user notes require them.
 - Maintain panel-to-panel continuity. Do not mention a story, action, object, relationship, or lesson unless it was shown in previous panels, introduced clearly in the same line, or visible in the same panel visual.
 - Do not praise, correct, or react to a specific off-screen story/event that was never shown. Make the missing beat visible in the same panel or remove the reference.
 - Every panel must add a new story beat. Do not repeat the same speaker, same warning, same location update, or same information in adjacent panels or twice on the same page.

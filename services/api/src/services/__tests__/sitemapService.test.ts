@@ -3,6 +3,7 @@ import {
   PUBLIC_SEO_LOCALES,
   buildPublicBlogArticlePath,
   buildPublicBlogIndexPath,
+  buildPublicUpdatesPath,
 } from '@wondertales/shared';
 import { buildSitemapXmlForStories } from '../sitemapService';
 import { getBlogSlugs } from '../../ssr/blogContent';
@@ -50,6 +51,7 @@ assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-two<\/loc>/)
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/support<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/updates<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog\/adhd-story-attention<\/loc>/);
 assert.doesNotMatch(xml, /<loc>https:\/\/wondertales\.art\/en\//);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/stories<\/loc>/);
@@ -57,6 +59,8 @@ assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/support<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/blog\/adhd-story-attention<\/loc>/);
 
 for (const locale of PUBLIC_SEO_LOCALES) {
+  const updatesUrl = `https://wondertales.art${buildPublicUpdatesPath(locale)}`;
+  assert.match(xml, new RegExp(`<loc>${escapeRegExp(updatesUrl)}</loc>`), `sitemap should include updates for ${locale}`);
   const indexUrl = `https://wondertales.art${buildPublicBlogIndexPath(locale)}`;
   assert.match(xml, new RegExp(`<loc>${escapeRegExp(indexUrl)}</loc>`), `sitemap should include blog index for ${locale}`);
 

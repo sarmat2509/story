@@ -4,7 +4,7 @@
  * Cache is invalidated on publish/unpublish via invalidateSitemapCache().
  */
 
-import { getStoryRepository } from '../repositories';
+import { getAppReleaseRepository, getStoryRepository } from '../repositories';
 import { getRedisClient } from '../utils/redisClient';
 import { config } from '../config';
 import { logger } from '../utils/logger';
@@ -16,7 +16,7 @@ import {
 import type * as schema from '../db/schema';
 import { getBlogSitemapRoutes } from '../ssr/blogContent';
 
-const SITEMAP_CACHE_KEY = 'sitemap:xml:v5';
+const SITEMAP_CACHE_KEY = 'sitemap:xml:v6';
 const SITEMAP_TTL = 3600; // 1 hour
 
 function escapeXml(str: string): string {
@@ -38,7 +38,8 @@ type SitemapStory = Pick<schema.Story, 'publishedSlug' | 'publishedAt' | 'userId
 
 export function buildSitemapXmlForStories(
   stories: SitemapStory[],
-  webAppUrl: string = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art'
+  webAppUrl: string = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art',
+  updatesLastModified?: Date | string | null
 ): string {
   const baseUrl = webAppUrl.replace(/\/$/, '');
 
@@ -68,7 +69,10 @@ export function buildSitemapXmlForStories(
 
   const staticUrls = buildPublicSeoSitemapStaticRoutes().map((route) => {
     const loc = escapeXml(buildAbsoluteRouteUrl(baseUrl, route.path));
-    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>${route.changefreq}</changefreq>\n    <priority>${route.priority}</priority>\n  </url>`;
+    const lastmod = route.id === 'updates' && updatesLastModified
+      ? `\n    <lastmod>${toDateString(updatesLastModified)}</lastmod>`
+      : '';
+    return `  <url>\n    <loc>${loc}</loc>${lastmod}\n    <changefreq>${route.changefreq}</changefreq>\n    <priority>${route.priority}</priority>\n  </url>`;
   });
 
   const blogUrls = getBlogSitemapRoutes().map((route) => {
@@ -86,8 +90,11 @@ export async function generateSitemapXml(): Promise<string> {
   const repo = getStoryRepository();
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art';
 
-  const stories = await repo.listPublished({ limit: 50000, offset: 0 });
-  const xml = buildSitemapXmlForStories(stories, webAppUrl);
+  const [stories, updatesLastModified] = await Promise.all([
+    repo.listPublished({ limit: 50000, offset: 0 }),
+    getAppReleaseRepository().latestPublishedModifiedAt(),
+  ]);
+  const xml = buildSitemapXmlForStories(stories, webAppUrl, updatesLastModified);
   const authorCount = new Set(stories.filter((s) => s.publishedSlug).map((s) => s.userId)).size;
 
   logger.info({ storyCount: stories.length, authorCount }, 'Sitemap generated');

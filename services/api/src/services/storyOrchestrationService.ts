@@ -3527,8 +3527,9 @@ export async function buildStorySpec(
       };
     }
 
-    // Select a random plot example to replace generic promptGuidance
+    // Select a random loose creative premise while preserving the card's binding theme guidance.
     let chosenPlotExampleId: string | undefined;
+    let chosenPlotPremise: string | undefined;
     let chosenWorldRuleId: string | undefined;
     let worldRule: { name: string; description: string } | undefined;
     if (scenarioCard) {
@@ -3570,7 +3571,7 @@ export async function buildStorySpec(
         }
 
         picked = picked || available[Math.floor(Math.random() * available.length)];
-        scenarioCard.promptGuidance = picked.setting;
+        chosenPlotPremise = picked.setting;
         chosenPlotExampleId = picked.id;
 
         logger.info(
@@ -3658,7 +3659,7 @@ export async function buildStorySpec(
     const closingArtifact = await selectStoryArtifactForPrompt({
       locale: storyLanguage,
       scenarioCard,
-      scenarioGuidance: scenarioCard?.promptGuidance,
+      scenarioGuidance: chosenPlotPremise,
       goalName: goalWithGuidance?.name,
       goalGuidance: goalWithGuidance?.promptGuidance,
       userNotes: request.userNotes || undefined,
@@ -3685,7 +3686,7 @@ export async function buildStorySpec(
       userNotes: request.userNotes || undefined,
       policyProfile,
       scenarioCard, // NEW: Add scenario card to spec
-      scenarioGuidance: scenarioCard?.promptGuidance, // NEW: Detailed plot guidance
+      scenarioGuidance: chosenPlotPremise, // Loose creative seed; binding guidance stays on scenarioCard
       worldRule,
       closingArtifact,
     };

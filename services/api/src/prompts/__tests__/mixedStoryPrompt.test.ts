@@ -28,6 +28,13 @@ const spec: StorySpec = {
     } as any,
   ],
   imageStyle: 'comic_watercolor',
+  scenarioCard: {
+    id: 'family-festival',
+    name: 'Family Festival',
+    description: 'A family prepares for a meaningful celebration.',
+    promptGuidance: 'Keep the named tradition specific and family-led.',
+  },
+  scenarioGuidance: 'A child notices that a familiar celebration feels different this year.',
   policyProfile: {
     ageGroup: '6-8',
     language: 'en',
@@ -53,6 +60,18 @@ const prompt = buildMixedStoryPrompt({
 });
 
 assert.match(prompt, /Create exactly 2 comic blocks/);
+assert.match(
+  prompt,
+  /Theme guidance \(binding\): Keep the named tradition specific and family-led\./
+);
+assert.match(
+  prompt,
+  /Creative seed \(loose direction, not an outline\): A child notices that a familiar celebration feels different this year\./
+);
+assert.match(
+  prompt,
+  /freely invent the conflict, story events, supporting cast, surprises, and resolution/
+);
 assert.match(prompt, /Create outfits\[\] once for comic visual wardrobe bindings/);
 assert.match(prompt, /OUTFITS:/);
 assert.match(prompt, /Detailed wardrobe descriptions are ONLY for child\/person\/human characters/);

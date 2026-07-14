@@ -545,6 +545,18 @@ router.get('/*', async (req: Request, res: Response) => {
       }
     }
 
+    if (assetPath.startsWith('app-releases/')) {
+      try {
+        await sendPublicFile(res, assetPath, undefined, 'public, max-age=31536000, immutable');
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Asset file not found',
+        });
+      }
+    }
+
     if (assetPath.startsWith('env_cache/') || assetPath.startsWith('outfit_plate_cache/')) {
       try {
         await sendPublicFile(res, assetPath);

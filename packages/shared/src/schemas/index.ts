@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { LOCALE_IDS } from '../config/languages';
-import { CHARACTER_TYPES, PERSON_SUBTYPES, ANIMAL_SUBTYPES, IMAGINARY_SUBTYPES } from '../constants/characterTypes';
+import {
+  CHARACTER_TYPES,
+  PERSON_SUBTYPES,
+  ANIMAL_SUBTYPES,
+  IMAGINARY_SUBTYPES,
+} from '../constants/characterTypes';
 import { IMAGE_STYLES } from '../constants/imageStyles';
 import {
   isStoryTextSizeMultiplierStep,
@@ -13,6 +18,95 @@ import {
 
 // Locale schema - dynamically generated from config
 export const LocaleSchema = z.enum(LOCALE_IDS as [string, ...string[]]);
+
+// App release notes are intentionally structured: the compact change list is
+// safe to render on the public SEO page, while the richer blocks are reserved
+// for email previews and future campaigns.
+export const AppReleaseStatusSchema = z.enum(['draft', 'published', 'archived']);
+export const AppReleaseChangeKindSchema = z.enum(['new', 'improved', 'fixed']);
+
+const AppReleaseLinkSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (value) => value === '' || /^\/(?!\/)/.test(value) || /^https:\/\//i.test(value),
+    'Link must be an internal path or an HTTPS URL'
+  );
+
+export const AppReleaseChangeSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  kind: AppReleaseChangeKindSchema,
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().min(1).max(1200),
+  blogUrl: AppReleaseLinkSchema.optional(),
+  appUrl: AppReleaseLinkSchema.optional(),
+});
+
+export const AppReleaseEmailBlockSchema = z.discriminatedUnion('type', [
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    type: z.literal('heading'),
+    text: z.string().trim().min(1).max(240),
+  }),
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    type: z.literal('paragraph'),
+    text: z.string().trim().min(1).max(4000),
+  }),
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    type: z.literal('list'),
+    items: z.array(z.string().trim().min(1).max(800)).min(1).max(20),
+  }),
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    type: z.literal('image'),
+    mediaId: z.string().uuid(),
+    alt: z.string().trim().min(1).max(300),
+    caption: z.string().trim().max(500).optional(),
+  }),
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    type: z.literal('button'),
+    label: z.string().trim().min(1).max(100),
+    url: AppReleaseLinkSchema.refine((value) => value.length > 0, 'Button URL is required'),
+  }),
+]);
+
+export const AppReleaseLocalizationInputSchema = z.object({
+  locale: LocaleSchema,
+  title: z.string().trim().min(1).max(160),
+  changes: z.array(AppReleaseChangeSchema).min(1).max(30),
+  emailSubject: z.string().trim().min(1).max(200),
+  emailPreheader: z.string().trim().min(1).max(240),
+  emailBody: z.array(AppReleaseEmailBlockSchema).min(1).max(50),
+});
+
+export const AppReleaseInputSchema = z
+  .object({
+    version: z.string().trim().min(1).max(40).nullable().optional(),
+    releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
+    status: AppReleaseStatusSchema,
+    translations: z.array(AppReleaseLocalizationInputSchema).length(LOCALE_IDS.length),
+  })
+  .superRefine((value, context) => {
+    const providedLocales = new Set(value.translations.map((translation) => translation.locale));
+    const missingLocales = LOCALE_IDS.filter((locale) => !providedLocales.has(locale));
+    if (providedLocales.size !== LOCALE_IDS.length || missingLocales.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['translations'],
+        message: `Exactly one translation is required for every locale: ${LOCALE_IDS.join(', ')}`,
+      });
+    }
+  });
+
+export type AppReleaseStatus = z.infer<typeof AppReleaseStatusSchema>;
+export type AppReleaseChange = z.infer<typeof AppReleaseChangeSchema>;
+export type AppReleaseEmailBlock = z.infer<typeof AppReleaseEmailBlockSchema>;
+export type AppReleaseLocalizationInput = z.infer<typeof AppReleaseLocalizationInputSchema>;
+export type AppReleaseInput = z.infer<typeof AppReleaseInputSchema>;
 
 // Age group schema
 export const AgeGroupSchema = z.enum(['1y', '2-3', '4-5', '6-8', '9-12']);
@@ -115,32 +209,42 @@ export const GoogleProfileSchema = z.object({
 export const AppleProfileSchema = z.object({
   sub: z.string(),
   email: z.string().email().max(255).optional(),
-  name: z.object({
-    firstName: z.string().max(100).optional(),
-    lastName: z.string().max(100).optional(),
-  }).optional(),
+  name: z
+    .object({
+      firstName: z.string().max(100).optional(),
+      lastName: z.string().max(100).optional(),
+    })
+    .optional(),
 });
 
 export const GoogleTokenSchema = z.object({
   idToken: z.string(),
-  deviceInfo: z.object({
-    name: z.string().max(255).optional(),
-    type: z.enum(['ios', 'android', 'web']).optional(),
-  }).optional(),
+  deviceInfo: z
+    .object({
+      name: z.string().max(255).optional(),
+      type: z.enum(['ios', 'android', 'web']).optional(),
+    })
+    .optional(),
 });
 
 export const AppleTokenSchema = z.object({
   idToken: z.string(),
-  user: z.object({
-    name: z.object({
-      firstName: z.string().max(100).optional(),
-      lastName: z.string().max(100).optional(),
-    }).optional(),
-  }).optional(),
-  deviceInfo: z.object({
-    name: z.string().max(255).optional(),
-    type: z.enum(['ios', 'android', 'web']).optional(),
-  }).optional(),
+  user: z
+    .object({
+      name: z
+        .object({
+          firstName: z.string().max(100).optional(),
+          lastName: z.string().max(100).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  deviceInfo: z
+    .object({
+      name: z.string().max(255).optional(),
+      type: z.enum(['ios', 'android', 'web']).optional(),
+    })
+    .optional(),
 });
 
 // ==========================================
@@ -148,26 +252,48 @@ export const AppleTokenSchema = z.object({
 // ==========================================
 
 import {
-  HAIR_COLORS, HAIR_LENGTHS, HAIR_STYLES, EYE_COLORS, SKIN_TONES, DISTINCTIVE_FEATURES,
-  PERSONALITY_TRAITS, FAVORITE_ACTIVITIES, INTERESTS,
-  COMMON_FEARS, AVOID_TOPICS
+  HAIR_COLORS,
+  HAIR_LENGTHS,
+  HAIR_STYLES,
+  EYE_COLORS,
+  SKIN_TONES,
+  DISTINCTIVE_FEATURES,
+  PERSONALITY_TRAITS,
+  FAVORITE_ACTIVITIES,
+  INTERESTS,
+  COMMON_FEARS,
+  AVOID_TOPICS,
 } from '../constants/childTraits';
 
 import {
-  PET_SIZES, FUR_COLORS, FUR_PATTERNS, FUR_LENGTHS, PET_EYE_COLORS,
-  CAT_BREEDS, DOG_BREEDS, PET_PERSONALITY_TRAITS, PET_ACTIVITIES, PET_DISTINCTIVE_FEATURES
+  PET_SIZES,
+  FUR_COLORS,
+  FUR_PATTERNS,
+  FUR_LENGTHS,
+  PET_EYE_COLORS,
+  CAT_BREEDS,
+  DOG_BREEDS,
+  PET_PERSONALITY_TRAITS,
+  PET_ACTIVITIES,
+  PET_DISTINCTIVE_FEATURES,
 } from '../constants/petTraits';
 
 import {
-  AGE_RANGES, HUMAN_HAIR_COLORS, HUMAN_HAIR_LENGTHS, HUMAN_HAIR_STYLES, HEIGHTS, BUILDS,
-  CLOTHING_STYLES, HUMAN_DISTINCTIVE_FEATURES
+  AGE_RANGES,
+  HUMAN_HAIR_COLORS,
+  HUMAN_HAIR_LENGTHS,
+  HUMAN_HAIR_STYLES,
+  HEIGHTS,
+  BUILDS,
+  CLOTHING_STYLES,
+  HUMAN_DISTINCTIVE_FEATURES,
 } from '../constants/humanTraits';
 
 // Child Profile Schemas
 const BaseChildProfileSchema = z.object({
   name: z.string().min(1).max(100),
   birthDate: z.coerce.date().max(new Date(), 'Birth date cannot be in future'),
-  
+
   // Languages array (min 1, max 3)
   languages: z.array(LocaleSchema).min(1).max(3),
 
@@ -175,43 +301,56 @@ const BaseChildProfileSchema = z.object({
   storyCreationMode: z.enum(['instant', 'artisan']).optional(),
 
   // Relative adjustment for story body text in the reader.
-  storyTextSizeMultiplier: z.preprocess(
-    (value) => (value === undefined ? undefined : normalizeStoryTextSizeMultiplier(value)),
-    z.number().refine(isStoryTextSizeMultiplierStep, 'Invalid story text size multiplier')
-  ).optional(),
-  
+  storyTextSizeMultiplier: z
+    .preprocess(
+      (value) => (value === undefined ? undefined : normalizeStoryTextSizeMultiplier(value)),
+      z.number().refine(isStoryTextSizeMultiplierStep, 'Invalid story text size multiplier')
+    )
+    .optional(),
+
   // Reference photos (optional)
-  referencePhotos: z.array(z.object({
-    url: z.string().url(),
-    uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
-  })).max(5).optional(),
-  
+  referencePhotos: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional(),
+      })
+    )
+    .max(5)
+    .optional(),
+
   // Appearance traits (select from enums)
-  appearanceTraits: z.object({
-    hairColor: z.enum(HAIR_COLORS).optional(),
-    hairLength: z.enum(HAIR_LENGTHS).optional(),
-    hairStyle: z.enum(HAIR_STYLES).optional(),
-    eyeColor: z.enum(EYE_COLORS).optional(),
-    skinTone: z.enum(SKIN_TONES).optional(),
-    distinctiveFeatures: z.array(z.enum(DISTINCTIVE_FEATURES)).max(5).optional()
-  }).optional(),
-  
+  appearanceTraits: z
+    .object({
+      hairColor: z.enum(HAIR_COLORS).optional(),
+      hairLength: z.enum(HAIR_LENGTHS).optional(),
+      hairStyle: z.enum(HAIR_STYLES).optional(),
+      eyeColor: z.enum(EYE_COLORS).optional(),
+      skinTone: z.enum(SKIN_TONES).optional(),
+      distinctiveFeatures: z.array(z.enum(DISTINCTIVE_FEATURES)).max(5).optional(),
+    })
+    .optional(),
+
   // Personality (select from enums, max 5 each)
-  personality: z.object({
-    traits: z.array(z.enum(PERSONALITY_TRAITS)).max(5).optional(),
-    favoriteActivities: z.array(z.enum(FAVORITE_ACTIVITIES)).max(5).optional()
-  }).optional(),
-  
+  personality: z
+    .object({
+      traits: z.array(z.enum(PERSONALITY_TRAITS)).max(5).optional(),
+      favoriteActivities: z.array(z.enum(FAVORITE_ACTIVITIES)).max(5).optional(),
+    })
+    .optional(),
+
   // Interests (select from enum, max 7)
   interests: z.array(z.enum(INTERESTS)).max(7).optional(),
-  
+
   // Sensitivities (select from enums)
-  sensitivities: z.object({
-    fearLevel: z.enum(['none', 'low', 'medium', 'high']).optional(),
-    commonFears: z.array(z.enum(COMMON_FEARS)).max(5).optional(),
-    avoidTopics: z.array(z.enum(AVOID_TOPICS)).max(5).optional()
-  }).optional(),
-  
+  sensitivities: z
+    .object({
+      fearLevel: z.enum(['none', 'low', 'medium', 'high']).optional(),
+      commonFears: z.array(z.enum(COMMON_FEARS)).max(5).optional(),
+      avoidTopics: z.array(z.enum(AVOID_TOPICS)).max(5).optional(),
+    })
+    .optional(),
+
   // Family cast (free text names)
   familyCast: z.record(z.string().max(100)).optional(),
 
@@ -223,13 +362,15 @@ const BaseChildProfileSchema = z.object({
 
   // Public child-author profile fields
   authorPseudonym: z.string().max(100).nullable().optional(),
-  authorAboutMe: z.string().max(1000).nullable().optional()
+  authorAboutMe: z.string().max(1000).nullable().optional(),
 });
 
 export const CreateChildProfileSchema = BaseChildProfileSchema;
 
 // Update schema: omit referencePhotos (read-only on edit)
-export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({ referencePhotos: true }).partial();
+export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({
+  referencePhotos: true,
+}).partial();
 
 export const ChildModeSettingsSchema = z.object({
   storyGenerationEnabled: z.boolean().optional(),
@@ -266,21 +407,26 @@ const BaseCharacterSchema = z.object({
   type: z.enum(CHARACTER_TYPES),
   childProfileId: z.string().uuid().nullable().optional(),
   subtype: z.string().optional(), // Will be refined in discriminated union
-  
+
   // Reference photos (optional, not for imaginary)
-  referencePhotos: z.array(z.object({
-    url: z.string().url(),
-    uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
-  })).max(5).optional(),
-  
+  referencePhotos: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional(),
+      })
+    )
+    .max(5)
+    .optional(),
+
   // Optional free text description
   description: z.string().max(5000).optional(),
 
   // AI-generated description (from photo analysis)
   aiGeneratedDescription: z.string().max(5000).optional(),
-  
+
   // Language code of the description (from analysis or UI language)
-  descriptionLanguage: z.string().max(10).optional()
+  descriptionLanguage: z.string().max(10).optional(),
 });
 
 // Pet-specific appearance traits
@@ -291,12 +437,12 @@ const PetAppearanceSchema = z.object({
   furLength: z.enum(FUR_LENGTHS).optional(),
   size: z.enum(PET_SIZES).optional(),
   eyeColor: z.enum(PET_EYE_COLORS).optional(),
-  distinctiveFeatures: z.array(z.enum(PET_DISTINCTIVE_FEATURES)).max(5).optional()
+  distinctiveFeatures: z.array(z.enum(PET_DISTINCTIVE_FEATURES)).max(5).optional(),
 });
 
 const PetPersonalitySchema = z.object({
   traits: z.array(z.enum(PET_PERSONALITY_TRAITS)).max(5).optional(),
-  favoriteActivities: z.array(z.enum(PET_ACTIVITIES)).max(5).optional()
+  favoriteActivities: z.array(z.enum(PET_ACTIVITIES)).max(5).optional(),
 });
 
 // Human-specific appearance traits
@@ -310,12 +456,12 @@ const HumanAppearanceSchema = z.object({
   height: z.enum(HEIGHTS).optional(),
   build: z.enum(BUILDS).optional(),
   clothing: z.enum(CLOTHING_STYLES).optional(),
-  distinctiveFeatures: z.array(z.enum(HUMAN_DISTINCTIVE_FEATURES)).max(5).optional()
+  distinctiveFeatures: z.array(z.enum(HUMAN_DISTINCTIVE_FEATURES)).max(5).optional(),
 });
 
 const HumanPersonalitySchema = z.object({
   traits: z.array(z.string()).max(5).optional(), // free text for humans
-  favoriteActivities: z.array(z.string()).max(5).optional()
+  favoriteActivities: z.array(z.string()).max(5).optional(),
 });
 
 // Imaginary-specific appearance traits (ALL FREE TEXT!)
@@ -325,12 +471,12 @@ const ImaginaryAppearanceSchema = z.object({
   secondaryColor: z.string().max(50).optional(), // pure free text
   size: z.string().max(50).optional(), // pure free text (UI shows random suggestions)
   magicalFeatures: z.array(z.string().max(50)).max(10).optional(), // pure free text array (UI suggestions)
-  customDescription: z.string().max(500).optional() // full description
+  customDescription: z.string().max(500).optional(), // full description
 });
 
 const ImaginaryPersonalitySchema = z.object({
   traits: z.array(z.string().max(50)).max(5).optional(), // free text
-  favoriteActivities: z.array(z.string().max(50)).max(5).optional()
+  favoriteActivities: z.array(z.string().max(50)).max(5).optional(),
 });
 
 // Main character schema with discriminated union
@@ -340,52 +486,65 @@ export const CreateCharacterSchema = BaseCharacterSchema.and(
       type: z.literal('animal'),
       subtype: z.enum(ANIMAL_SUBTYPES).optional(),
       appearanceTraits: PetAppearanceSchema.optional(),
-      personality: PetPersonalitySchema.optional()
+      personality: PetPersonalitySchema.optional(),
     }),
     z.object({
       type: z.literal('person'),
       subtype: z.enum(PERSON_SUBTYPES).optional(),
       appearanceTraits: HumanAppearanceSchema.optional(),
-      personality: HumanPersonalitySchema.optional()
+      personality: HumanPersonalitySchema.optional(),
     }),
     z.object({
       type: z.literal('imaginary'),
       subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
-      referencePhotos: z.array(z.object({
-        url: z.string().url(),
-        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
-      })).max(5).optional(),
+      referencePhotos: z
+        .array(
+          z.object({
+            url: z.string().url(),
+            uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional(),
+          })
+        )
+        .max(5)
+        .optional(),
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
-      personality: ImaginaryPersonalitySchema.optional()
-    })
+      personality: ImaginaryPersonalitySchema.optional(),
+    }),
   ])
 ).refine(
-  (data) => (data.referencePhotos?.length ?? 0) > 0 || (data.description?.trim().length ?? 0) > 0 || (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
-  { message: 'Either referencePhotos, description, or aiGeneratedDescription is required', path: ['description'] }
+  (data) =>
+    (data.referencePhotos?.length ?? 0) > 0 ||
+    (data.description?.trim().length ?? 0) > 0 ||
+    (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
+  {
+    message: 'Either referencePhotos, description, or aiGeneratedDescription is required',
+    path: ['description'],
+  }
 );
 
 // Updates may include reference photos because changing them regenerates the model sheet.
 export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
-  z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal('animal'),
-      subtype: z.enum(ANIMAL_SUBTYPES).optional(),
-      appearanceTraits: PetAppearanceSchema.optional(),
-      personality: PetPersonalitySchema.optional()
-    }),
-    z.object({
-      type: z.literal('person'),
-      subtype: z.enum(PERSON_SUBTYPES).optional(),
-      appearanceTraits: HumanAppearanceSchema.optional(),
-      personality: HumanPersonalitySchema.optional()
-    }),
-    z.object({
-      type: z.literal('imaginary'),
-      subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
-      appearanceTraits: ImaginaryAppearanceSchema.optional(),
-      personality: ImaginaryPersonalitySchema.optional()
-    })
-  ]).optional()
+  z
+    .discriminatedUnion('type', [
+      z.object({
+        type: z.literal('animal'),
+        subtype: z.enum(ANIMAL_SUBTYPES).optional(),
+        appearanceTraits: PetAppearanceSchema.optional(),
+        personality: PetPersonalitySchema.optional(),
+      }),
+      z.object({
+        type: z.literal('person'),
+        subtype: z.enum(PERSON_SUBTYPES).optional(),
+        appearanceTraits: HumanAppearanceSchema.optional(),
+        personality: HumanPersonalitySchema.optional(),
+      }),
+      z.object({
+        type: z.literal('imaginary'),
+        subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
+        appearanceTraits: ImaginaryAppearanceSchema.optional(),
+        personality: ImaginaryPersonalitySchema.optional(),
+      }),
+    ])
+    .optional()
 );
 
 // Type exports
@@ -410,7 +569,7 @@ export const CreateStoryRequestSchema = z.object({
   imageStyle: z.string().max(50).optional(), // Image art style (soft_watercolor, colored_pencil, etc.)
   userNotes: z.string().max(500).optional(),
   selectedCharacters: z.array(z.string().uuid()).max(5).optional(),
-  selectedChildren: z.array(z.string().uuid()).max(5).optional() // NEW: Selected child profiles to include in story
+  selectedChildren: z.array(z.string().uuid()).max(5).optional(), // NEW: Selected child profiles to include in story
 });
 
 export type CreateStoryRequestInput = z.infer<typeof CreateStoryRequestSchema>;

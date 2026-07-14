@@ -6,6 +6,7 @@ import {
   buildPublicPricingPath,
   buildPublicStoriesPath,
   buildPublicSupportPath,
+  buildPublicUpdatesPath,
   normalizePublicSeoLocale,
   PUBLIC_SEO_LOCALES,
   type PublicSeoLocale,
@@ -54,7 +55,7 @@ export interface PublicFooterLanguageLink {
   href: string;
 }
 
-export type PublicPageNavId = 'pricing' | 'stories' | 'blog' | 'terms' | 'privacy' | 'support';
+export type PublicPageNavId = 'pricing' | 'stories' | 'blog' | 'updates' | 'terms' | 'privacy' | 'support';
 
 interface PublicPageNavLink {
   id: PublicPageNavId;
@@ -69,6 +70,7 @@ interface PublicFooterCopy {
   pricing: string;
   stories: string;
   blog: string;
+  updates: string;
   terms: string;
   privacy: string;
   support: string;
@@ -158,6 +160,7 @@ export function renderPublicPageFooter(
     { id: 'pricing', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: copy.pricing },
     { id: 'stories', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: copy.stories },
     { id: 'blog', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogIndexPath(normalizedLocale)), label: copy.blog },
+    { id: 'updates', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicUpdatesPath(normalizedLocale)), label: copy.updates },
     { id: 'terms', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', normalizedLocale)), label: copy.terms },
     { id: 'privacy', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', normalizedLocale)), label: copy.privacy },
     { id: 'support', href: buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(normalizedLocale)), label: copy.support },
