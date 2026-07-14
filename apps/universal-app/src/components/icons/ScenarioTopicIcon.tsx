@@ -165,6 +165,19 @@ function ScenarioArtwork({ scenarioId }: Pick<ScenarioTopicIconProps, 'scenarioI
           <Circle cx="12" cy="18" r="1.5" />
         </>
       );
+    case 'families_cultures':
+      return (
+        <>
+          <Circle cx="6" cy="7.5" r="2.7" />
+          <Circle cx="12" cy="5.5" r="3" />
+          <Circle cx="18" cy="7.5" r="2.7" />
+          <Path d="M12 21v-7.5" />
+          <Path d="M12 14c-1.5-2.8-3.5-4.4-6-5" />
+          <Path d="M12 14c1.5-2.8 3.5-4.4 6-5" />
+          <Path d="M12 21c-1.4-2-3.3-2.8-5.7-2.8" />
+          <Path d="M12 21c1.4-2 3.3-2.8 5.7-2.8" />
+        </>
+      );
     default:
       return (
         <>

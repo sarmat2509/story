@@ -50,6 +50,7 @@ const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
   sports_competitions: 'sports',
   science_facts: 'science-facts',
   holidays_traditions: 'holidays-traditions',
+  families_cultures: 'family-cultures',
 };
 
 function getTopicImageUri(scenarioId: string | null) {
