@@ -70,12 +70,15 @@ BASE_URL="$BASE_URL" \
 ADMIN_ALERT_DAYS="$ADMIN_ALERT_DAYS" \
 ADMIN_ALERT_ON_WARNINGS="$ADMIN_ALERT_ON_WARNINGS" \
 ADMIN_ALERT_TITLE_PREFIX="$ADMIN_ALERT_TITLE_PREFIX" \
+TELEGRAM_ALERT_HELPER="$(cd "$(dirname "$0")" && pwd)/lib/telegram-alert.js" \
 PROD_ADMIN_ALERT_TOKEN="$PROD_ADMIN_ALERT_TOKEN" \
 PROD_ADMIN_ALERT_EMAIL="$PROD_ADMIN_ALERT_EMAIL" \
 PROD_ADMIN_ALERT_PASSWORD="$PROD_ADMIN_ALERT_PASSWORD" \
 FORCE_ALERT="$FORCE_ALERT" \
 TEST_ALERT="$TEST_ALERT" \
 node > "$tmp_payload" <<'NODE'
+const { buildAdminAlert } = require(process.env.TELEGRAM_ALERT_HELPER);
+
 const baseUrl = (process.env.BASE_URL || 'https://wondertales.art').replace(/\/$/, '');
 const days = Number.parseInt(process.env.ADMIN_ALERT_DAYS || '7', 10);
 const includeWarnings = process.env.ADMIN_ALERT_ON_WARNINGS === '1';
@@ -213,27 +216,39 @@ function buildResult({ findings, source }) {
       ? 'warning'
       : 'info';
   const shouldAlert = findings.length > 0 || forceAlert;
-  const lines = findings.length > 0
-    ? findings.map((item) => `- [${item.severity}] ${item.area}: ${item.title}${item.detail ? ` | ${item.detail}` : ''} | ${item.reviewUrl}`)
-    : ['No active admin dashboard alerts.'];
-  const text = `${titlePrefix}: ${severity}\nsource=${source}\nfindings=${findings.length}\n\n${lines.join('\n')}`;
+  const alert = buildAdminAlert({
+    titlePrefix,
+    severity,
+    findings,
+    source,
+    days,
+    appUrl: baseUrl,
+  });
   return {
     severity,
     shouldAlert,
     findingCount: findings.length,
-    text,
+    ...alert,
   };
 }
 
 main()
   .then(printResult)
   .catch((error) => {
-    printResult({
-      severity: 'critical',
-      shouldAlert: true,
-      findingCount: 1,
-      text: `${titlePrefix}: critical\nAdmin dashboard alert check failed\n\n${error?.message || error}`,
-    });
+    printResult(
+      buildResult({
+        source: 'alert-check-error',
+        findings: [
+          {
+            severity: 'critical',
+            area: 'system',
+            title: 'Admin dashboard alert check failed',
+            detail: error?.message || String(error),
+            reviewUrl: '/admin/dashboard',
+          },
+        ],
+      }),
+    );
     process.exitCode = 2;
   });
 NODE
@@ -244,6 +259,7 @@ cat "$tmp_payload"
 
 should_alert="$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(data.shouldAlert ? '1' : '0')" "$tmp_payload")"
 payload="$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(JSON.stringify({ text: data.text }))" "$tmp_payload")"
+alert="$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(JSON.stringify(data))" "$tmp_payload")"
 
 if [[ "$should_alert" != "1" ]]; then
   echo "No alert sent."
@@ -251,29 +267,24 @@ if [[ "$should_alert" != "1" ]]; then
 fi
 
 if [[ "$DRY_RUN_ALERT" == "1" ]]; then
-  echo "Dry-run alert payload:"
+  echo "Dry-run Telegram rich alert:"
+  printf '%s' "$alert" | node "$(cd "$(dirname "$0")" && pwd)/lib/telegram-alert.js" preview
+  echo
+  echo "Webhook payload:"
   printf '%s\n' "$payload"
   exit "$check_status"
 fi
 
 if [[ -z "$ADMIN_ALERT_WEBHOOK_URL" ]]; then
   if [[ -n "$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" && -n "$ADMIN_ALERT_TELEGRAM_CHAT_ID" ]]; then
-    alert_text="$(
-      ALERT_PAYLOAD="$payload" node <<'NODE'
-const payload = JSON.parse(process.env.ALERT_PAYLOAD || '{}');
-const limit = 3900;
-let text = String(payload.text || '');
-if (text.length > limit) text = `${text.slice(0, limit)}\n...truncated`;
-console.log(text);
-NODE
+    delivery_result="$(
+      printf '%s' "$alert" | \
+        TELEGRAM_BOT_TOKEN="$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" \
+        TELEGRAM_CHAT_ID="$ADMIN_ALERT_TELEGRAM_CHAT_ID" \
+        node "$(cd "$(dirname "$0")" && pwd)/lib/telegram-alert.js" deliver
     )"
-    curl -fsS \
-      --max-time 15 \
-      -X POST "https://api.telegram.org/bot${ADMIN_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
-      -d "chat_id=${ADMIN_ALERT_TELEGRAM_CHAT_ID}" \
-      --data-urlencode "text=${alert_text}" >/dev/null
-
-    echo "Telegram alert sent."
+    delivery_summary="$(ALERT_DELIVERY_RESULT="$delivery_result" node -e "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.mode + ' ' + result.action)")"
+    echo "Telegram alert sent (${delivery_summary})."
     exit "$check_status"
   fi
 

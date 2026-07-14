@@ -69,9 +69,8 @@ for arg in "$@"; do
 done
 
 tmp_report="$(mktemp)"
-tmp_payload_builder="$(mktemp)"
 cleanup() {
-  rm -f "$tmp_report" "$tmp_payload_builder"
+  rm -f "$tmp_report"
 }
 trap cleanup EXIT
 
@@ -122,107 +121,8 @@ if [[ "$should_alert" != "1" ]]; then
   exit "$check_status"
 fi
 
-cat > "$tmp_payload_builder" <<'NODE'
-const fs = require('fs');
-
-const titlePrefix = process.env.OPS_ALERT_TITLE_PREFIX || 'WonderTales production ops';
-const severity = process.env.OPS_ALERT_SEVERITY || 'info';
-const checkStatus = process.env.OPS_ALERT_CHECK_STATUS || '0';
-const failures = process.env.OPS_ALERT_FAILURES || '0';
-const warnings = process.env.OPS_ALERT_WARNINGS || '0';
-const reportPath = process.env.OPS_ALERT_REPORT_PATH || '';
-const includeFullReport = process.env.OPS_ALERT_INCLUDE_FULL_REPORT === '1';
-const tailLines = Number.parseInt(process.env.OPS_ALERT_TAIL_LINES || '80', 10);
-const fullReportHint = process.env.OPS_ALERT_FULL_REPORT_HINT || '';
-
-const report = reportPath ? fs.readFileSync(reportPath, 'utf8') : '';
-const lines = report.split(/\r?\n/).filter(Boolean);
-
-function findLine(pattern) {
-  return lines.find((line) => pattern.test(line)) || '';
-}
-
-function summarizeService(line) {
-  const match = line.match(/^PASS ((?:wondertales|shared)-[a-z-]+(?:-prod)?) is running \(health=([^,]+), restarts=([^)]+)\)/);
-  if (!match) return '';
-  const name = match[1]
-    .replace(/^wondertales-/, '')
-    .replace(/^shared-/, 'shared ')
-    .replace(/-prod$/, '');
-  const health = match[2] === 'none' ? 'up' : match[2];
-  return `${name} ${health}, restarts ${match[3]}`;
-}
-
-function compact(line) {
-  return line
-    .replace(/^PASS /, '')
-    .replace(/^WARN /, '')
-    .replace(/^FAIL /, '')
-    .trim();
-}
-
-const problemLines = lines
-  .filter((line) => /^(FAIL|WARN) /.test(line))
-  .map((line) => `- ${compact(line)}`);
-
-const services = lines
-  .map(summarizeService)
-  .filter(Boolean);
-
-const rootDisk = compact(findLine(/^PASS root filesystem has /));
-const dbBackup = compact(findLine(/^PASS recent database backup file exists /));
-const uploadBackup = compact(findLine(/^PASS recent upload-volume backup archive exists /));
-const logs = compact(findLine(/^PASS recent api webapp logs /));
-const ingressLogs = compact(findLine(/^PASS recent shared-nginx-proxy logs /));
-const stripe = compact(findLine(/^PASS api Stripe secret key mode /));
-const offsite = compact(findLine(/^PASS offsite backup target reference found/));
-const alertDestination = compact(findLine(/^PASS ops alert destination reference found/));
-const adminAlert = compact(findLine(/^PASS admin dashboard alert destination reference found/));
-
-const sections = [];
-sections.push(`${titlePrefix} | ${severity.toUpperCase()}`);
-sections.push(`failures ${failures} | warnings ${warnings} | exit ${checkStatus}`);
-
-sections.push('');
-sections.push('Needs attention');
-sections.push(problemLines.length ? problemLines.join('\n') : '- none');
-
-const healthLines = [];
-if (services.length) healthLines.push(`- services: ${services.join('; ')}`);
-if (rootDisk) healthLines.push(`- disk: ${rootDisk}`);
-if (dbBackup) healthLines.push(`- database backups: ${dbBackup}`);
-if (uploadBackup) healthLines.push(`- upload backups: ${uploadBackup}`);
-if (logs || ingressLogs) healthLines.push(`- logs: ${[logs, ingressLogs].filter(Boolean).join('; ')}`);
-if (stripe) healthLines.push(`- payments: ${stripe}`);
-if (offsite) healthLines.push(`- offsite: ${offsite}`);
-if (alertDestination || adminAlert) {
-  const alertBits = [alertDestination, adminAlert].filter(Boolean);
-  healthLines.push(`- alerts: ${alertBits.join('; ')}`);
-}
-
-if (healthLines.length) {
-  sections.push('');
-  sections.push('Current state');
-  sections.push(healthLines.join('\n'));
-}
-
-if (fullReportHint) {
-  sections.push('');
-  sections.push(fullReportHint);
-}
-
-if (includeFullReport) {
-  const tail = lines.slice(Math.max(0, lines.length - tailLines)).join('\n');
-  sections.push('');
-  sections.push('Report tail');
-  sections.push(tail);
-}
-
-console.log(JSON.stringify({
-  text: sections.join('\n'),
-}));
-NODE
-payload="$(
+alert="$(
+  TELEGRAM_ALERT_HELPER="${SCRIPT_DIR}/lib/telegram-alert.js" \
   OPS_ALERT_TITLE_PREFIX="$OPS_ALERT_TITLE_PREFIX" \
   OPS_ALERT_SEVERITY="$severity" \
   OPS_ALERT_CHECK_STATUS="$check_status" \
@@ -232,33 +132,44 @@ payload="$(
   OPS_ALERT_TAIL_LINES="$OPS_ALERT_TAIL_LINES" \
   OPS_ALERT_INCLUDE_FULL_REPORT="$OPS_ALERT_INCLUDE_FULL_REPORT" \
   OPS_ALERT_FULL_REPORT_HINT="$OPS_ALERT_FULL_REPORT_HINT" \
-  node "$tmp_payload_builder"
+  node <<'NODE'
+const fs = require('node:fs');
+const { buildOpsAlert } = require(process.env.TELEGRAM_ALERT_HELPER);
+
+console.log(JSON.stringify(buildOpsAlert({
+  titlePrefix: process.env.OPS_ALERT_TITLE_PREFIX,
+  severity: process.env.OPS_ALERT_SEVERITY,
+  checkStatus: process.env.OPS_ALERT_CHECK_STATUS,
+  failures: process.env.OPS_ALERT_FAILURES,
+  warnings: process.env.OPS_ALERT_WARNINGS,
+  report: fs.readFileSync(process.env.OPS_ALERT_REPORT_PATH, 'utf8'),
+  includeFullReport: process.env.OPS_ALERT_INCLUDE_FULL_REPORT === '1',
+  tailLines: process.env.OPS_ALERT_TAIL_LINES,
+  fullReportHint: process.env.OPS_ALERT_FULL_REPORT_HINT,
+})));
+NODE
 )"
+payload="$(ALERT_PAYLOAD="$alert" node -e "const alert=JSON.parse(process.env.ALERT_PAYLOAD); console.log(JSON.stringify({text: alert.text}))")"
 
 if [[ "$DRY_RUN_ALERT" == "1" ]]; then
-  echo "Dry-run alert payload:"
+  echo "Dry-run Telegram rich alert:"
+  printf '%s' "$alert" | node "${SCRIPT_DIR}/lib/telegram-alert.js" preview
+  echo
+  echo "Webhook payload:"
   printf '%s\n' "$payload"
   exit "$check_status"
 fi
 
 if [[ -z "$OPS_ALERT_WEBHOOK_URL" ]]; then
   if [[ -n "$OPS_ALERT_TELEGRAM_BOT_TOKEN" && -n "$OPS_ALERT_TELEGRAM_CHAT_ID" ]]; then
-    alert_text="$(
-      ALERT_PAYLOAD="$payload" node <<'NODE'
-const payload = JSON.parse(process.env.ALERT_PAYLOAD || '{}');
-const limit = 3900;
-let text = String(payload.text || '');
-if (text.length > limit) text = `${text.slice(0, limit)}\n...truncated`;
-console.log(text);
-NODE
+    delivery_result="$(
+      printf '%s' "$alert" | \
+        TELEGRAM_BOT_TOKEN="$OPS_ALERT_TELEGRAM_BOT_TOKEN" \
+        TELEGRAM_CHAT_ID="$OPS_ALERT_TELEGRAM_CHAT_ID" \
+        node "${SCRIPT_DIR}/lib/telegram-alert.js" deliver
     )"
-    curl -fsS \
-      --max-time 15 \
-      -X POST "https://api.telegram.org/bot${OPS_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
-      -d "chat_id=${OPS_ALERT_TELEGRAM_CHAT_ID}" \
-      --data-urlencode "text=${alert_text}" >/dev/null
-
-    echo "Telegram alert sent."
+    delivery_summary="$(ALERT_DELIVERY_RESULT="$delivery_result" node -e "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.mode + ' ' + result.action)")"
+    echo "Telegram alert sent (${delivery_summary})."
     exit "$check_status"
   fi
 

@@ -30,6 +30,10 @@ DEPLOY_TELEGRAM_DRY_RUN="${DEPLOY_TELEGRAM_DRY_RUN:-false}"
 DEPLOY_STARTED_AT=$(date +%s)
 DEPLOY_STARTED_AT_UTC=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 DEPLOY_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
+TELEGRAM_ALERT_HELPER="${SCRIPT_DIR}/lib/telegram-alert.js"
+REMOTE_TELEGRAM_ALERT_HELPER="${DROPLET_PATH}/scripts/lib/telegram-alert.js"
+DEPLOY_TELEGRAM_MESSAGE_ID=""
+DEPLOY_TELEGRAM_LAST_DELIVERY=""
 
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
@@ -48,13 +52,12 @@ on_error() {
   local exit_code=$?
   local line_no=$1
   local command=$2
-  local failed_at duration deploy_summary failure_message
+  local failed_at duration
 
   trap - ERR
   set +e
   failed_at=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
   duration=$(( $(date +%s) - DEPLOY_STARTED_AT ))
-  deploy_summary=$(deploy_characteristics)
 
   echo ""
   echo "❌ Deployment failed"
@@ -68,15 +71,12 @@ on_error() {
   echo ""
   echo "💡 Tip: rerun the failing remote command manually over SSH to inspect it in isolation."
 
-  printf -v failure_message \
-    '❌ WonderTales deploy failed\nID: %s\nTarget: production · wondertales.art\n%s\nFailed step: %s\nExit code: %s\nDuration: %s\nFinished: %s' \
-    "${DEPLOY_ID}" \
-    "${deploy_summary}" \
-    "${CURRENT_STEP}" \
-    "${exit_code}" \
+  build_and_notify_deploy_telegram_best_effort \
+    "failure" \
     "$(format_duration "${duration}")" \
-    "${failed_at}"
-  notify_deploy_telegram_best_effort "${failure_message}" "failure"
+    "${failed_at}" \
+    "${CURRENT_STEP}" \
+    "${exit_code}"
 
   exit "${exit_code}"
 }
@@ -206,16 +206,21 @@ deploy_source_summary() {
   printf '%s@%s (%s)' "${branch}" "${revision}" "${state}"
 }
 
-deploy_characteristics() {
-  local drain_mode="not applicable"
-
+deploy_drain_mode() {
   if ${DEPLOY_API}; then
     if [[ "${SKIP_DEPLOY_DRAIN:-false}" == "true" ]]; then
-      drain_mode="skipped"
+      printf 'skipped'
     else
-      drain_mode="enabled"
+      printf 'enabled'
     fi
+  else
+    printf 'not applicable'
   fi
+}
+
+deploy_characteristics() {
+  local drain_mode
+  drain_mode=$(deploy_drain_mode)
 
   printf 'Components: API=%s | Web=%s | Migrations=%s | Artifacts=%s | Outfits=%s | Nginx=%s\nSource: %s\nDrain: %s' \
     "${DEPLOY_API}" \
@@ -228,9 +233,77 @@ deploy_characteristics() {
     "${drain_mode}"
 }
 
+build_deploy_telegram_alert() {
+  local phase="$1"
+  local duration="${2:-}"
+  local finished_at="${3:-}"
+  local failed_step="${4:-}"
+  local exit_code="${5:-}"
+
+  TELEGRAM_ALERT_HELPER="${TELEGRAM_ALERT_HELPER}" \
+  DEPLOY_ALERT_PHASE="${phase}" \
+  DEPLOY_ALERT_ID="${DEPLOY_ID}" \
+  DEPLOY_ALERT_SOURCE="$(deploy_source_summary)" \
+  DEPLOY_ALERT_DRAIN="$(deploy_drain_mode)" \
+  DEPLOY_ALERT_STARTED_AT="${DEPLOY_STARTED_AT_UTC}" \
+  DEPLOY_ALERT_FINISHED_AT="${finished_at}" \
+  DEPLOY_ALERT_DURATION="${duration}" \
+  DEPLOY_ALERT_FAILED_STEP="${failed_step}" \
+  DEPLOY_ALERT_EXIT_CODE="${exit_code}" \
+  DEPLOY_ALERT_API="${DEPLOY_API}" \
+  DEPLOY_ALERT_WEB="${DEPLOY_WEB}" \
+  DEPLOY_ALERT_MIGRATIONS="${DEPLOY_MIGRATE}" \
+  DEPLOY_ALERT_ARTIFACTS="${DEPLOY_ARTIFACTS}" \
+  DEPLOY_ALERT_OUTFITS="${DEPLOY_OUTFITS}" \
+  DEPLOY_ALERT_NGINX="${DEPLOY_NGINX}" \
+  node <<'NODE'
+const { buildDeployAlert } = require(process.env.TELEGRAM_ALERT_HELPER);
+const enabled = (value) => value === 'true';
+
+console.log(JSON.stringify(buildDeployAlert({
+  phase: process.env.DEPLOY_ALERT_PHASE,
+  deployId: process.env.DEPLOY_ALERT_ID,
+  sourceSummary: process.env.DEPLOY_ALERT_SOURCE,
+  drainMode: process.env.DEPLOY_ALERT_DRAIN,
+  startedAt: process.env.DEPLOY_ALERT_STARTED_AT,
+  finishedAt: process.env.DEPLOY_ALERT_FINISHED_AT,
+  duration: process.env.DEPLOY_ALERT_DURATION,
+  failedStep: process.env.DEPLOY_ALERT_FAILED_STEP,
+  exitCode: process.env.DEPLOY_ALERT_EXIT_CODE,
+  components: {
+    api: enabled(process.env.DEPLOY_ALERT_API),
+    web: enabled(process.env.DEPLOY_ALERT_WEB),
+    migrations: enabled(process.env.DEPLOY_ALERT_MIGRATIONS),
+    artifacts: enabled(process.env.DEPLOY_ALERT_ARTIFACTS),
+    outfits: enabled(process.env.DEPLOY_ALERT_OUTFITS),
+    nginx: enabled(process.env.DEPLOY_ALERT_NGINX),
+  },
+})));
+NODE
+}
+
+sync_deploy_telegram_helper_best_effort() {
+  if [[ "${DEPLOY_TELEGRAM_ENABLED}" != "true" || "${DEPLOY_TELEGRAM_DRY_RUN}" == "true" ]]; then
+    return 0
+  fi
+
+  if ssh $SSH_OPTS -o BatchMode=yes "${DROPLET_USER}@${DROPLET_IP}" \
+      "mkdir -p '${DROPLET_PATH}/scripts/lib'" \
+    && scp -o ControlPath=${SSH_CONTROL_PATH} "${TELEGRAM_ALERT_HELPER}" \
+      "${DROPLET_USER}@${DROPLET_IP}:${REMOTE_TELEGRAM_ALERT_HELPER}" \
+    && ssh $SSH_OPTS -o BatchMode=yes "${DROPLET_USER}@${DROPLET_IP}" \
+      "chmod 755 '${REMOTE_TELEGRAM_ALERT_HELPER}'"; then
+    echo "✅ Telegram rich alert helper synced"
+  else
+    echo "⚠️  Telegram rich alert helper sync failed; deployment will continue" >&2
+  fi
+
+  return 0
+}
+
 send_deploy_telegram_notification() {
-  local message="$1"
-  local message_base64
+  local alert="$1"
+  local alert_base64 delivery_result
 
   if [[ "${DEPLOY_TELEGRAM_ENABLED}" != "true" ]]; then
     echo "ℹ️  DEPLOY_TELEGRAM_ENABLED=${DEPLOY_TELEGRAM_ENABLED}, skipping Telegram deploy notification"
@@ -238,14 +311,14 @@ send_deploy_telegram_notification() {
   fi
 
   if [[ "${DEPLOY_TELEGRAM_DRY_RUN}" == "true" ]]; then
-    echo "ℹ️  Telegram deploy notification dry run:"
-    printf '%s\n' "${message}"
+    echo "ℹ️  Telegram deploy rich notification dry run:"
+    printf '%s' "${alert}" | node "${TELEGRAM_ALERT_HELPER}" preview
     return 0
   fi
 
-  message_base64=$(printf '%s' "${message}" | base64 | tr -d '\n')
-  ssh $SSH_OPTS -o BatchMode=yes "${DROPLET_USER}@${DROPLET_IP}" \
-    "DEPLOY_MESSAGE_BASE64='${message_base64}' bash -s" <<'REMOTE'
+  alert_base64=$(printf '%s' "${alert}" | base64 | tr -d '\n')
+  delivery_result=$(ssh $SSH_OPTS -o BatchMode=yes "${DROPLET_USER}@${DROPLET_IP}" \
+    "DEPLOY_ALERT_PAYLOAD_BASE64='${alert_base64}' DEPLOY_ALERT_MESSAGE_ID='${DEPLOY_TELEGRAM_MESSAGE_ID}' DEPLOY_ALERT_HELPER='${REMOTE_TELEGRAM_ALERT_HELPER}' bash -s" <<'REMOTE'
 set -euo pipefail
 
 for env_file in /etc/wondertales/ops-alert.env /etc/wondertales/deploy-alert.env; do
@@ -265,36 +338,55 @@ if [[ -z "${bot_token}" || -z "${chat_id}" ]]; then
   exit 3
 fi
 
-message=$(printf '%s' "${DEPLOY_MESSAGE_BASE64}" | base64 -d)
-if ((${#message} > 3900)); then
-  message="${message:0:3880}"$'\n...truncated'
+if [[ ! -f "${DEPLOY_ALERT_HELPER}" ]]; then
+  echo "Telegram rich alert helper is not installed on the droplet" >&2
+  exit 4
 fi
 
-curl -fsS \
-  --max-time 15 \
-  -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
-  -d "chat_id=${chat_id}" \
-  --data-urlencode "text=${message}" >/dev/null
+TELEGRAM_ALERT_PAYLOAD_BASE64="${DEPLOY_ALERT_PAYLOAD_BASE64}" \
+TELEGRAM_ALERT_MESSAGE_ID="${DEPLOY_ALERT_MESSAGE_ID}" \
+TELEGRAM_BOT_TOKEN="${bot_token}" \
+TELEGRAM_CHAT_ID="${chat_id}" \
+node "${DEPLOY_ALERT_HELPER}" deliver
 REMOTE
+  )
+
+  DEPLOY_TELEGRAM_LAST_DELIVERY=$(ALERT_DELIVERY_RESULT="${delivery_result}" node -e \
+    "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.mode + ' ' + result.action)")
+  DEPLOY_TELEGRAM_MESSAGE_ID=$(ALERT_DELIVERY_RESULT="${delivery_result}" node -e \
+    "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.messageId || '')")
 }
 
 notify_deploy_telegram_best_effort() {
-  local message="$1"
+  local alert="$1"
   local phase="$2"
 
-  if send_deploy_telegram_notification "${message}"; then
+  if send_deploy_telegram_notification "${alert}"; then
     if [[ "${DEPLOY_TELEGRAM_ENABLED}" != "true" ]]; then
       echo "ℹ️  Telegram deploy ${phase} notification skipped"
     elif [[ "${DEPLOY_TELEGRAM_DRY_RUN}" == "true" ]]; then
       echo "✅ Telegram deploy ${phase} notification dry run completed"
     else
-      echo "✅ Telegram deploy ${phase} notification sent"
+      echo "✅ Telegram deploy ${phase} notification sent (${DEPLOY_TELEGRAM_LAST_DELIVERY})"
     fi
   else
     echo "⚠️  Telegram deploy ${phase} notification failed; deployment will continue" >&2
   fi
 
   return 0
+}
+
+build_and_notify_deploy_telegram_best_effort() {
+  local phase="$1"
+  shift
+  local alert
+
+  if ! alert=$(build_deploy_telegram_alert "${phase}" "$@"); then
+    echo "⚠️  Telegram deploy ${phase} notification could not be built; deployment will continue" >&2
+    return 0
+  fi
+
+  notify_deploy_telegram_best_effort "${alert}" "${phase}"
 }
 
 ssh_droplet() {
@@ -1024,14 +1116,9 @@ trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
 
 # Open master connection once (triggers passphrase prompt if needed).
 ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
+sync_deploy_telegram_helper_best_effort
 
-deploy_start_summary=$(deploy_characteristics)
-printf -v deploy_start_message \
-  '🚀 WonderTales deploy started\nID: %s\nTarget: production · wondertales.art\n%s\nStarted: %s' \
-  "${DEPLOY_ID}" \
-  "${deploy_start_summary}" \
-  "${DEPLOY_STARTED_AT_UTC}"
-notify_deploy_telegram_best_effort "${deploy_start_message}" "start"
+build_and_notify_deploy_telegram_best_effort "start"
 
 echo "Deploy started"
 echo "   ID:       ${DEPLOY_ID}"
@@ -1086,11 +1173,7 @@ echo "🌐 App:    https://wondertales.art"
 
 deploy_completed_at_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 deploy_duration=$(( $(date +%s) - DEPLOY_STARTED_AT ))
-deploy_success_summary=$(deploy_characteristics)
-printf -v deploy_success_message \
-  '✅ WonderTales deploy succeeded\nID: %s\nTarget: production · wondertales.art\n%s\nDuration: %s\nFinished: %s\nHealth: https://wondertales.art/health' \
-  "${DEPLOY_ID}" \
-  "${deploy_success_summary}" \
+build_and_notify_deploy_telegram_best_effort \
+  "success" \
   "$(format_duration "${deploy_duration}")" \
   "${deploy_completed_at_utc}"
-notify_deploy_telegram_best_effort "${deploy_success_message}" "success"
