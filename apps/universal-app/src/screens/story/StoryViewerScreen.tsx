@@ -314,6 +314,7 @@ export default function StoryViewerScreen() {
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const { isTabletPortrait, isMobile, width } = useResponsive();
+  const isSingleColumn = isMobile || isTabletPortrait;
   const mobileHeaderTitleMaxWidth = isMobile ? Math.max(0, width - 128) : undefined;
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
@@ -535,8 +536,10 @@ export default function StoryViewerScreen() {
         navigation.setOptions({
           headerTitleContainerStyle: isMobile
             ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
-            : undefined,
-          headerTitleAlign: isMobile ? 'left' : undefined,
+            : isTabletPortrait
+              ? styles.tabletHeaderTitleContainer
+              : undefined,
+          headerTitleAlign: isSingleColumn ? 'left' : undefined,
           headerTitle: () => (
             isMobile ? (
               <View style={styles.mobileHeaderBreadcrumb}>
@@ -568,8 +571,11 @@ export default function StoryViewerScreen() {
                   onPress={() =>
                     navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
                   }
+                  style={styles.headerBreadcrumbLinkPressable}
                 >
-                  <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
+                  <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>
+                    {story.scenarioCardName}
+                  </Text>
                 </TouchableOpacity>
                 {seriesInfo?.baseTitle && (
                   <>
@@ -587,6 +593,7 @@ export default function StoryViewerScreen() {
                             { seriesId: seriesInfo.seriesId }
                           )
                         }
+                        style={styles.headerBreadcrumbLinkPressable}
                       >
                         <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>
                           {seriesInfo.baseTitle}
@@ -616,8 +623,10 @@ export default function StoryViewerScreen() {
         navigation.setOptions({
           headerTitleContainerStyle: isMobile
             ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
-            : undefined,
-          headerTitleAlign: isMobile ? 'left' : undefined,
+            : isTabletPortrait
+              ? styles.tabletHeaderTitleContainer
+              : undefined,
+          headerTitleAlign: isSingleColumn ? 'left' : undefined,
           headerTitle: isMobile
             ? () => (
                 <Text style={styles.mobileHeaderBreadcrumbCurrent} numberOfLines={2}>
@@ -636,6 +645,8 @@ export default function StoryViewerScreen() {
     seriesInfo?.baseTitle,
     seriesInfo?.seriesId,
     isMobile,
+    isSingleColumn,
+    isTabletPortrait,
     mobileHeaderTitleMaxWidth,
     navigation,
   ]);
@@ -2612,7 +2623,11 @@ export default function StoryViewerScreen() {
         style={[styles.graphicNovelPage, isActivePage && styles.graphicNovelPageActive]}
       >
         <View
-          style={[styles.graphicNovelPageCanvas, { aspectRatio: graphicNovelPageAspectRatio(page) }]}
+          style={[
+            styles.graphicNovelPageCanvas,
+            isSingleColumn && styles.singleColumnMedia,
+            { aspectRatio: graphicNovelPageAspectRatio(page) },
+          ]}
           onLayout={(event) => handleGraphicNovelPageCanvasLayout(page.pageNumber, event)}
         >
           {imageUrl ? (
@@ -2683,11 +2698,11 @@ export default function StoryViewerScreen() {
         {showImage && scene.image?.url && scene.image?.status !== 'failed' ? (
           <Image
             source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
-            style={[styles.sceneImage, isMobile && styles.sceneImageMobile] as ImageStyle}
+            style={[styles.sceneImage, isSingleColumn && styles.singleColumnMedia] as ImageStyle}
             resizeMode="cover"
           />
         ) : showImage && (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
-          <View style={[styles.sceneImagePlaceholder, isMobile && styles.sceneImageMobile]}>
+          <View style={[styles.sceneImagePlaceholder, isSingleColumn && styles.singleColumnMedia]}>
             <Text
               style={[
                 styles.sceneImagePlaceholderText,
@@ -2734,7 +2749,13 @@ export default function StoryViewerScreen() {
             }}
             style={styles.graphicNovelPage}
           >
-            <View style={[styles.graphicNovelPageCanvas, { aspectRatio: 2 }]}>
+            <View
+              style={[
+                styles.graphicNovelPageCanvas,
+                isSingleColumn && styles.singleColumnMedia,
+                { aspectRatio: 2 },
+              ]}
+            >
               <View style={styles.graphicNovelPagePlaceholder}>
                 <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
                 <Text style={styles.graphicNovelPagePlaceholderText}>
@@ -2823,7 +2844,7 @@ export default function StoryViewerScreen() {
   return (
     <View style={styles.container}>
       {/* Layout decision based on breakpoint */}
-      {isMobile || isTabletPortrait ? (
+      {isSingleColumn ? (
         // Mobile + Tablet Portrait: Single Column with FAB
         <>
           <ScrollView
@@ -2833,7 +2854,7 @@ export default function StoryViewerScreen() {
           >
             {/* Reading Time (mobile) */}
             {readingTimeMinutes > 0 && (
-              <View style={styles.mobileSectionWrapper}>
+              <View style={[styles.mobileSectionWrapper, styles.readingTimeSection]}>
                 <View style={styles.readingTimeRow}>
                   <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
                   <Text style={styles.readingTimeText}>
@@ -2875,7 +2896,7 @@ export default function StoryViewerScreen() {
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
 
-            <View ref={quizSectionRef}>
+            <View ref={quizSectionRef} style={styles.singleColumnTextSection}>
               <StoryReflectionSection
                 storyId={storyId}
                 enabled={quizEnabled}
@@ -3471,6 +3492,12 @@ const styles = StyleSheet.create({
   mobileSectionWrapper: {
     marginHorizontal: theme.spacing[6],
   },
+  readingTimeSection: {
+    marginBottom: theme.spacing[4],
+  },
+  singleColumnTextSection: {
+    paddingHorizontal: theme.spacing[6],
+  },
   mobileCharactersWrapper: {
     position: 'relative',
     zIndex: 300,
@@ -3563,7 +3590,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sceneImageMobile: {
+  singleColumnMedia: {
     borderRadius: 0,
   },
   sceneImagePlaceholderText: {
@@ -3880,6 +3907,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    paddingRight: theme.spacing[2],
+  },
+  headerBreadcrumbLinkPressable: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerBreadcrumbLink: {
     fontSize: theme.typography.fontSize.lg,
@@ -3898,6 +3932,11 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     flexShrink: 1,
+  },
+  tabletHeaderTitleContainer: {
+    left: theme.spacing[4],
+    right: theme.spacing[16],
+    overflow: 'hidden',
   },
   mobileHeaderTitleContainer: {
     left: 0,

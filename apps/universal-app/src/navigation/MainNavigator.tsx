@@ -416,7 +416,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
               testID={`nav-tab-${name}`}
             >
               <Ionicons name={TAB_ICONS[name]} size={24} color={color} />
-              <Text style={[mobileTabBarStyles.tabLabel, { color }]} numberOfLines={1}>
+              <Text style={[mobileTabBarStyles.tabLabel, { color }]} numberOfLines={2}>
                 {t(TAB_LABELS[name])}
               </Text>
             </TouchableOpacity>
@@ -443,7 +443,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
                     : theme.colors.text.tertiary,
                 },
               ]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {t('navigation.tab_more')}
             </Text>
@@ -519,8 +519,13 @@ const mobileTabBarStyles = StyleSheet.create({
     paddingVertical: theme.spacing[2],
   },
   tabLabel: {
+    width: '100%',
+    minHeight: 28,
+    paddingHorizontal: 2,
     fontSize: theme.typography.fontSize.xs,
+    lineHeight: 14,
     marginTop: theme.spacing[1],
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
