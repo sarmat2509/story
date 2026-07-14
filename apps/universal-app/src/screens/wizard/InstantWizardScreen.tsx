@@ -19,6 +19,7 @@ import { PhotoUploadGrid } from '@/components/form/PhotoUploadGrid';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { ScenarioCardsGrid } from './components/ScenarioCardsGrid';
 import { LanguageSelector } from './components/LanguageSelector';
+import { StoryCreationNotice } from './components/StoryCreationNotice';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
@@ -354,6 +355,7 @@ export default function InstantWizardScreen() {
                   }
                   maxPhotos={5}
                   photoType="character"
+                  imageRightsConsentMode="story-submit"
                 />
               </View>
             </AnimatedSection>
@@ -450,6 +452,7 @@ export default function InstantWizardScreen() {
                   <Text style={styles.summaryText}>{selectedLanguageLabel}</Text>
                 </View>
               </View>
+              <StoryCreationNotice testID="wizard-instant-story-creation-notice" />
               <AppButton
                 label={t('instant_wizard.generate_story')}
                 onPress={handleGenerate}

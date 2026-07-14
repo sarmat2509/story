@@ -100,6 +100,31 @@ assert.match(
 );
 
 const instantWizardSource = readSource('screens/wizard/InstantWizardScreen.tsx');
+const artisanWizardSource = readSource('screens/wizard/WizardScreen.tsx');
+const storyCreationNoticeSource = readSource(
+  'screens/wizard/components/StoryCreationNotice.tsx'
+);
+
+assert.match(
+  instantWizardSource,
+  /imageRightsConsentMode="story-submit"/,
+  'instant photo selection should rely on the inline story-submit rights notice instead of an alert'
+);
+assert.match(
+  instantWizardSource,
+  /<StoryCreationNotice\s+testID="wizard-instant-story-creation-notice"/,
+  'instant mode should show the shared AI and image-rights accordion above Create Story'
+);
+assert.match(
+  artisanWizardSource,
+  /<StoryCreationNotice\s+testID="wizard-story-creation-notice"/,
+  'artisan mode should use the same AI and image-rights accordion'
+);
+assert.match(
+  storyCreationNoticeSource,
+  /image_rights\.confirm[\s\S]*image_rights\.rights_statement[\s\S]*image_rights\.child_statement[\s\S]*image_rights\.public_figures_statement/,
+  'the shared accordion should contain the full first-person image-rights confirmation'
+);
 
 assert.match(
   instantWizardSource,

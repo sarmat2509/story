@@ -45,6 +45,7 @@ interface PhotoUploadGridProps {
   disabled?: boolean;
   photoType?: PhotoTypeUserUpload;
   childDataConsentAccepted?: boolean;
+  imageRightsConsentMode?: 'per-upload-prompt' | 'story-submit';
   formatUrl?: (url: string) => string | null; // Optional URL formatter for native platforms
 }
 
@@ -55,6 +56,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   disabled = false,
   photoType = 'character',
   childDataConsentAccepted = false,
+  imageRightsConsentMode = 'per-upload-prompt',
   formatUrl,
 }) => {
   const { t } = useTranslation();
@@ -101,7 +103,12 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   };
 
   const pickImage = async () => {
-    const imageRights = photoType === 'feedback' ? null : await confirmImageRights(t);
+    const imageRights =
+      photoType === 'feedback'
+        ? null
+        : imageRightsConsentMode === 'story-submit'
+          ? { imageRightsAccepted: true as const, noPublicFiguresAccepted: true as const }
+          : await confirmImageRights(t);
     if (photoType !== 'feedback' && !imageRights) return;
 
     const hasPermission = await requestPermission();

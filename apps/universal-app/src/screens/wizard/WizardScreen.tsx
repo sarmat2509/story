@@ -25,6 +25,7 @@ import { ScenarioCardsGrid } from './components/ScenarioCardsGrid';
 import { LanguageSelector } from './components/LanguageSelector';
 import { AdvancedSettingsForm } from './components/AdvancedSettingsForm';
 import { CharactersForm } from './components/CharactersForm';
+import { StoryCreationNotice } from './components/StoryCreationNotice';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
@@ -99,7 +100,6 @@ export default function WizardScreen() {
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const activeStepScrollRef = React.useRef(activeStep);
-  const [isAiNoticeExpanded, setIsAiNoticeExpanded] = useState(false);
   const [isMobileSummaryExpanded, setIsMobileSummaryExpanded] = useState(false);
 
   // Modal state
@@ -984,39 +984,7 @@ export default function WizardScreen() {
                       ) : null}
                     </View>
                   ) : null}
-                  <View style={styles.aiGenerationNotice}>
-                    <TouchableOpacity
-                      style={styles.aiGenerationNoticeToggle}
-                      onPress={() => setIsAiNoticeExpanded((expanded) => !expanded)}
-                      activeOpacity={0.75}
-                      accessibilityRole="button"
-                      accessibilityState={{ expanded: isAiNoticeExpanded }}
-                    >
-                      <Ionicons
-                        name="sparkles-outline"
-                        size={16}
-                        color={theme.colors.text.tertiary}
-                      />
-                      <Text numberOfLines={1} style={styles.aiGenerationNoticeTitle}>
-                        {t('wizard.ai_generation_notice_title', {
-                          defaultValue: 'About AI generation',
-                        })}
-                      </Text>
-                      <Ionicons
-                        name={isAiNoticeExpanded ? 'chevron-up' : 'chevron-down'}
-                        size={16}
-                        color={theme.colors.text.tertiary}
-                      />
-                    </TouchableOpacity>
-                    {isAiNoticeExpanded ? (
-                      <Text style={styles.aiGenerationNoticeText}>
-                        {t('wizard.ai_generation_notice', {
-                          defaultValue:
-                            'Your content will be created with AI. Minor image or text generation errors may occasionally appear, so a quick adult review of the result is recommended.',
-                        })}
-                      </Text>
-                    ) : null}
-                  </View>
+                  <StoryCreationNotice testID="wizard-story-creation-notice" />
                   <View style={styles.summaryActions}>
                     {activeStep > 0 ? (
                       <AppButton
@@ -1579,30 +1547,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
-  },
-  aiGenerationNotice: {
-    paddingTop: theme.spacing[2],
-    borderTopWidth: theme.borders.width.thin,
-    borderTopColor: modernColors.border,
-    gap: theme.spacing[2],
-  },
-  aiGenerationNoticeToggle: {
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-  },
-  aiGenerationNoticeTitle: {
-    flex: 1,
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    lineHeight: 18,
-    color: theme.colors.text.tertiary,
-  },
-  aiGenerationNoticeText: {
-    fontSize: theme.typography.fontSize.xs,
-    lineHeight: 18,
-    color: theme.colors.text.tertiary,
   },
   summaryActions: {
     flexDirection: 'row',
