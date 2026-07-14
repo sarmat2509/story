@@ -450,7 +450,10 @@ export default function ProfileScreen() {
           </View>
         </AnimatedSection>
 
-        <View style={[styles.profileLayout, isMobile && styles.profileLayoutMobile]}>
+        <View
+          style={[styles.profileLayout, isMobile && styles.profileLayoutMobile]}
+          testID="profile-layout"
+        >
           <AnimatedSection
             delay={120}
             trigger={enterKey}
@@ -523,7 +526,10 @@ export default function ProfileScreen() {
             </View>
           </AnimatedSection>
 
-          <View style={[styles.settingsGrid, isMobile && styles.settingsGridMobile]}>
+          <View
+            style={[styles.settingsGrid, isMobile && styles.settingsGridMobile]}
+            testID="profile-settings-grid"
+          >
             <AnimatedSection
               delay={120}
               trigger={enterKey}
@@ -629,7 +635,10 @@ export default function ProfileScreen() {
                 {t('mode_selection.can_change_later')}
               </Text>
 
-              <View style={[styles.storyModeOptions, isMobile && styles.storyModeOptionsMobile]}>
+              <View
+                style={[styles.storyModeOptions, isMobile && styles.storyModeOptionsMobile]}
+                testID="profile-story-mode-options"
+              >
                 {(['instant', 'artisan'] as const).map((mode) => {
                   const selected = storyCreationMode === mode;
                   const isInstant = mode === 'instant';
@@ -638,6 +647,7 @@ export default function ProfileScreen() {
                       key={mode}
                       style={[
                         styles.storyModeOption,
+                        isMobile && styles.storyModeOptionMobile,
                         selected && styles.storyModeOptionSelected,
                         updateStoryMode.isPending && styles.storyModeOptionDisabled,
                       ]}
@@ -1231,8 +1241,11 @@ const styles = StyleSheet.create({
     gap: theme.spacing[6],
   },
   profileAside: {
-    width: 340,
-    flexShrink: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 280,
+    minWidth: 240,
+    maxWidth: 340,
     ...(Platform.OS === 'web'
       ? {
           position: 'sticky' as any,
@@ -1280,7 +1293,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   settingsGrid: {
-    flex: 1,
+    flexGrow: 2,
+    flexShrink: 1,
+    flexBasis: 520,
     minWidth: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1331,11 +1346,14 @@ const styles = StyleSheet.create({
   },
   storyModeOptions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[4],
   },
   storyModeOption: {
-    flex: 1,
-    minWidth: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 280,
+    minWidth: 240,
     minHeight: 112,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1775,6 +1793,10 @@ const styles = StyleSheet.create({
   },
   profileAsideMobile: {
     width: '100%',
+    minWidth: 0,
+    maxWidth: '100%',
+    flexGrow: 0,
+    flexBasis: 'auto',
     position: 'relative',
     top: 0,
   },
@@ -1784,6 +1806,8 @@ const styles = StyleSheet.create({
   },
   settingsGridMobile: {
     width: '100%',
+    flexGrow: 0,
+    flexBasis: 'auto',
     flexDirection: 'column',
     flexWrap: 'nowrap',
     gap: theme.spacing[3],
@@ -1797,6 +1821,11 @@ const styles = StyleSheet.create({
   },
   storyModeOptionsMobile: {
     flexDirection: 'column',
+  },
+  storyModeOptionMobile: {
+    width: '100%',
+    minWidth: 0,
+    flexBasis: 'auto',
   },
   accountColumnsMobile: {
     flexDirection: 'column',

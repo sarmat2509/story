@@ -38,5 +38,25 @@ assert.match(
   /mode\?:\s*'instant'\s*\|\s*'artisan'/,
   'profile update API should restrict mode changes to supported values'
 );
+assert.match(
+  profileScreenSource,
+  /profileAside:\s*\{[\s\S]*?flexGrow:\s*1,[\s\S]*?flexBasis:\s*280,[\s\S]*?minWidth:\s*240,[\s\S]*?maxWidth:\s*340,/,
+  'profile aside should shrink on tablet widths instead of keeping a fixed desktop width'
+);
+assert.match(
+  profileScreenSource,
+  /settingsGrid:\s*\{[\s\S]*?flexGrow:\s*2,[\s\S]*?flexBasis:\s*520,/,
+  'profile settings should receive more available width than the profile aside'
+);
+assert.match(
+  profileScreenSource,
+  /storyModeOptions:\s*\{[\s\S]*?flexWrap:\s*'wrap',/,
+  'story mode choices should wrap when their container becomes too narrow'
+);
+assert.match(
+  profileScreenSource,
+  /storyModeOption:\s*\{[\s\S]*?flexGrow:\s*1,[\s\S]*?flexBasis:\s*280,[\s\S]*?minWidth:\s*240,/,
+  'story mode choices should grow evenly while preserving a comfortable wrapping width'
+);
 
 console.log('profile mode switch source guards passed');
