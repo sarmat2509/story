@@ -31,8 +31,13 @@ assert.match(
 );
 assert.match(
   storyViewerSource,
-  /tabletHeaderBreadcrumb:\s*\{[\s\S]*?width:\s*'100%'[\s\S]*?lineHeight:\s*26/,
-  'tablet breadcrumbs should use the full reserved title area with readable line spacing'
+  /tabletHeaderBreadcrumb:\s*\{[\s\S]*?paddingRight:\s*theme\.spacing\[20\]\s*\+\s*theme\.spacing\[4\][\s\S]*?lineHeight:\s*26/,
+  'tablet breadcrumb text itself should reserve 96px for the feedback action'
+);
+assert.match(
+  storyViewerSource,
+  /tabletHeaderTitle:\s*\{[\s\S]*?paddingRight:\s*theme\.spacing\[20\]\s*\+\s*theme\.spacing\[4\]/,
+  'tablet story titles without breadcrumbs should reserve the same feedback-action space'
 );
 assert.ok(
   (storyViewerSource.match(/isSingleColumn\s*&&\s*styles\.singleColumnMedia/g) ?? []).length >= 4,
