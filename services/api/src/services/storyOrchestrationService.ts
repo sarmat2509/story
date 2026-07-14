@@ -117,6 +117,7 @@ import {
 } from '../utils/characterNormalization';
 import { loadReferenceImageData } from './referenceImageTracker';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
+import { collectSceneVisualCharacterNames } from './sceneVisualCharacterMentions';
 import { getOrCreateEnvironmentImage, type EnvImageData } from './environmentReferenceImageService';
 import {
   createStoryStub,
@@ -291,7 +292,7 @@ function buildFixedStagePlan(params: {
  * - Per scene (possibly parallel via `parallelStreams`): on-demand environment image
  *   (`getOrCreateEnvironmentImage`) with dedupe maps → optional Files API upload for env
  * → lazy LLM character turnaround when needed (`ensureLlmTurnaroundsForSceneCharacters`)
- * → unified character reference paths (`getSceneCharacterReferencePaths`: turnaround, else photos)
+ * → required character turnaround reference paths (`getSceneCharacterReferencePaths`; no photo/text fallback)
  * → `generateSceneImageWithReference` (Nano Banana / configured image domain).
  * Retry failed images re-enqueues the same job. Regenerate-one-scene should mirror this path.
  * Separate: `batchImageWorkerJob` (text-only batch API) and legacy ops script `regenerateImages.ts`.
@@ -1577,7 +1578,6 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
     const charData = characterDescriptionMap.get(mapKey);
     if (!charData || (charData as any).source !== 'llm_generated' || !charData.id) continue;
     if ((charData as any).turnaroundSheet?.url) continue;
-    if (charData.referencePhotos && charData.referencePhotos.length > 0) continue;
 
     const charId = charData.id;
     let flight = inFlight.get(charId);
@@ -1668,6 +1668,7 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
               errorMessage: err instanceof Error ? err.message : String(err),
             },
           });
+          throw err;
         }
       })();
       inFlight.set(charId, flight);
@@ -1677,8 +1678,8 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
 }
 
 /**
- * Storage paths for scene characters (any type): prefer turnaround sheet, else reference photos.
- * Child refs are ordered before other characters so photo-based child refs stay ahead of LLM turnarounds.
+ * Storage paths for scene characters. Final scene generation requires a turnaround for every
+ * mentioned character; raw photos and text descriptions are not identity fallbacks.
  */
 function getSceneCharacterReferencePaths(
   normalizedCharacters: string[],
@@ -1690,46 +1691,73 @@ function getSceneCharacterReferencePaths(
 
   const pushPaths = (bucket: string[], char: CharacterData) => {
     const turnaroundSheet = (char as any).turnaroundSheet as { url?: string } | null | undefined;
-    if (turnaroundSheet?.url) {
-      const p = extractStoragePath(turnaroundSheet.url);
-      if (!seen.has(p)) {
-        seen.add(p);
-        bucket.push(p);
-        logger.info(
-          { characterName: char.name, turnaroundPath: p },
-          'Using turnaround sheet as reference'
-        );
-      }
-      return;
+    if (!turnaroundSheet?.url) {
+      throw new Error(`Missing required turnaround reference for scene character "${char.name}"`);
     }
-    if (char.referencePhotos && char.referencePhotos.length > 0) {
+    const p = extractStoragePath(turnaroundSheet.url);
+    if (!seen.has(p)) {
+      seen.add(p);
+      bucket.push(p);
       logger.info(
-        {
-          characterName: char.name,
-          photoCount: char.referencePhotos.length,
-        },
-        'Using reference photos (no turnaround sheet)'
+        { characterName: char.name, turnaroundPath: p },
+        'Using required turnaround sheet as scene reference'
       );
-      for (const photo of char.referencePhotos) {
-        if (photo.url) {
-          const p = extractStoragePath(photo.url);
-          if (!seen.has(p)) {
-            seen.add(p);
-            bucket.push(p);
-          }
-        }
-      }
     }
   };
 
   for (const mapKey of normalizedCharacters) {
     const char = characterDescriptionMap.get(mapKey);
-    if (!char?.name) continue;
+    if (!char?.name) {
+      throw new Error(`Missing character record for scene identity "${mapKey}"`);
+    }
     const bucket = isChildBackedCharacter(char) ? childPaths : otherPaths;
     pushPaths(bucket, char);
   }
 
   return [...childPaths, ...otherPaths];
+}
+
+function sameCharacterIdentity(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right) return false;
+  const leftNormalized = normalizeCharacterName(stripCharacterIdFromName(left));
+  const rightNormalized = normalizeCharacterName(stripCharacterIdFromName(right));
+  if (leftNormalized && leftNormalized === rightNormalized) return true;
+  const leftCrossScript = crossScriptIdentityKey(left);
+  const rightCrossScript = crossScriptIdentityKey(right);
+  if (leftCrossScript && leftCrossScript === rightCrossScript) return true;
+  const leftPhonetic = toPhoneticKey(left);
+  return !!leftPhonetic && leftPhonetic === toPhoneticKey(right);
+}
+
+function assertSceneTurnaroundReferencesDelivered(
+  normalizedCharacters: string[],
+  characterDescriptionMap: Map<string, CharacterData>,
+  references: Array<{
+    source?: string;
+    type?: string;
+    characterName?: string;
+    isTurnaround?: boolean;
+  }>,
+  context: { storyId: string; sceneId: number },
+): void {
+  const missing: string[] = [];
+  for (const normalized of normalizedCharacters) {
+    const character = characterDescriptionMap.get(normalized);
+    const characterName = character?.name || normalized;
+    const delivered = references.some(
+      (reference) =>
+        reference.source !== 'environment' &&
+        reference.isTurnaround === true &&
+        sameCharacterIdentity(reference.characterName, characterName),
+    );
+    if (!delivered) missing.push(characterName);
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Story ${context.storyId}, scene ${context.sceneId} cannot be generated without required turnaround references: ${missing.join(', ')}`,
+    );
+  }
 }
 
 /** Build reference entries for scene image generation (Files API or inline base64). */
@@ -1840,11 +1868,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
       dedupe.add(key);
 
       const turnaround = (char as any).turnaroundSheet as { url?: string } | null | undefined;
-      const storagePath = turnaround?.url
-        ? extractStoragePath(turnaround.url)
-        : char.referencePhotos?.[0]?.url
-          ? extractStoragePath(char.referencePhotos[0].url)
-          : null;
+      const storagePath = turnaround?.url ? extractStoragePath(turnaround.url) : null;
 
       if (!storagePath) continue;
 
@@ -1890,8 +1914,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
     logger.info({ uploadedCount: uploadedFileMap.size }, 'Files API pre-upload complete');
   }
 
-  const hasVisualAsset = (c: CharacterData) =>
-    !!(c as any).turnaroundSheet?.url || (c.referencePhotos && c.referencePhotos.length > 0);
+  const hasVisualAsset = (c: CharacterData) => !!(c as any).turnaroundSheet?.url;
 
   const merged = params.mergedCharacters || [];
   const hasLazyLlmRefPotential =
@@ -1900,8 +1923,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
       (c: any) =>
         c.source === 'llm_generated' &&
         illustrated.has(normalizeCharacterName(c.name)) &&
-        !(c as any).turnaroundSheet?.url &&
-        !(c.referencePhotos && c.referencePhotos.length > 0)
+        !(c as any).turnaroundSheet?.url
     );
 
   const hasAnyReferences = allCharacters.some(hasVisualAsset) || !!hasLazyLlmRefPotential;
@@ -1964,18 +1986,6 @@ function buildCharacterReferencePathMetadataMap(
       });
     }
 
-    for (const photo of char.referencePhotos || []) {
-      if (!photo?.url) continue;
-      const photoPath = extractStoragePath(photo.url);
-      if (!byPath.has(photoPath)) {
-        byPath.set(photoPath, {
-          characterName: char.name,
-          isTurnaround: false,
-          source,
-          type,
-        });
-      }
-    }
   }
 
   return byPath;
@@ -2301,17 +2311,23 @@ export async function processStoryImages(
         const characterNamesInIllustratedScenes = new Set<string>();
         for (const scene of scenesToGenerate) {
           const sceneVisualRaw = migrateVisualPrompt(scene);
-          let sceneCharNames: string[];
+          let listedSceneCharacterNames: string[];
           if (
             sceneVisualRaw?.cameraComposition &&
             typeof sceneVisualRaw.cameraComposition !== 'string'
           ) {
-            sceneCharNames = flattenCameraComposition(
+            listedSceneCharacterNames = flattenCameraComposition(
               sceneVisualRaw.cameraComposition
             ).characterNames;
           } else {
-            sceneCharNames = (scene as any).characters || (scene as any).visualCharacters || [];
+            listedSceneCharacterNames =
+              (scene as any).characters || (scene as any).visualCharacters || [];
           }
+          const sceneCharNames = collectSceneVisualCharacterNames(
+            sceneVisualRaw,
+            listedSceneCharacterNames,
+            mergedCharacters as any[],
+          );
           const matched = matchCharacterNames(sceneCharNames, characterRegistry);
           for (const normalizedName of matched) {
             characterNamesInIllustratedScenes.add(normalizedName);
@@ -2530,17 +2546,22 @@ export async function processStoryImages(
           }
 
           const sceneVisualRaw = migrateVisualPrompt(scene);
-          let sceneCharNames: string[];
+          let listedSceneCharacterNames: string[];
           if (
             sceneVisualRaw?.cameraComposition &&
             typeof sceneVisualRaw.cameraComposition !== 'string'
           ) {
-            sceneCharNames = flattenCameraComposition(
+            listedSceneCharacterNames = flattenCameraComposition(
               sceneVisualRaw.cameraComposition
             ).characterNames;
           } else {
-            sceneCharNames = (scene as any).characters || [];
+            listedSceneCharacterNames = (scene as any).characters || [];
           }
+          const sceneCharNames = collectSceneVisualCharacterNames(
+            sceneVisualRaw,
+            listedSceneCharacterNames,
+            mergedCharacters as any[],
+          );
           const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
 
           const currentEnvironmentId = (scene as any).environmentId as string | undefined;
@@ -2675,6 +2696,12 @@ export async function processStoryImages(
             config.image.maxObjectReferenceImages
           );
           referenceImageDataArray = bucketResult.trimmed;
+          assertSceneTurnaroundReferencesDelivered(
+            normalizedCharacters,
+            characterDescriptionMap,
+            referenceImageDataArray,
+            { storyId, sceneId: scene.sceneId },
+          );
           logReferenceBucketDelivery({
             storyId,
             sceneId: scene.sceneId,
@@ -4943,51 +4970,6 @@ async function generateSceneImageWithReference(
       throw new Error(`Scene ${scene.sceneId} not found for story ${storyId}`);
     }
 
-    // Build character descriptions from AI analysis
-    // Prefer English translation (descriptionEn) for better image generation results
-    const characterDescriptions = context.characters.map((char) => ({
-      name: char.name,
-      nameAliases: (char as any).nameAliases,
-      detailedDescription:
-        (char as any).descriptionEn ||
-        (char as any).aiGeneratedDescription ||
-        char.appearance ||
-        char.description ||
-        `${char.name}`,
-      clothing: (char as any).clothing,
-      distinctiveFeatures: (char as any).distinctiveFeatures,
-    }));
-
-    // Add child profile as character ONLY if child is included in story characters
-    // Check if child profile is in the characters array (would have type: 'child')
-    const childIsCharacter = context.characters.some(
-      (c: any) =>
-        isChildBackedCharacter(c) &&
-        (c.childProfileId === context.childProfile?.id || c.id === context.childProfile?.id)
-    );
-
-    if (context.childProfile && childIsCharacter) {
-      characterDescriptions.unshift({
-        name: context.childProfile.name,
-        nameAliases: (context.childProfile as any).nameAliases,
-        detailedDescription:
-          (context.childProfile as any).descriptionEn ||
-          (context.childProfile as any).aiGeneratedDescription ||
-          `${context.childProfile.name}`,
-        clothing: (context.childProfile as any).clothing,
-        distinctiveFeatures: (context.childProfile as any).distinctiveFeatures,
-      });
-
-      logger.debug(
-        {
-          storyId,
-          sceneId: scene.sceneId,
-          childName: context.childProfile.name,
-        },
-        'Added child profile to character descriptions for image generation'
-      );
-    }
-
     const sceneCharacterNamesForRefs = scene.sceneVisual?.cameraComposition
       ? flattenCameraComposition(scene.sceneVisual.cameraComposition).characterNames
       : (scene as any).visualCharacters || (scene as any).characters || [];
@@ -5080,23 +5062,9 @@ async function generateSceneImageWithReference(
       };
     });
 
-    // Classify characters into imaginary (with reference images) vs real-world (text description only)
-    const imaginaryCharNameSet = new Set<string>();
-    const characterAliasByName = new Map<string, string[]>();
-    for (const char of context.characters) {
-      const aliases = (char as any).nameAliases;
-      const namesToIndex = [
-        char.name,
-        (char as any).canonicalName,
-        ...(Array.isArray(aliases) ? aliases : []),
-      ];
-      for (const name of namesToIndex) {
-        if (typeof name !== 'string') continue;
-        const key = stripCharacterIdFromName(name).trim().toLowerCase();
-        if (key && Array.isArray(aliases)) characterAliasByName.set(key, aliases);
-      }
-    }
-
+    // Final scene identity is reference-only. Names/aliases are carried solely so every mention
+    // in Scene-specific and Composition can be rewritten to its REF_CH_* binding.
+    const referencedCharacterKeys = new Set<string>();
     const imaginaryCharacters: Array<{
       name: string;
       isTurnaround?: boolean;
@@ -5108,27 +5076,35 @@ async function generateSceneImageWithReference(
           ref.type === 'child_reference' ||
           ref.type === 'character_reference' ||
           ref.type === 'dressed_turnaround_reference') &&
-        ref.characterName &&
-        !imaginaryCharNameSet.has(ref.characterName)
+        ref.characterName
       ) {
-        const aliasKey = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
-        imaginaryCharNameSet.add(ref.characterName);
+        const identityKey =
+          crossScriptIdentityKey(ref.characterName) ||
+          normalizeCharacterName(stripCharacterIdFromName(ref.characterName));
+        if (referencedCharacterKeys.has(identityKey)) continue;
+        referencedCharacterKeys.add(identityKey);
+        const matchingCharacter = context.characters.find((character) => {
+          const candidateNames = [
+            character.name,
+            (character as any).canonicalName,
+            (character as any).nameInStory,
+            ...((character as any).nameAliases || []),
+          ].filter((name): name is string => typeof name === 'string');
+          return candidateNames.some((name) => sameCharacterIdentity(name, ref.characterName));
+        });
+        const nameAliases = [
+          matchingCharacter?.name,
+          (matchingCharacter as any)?.canonicalName,
+          (matchingCharacter as any)?.nameInStory,
+          ...((matchingCharacter as any)?.nameAliases || []),
+        ].filter((name): name is string => typeof name === 'string');
         imaginaryCharacters.push({
           name: ref.characterName,
           isTurnaround: !!(ref as any).isTurnaround,
-          nameAliases: aliasKey ? characterAliasByName.get(aliasKey) : undefined,
+          nameAliases: Array.from(new Set(nameAliases)),
         });
       }
     }
-
-    // Real-world characters: those NOT in the imaginary set
-    const realWorldCharacters = characterDescriptions
-      .filter((c) => !imaginaryCharNameSet.has(c.name))
-      .map((c) => ({
-        name: c.name,
-        description: c.detailedDescription,
-        nameAliases: c.nameAliases,
-      }));
 
     // Generate scene image with optional validation + one repair/regeneration pass.
     // Reference images are prepared before this function; validation retries rerender only the
@@ -5144,7 +5120,7 @@ async function generateSceneImageWithReference(
       sceneText: scene.text,
       ageGroup: context.ageGroup,
       style: context.userStyle || context.imageDomain.buildImageStyle(context.ageGroup),
-      realWorldCharacters,
+      realWorldCharacters: [],
       imaginaryCharacters,
       referenceImages: referenceImagesArray, // Array of references
       systemInstruction: context.imageSystemInstruction, // Static: role, art style, format, quality
@@ -5933,7 +5909,7 @@ function validationCharacterDescription(
 
 /**
  * Build the expected character list for image validation.
- * Extracts characters from cameraComposition (single source of truth),
+ * Covers cameraComposition rows plus known characters mentioned in any sceneVisual staging text,
  * then maps each name to a 3-way characterKind (human/animal/imaginary)
  * so the validator compares a hamster against hamster rules, not human rules.
  */
@@ -5949,14 +5925,19 @@ export function buildExpectedCharactersForValidation(
   description?: string;
   validateOutfit: boolean;
 }> {
-  let sceneCharacterNames: string[];
+  let listedSceneCharacterNames: string[];
   const sv = scene.sceneVisual;
   if (sv?.cameraComposition && typeof sv.cameraComposition !== 'string') {
-    sceneCharacterNames = flattenCameraComposition(sv.cameraComposition).characterNames;
+    listedSceneCharacterNames = flattenCameraComposition(sv.cameraComposition).characterNames;
   } else {
     // Backward compat: old stories with string cameraComposition or no sceneVisual
-    sceneCharacterNames = (scene as any).visualCharacters || (scene as any).characters || [];
+    listedSceneCharacterNames = (scene as any).visualCharacters || (scene as any).characters || [];
   }
+  const sceneCharacterNames = collectSceneVisualCharacterNames(
+    sv,
+    listedSceneCharacterNames,
+    characters as any[],
+  );
 
   // refSource index by normalized character name; used only as fallback when charData.type is unknown.
   const refSourceByName = new Map<string, string>();
@@ -5972,7 +5953,7 @@ export function buildExpectedCharactersForValidation(
     const baseLower = stripCharacterIdFromName(name).trim().toLowerCase();
     const charData = characters.find((c) => {
       if (!c?.name) return false;
-      return stripCharacterIdFromName(c.name).trim().toLowerCase() === baseLower;
+      return sameCharacterIdentity(c.name, name);
     });
 
     const t = charData?.type;
@@ -7498,19 +7479,26 @@ export async function regenerateSceneImage(
   }
 
   const sceneVisualForNames = migrateVisualPrompt(sceneData);
-  let sceneCharNames: string[];
+  let listedSceneCharacterNames: string[];
   if (
     sceneVisualForNames?.cameraComposition &&
     typeof sceneVisualForNames.cameraComposition !== 'string'
   ) {
-    sceneCharNames = flattenCameraComposition(sceneVisualForNames.cameraComposition).characterNames;
+    listedSceneCharacterNames = flattenCameraComposition(
+      sceneVisualForNames.cameraComposition,
+    ).characterNames;
   } else {
-    sceneCharNames =
+    listedSceneCharacterNames =
       sceneFromJson.characters ||
       (sceneData as any).characters ||
       (scene as any).charactersPresent ||
       [];
   }
+  const sceneCharNames = collectSceneVisualCharacterNames(
+    sceneVisualForNames,
+    listedSceneCharacterNames,
+    mergedCharacters as any[],
+  );
   const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
   const characterNamesInIllustratedScenes = new Set(normalizedCharacters);
 
@@ -7660,6 +7648,12 @@ export async function regenerateSceneImage(
     config.image.maxObjectReferenceImages
   );
   referenceImageDataArray = bucketResult.trimmed;
+  assertSceneTurnaroundReferencesDelivered(
+    normalizedCharacters,
+    characterDescriptionMap,
+    referenceImageDataArray,
+    { storyId, sceneId },
+  );
   logReferenceBucketDelivery({
     storyId,
     sceneId,

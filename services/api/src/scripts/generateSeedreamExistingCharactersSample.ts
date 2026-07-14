@@ -315,15 +315,11 @@ async function main(): Promise<void> {
       ageGroup: '6-8',
       style: 'soft_watercolor',
       aspectRatio: '16:9',
-      realWorldCharacters: [
-        {
-          name: 'Емілія',
-          description: existing.emily.description,
-        },
-      ],
+      realWorldCharacters: [],
       imaginaryCharacters: [
         { name: 'Тік', isTurnaround: true, nameAliases: ['Tik'] },
         { name: 'Snow Spirit', isTurnaround: true },
+        { name: 'Емілія', isTurnaround: true, nameAliases: ['Emilia'] },
       ],
       referenceImages: [environmentReference, ...buildCharacterReferences(characterRefs)],
       imageIndexMap: new Map([

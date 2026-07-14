@@ -19,6 +19,7 @@ export interface ImageDomainOptions {
   onBuiltPrompt?: (payload: BuiltScenePromptPayload) => void | Promise<void>;
 }
 import type { UploadedFile } from '../../providers/base/IFileManager';
+import { stripCharacterIdFromName } from '@wondertales/shared';
 import { logger } from '../../utils/logger';
 import {
   buildSceneImagePrompt,
@@ -100,8 +101,9 @@ export interface SceneImageWithReferenceRequest {
   style: string;
   aspectRatio?: ImageAspectRatio;
 
-  // Pre-classified character data (prepared by orchestration layer)
+  // Legacy text-only identities are rejected for final scene generation.
   realWorldCharacters: Array<{ name: string; description: string; nameAliases?: string[] }>;
+  // Every entry must have a delivered turnaround reference.
   imaginaryCharacters: Array<{ name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
 
   // Reference images with per-image labels
@@ -235,11 +237,7 @@ export class ImageDomainService {
 
   /**
    * Generate scene with reference-based approach (Nano Banana Pro)
-   * Uses AI-generated descriptions + optional reference image for character consistency
-   *
-   * Flow:
-   * - Scene 1: Generate from text descriptions only (no reference)
-   * - Scenes 2-N: Generate using Scene 1 as reference + text descriptions
+   * Character identity is always grounded by delivered turnaround references.
    */
   async generateSceneWithReference(
     request: SceneImageWithReferenceRequest,
@@ -257,6 +255,34 @@ export class ImageDomainService {
       'Generating scene with reference approach'
     );
 
+    if ((request.realWorldCharacters ?? []).length > 0) {
+      throw new Error(
+        `Scene ${request.sceneId} contains text-only character identities; final scene generation requires turnaround references`
+      );
+    }
+
+    const referenceNames = new Set(
+      (request.referenceImages || [])
+        .filter((reference) => reference.referenceKind === 'character')
+        .map((reference) =>
+          stripCharacterIdFromName(reference.characterName || '')
+            .trim()
+            .toLocaleLowerCase()
+        )
+        .filter(Boolean)
+    );
+    const missingTurnarounds = (request.imaginaryCharacters ?? [])
+      .filter((character) => {
+        const name = stripCharacterIdFromName(character.name).trim().toLocaleLowerCase();
+        return !character.isTurnaround || !referenceNames.has(name);
+      })
+      .map((character) => character.name);
+    if (missingTurnarounds.length > 0) {
+      throw new Error(
+        `Scene ${request.sceneId} is missing required delivered turnaround references: ${missingTurnarounds.join(', ')}`
+      );
+    }
+
     const hasRefs = !!request.referenceImages && request.referenceImages.length > 0;
 
     const enhancedPrompt = buildSceneImagePrompt({
@@ -266,7 +292,7 @@ export class ImageDomainService {
       style: request.style,
       hasReferences: hasRefs,
       referenceCharacterNames: request.imaginaryCharacters,
-      realWorldCharacters: request.realWorldCharacters,
+      realWorldCharacters: [],
       imageIndexMap: request.imageIndexMap,
       referenceImages: request.referenceImages,
       currentEnvironment: request.currentEnvironment,

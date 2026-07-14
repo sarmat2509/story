@@ -13,7 +13,7 @@ import {
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v26');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v27');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
@@ -38,6 +38,8 @@ function testDirectorCachedPrefixContainsImagePromptRules() {
   assert.ok(cached.includes('environments[].description is a reusable EMPTY LOCATION PLATE'));
   assert.ok(cached.includes('If a location is named after a character or is on/inside a character'));
   assert.ok(cached.includes('Put characters only in illustrations[].sceneVisual.cameraComposition.characters.'));
+  assert.ok(cached.includes('Every named character mentioned anywhere in sceneVisual.setting'));
+  assert.ok(cached.includes('never leave a name only inside prose'));
   assert.ok(cached.includes('CRITICAL - MAP TILE BRIEF:'));
   assert.ok(cached.includes('Create exactly ONE top-level mapTile for the whole story'));
   assert.ok(cached.includes('mapTile.description:'));
@@ -117,6 +119,10 @@ function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
     } as any,
     userCharacters: [{ id: 'u-123', name: 'Mia' }],
   });
+
+  assert.ok(prompt.includes('CAMERA ROSTER IS BINDING'));
+  assert.ok(prompt.includes('Never mention a fourth character only inside another character'));
+  assert.ok(prompt.includes('remove the extra character from every sceneVisual field'));
 
   assert.ok(prompt.includes('Each illustration MUST depict the FIRST scene of its block (Scene X).'));
   assert.ok(prompt.includes('could a single photograph capture everything you described?'));

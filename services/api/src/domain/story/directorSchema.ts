@@ -116,24 +116,24 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
             properties: {
               setting: {
                 type: 'string',
-                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. Do not state a separate focus sentence here.',
+                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. Do not state a separate focus sentence here. Every named character mentioned here must also have a cameraComposition.characters[] row; otherwise omit that character from all sceneVisual prose.',
               },
               cameraComposition: {
                 type: 'object',
                 properties: {
-                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level. Choose the shot to make primaryRead readable.' },
+                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level. Choose the shot to make primaryRead readable. Every named character mentioned here must also have a cameraComposition.characters[] row.' },
                   characters: {
                     type: 'array',
                     minItems: 1,
                     maxItems: MAX_SCENE_IMAGE_CHARACTERS,
                     items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
                     description:
-                      `Who is in the shot; maximum ${MAX_SCENE_IMAGE_CHARACTERS} characters. Each row MUST include outfitId referencing outfits[]. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance. Character descriptions must support primaryRead instead of creating a competing focal action.`,
+                      `Who is in the shot; maximum ${MAX_SCENE_IMAGE_CHARACTERS} characters. This roster is binding: every named character mentioned in setting, shot, any character description, or lighting MUST have exactly one row here. If the limit is reached, omit extra characters from all sceneVisual prose. Each row MUST include outfitId referencing outfits[]. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance. Character descriptions must support primaryRead instead of creating a competing focal action.`,
                   },
                 },
                 required: ['shot', 'characters'],
               },
-              lighting: { type: 'string', description: 'Lighting conditions IN ENGLISH. Lighting should support primaryRead, not introduce a different focal effect.' },
+              lighting: { type: 'string', description: 'Lighting conditions IN ENGLISH. Lighting should support primaryRead, not introduce a different focal effect. Every named character mentioned here must also have a cameraComposition.characters[] row.' },
             },
             required: ['setting', 'cameraComposition', 'lighting'],
           },

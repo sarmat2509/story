@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildSceneImagePrompt, buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../image/ImagePrompts';
 import { ImageDomainService } from '../../domain/image/ImageDomainService';
+import { collectSceneVisualCharacterNames } from '../../services/sceneVisualCharacterMentions';
 
 const forbiddenSyntheticAlias = ['Sub', 'ject'].join('');
 
@@ -110,7 +111,7 @@ function testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise() {
     imageIndexMap: new Map([['Емілія', 1]]),
   });
 
-  assert.ok(prompt.includes('- Scene: A stone castle interior at the mouth of an ancient tunnel.'));
+  assert.ok(prompt.includes('- Scene-specific: A stone castle interior at the mouth of an ancient tunnel.'));
   assert.ok(!prompt.includes('children’s-book look'));
   assert.ok(!prompt.includes('paper texture'));
   assert.ok(!prompt.includes('[STYLE:'));
@@ -195,6 +196,91 @@ function testStructuredPromptUsesReferenceBindingIdsForDirectedActionText() {
   assert.ok(!prompt.includes('Emilia'));
 }
 
+function testProductionCompositionReplacesEveryCharacterNameAndUsesAllMentionedRefs() {
+  const sceneVisual = {
+    setting:
+      'Emilia and Romchyk stand near the central chaotic knot; Khomka is visible slightly above the ground plane within a loose wrap of floating code strands; Sonya stays close enough to Emilia while Emilia holds Sonya’s paw.',
+    cameraComposition: {
+      shot: 'Medium shot at eye level, tight enough to clearly show Emilia’s still posture, her hand passing through Khomka, and the dark knot behind them',
+      characters: [
+        {
+          name: 'Emilia',
+          description:
+            'Center foreground standing with feet planted on the glossy surface, shoulders lowered; one hand held out in front with fingers spread as they pass through Khomka’s projection-space, the other hand drawn close to her chest; controlled, steady expression, gaze fixed on Khomka and the surrounding code strands.',
+        },
+        {
+          name: 'Romchyk',
+          description:
+            'Left foreground close to Emilia’s leg, body angled toward the knot, low stance with a tense posture; focused expression, gaze locked on the code strands tightening around Khomka.',
+        },
+        {
+          name: 'Linivchik Sonya',
+          description:
+            'Right mid-ground, standing with one paw extended, clearly pointing toward the dense dark knot in the center; calm face, gaze following the pointing direction.',
+        },
+      ],
+    },
+    lighting:
+      'Cool, high-contrast digital lighting with golden thread glow as key light; soft violet rim light around characters; dark glossy floor reflections with ray-traced highlights.',
+  };
+  const bindings = [
+    ['Emilia', 'REF_CH_EMILI_985EAE'],
+    ['Romchyk', 'REF_CH_ROMCHIK_2C0172'],
+    ['Linivchik Sonya', 'REF_CH_LINIVCHIK_SONYA_B73C2A'],
+    ['Khomka', 'REF_CH_KHOMKA_98046A'],
+  ] as const;
+
+  const mentionedNames = collectSceneVisualCharacterNames(
+    sceneVisual,
+    sceneVisual.cameraComposition.characters.map((character) => character.name),
+    bindings.map(([name]) => ({ name })),
+  );
+  assert.deepEqual(mentionedNames, ['Emilia', 'Romchyk', 'Linivchik Sonya', 'Khomka']);
+
+  const prompt = buildSceneImagePrompt({
+    sceneVisual,
+    ageGroup: '6-8',
+    style: 'warm_3d',
+    hasReferences: true,
+    hasEnvironmentImageRef: true,
+    referenceCharacterNames: bindings.map(([name]) => ({ name, isTurnaround: true })),
+    realWorldCharacters: [
+      {
+        name: 'Emilia',
+        description:
+          'The child has long, dark brown hair styled in many small braids and freckles across the nose and cheeks.',
+      },
+    ],
+    imageIndexMap: new Map(bindings.map(([name], index) => [name, index + 2])),
+    referenceImages: bindings.map(([characterName, referenceBindingId], index) => ({
+      characterName,
+      referenceBindingId,
+      referenceKind: 'character' as const,
+      imageIndex: index + 2,
+      type: 'dressed_turnaround_reference',
+    })),
+  });
+
+  const expectedComposition =
+    'Composition: Medium shot at eye level, tight enough to clearly show REF_CH_EMILI_985EAE’s still posture, her hand passing through REF_CH_KHOMKA_98046A, and the dark knot behind them. Character REF_CH_EMILI_985EAE is located Center foreground standing with feet planted on the glossy surface, shoulders lowered; one hand held out in front with fingers spread as they pass through REF_CH_KHOMKA_98046A’s projection-space, the other hand drawn close to her chest; controlled, steady expression, gaze fixed on REF_CH_KHOMKA_98046A and the surrounding code strands. Character REF_CH_ROMCHIK_2C0172 is located Left foreground close to REF_CH_EMILI_985EAE’s leg, body angled toward the knot, low stance with a tense posture; focused expression, gaze locked on the code strands tightening around REF_CH_KHOMKA_98046A. Character REF_CH_LINIVCHIK_SONYA_B73C2A is located Right mid-ground, standing with one paw extended, clearly pointing toward the dense dark knot in the center; calm face, gaze following the pointing direction.';
+  assert.deepEqual(
+    prompt.split('\n').map((line) => line.slice(0, line.indexOf(':') + 1)),
+    ['- Scene-specific:', '- Composition:', '- Lighting:'],
+  );
+  assert.ok(prompt.includes(expectedComposition));
+  assert.ok(
+    prompt.includes(
+      '- Lighting: Cool, high-contrast digital lighting with golden thread glow as key light; soft violet rim light around characters; dark glossy floor reflections with ray-traced highlights.',
+    ),
+  );
+  assert.doesNotMatch(prompt, /\b(?:Emilia|Romchyk|Khomka|Sonya)\b/u);
+  assert.ok(!prompt.includes('Linivchik Sonya'));
+  assert.ok(!prompt.includes('long, dark brown hair'));
+  assert.ok(!prompt.includes('freckles across the nose'));
+  assert.doesNotMatch(prompt, /safe for children/i);
+  assert.doesNotMatch(prompt, /^- REF_CH_[^\n]+:/m);
+}
+
 function testStructuredPromptKeepsSceneFirstAndStripsTextOutfitLanguage() {
   const prompt = buildSceneImagePrompt({
     sceneVisual: {
@@ -218,7 +304,7 @@ function testStructuredPromptKeepsSceneFirstAndStripsTextOutfitLanguage() {
     imageIndexMap: new Map([['Емілія', 1]]),
   });
 
-  assert.ok(prompt.trimStart().startsWith('- Scene:'));
+  assert.ok(prompt.trimStart().startsWith('- Scene-specific:'));
   assert.ok(!prompt.includes('- Wardrobe plates:'));
   assert.ok(!prompt.includes('Technical reference command'));
   assert.doesNotMatch(prompt, /Draw .* wearing/i);
@@ -257,7 +343,7 @@ function testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes() {
   assert.ok(!prompt.includes('Mustard-yellow sweater'));
 }
 
-function testTextOnlyCharacterDoesNotReceiveLegacyOutfitText() {
+function testTextOnlyCharacterDescriptionIsNeverAddedToScenePrompt() {
   const prompt = buildSceneImagePrompt({
     sceneVisual: {
       setting: 'A backstage dressing room.',
@@ -287,7 +373,8 @@ function testTextOnlyCharacterDoesNotReceiveLegacyOutfitText() {
     },
   } as Parameters<typeof buildSceneImagePrompt>[0] & { characterOutfits?: Record<string, string> });
 
-  assert.ok(prompt.includes('- Stage Helper: Friendly adult helper with a calm smile'));
+  assert.ok(!prompt.includes('Friendly adult helper with a calm smile'));
+  assert.doesNotMatch(prompt, /^- (?:Stage Helper|REF_CH_[^:]+):/m);
   assert.ok(!prompt.includes('Outfit in this scene:'));
   assert.ok(!prompt.includes('Blue crew vest'));
   assert.ok(!prompt.includes('blue crew vest'));
@@ -510,15 +597,62 @@ async function testImageDomainSceneIllustrationUsesSystemOnlyTextBan() {
   assert.doesNotMatch(capturedPrompt, /keep free of text/i);
 }
 
+async function testImageDomainRejectsEveryCharacterIdentityFallback() {
+  let providerCalls = 0;
+  const imageProvider = {
+    async generateImage() {
+      providerCalls += 1;
+      throw new Error('provider must not be called');
+    },
+  };
+  const service = new ImageDomainService(imageProvider as any);
+
+  await assert.rejects(
+    service.generateSceneWithReference({
+      sceneId: 5,
+      ageGroup: '6-8',
+      style: 'warm_3d',
+      realWorldCharacters: [
+        { name: 'Emilia', description: 'text appearance fallback must be rejected' },
+      ],
+      imaginaryCharacters: [],
+      referenceImages: [],
+    }),
+    /text-only character identities.*requires turnaround references/i,
+  );
+
+  await assert.rejects(
+    service.generateSceneWithReference({
+      sceneId: 5,
+      ageGroup: '6-8',
+      style: 'warm_3d',
+      realWorldCharacters: [],
+      imaginaryCharacters: [{ name: 'Khomka', isTurnaround: false }],
+      referenceImages: [
+        {
+          instructionText: 'REF_CH_KHOMKA_98046A: identity',
+          characterName: 'Khomka',
+          referenceKind: 'character',
+          referenceBindingId: 'REF_CH_KHOMKA_98046A',
+        },
+      ],
+    }),
+    /missing required delivered turnaround references: Khomka/i,
+  );
+
+  assert.equal(providerCalls, 0);
+}
+
 testReferenceBackedCharacterDoesNotDuplicateTextIdentity();
 testDynamicForeshorteningShotPassesThroughToImagePrompt();
 testLegacyUserPromptKeepsTextBanInSystemOnly();
 testStructuredPromptSanitizesStyleIntentAndCrossScriptNoise();
 testStructuredPromptReplacesLocalizedCharacterNameAliases();
 testStructuredPromptUsesReferenceBindingIdsForDirectedActionText();
+testProductionCompositionReplacesEveryCharacterNameAndUsesAllMentionedRefs();
 testStructuredPromptKeepsSceneFirstAndStripsTextOutfitLanguage();
 testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes();
-testTextOnlyCharacterDoesNotReceiveLegacyOutfitText();
+testTextOnlyCharacterDescriptionIsNeverAddedToScenePrompt();
 testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter();
 testSystemInstructionStatesReferenceIdentityWins();
 testColoredPencilSystemInstructionForcesFullBleedArtwork();
@@ -527,6 +661,7 @@ testEnvironmentPromptSanitizesCharacterOwnedLocations();
 async function main() {
   await testImageDomainUsesPerSceneEnvironmentReferenceFlag();
   await testImageDomainSceneIllustrationUsesSystemOnlyTextBan();
+  await testImageDomainRejectsEveryCharacterIdentityFallback();
   console.log('imagePromptReferenceRules tests passed');
 }
 

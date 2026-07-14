@@ -7,7 +7,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import anyAscii from 'any-ascii';
 import { stripAllTags } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
-import { flattenCameraComposition, type SceneVisual } from '../../services/types';
+import type { SceneVisual } from '../../services/types';
 import { buildPlaceholderReferenceNameMap } from '../../services/referenceImageBuckets';
 import {
   findCharacterReferenceBinding,
@@ -107,7 +107,17 @@ function nameAliasVariants(name: string): string[] {
   const full = name.trim();
   const base = stripCharacterIdFromName(name).trim();
   const variants = new Set<string>();
-  for (const value of [full, base]) {
+  const seeds = new Set<string>([full, base]);
+  const baseParts = base.split(/\s+/).filter(Boolean);
+  if (baseParts.length > 1) {
+    const shortName = baseParts.at(-1)?.replace(
+      /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu,
+      '',
+    );
+    if (shortName && shortName.length >= 2) seeds.add(shortName);
+  }
+
+  for (const value of seeds) {
     if (!value || value.length < 2) continue;
     variants.add(value);
     const ascii = anyAscii(value).trim();
@@ -566,12 +576,11 @@ export interface CharacterReference {
  * Build complete image prompt for a scene.
  *
  * New structured format (Google Asset Graph pattern):
- *   Image labels + SETTING + CAMERA (with Image N refs) + CHARACTERS (with Image N refs) + LIGHTING
+ *   Image labels + SETTING + CAMERA (with Image N refs) + LIGHTING
  *   STYLE, FORMAT, and QUALITY are in systemInstruction (not repeated here).
  *
- * Supports two character types:
- *   - Real-world characters (people, animals): text description from Gemini Vision
- *   - Imaginary creatures (child's drawings): reference drawing attached as image
+ * Character identity is reference-only. Stable appearance descriptions are never included in
+ * final scene prompts; sceneVisual composition contains only transient pose/action staging.
  */
 export function buildSceneImagePrompt(params: {
   sceneVisual?: SceneVisual; // New structured visual (preferred)
@@ -580,7 +589,7 @@ export function buildSceneImagePrompt(params: {
   style: string;
   // Imaginary creatures with reference drawings attached as images
   referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
-  // Real-world characters (people, animals) with text descriptions from Gemini Vision
+  // Legacy name/alias entries. Descriptions are ignored and never added to final scene prompts.
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   hasReferences?: boolean;
   // Google Asset Graph pattern: maps normalized character name -> Image index
@@ -603,15 +612,10 @@ export function buildSceneImagePrompt(params: {
   if (params.sceneVisual) {
     return buildStructuredPrompt({
       sceneVisual: params.sceneVisual,
-      stylePrefix,
-      safetyAdditions,
       referenceCharacterNames: params.referenceCharacterNames,
       realWorldCharacters: params.realWorldCharacters,
-      hasReferences: params.hasReferences,
       imageIndexMap: params.imageIndexMap,
       referenceImages: params.referenceImages,
-      currentEnvironment: params.currentEnvironment,
-      hasEnvironmentImageRef: params.hasEnvironmentImageRef,
     });
   }
 
@@ -642,52 +646,31 @@ export function buildSceneImagePrompt(params: {
       realWorldCharacters: params.realWorldCharacters,
       referenceImages: params.referenceImages,
     });
-    const characterLines = buildCharacterSection(
-      params.realWorldCharacters,
-      params.referenceCharacterNames,
-      true,
-      params.imageIndexMap,
-      params.referenceImages,
-      legacyNameContext,
-    );
-    const charSection = characterLines ? `\n\n${characterLines}` : '';
-    return `${stylePrefix}, ${replacePromptNames(cleanVisualPrompt, legacyNameContext)}${charSection}, ${safetyAdditions}.`;
+    return `${stylePrefix}, ${replacePromptNames(cleanVisualPrompt, legacyNameContext)}, ${safetyAdditions}.`;
   }
 
-  // Non-reference legacy path (Imagen 3)
-  let characterPart = '';
-  if (params.characters && params.characters.length > 0) {
-    const characterDescriptions = buildCharacterDescriptions(params.characters);
-    if (characterDescriptions) characterPart = `, ${characterDescriptions}`;
-  }
+  // Non-reference legacy path (Imagen 3). Character appearance text is intentionally omitted.
   const negativeToUse = removeUserPromptTextBanNegativeTerms(
     params.negativePrompt ?? imagePolicy.imageNegativePrompt,
   );
   const negativeGuidance = negativeToUse ? `, avoid: ${negativeToUse}` : '';
 
-  const fullPrompt = `${stylePrefix}${characterPart}, ${cleanVisualPrompt}, ${safetyAdditions}${negativeGuidance}`;
+  const fullPrompt = `${stylePrefix}, ${cleanVisualPrompt}, ${safetyAdditions}${negativeGuidance}`;
   return optimizePromptLength(fullPrompt, 2000);
 }
 
 /**
  * Build new structured prompt from sceneVisual fields.
- * Google Asset Graph pattern: scene-specific SETTING, CAMERA, CHARACTERS, LIGHTING.
- * Also includes per-scene CHARACTER ROSTER and ENVIRONMENT (moved from system instruction
- * to reduce token overhead — each API call is independent, no multi-turn context).
+ * Google Asset Graph pattern: scene-specific SETTING, CAMERA, and LIGHTING.
  */
 function buildStructuredPrompt(params: {
   sceneVisual: SceneVisual;
-  stylePrefix: string;
-  safetyAdditions: string;
   referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
-  hasReferences?: boolean;
   imageIndexMap?: Map<string, number>;
   referenceImages?: ReferenceBindingInput[];
-  currentEnvironment?: StoryEnvironment;
-  hasEnvironmentImageRef?: boolean;
 }): string {
-  const { sceneVisual, hasEnvironmentImageRef } = params;
+  const { sceneVisual } = params;
   const nameContext = buildPromptNameContext({
     sceneVisual,
     imageIndexMap: params.imageIndexMap,
@@ -698,29 +681,15 @@ function buildStructuredPrompt(params: {
 
   const sections: string[] = [];
 
-  // SETTING (scene-specific). When env image ref: only delta, labeled "Scene-specific"
+  // SETTING is always the single Scene-specific block in the provider user text.
   if (sceneVisual.setting) {
-    const settingLabel = hasEnvironmentImageRef ? 'Scene-specific' : 'Scene';
     const sanitizedSetting = replacePromptNames(
       sanitizeSettingForImagePrompt(sceneVisual.setting),
       nameContext,
     );
     if (sanitizedSetting) {
-      sections.push(`- ${settingLabel}: ${sanitizedSetting}`);
+      sections.push(`- Scene-specific: ${sanitizedSetting}`);
     }
-  }
-
-  // CHARACTERS — with Image N back-references and inline descriptions
-  const characterLines = buildCharacterSection(
-    params.realWorldCharacters,
-    params.referenceCharacterNames,
-    params.hasReferences,
-    params.imageIndexMap,
-    params.referenceImages,
-    nameContext,
-  );
-  if (characterLines) {
-    sections.push(characterLines);
   }
 
   // CAMERA / COMPOSITION (may contain character positions with Image N refs)
@@ -736,13 +705,11 @@ function buildStructuredPrompt(params: {
     sections.push(`- Composition: ${composition}`);
   }
 
-  // LIGHTING (scene-specific)
   if (sceneVisual.lighting) {
-    sections.push(`- Lighting: ${replacePromptNames(cleanupPromptText(sceneVisual.lighting), nameContext)}`);
+    sections.push(
+      `- Lighting: ${replacePromptNames(cleanupPromptText(sceneVisual.lighting), nameContext)}`,
+    );
   }
-
-  // Safety: keep concise and at the end. Format/text bans live in systemInstruction.
-  sections.push(`- ${params.safetyAdditions}`);
 
   return sections.join('\n');
 }
@@ -752,104 +719,6 @@ function buildStructuredPrompt(params: {
  */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Build unified CHARACTERS section with per-character instructions.
- * Uses Google's "Image N" back-references for characters with visual references.
- * Real-world characters get their description inline (no longer in system instruction).
- * Scene wardrobe is already baked into dressed character references; text outfit
- * descriptions are intentionally not sent to the final scene generator.
- */
-function buildCharacterSection(
-  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>,
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>,
-  _hasReferences?: boolean,
-  imageIndexMap?: Map<string, number>,
-  referenceImages?: ReferenceBindingInput[],
-  nameContext?: PromptNameContext,
-): string {
-  const lines: string[] = [];
-  const referenceBackedNames = new Set<string>();
-  const resolvedReferenceNames = new Map<string, string>();
-
-  const placeholderMap = buildPlaceholderReferenceNameMap(
-    (referenceCharacterNames ?? []).map((entry) => typeof entry === 'string' ? entry : entry.name),
-    (realWorldCharacters ?? []).map((char) => char.name),
-  );
-  for (const [placeholderName, resolvedName] of placeholderMap) {
-    resolvedReferenceNames.set(placeholderName, resolvedName);
-  }
-
-  // Reference-backed characters are described by their adjacent image labels.
-  // Keep them out of text descriptions so prompt text cannot compete with the
-  // visual source of truth.
-  if (referenceCharacterNames) {
-    for (const entry of referenceCharacterNames) {
-      const originalName = typeof entry === 'string' ? entry : entry.name;
-      const name = resolvedReferenceNames.get(originalName) ?? originalName;
-      referenceBackedNames.add(stripCharacterIdFromName(name).trim().toLowerCase());
-    }
-  }
-
-  // Real-world characters: inline description (moved from system instruction)
-  if (realWorldCharacters) {
-    for (const char of realWorldCharacters) {
-      const normalized = stripCharacterIdFromName(char.name).trim().toLowerCase();
-      if (referenceBackedNames.has(normalized)) {
-        continue;
-      }
-      const imgIdx = resolveCharacterImageIndex(char.name, imageIndexMap);
-      const promptLabel = getPromptLabelForName(char.name, nameContext, imgIdx);
-      const identityRef = findCharacterReferenceBinding(char.name, referenceImages);
-      const desc = replacePromptNames(stripWardrobeTextForFinalScene(char.description), nameContext);
-      if (imgIdx) {
-        lines.push(`- ${promptReferenceLabel(promptLabel, imgIdx, identityRef)}: ${desc}`);
-      } else {
-        lines.push(`- ${promptReferenceLabel(promptLabel, undefined, identityRef)}: ${desc}`);
-      }
-    }
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Build character descriptions for inclusion in prompt
- */
-function buildCharacterDescriptions(characters?: CharacterReference[]): string {
-  if (!characters || characters.length === 0) return '';
-  
-  const descriptions = characters.map(char => {
-    // Priority: appearance (LLM-generated) > description > appearanceTraits
-    if (char.appearance) {
-      return char.appearance;
-    }
-    
-    if (char.description) {
-      return `${char.name}: ${char.description}`;
-    }
-    
-    // Build from appearanceTraits if available
-    if (char.appearanceTraits) {
-      const traits = char.appearanceTraits;
-      const parts: string[] = [char.name];
-      
-      if (traits.hairColor) parts.push(`${traits.hairColor} hair`);
-      if (traits.hairStyle) parts.push(`${traits.hairStyle} hairstyle`);
-      if (traits.eyeColor) parts.push(`${traits.eyeColor} eyes`);
-      if (traits.skinTone) parts.push(`${traits.skinTone} skin`);
-      if (traits.height) parts.push(traits.height);
-      if (traits.build) parts.push(traits.build);
-      if (traits.clothingStyle) parts.push(traits.clothingStyle); // NEW: Add clothing style
-      
-      return parts.join(', ');
-    }
-    
-    return char.name;
-  });
-  
-  return descriptions.length > 0 ? `Characters: ${descriptions.join('; ')}` : '';
 }
 
 /**
@@ -951,11 +820,9 @@ export function buildOutfitPlatePrompt(params: {
     .join(' ');
 }
 
-// buildReferenceInstruction() removed — per-character instructions are now part of buildCharacterSection()
-
 /**
  * Build a system instruction that contains the static parts of the image
- * generation context (style, character descriptions, quality rules).
+ * generation context (style and quality rules).
  *
  * This is set once per story and reused across all scenes via the
  * `systemInstruction` field in GenerateContentConfig, keeping the per-scene
@@ -973,6 +840,10 @@ export function buildImageSystemInstruction(params: {
   scenarioCardId?: string;
 }): string {
   const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
+  const imagePolicy = getImageContentPolicy({
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+  });
   const sections: string[] = [];
 
   // Role
@@ -985,6 +856,7 @@ export function buildImageSystemInstruction(params: {
   sections.push(
     `FORMAT: Single full-bleed illustration filling the frame edge-to-edge. ${NO_VISIBLE_TEXT_OR_REFERENCE_LABELS_RULE} Pure visual storytelling only.`,
   );
+  sections.push(`SAFETY: ${imagePolicy.imageSafetyAdditions}.`);
 
   // Reference image rules (only when turnaround sheets are attached)
   if (params.hasReferences) {

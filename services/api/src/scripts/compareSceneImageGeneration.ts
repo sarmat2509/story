@@ -35,6 +35,7 @@ import type { GeneratedImage, IImageProvider, ReferenceImage } from '../provider
 import { NanoBananaProProvider } from '../providers/image/nanobananapro/NanoBananaProProvider';
 import { referenceBindingIdFor } from '../services/referenceBinding';
 import { assignSequentialImageIndices } from '../services/referenceImageBuckets';
+import { collectSceneVisualCharacterNames } from '../services/sceneVisualCharacterMentions';
 import type { SceneVisual } from '../services/types';
 
 const DEFAULT_STORY_ID = '3d0de735-c407-45c3-a63d-8e41add42011';
@@ -437,7 +438,7 @@ async function main(): Promise<void> {
   const environments = (metadata.environments ?? []) as StoryEnvironment[];
   const currentEnvironment = environments.find((env) => env.id === scene.environmentId);
   const sceneVisual = buildComposedSceneVisual(scene, currentEnvironment, true);
-  const sceneCharacterNames =
+  const listedSceneCharacterNames =
     sceneVisual.cameraComposition && typeof sceneVisual.cameraComposition !== 'string'
       ? sceneVisual.cameraComposition.characters.map((char) => char.name)
       : [];
@@ -449,6 +450,11 @@ async function main(): Promise<void> {
     ...dbCharactersById.get(char.id),
     ...char,
   }));
+  const sceneCharacterNames = collectSceneVisualCharacterNames(
+    sceneVisual,
+    listedSceneCharacterNames,
+    mergedCharacters,
+  );
 
   const sceneAsset = await loadSceneAsset(args.storyId, args.sceneId);
   const envRef = await loadEnvironmentRef(args.storyId, scene.environmentId);
@@ -474,21 +480,22 @@ async function main(): Promise<void> {
     };
   });
   const refNameSet = new Set(imaginaryCharacters.map((char) => normalizeName(char.name)));
-  const realWorldCharacters = sceneCharacterNames
-    .filter((name) => !refNameSet.has(normalizeName(name)))
-    .map((name) => {
-      const metadataChar = findMetadataCharacter(mergedCharacters, name);
-      return {
-        name,
-        description:
-          metadataChar?.descriptionEn ||
-          metadataChar?.aiGeneratedDescription ||
-          metadataChar?.appearance ||
-          metadataChar?.description ||
-          name,
-        nameAliases: buildAliases(metadataChar, aliasesById),
-      };
-    });
+  const missingTurnarounds = sceneCharacterNames.filter(
+    (name) => !refNameSet.has(normalizeName(name)),
+  );
+  if (missingTurnarounds.length > 0) {
+    throw new Error(
+      `Scene ${args.sceneId} is missing required turnaround references: ${missingTurnarounds.join(', ')}`,
+    );
+  }
+  const nonTurnaroundReferences = imaginaryCharacters
+    .filter((character) => !character.isTurnaround)
+    .map((character) => character.name);
+  if (nonTurnaroundReferences.length > 0) {
+    throw new Error(
+      `Scene ${args.sceneId} contains non-turnaround character references: ${nonTurnaroundReferences.join(', ')}`,
+    );
+  }
 
   const existingImage = await findExistingImage(args, args.storyId, args.sceneId);
   const style = (metadata.imageStyle || config.image.defaultStyle) as string;
@@ -508,7 +515,7 @@ async function main(): Promise<void> {
     ageGroup,
     style,
     aspectRatio: '16:9' as const,
-    realWorldCharacters,
+    realWorldCharacters: [],
     imaginaryCharacters,
     referenceImages,
     imageIndexMap,
@@ -528,7 +535,7 @@ async function main(): Promise<void> {
     currentEnvironment,
     imageIndexMap: Object.fromEntries(imageIndexMap),
     imaginaryCharacters,
-    realWorldCharacters,
+    realWorldCharacters: [],
     referenceSources: refs.map((ref) => ({
       imageIndex: ref.imageIndex,
       source: ref.source,

@@ -7,6 +7,7 @@ import * as helpers from '../helpers';
 import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec } from '../../ai/types';
 import { stripAllTags } from '../../utils/audioTags';
+import { MAX_SCENE_IMAGE_CHARACTERS } from '../../domain/story/sceneCharacterLimits';
 
 export interface DirectorPromptParams {
   blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
@@ -44,7 +45,7 @@ export function shouldEnableDirectorDynamicForeshortening(params: DirectorPrompt
   return stableDirectorVariationHash(seed) % 100 < DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v26';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v27';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
@@ -73,6 +74,10 @@ Output contract:
 - Include characters, outfits, environments, mapTile, and illustrations.
 - Each illustration must include environmentId, primaryRead, and sceneVisual.
 - Each cameraComposition.characters row must include name, description, and outfitId.
+- Every named character mentioned anywhere in sceneVisual.setting, cameraComposition.shot,
+  cameraComposition.characters[].description, or lighting MUST also have exactly one row in
+  cameraComposition.characters. If the character limit is already reached, rewrite the visual
+  staging to omit the extra character completely; never leave a name only inside prose.
 - New characters must receive detailed visual descriptions for image generation.
 - environments[].description is a reusable EMPTY LOCATION PLATE, not a scene illustration. It must describe only stable terrain, architecture, furniture, plants, props, weather, time of day, and fixed object layout. Do not include people, animals, creatures, character poses/actions, story beats, or scale comparisons to named characters. If a location is named after a character or is on/inside a character's shell/house/den/nest, describe the visible place as inert terrain/architecture only, with no head, eyes, limbs, face, body, or living creature anatomy. Put characters only in illustrations[].sceneVisual.cameraComposition.characters.
 
@@ -186,6 +191,7 @@ ${wardrobeContract}`;
 
 CRITICAL - INTERNAL CONSISTENCY (all fields must describe the SAME place and moment):
 - setting, cameraComposition.shot, cameraComposition.characters, and lighting MUST all refer to ONE location and ONE moment in time — the moment of Scene X.
+- CAMERA ROSTER IS BINDING: every named character mentioned anywhere in setting, cameraComposition.shot, any cameraComposition.characters[].description, or lighting MUST have exactly one cameraComposition.characters[] row. Never mention a fourth character only inside another character's action/relationship text. If the ${MAX_SCENE_IMAGE_CHARACTERS}-character limit is reached, remove the extra character from every sceneVisual field and simplify the staging.
 - If Scene X is in a car, setting must describe the car interior — never a later location from the context scenes.
 - Before outputting, verify: could a single photograph capture everything you described? If not, fix the inconsistency.
 - Also verify renderability: would the key plot action still read clearly if this were a single 16:9 illustration viewed small on screen? If not, simplify the moment or choose a closer shot.

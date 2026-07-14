@@ -389,8 +389,11 @@ async function main(): Promise<void> {
         ageGroup: '6-8',
         style: 'soft_watercolor',
         aspectRatio: '16:9',
-        realWorldCharacters: [{ name: 'Луна', description: LUNA_DESCRIPTION }],
-        imaginaryCharacters: [{ name: 'Миро', isTurnaround: true }],
+        realWorldCharacters: [],
+        imaginaryCharacters: [
+          { name: 'Луна', isTurnaround: true },
+          { name: 'Миро', isTurnaround: true },
+        ],
         referenceImages: providerRefs,
         imageIndexMap: new Map([
           ['Луна', 1],
