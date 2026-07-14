@@ -791,15 +791,16 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   dropdownButton: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing[1],
-    paddingHorizontal: theme.spacing[3],
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
+    borderRadius: theme.borders.radius.full,
     backgroundColor: theme.colors.background.secondary,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: theme.colors.primary[200],
     ...Platform.select({
       web: {
         cursor: 'pointer',

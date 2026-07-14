@@ -15,15 +15,8 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-  type PressableStateCallbackType,
 } from 'react-native';
 import { theme } from '@/theme';
-import { hexAlpha } from '@/theme/colorAlpha';
-
-type ExtendedPressableState = PressableStateCallbackType & {
-  hovered?: boolean;
-  focused?: boolean;
-};
 
 interface Props {
   allStoriesLabel: string;
@@ -126,12 +119,7 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
           accessibilityState={{ selected }}
           testID={testID}
           focusable
-          style={(state: ExtendedPressableState) => [
-            styles.segment,
-            Platform.OS === 'web' && state.hovered && !selected && styles.segmentHovered,
-            state.pressed && styles.segmentPressed,
-            Platform.OS === 'web' && state.focused && styles.segmentFocused,
-          ]}
+          style={(state) => [styles.segment, state.pressed && styles.segmentPressed]}
         >
           <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>{label}</Text>
         </Pressable>
@@ -190,14 +178,7 @@ const styles = StyleSheet.create({
     top: 3,
     bottom: 3,
     borderRadius: theme.borders.radius.full,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.primary[300],
     backgroundColor: theme.colors.primary[50],
-    shadowColor: theme.colors.primary[900],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    elevation: 2,
   },
   segment: {
     zIndex: 1,
@@ -211,31 +192,15 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         cursor: 'pointer',
-        transition: 'background-color 160ms ease, opacity 160ms ease',
+        outlineStyle: 'none',
+        transition: 'opacity 160ms ease',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     }),
   },
-  segmentHovered: Platform.select({
-    web: {
-      backgroundColor: hexAlpha(theme.colors.primary[500], 0.06),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-    default: {},
-  }),
   segmentPressed: {
     opacity: 0.82,
   },
-  segmentFocused: Platform.select({
-    web: {
-      outlineStyle: 'solid',
-      outlineWidth: 2,
-      outlineColor: theme.colors.primary[500],
-      outlineOffset: -2,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-    default: {},
-  }),
   segmentText: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,

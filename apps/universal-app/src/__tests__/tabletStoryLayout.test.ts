@@ -21,8 +21,18 @@ assert.match(
 );
 assert.match(
   storyViewerSource,
-  /right:\s*theme\.spacing\[16\]/,
-  'tablet story header title content should reserve 64px on the right'
+  /tabletHeaderTitleContainer:\s*\{[\s\S]*?right:\s*theme\.spacing\[20\]\s*\+\s*theme\.spacing\[4\]/,
+  'tablet story header title content should reserve 96px on the right'
+);
+assert.match(
+  storyViewerSource,
+  /isTabletPortrait\s*\?\s*\(\s*<Text style=\{styles\.tabletHeaderBreadcrumb\} numberOfLines=\{2\}>/,
+  'tablet breadcrumbs should wrap category and story titles together across two lines'
+);
+assert.match(
+  storyViewerSource,
+  /tabletHeaderBreadcrumb:\s*\{[\s\S]*?width:\s*'100%'[\s\S]*?lineHeight:\s*26/,
+  'tablet breadcrumbs should use the full reserved title area with readable line spacing'
 );
 assert.ok(
   (storyViewerSource.match(/isSingleColumn\s*&&\s*styles\.singleColumnMedia/g) ?? []).length >= 4,

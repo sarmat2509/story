@@ -36,10 +36,33 @@ assert.match(
   /renderSegment\(false, allStoriesLabel[\s\S]*renderSegment\(true, audioOnlyLabel/,
   'both titles should be interactive states inside the control'
 );
+const activeBubbleStyles = toggleSource.match(
+  /activeBubble:\s*\{([\s\S]*?)\n\s*\},\n\s*segment:/
+)?.[1];
+assert.ok(activeBubbleStyles, 'the moving bubble styles should be present');
+assert.doesNotMatch(
+  activeBubbleStyles,
+  /border(?:Color|Width)|shadow|elevation/,
+  'the moving bubble should not carry the old outlined shadow treatment'
+);
+const segmentStyles = toggleSource.match(
+  /segment:\s*\{([\s\S]*?)\n\s*\},\n\s*segmentPressed:/
+)?.[1];
+assert.ok(segmentStyles, 'the segment styles should be present');
+assert.doesNotMatch(
+  segmentStyles,
+  /backgroundColor|border(?:Color|Width)|boxShadow|shadowColor/,
+  'individual segments should remain text-only above the single moving bubble'
+);
 assert.match(
   headerSource,
   /\[allStoriesLabel, audioOnlyLabel, audioToggleRef, onToggleAudioFilter\]/,
   'localized label changes should remeasure and resize the segmented control'
+);
+assert.match(
+  headerSource,
+  /dropdownButton:\s*\{[\s\S]*?minHeight:\s*48[\s\S]*?borderRadius:\s*theme\.borders\.radius\.full/,
+  'desktop selects should match the segmented control height and pill radius'
 );
 
 console.log('audio filter segmented-control regression guards passed');

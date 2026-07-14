@@ -540,7 +540,7 @@ export default function StoryViewerScreen() {
               ? styles.tabletHeaderTitleContainer
               : undefined,
           headerTitleAlign: isSingleColumn ? 'left' : undefined,
-          headerTitle: () => (
+          headerTitle: () =>
             isMobile ? (
               <View style={styles.mobileHeaderBreadcrumb}>
                 <View style={styles.mobileHeaderBreadcrumbTopRow}>
@@ -565,6 +565,40 @@ export default function StoryViewerScreen() {
                   {story.title}
                 </Text>
               </View>
+            ) : isTabletPortrait ? (
+              <Text style={styles.tabletHeaderBreadcrumb} numberOfLines={2}>
+                <Text
+                  style={styles.tabletHeaderBreadcrumbLink}
+                  accessibilityRole="link"
+                  onPress={() =>
+                    navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
+                  }
+                >
+                  {story.scenarioCardName}
+                </Text>
+                {seriesInfo?.baseTitle ? (
+                  <>
+                    <Text style={styles.tabletHeaderBreadcrumbSeparator}>{'\u00A0›\u00A0'}</Text>
+                    <Text
+                      style={styles.tabletHeaderBreadcrumbMiddle}
+                      accessibilityRole={seriesInfo.seriesId ? 'link' : undefined}
+                      onPress={
+                        seriesInfo.seriesId
+                          ? () =>
+                              (navigation as NavigationProp<MainDrawerParamList>).navigate(
+                                'SeriesDetail',
+                                { seriesId: seriesInfo.seriesId as string }
+                              )
+                          : undefined
+                      }
+                    >
+                      {seriesInfo.baseTitle}
+                    </Text>
+                  </>
+                ) : null}
+                <Text style={styles.tabletHeaderBreadcrumbSeparator}>{'\u00A0›\u00A0'}</Text>
+                <Text style={styles.tabletHeaderBreadcrumbCurrent}>{story.title}</Text>
+              </Text>
             ) : (
               <View style={styles.headerBreadcrumb}>
                 <TouchableOpacity
@@ -616,8 +650,7 @@ export default function StoryViewerScreen() {
                   {story.title}
                 </Text>
               </View>
-            )
-          ),
+            ),
         });
       } else {
         navigation.setOptions({
@@ -633,7 +666,13 @@ export default function StoryViewerScreen() {
                   {story.title}
                 </Text>
               )
-            : undefined,
+            : isTabletPortrait
+              ? () => (
+                  <Text style={styles.tabletHeaderTitle} numberOfLines={2}>
+                    {story.title}
+                  </Text>
+                )
+              : undefined,
           title: isMobile ? undefined : story.title,
         });
       }
@@ -729,9 +768,13 @@ export default function StoryViewerScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
-      headerRightContainerStyle: isMobile ? styles.mobileHeaderRightContainer : undefined,
+      headerRightContainerStyle: isMobile
+        ? styles.mobileHeaderRightContainer
+        : isTabletPortrait
+          ? styles.tabletHeaderRightContainer
+          : undefined,
     });
-  }, [isMobile, isChildSession, navigation]);
+  }, [isMobile, isTabletPortrait, isChildSession, navigation]);
 
   // Default voice: keep last user choice across stories; if it is missing from this
   // catalog (e.g. other story language), restore from storage or first unlocked voice.
@@ -3935,8 +3978,44 @@ const styles = StyleSheet.create({
   },
   tabletHeaderTitleContainer: {
     left: theme.spacing[4],
-    right: theme.spacing[16],
+    right: theme.spacing[20] + theme.spacing[4],
+    justifyContent: 'center',
     overflow: 'hidden',
+  },
+  tabletHeaderBreadcrumb: {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.lg,
+    lineHeight: 26,
+    color: theme.colors.text.primary,
+  },
+  tabletHeaderBreadcrumbLink: {
+    color: theme.colors.interactive.primary,
+  },
+  tabletHeaderBreadcrumbSeparator: {
+    color: theme.colors.text.tertiary,
+    fontWeight: theme.typography.fontWeight.regular,
+  },
+  tabletHeaderBreadcrumbMiddle: {
+    color: theme.colors.text.secondary,
+  },
+  tabletHeaderBreadcrumbCurrent: {
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  tabletHeaderTitle: {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.lg,
+    lineHeight: 26,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  tabletHeaderRightContainer: {
+    right: 0,
+    zIndex: 2,
   },
   mobileHeaderTitleContainer: {
     left: 0,
