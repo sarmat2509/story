@@ -134,30 +134,39 @@ function FilterDropdown({
       </Pressable>
       {isOpen && (
         <View style={styles.dropdownMenu}>
-          {options.map((option, index) => {
-            const isActive = selectedValue === option.value;
-            const isLast = index === options.length - 1;
-            return (
-              <Pressable
-                key={`${option.value ?? 'all'}-${index}`}
-                focusable
-                style={(state: ExtendedPressableState) => [
-                  styles.dropdownItem,
-                  isActive && styles.dropdownItemActive,
-                  isLast && styles.dropdownItemLast,
-                  Platform.OS === 'web' && state.hovered && !isActive && styles.dropdownItemHovered,
-                  state.pressed && styles.dropdownItemPressed,
-                  Platform.OS === 'web' && state.focused && styles.dropdownItemFocused,
-                ]}
-                onPress={() => onSelect(option.value)}
-                testID={`${testID}-option-${option.value ?? 'all'}`}
-              >
-                <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <ScrollView
+            style={styles.dropdownMenuScroll}
+            contentContainerStyle={styles.dropdownMenuContent}
+            showsVerticalScrollIndicator
+          >
+            {options.map((option, index) => {
+              const isActive = selectedValue === option.value;
+              return (
+                <Pressable
+                  key={`${option.value ?? 'all'}-${index}`}
+                  focusable
+                  style={(state: ExtendedPressableState) => [
+                    styles.dropdownItem,
+                    isActive && styles.dropdownItemActive,
+                    Platform.OS === 'web' &&
+                      state.hovered &&
+                      !isActive &&
+                      styles.dropdownItemHovered,
+                    state.pressed && styles.dropdownItemPressed,
+                    Platform.OS === 'web' && state.focused && styles.dropdownItemFocused,
+                  ]}
+                  onPress={() => onSelect(option.value)}
+                  testID={`${testID}-option-${option.value ?? 'all'}`}
+                >
+                  <Text
+                    style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -845,10 +854,12 @@ const styles = StyleSheet.create({
     left: 0,
     marginTop: theme.spacing[1],
     minWidth: 220,
+    maxHeight: 384,
     backgroundColor: theme.colors.background.primary,
-    borderRadius: theme.borders.radius.md,
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
+    overflow: 'hidden',
     ...Platform.select({
       web: {
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -862,11 +873,19 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  dropdownItem: {
-    paddingHorizontal: theme.spacing[3],
+  dropdownMenuScroll: {
+    maxHeight: 384,
+  },
+  dropdownMenuContent: {
     paddingVertical: theme.spacing[2],
-    borderBottomWidth: theme.borders.width.thin,
-    borderBottomColor: theme.colors.border.light,
+  },
+  dropdownItem: {
+    minHeight: 48,
+    justifyContent: 'center',
+    marginHorizontal: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
     ...Platform.select({
       web: {
         cursor: 'pointer',
@@ -874,9 +893,6 @@ const styles = StyleSheet.create({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     }),
-  },
-  dropdownItemLast: {
-    borderBottomWidth: 0,
   },
   dropdownItemHovered: {
     backgroundColor: theme.colors.neutral[100],
