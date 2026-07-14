@@ -4,6 +4,8 @@
 
 const DEFAULT_APP_URL = 'https://wondertales.art';
 const DEFAULT_HEALTH_URL = `${DEFAULT_APP_URL}/health`;
+const DEFAULT_PRODUCTION_TITLE = 'WonderTales · Production';
+const DEFAULT_ADMIN_TITLE = 'WonderTales · Admin';
 const RICH_MESSAGE_LIMIT = 32_000;
 const PLAIN_MESSAGE_LIMIT = 3_900;
 
@@ -77,6 +79,36 @@ function statusPresentation(severity) {
   }
 }
 
+function alertTitle(value, fallback, legacyTitles = []) {
+  const candidate = text(value).trim();
+  if (!candidate || legacyTitles.includes(candidate)) return fallback;
+  return candidate;
+}
+
+function opsEventTitle(severity) {
+  if (severity === 'critical' || severity === 'failure') return 'Operations check failed';
+  if (severity === 'warning') return 'Operations check needs attention';
+  if (severity === 'success') return 'Operations check passed';
+  return 'Operations status update';
+}
+
+function adminEventTitle(severity, findingCount) {
+  if (severity === 'critical') return 'Admin dashboard requires action';
+  if (severity === 'warning') return 'Admin dashboard needs attention';
+  return findingCount > 0 ? 'Admin dashboard update' : 'Admin dashboard is clear';
+}
+
+function alertIntroHtml(presentation, title, eventTitle) {
+  return [
+    `<h2>${presentation.icon} ${escapeHtml(title)}</h2>`,
+    `<p><mark>${presentation.label}</mark> <b>${escapeHtml(eventTitle)}</b></p>`,
+  ];
+}
+
+function alertIntroLines(presentation, title, eventTitle) {
+  return [`${presentation.icon} ${title}`, `${presentation.label} — ${eventTitle}`];
+}
+
 function selectedDeployComponents(components = {}) {
   const labels = [
     ['api', 'API'],
@@ -121,8 +153,7 @@ function buildDeployAlert(options = {}) {
   ].filter(Boolean);
 
   const richHtml = [
-    `<h2>${presentation.icon} WonderTales · Production</h2>`,
-    `<p><mark>${presentation.label}</mark> <b>${escapeHtml(phaseTitle)}</b></p>`,
+    ...alertIntroHtml(presentation, DEFAULT_PRODUCTION_TITLE, phaseTitle),
     tableHtml(summaryRows),
     '<hr/>',
     `<h3>${phase === 'failure' ? 'Failed deployment scope' : 'Deployment scope'}</h3>`,
@@ -132,8 +163,7 @@ function buildDeployAlert(options = {}) {
   ].join('');
 
   const fallbackLines = [
-    `${presentation.icon} WonderTales · Production`,
-    `${presentation.label} — ${phaseTitle}`,
+    ...alertIntroLines(presentation, DEFAULT_PRODUCTION_TITLE, phaseTitle),
     '',
     `Deploy: ${options.deployId || '-'}`,
     `Source: ${options.sourceSummary || '-'}`,
@@ -190,6 +220,10 @@ function buildOpsAlert(options = {}) {
   const checkStatus = text(options.checkStatus || '0');
   const appUrl = options.appUrl || DEFAULT_APP_URL;
   const healthUrl = options.healthUrl || DEFAULT_HEALTH_URL;
+  const title = alertTitle(options.titlePrefix, DEFAULT_PRODUCTION_TITLE, [
+    'WonderTales production ops',
+  ]);
+  const eventTitle = opsEventTitle(severity);
 
   const problems = lines
     .filter((line) => /^(FAIL|WARN) /.test(line))
@@ -225,8 +259,7 @@ function buildOpsAlert(options = {}) {
   ].filter(Boolean);
 
   const richSections = [
-    `<h2>${presentation.icon} ${escapeHtml(options.titlePrefix || 'WonderTales production ops')}</h2>`,
-    `<p><mark>${presentation.label}</mark></p>`,
+    ...alertIntroHtml(presentation, title, eventTitle),
     tableHtml([
       ['Environment', 'Production'],
       ['Failures', failures],
@@ -263,7 +296,7 @@ function buildOpsAlert(options = {}) {
     richSections.push(`<footer>${escapeHtml(options.fullReportHint)}</footer>`);
 
   const fallbackLines = [
-    `${presentation.icon} ${options.titlePrefix || 'WonderTales production ops'} · ${presentation.label}`,
+    ...alertIntroLines(presentation, title, eventTitle),
     `Failures ${failures} · Warnings ${warnings} · Exit ${checkStatus}`,
     '',
     'Needs attention',
@@ -301,10 +334,13 @@ function buildAdminAlert(options = {}) {
   const appUrl = options.appUrl || DEFAULT_APP_URL;
   const dashboardUrl = `${appUrl.replace(/\/$/, '')}/admin/dashboard`;
   const areaIcons = { cost: '💳', queue: '⚙️', quality: '🖼️', test: '🧪' };
+  const title = alertTitle(options.titlePrefix, DEFAULT_ADMIN_TITLE, [
+    'WonderTales admin dashboard',
+  ]);
+  const eventTitle = adminEventTitle(severity, findings.length);
 
   const richSections = [
-    `<h2>${presentation.icon} ${escapeHtml(options.titlePrefix || 'WonderTales admin dashboard')}</h2>`,
-    `<p><mark>${presentation.label}</mark></p>`,
+    ...alertIntroHtml(presentation, title, eventTitle),
     tableHtml([
       ['Environment', 'Production'],
       ['Findings', findings.length],
@@ -335,7 +371,7 @@ function buildAdminAlert(options = {}) {
   }
 
   const fallbackLines = [
-    `${presentation.icon} ${options.titlePrefix || 'WonderTales admin dashboard'} · ${presentation.label}`,
+    ...alertIntroLines(presentation, title, eventTitle),
     `Findings: ${findings.length}`,
     '',
     ...(findings.length

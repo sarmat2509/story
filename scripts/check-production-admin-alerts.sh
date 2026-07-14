@@ -20,7 +20,7 @@ ADMIN_ALERT_WEBHOOK_URL="${ADMIN_ALERT_WEBHOOK_URL:-${OPS_ALERT_WEBHOOK_URL:-}}"
 ADMIN_ALERT_TELEGRAM_BOT_TOKEN="${ADMIN_ALERT_TELEGRAM_BOT_TOKEN:-${OPS_ALERT_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}}"
 ADMIN_ALERT_TELEGRAM_CHAT_ID="${ADMIN_ALERT_TELEGRAM_CHAT_ID:-${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}}"
 ADMIN_ALERT_ON_WARNINGS="${ADMIN_ALERT_ON_WARNINGS:-0}"
-ADMIN_ALERT_TITLE_PREFIX="${ADMIN_ALERT_TITLE_PREFIX:-WonderTales admin dashboard}"
+ADMIN_ALERT_TITLE_PREFIX="${ADMIN_ALERT_TITLE_PREFIX:-WonderTales · Admin}"
 PROD_ADMIN_ALERT_TOKEN="${PROD_ADMIN_ALERT_TOKEN:-${PROD_ADMIN_SMOKE_TOKEN:-}}"
 PROD_ADMIN_ALERT_EMAIL="${PROD_ADMIN_ALERT_EMAIL:-${PROD_ADMIN_SMOKE_EMAIL:-}}"
 PROD_ADMIN_ALERT_PASSWORD="${PROD_ADMIN_ALERT_PASSWORD:-${PROD_ADMIN_SMOKE_PASSWORD:-}}"
@@ -82,7 +82,7 @@ const { buildAdminAlert } = require(process.env.TELEGRAM_ALERT_HELPER);
 const baseUrl = (process.env.BASE_URL || 'https://wondertales.art').replace(/\/$/, '');
 const days = Number.parseInt(process.env.ADMIN_ALERT_DAYS || '7', 10);
 const includeWarnings = process.env.ADMIN_ALERT_ON_WARNINGS === '1';
-const titlePrefix = process.env.ADMIN_ALERT_TITLE_PREFIX || 'WonderTales admin dashboard';
+const titlePrefix = process.env.ADMIN_ALERT_TITLE_PREFIX || 'WonderTales · Admin';
 const forceAlert = process.env.FORCE_ALERT === '1';
 const testAlert = process.env.TEST_ALERT === '1';
 
@@ -275,19 +275,29 @@ if [[ "$DRY_RUN_ALERT" == "1" ]]; then
   exit "$check_status"
 fi
 
-if [[ -z "$ADMIN_ALERT_WEBHOOK_URL" ]]; then
-  if [[ -n "$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" && -n "$ADMIN_ALERT_TELEGRAM_CHAT_ID" ]]; then
-    delivery_result="$(
-      printf '%s' "$alert" | \
-        TELEGRAM_BOT_TOKEN="$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" \
-        TELEGRAM_CHAT_ID="$ADMIN_ALERT_TELEGRAM_CHAT_ID" \
-        node "$(cd "$(dirname "$0")" && pwd)/lib/telegram-alert.js" deliver
-    )"
+if [[ -n "$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" && -n "$ADMIN_ALERT_TELEGRAM_CHAT_ID" ]]; then
+  set +e
+  delivery_result="$(
+    printf '%s' "$alert" | \
+      TELEGRAM_BOT_TOKEN="$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" \
+      TELEGRAM_CHAT_ID="$ADMIN_ALERT_TELEGRAM_CHAT_ID" \
+      node "$(cd "$(dirname "$0")" && pwd)/lib/telegram-alert.js" deliver
+  )"
+  delivery_status=$?
+  set -e
+  if [[ "$delivery_status" == "0" ]]; then
     delivery_summary="$(ALERT_DELIVERY_RESULT="$delivery_result" node -e "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.mode + ' ' + result.action)")"
     echo "Telegram alert sent (${delivery_summary})."
     exit "$check_status"
   fi
 
+  echo "WARN rich Telegram alert failed; trying webhook fallback" >&2
+  if [[ -z "$ADMIN_ALERT_WEBHOOK_URL" ]]; then
+    exit "$delivery_status"
+  fi
+fi
+
+if [[ -z "$ADMIN_ALERT_WEBHOOK_URL" ]]; then
   echo "WARN alert not sent; ADMIN_ALERT_WEBHOOK_URL/OPS_ALERT_WEBHOOK_URL or Telegram alert env is not configured" >&2
   exit "$check_status"
 fi

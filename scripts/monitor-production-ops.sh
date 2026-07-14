@@ -23,7 +23,7 @@ OPS_ALERT_TELEGRAM_BOT_TOKEN="${OPS_ALERT_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOK
 OPS_ALERT_TELEGRAM_CHAT_ID="${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}"
 OPS_ALERT_ON_WARNINGS="${OPS_ALERT_ON_WARNINGS:-0}"
 OPS_ALERT_TAIL_LINES="${OPS_ALERT_TAIL_LINES:-80}"
-OPS_ALERT_TITLE_PREFIX="${OPS_ALERT_TITLE_PREFIX:-WonderTales production ops}"
+OPS_ALERT_TITLE_PREFIX="${OPS_ALERT_TITLE_PREFIX:-WonderTales · Production}"
 OPS_ALERT_INCLUDE_FULL_REPORT="${OPS_ALERT_INCLUDE_FULL_REPORT:-0}"
 OPS_ALERT_FULL_REPORT_HINT="${OPS_ALERT_FULL_REPORT_HINT:-Full report: /var/www/kazka/logs/production-ops-monitor.log}"
 
@@ -160,19 +160,29 @@ if [[ "$DRY_RUN_ALERT" == "1" ]]; then
   exit "$check_status"
 fi
 
-if [[ -z "$OPS_ALERT_WEBHOOK_URL" ]]; then
-  if [[ -n "$OPS_ALERT_TELEGRAM_BOT_TOKEN" && -n "$OPS_ALERT_TELEGRAM_CHAT_ID" ]]; then
-    delivery_result="$(
-      printf '%s' "$alert" | \
-        TELEGRAM_BOT_TOKEN="$OPS_ALERT_TELEGRAM_BOT_TOKEN" \
-        TELEGRAM_CHAT_ID="$OPS_ALERT_TELEGRAM_CHAT_ID" \
-        node "${SCRIPT_DIR}/lib/telegram-alert.js" deliver
-    )"
+if [[ -n "$OPS_ALERT_TELEGRAM_BOT_TOKEN" && -n "$OPS_ALERT_TELEGRAM_CHAT_ID" ]]; then
+  set +e
+  delivery_result="$(
+    printf '%s' "$alert" | \
+      TELEGRAM_BOT_TOKEN="$OPS_ALERT_TELEGRAM_BOT_TOKEN" \
+      TELEGRAM_CHAT_ID="$OPS_ALERT_TELEGRAM_CHAT_ID" \
+      node "${SCRIPT_DIR}/lib/telegram-alert.js" deliver
+  )"
+  delivery_status=$?
+  set -e
+  if [[ "$delivery_status" == "0" ]]; then
     delivery_summary="$(ALERT_DELIVERY_RESULT="$delivery_result" node -e "const result=JSON.parse(process.env.ALERT_DELIVERY_RESULT); console.log(result.mode + ' ' + result.action)")"
     echo "Telegram alert sent (${delivery_summary})."
     exit "$check_status"
   fi
 
+  echo "WARN rich Telegram alert failed; trying webhook fallback" >&2
+  if [[ -z "$OPS_ALERT_WEBHOOK_URL" ]]; then
+    exit "$delivery_status"
+  fi
+fi
+
+if [[ -z "$OPS_ALERT_WEBHOOK_URL" ]]; then
   echo "WARN alert not sent; OPS_ALERT_WEBHOOK_URL or OPS_ALERT_TELEGRAM_* is not configured" >&2
   exit "$check_status"
 fi

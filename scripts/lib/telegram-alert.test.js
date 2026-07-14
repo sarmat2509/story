@@ -46,7 +46,7 @@ test('buildDeployAlert creates a structured success card and controls', () => {
   assert.deepEqual(alert.replyMarkup.inline_keyboard[0][2].copy_text, { text: 'deploy-123' });
 });
 
-test('buildOpsAlert groups problems and current state', () => {
+test('buildOpsAlert formats a polished production warning and groups details', () => {
   const alert = buildOpsAlert({
     severity: 'critical',
     failures: '1',
@@ -62,10 +62,32 @@ test('buildOpsAlert groups problems and current state', () => {
     fullReportHint: '/var/www/kazka/logs/production-ops-monitor.log',
   });
 
-  assert.match(alert.richHtml, /🚨 WonderTales production ops/);
+  assert.match(alert.richHtml, /<h2>🚨 WonderTales · Production<\/h2>/);
+  assert.match(alert.richHtml, /<mark>CRITICAL<\/mark> <b>Operations check failed<\/b>/);
   assert.match(alert.richHtml, /❌ public health endpoint is unavailable/);
   assert.match(alert.richHtml, /<details><summary>Current state<\/summary>/);
+  assert.match(alert.fallbackText, /^🚨 WonderTales · Production\nCRITICAL — Operations check failed/);
   assert.match(alert.fallbackText, /⚠️ backup smoke skipped/);
+});
+
+test('buildOpsAlert gives warnings an actionable subtitle', () => {
+  const alert = buildOpsAlert({
+    severity: 'warning',
+    failures: '0',
+    warnings: '1',
+    checkStatus: '0',
+    report: 'WARN backup smoke skipped',
+  });
+
+  assert.match(alert.richHtml, /<h2>⚠️ WonderTales · Production<\/h2>/);
+  assert.match(
+    alert.richHtml,
+    /<mark>WARNING<\/mark> <b>Operations check needs attention<\/b>/
+  );
+  assert.match(
+    alert.fallbackText,
+    /^⚠️ WonderTales · Production\nWARNING — Operations check needs attention/
+  );
 });
 
 test('buildAdminAlert produces an actionable dashboard card', () => {
@@ -85,6 +107,9 @@ test('buildAdminAlert produces an actionable dashboard card', () => {
   });
 
   assert.match(alert.richHtml, /⚙️ <b>Queue health is critical<\/b>/);
+  assert.match(alert.richHtml, /<h2>🚨 WonderTales · Admin<\/h2>/);
+  assert.match(alert.richHtml, /<mark>CRITICAL<\/mark> <b>Admin dashboard requires action<\/b>/);
+  assert.match(alert.fallbackText, /^🚨 WonderTales · Admin\nCRITICAL — Admin dashboard requires action/);
   assert.equal(alert.replyMarkup.inline_keyboard[0][0].style, 'danger');
   assert.equal(
     alert.replyMarkup.inline_keyboard[0][0].url,
