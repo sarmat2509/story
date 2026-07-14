@@ -26,6 +26,21 @@ assert.doesNotMatch(
   /!\s*isInstantMode\s*&&\s*!\s*isChildSession\s*&&\s*\(\s*<(Tab|Drawer)\.Screen\s+name="Children"/s,
   'Children routes must not be hidden only because the user is in instant mode'
 );
+assert.match(
+  mainNavigatorSource,
+  /<Tab\.Screen\s+name="Characters"\s+component=\{CharactersScreenWithAuth\}/s,
+  'the Characters tab route should always be registered when its navigation button is shown'
+);
+assert.match(
+  mainNavigatorSource,
+  /<Drawer\.Screen\s+name="Characters"\s+component=\{CharactersScreenWithAuth\}/s,
+  'the Characters drawer route should always be registered when its navigation item is shown'
+);
+assert.doesNotMatch(
+  mainNavigatorSource,
+  /\{\s*\(!isInstantMode\s*\|\|\s*isChildSession\)\s*&&\s*\(\s*<(Tab|Drawer)\.Screen\s+name="Characters"/s,
+  'instant mode must not remove the Characters route from a navigator that still links to it'
+);
 
 assert.match(
   charactersScreenSource,

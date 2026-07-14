@@ -554,7 +554,6 @@ const mobileTabBarStyles = StyleSheet.create({
 function TabNavigator() {
   const { t } = useTranslation();
   const { user, isAuthenticated, sessionMode } = useAuthStore();
-  const isInstantMode = user?.mode === 'instant';
   const isChildSession = isAuthenticated && sessionMode === 'child';
   const profileSwitcherAvatarUrl = user?.avatarUrl
     ? (formatAssetUrl(user.avatarUrl) ?? user.avatarUrl)
@@ -784,20 +783,18 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      {(!isInstantMode || isChildSession) && (
-        <Tab.Screen
-          name="Characters"
-          component={CharactersScreenWithAuth}
-          options={{
-            title: t('navigation.characters'),
-            tabBarLabel: t('navigation.tab_characters'),
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="body-outline" size={size} color={color} />
-            ),
-            tabBarButton: !isAuthenticated ? () => null : undefined,
-          }}
-        />
-      )}
+      <Tab.Screen
+        name="Characters"
+        component={CharactersScreenWithAuth}
+        options={{
+          title: t('navigation.characters'),
+          tabBarLabel: t('navigation.tab_characters'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="body-outline" size={size} color={color} />
+          ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
+        }}
+      />
       <Tab.Screen
         name="BillingSuccess"
         component={BillingSuccessScreen}
@@ -875,9 +872,8 @@ function DrawerBurgerButton() {
 function DrawerNavigator() {
   const { t } = useTranslation();
   const { isTablet, isDesktop } = useResponsive();
-  const { user, isAuthenticated, sessionMode, activeChild } = useAuthStore();
+  const { isAuthenticated, sessionMode, activeChild } = useAuthStore();
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
-  const isInstantMode = user?.mode === 'instant';
   const isChildSession = isAuthenticated && sessionMode === 'child';
   const childCanReadPublicStories =
     isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled !== false;
@@ -1109,19 +1105,17 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      {(!isInstantMode || isChildSession) && (
-        <Drawer.Screen
-          name="Characters"
-          component={CharactersScreenWithAuth}
-          options={{
-            title: t('navigation.characters'),
-            drawerIcon: ({ color, size }) => (
-              <Ionicons name="body-outline" size={size} color={color} />
-            ),
-            drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
-          }}
-        />
-      )}
+      <Drawer.Screen
+        name="Characters"
+        component={CharactersScreenWithAuth}
+        options={{
+          title: t('navigation.characters'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="body-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
       <Drawer.Screen
         name="BillingSuccess"
         component={BillingSuccessScreen}
