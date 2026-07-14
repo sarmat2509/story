@@ -1077,7 +1077,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 
     const story = await getStory(id, getRequestOwnerUserId(req));
 
-    if (!story || !storyReadableByRequestSession(req, story as any)) {
+    if (!story || !storyReadableByRequestSession(req, story)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found',
@@ -1196,7 +1196,7 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
     const ownerUserId = getRequestOwnerUserId(req);
     const story = await getStoryRepository().findByIdAndUser(id, ownerUserId);
 
-    if (!story || !storyReadableByRequestSession(req, story as any)) {
+    if (!story || !storyReadableByRequestSession(req, story)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found',
@@ -1797,7 +1797,7 @@ router.post(
 
       // Load story to verify ownership
       const story = await getStory(storyId, ownerUserId);
-      if (!story || !storyReadableByRequestSession(req, story as any)) {
+      if (!story || !storyReadableByRequestSession(req, story)) {
         return res.status(404).json({
           status: 'error',
           message: 'Story not found',
@@ -1923,7 +1923,7 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
 
     const story = await getStoryRepository().findByIdAndUser(storyId, ownerUserId);
 
-    if (!story || !storyReadableByRequestSession(req, story as any)) {
+    if (!story || !storyReadableByRequestSession(req, story)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found',
@@ -2222,7 +2222,7 @@ router.get('/:id/manifest', requireAuth, async (req: Request, res: Response) => 
 
     const story = await getStory(id, getRequestOwnerUserId(req));
 
-    if (!story || !storyReadableByRequestSession(req, story as any)) {
+    if (!story || !storyReadableByRequestSession(req, story)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found',
@@ -2562,7 +2562,7 @@ router.post(
 
       // Ownership check: verify the story belongs to the requesting user
       const story = await getStory(storyId, ownerUserId);
-      if (!story || !storyReadableByRequestSession(req, story as any)) {
+      if (!story || !storyReadableByRequestSession(req, story)) {
         return res.status(404).json({
           status: 'error',
           message: 'Story not found',
@@ -2687,7 +2687,7 @@ router.get('/:id/audio', requireAuth, async (req: Request, res: Response) => {
     // Get story
     const story = await getStory(storyId, ownerUserId);
 
-    if (!story || !storyReadableByRequestSession(req, story as any)) {
+    if (!story || !storyReadableByRequestSession(req, story)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found',

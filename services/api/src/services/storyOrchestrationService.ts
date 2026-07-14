@@ -6598,6 +6598,8 @@ export async function getStory(storyId: string, userId: string) {
 
   return {
     id: story.id,
+    childProfileId: story.childProfileId,
+    createdByChildProfileId: story.createdByChildProfileId,
     title: story.title,
     language: story.language,
     ageGroup: story.ageGroup,

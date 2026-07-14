@@ -74,6 +74,15 @@ assert.equal(
 
 assert.equal(
   canReadStoryForSession(
+    { sessionMode: 'child', childProfileId: 'child-1', sessionScopes: [] },
+    { childProfileId: null, createdByChildProfileId: 'child-1' }
+  ),
+  true,
+  'child sessions can read family stories created by their active child profile'
+);
+
+assert.equal(
+  canReadStoryForSession(
     {
       sessionMode: 'child',
       childProfileId: 'child-1',
