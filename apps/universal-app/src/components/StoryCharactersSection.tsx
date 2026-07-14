@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -189,6 +189,37 @@ function hasCharacterImage(character: StoryCharacter): boolean {
   return typeof character.referencePhotoUrl === 'string' && character.referencePhotoUrl.trim().length > 0;
 }
 
+function detectTouchDevice(): boolean {
+  if (Platform.OS !== 'web') return true;
+  if (typeof window === 'undefined') return false;
+
+  const hasTouchPoints = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  const hasCoarsePointer =
+    typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  return hasTouchPoints || hasCoarsePointer;
+}
+
+function useIsTouchDevice(): boolean {
+  const [isTouchDevice, setIsTouchDevice] = useState(detectTouchDevice);
+
+  useEffect(() => {
+    if (
+      Platform.OS !== 'web' ||
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return;
+    }
+
+    const pointerQuery = window.matchMedia('(pointer: coarse)');
+    const updateTouchDevice = () => setIsTouchDevice(detectTouchDevice());
+    pointerQuery.addEventListener?.('change', updateTouchDevice);
+    return () => pointerQuery.removeEventListener?.('change', updateTouchDevice);
+  }, []);
+
+  return isTouchDevice;
+}
+
 function StoryCharactersSectionInner({
   characters,
   savedCharacterIds,
@@ -201,8 +232,23 @@ function StoryCharactersSectionInner({
   const savedSet = new Set(savedCharacterIds);
   const visibleCharacters = useMemo(() => characters.filter(hasCharacterImage), [characters]);
   const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
+  const [tappedCharacterId, setTappedCharacterId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(!collapsible);
+  const isTouchDevice = useIsTouchDevice();
+  const previewedCharacterId = hoveredCharacterId ?? tappedCharacterId;
   const shouldShowCharacters = !collapsible || isExpanded;
+
+  const toggleCharacterPreview = useCallback((characterId: string) => {
+    setTappedCharacterId((current) => (current === characterId ? null : characterId));
+  }, []);
+
+  const toggleSection = useCallback(() => {
+    if (isExpanded) {
+      setHoveredCharacterId(null);
+      setTappedCharacterId(null);
+    }
+    setIsExpanded((current) => !current);
+  }, [isExpanded]);
 
   const getCharacterTypeLabel = useCallback(
     (type: string) => {
@@ -224,7 +270,7 @@ function StoryCharactersSectionInner({
           !shouldShowCharacters && styles.charactersSectionHeaderCollapsed,
         ]}
         disabled={!collapsible}
-        onPress={() => setIsExpanded((current) => !current)}
+        onPress={toggleSection}
         accessibilityRole={collapsible ? 'button' : undefined}
         accessibilityState={collapsible ? { expanded: isExpanded } : undefined}
       >
@@ -243,46 +289,29 @@ function StoryCharactersSectionInner({
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
         const displayName = getCharacterDisplayName(char, i18n.resolvedLanguage ?? i18n.language);
+        const isPreviewVisible = previewedCharacterId === char.id;
         return (
           <View
             key={char.id}
             style={[
               styles.characterCard,
-              Platform.OS === 'web' &&
-                hoveredCharacterId === char.id &&
-                styles.characterCardHovered,
+              isPreviewVisible && styles.characterCardHovered,
             ]}
           >
-            <View style={styles.characterCardRow}>
+            <Pressable
+              style={styles.characterCardRow}
+              onHoverIn={
+                Platform.OS === 'web' ? () => setHoveredCharacterId(char.id) : undefined
+              }
+              onHoverOut={Platform.OS === 'web' ? () => setHoveredCharacterId(null) : undefined}
+              onPress={isTouchDevice ? () => toggleCharacterPreview(char.id) : undefined}
+              accessibilityRole={isTouchDevice ? 'button' : undefined}
+              accessibilityLabel={isTouchDevice ? displayName : undefined}
+              accessibilityState={isTouchDevice ? { expanded: isPreviewVisible } : undefined}
+              testID={`story-character-${char.id}`}
+            >
               {char.referencePhotoUrl ? (
-                Platform.OS === 'web' ? (
-                  <Pressable
-                    style={styles.avatarWithPreview}
-                    onHoverIn={() => setHoveredCharacterId(char.id)}
-                    onHoverOut={() => setHoveredCharacterId(null)}
-                  >
-                    <View style={styles.characterImageFrame}>
-                      <Image
-                        source={{
-                          uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
-                        }}
-                        style={styles.characterImageFull as ImageStyle}
-                        resizeMode="contain"
-                      />
-                    </View>
-                    {hoveredCharacterId === char.id && (
-                      <View style={styles.previewContainer}>
-                        <Image
-                          source={{
-                            uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
-                          }}
-                          style={styles.previewImage as ImageStyle}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    )}
-                  </Pressable>
-                ) : (
+                <View style={styles.avatarWithPreview}>
                   <View style={styles.characterImageFrame}>
                     <Image
                       source={{
@@ -292,7 +321,21 @@ function StoryCharactersSectionInner({
                       resizeMode="contain"
                     />
                   </View>
-                )
+                  {isPreviewVisible && (
+                    <View
+                      style={styles.previewContainer}
+                      testID={`story-character-preview-${char.id}`}
+                    >
+                      <Image
+                        source={{
+                          uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                        }}
+                        style={styles.previewImage as ImageStyle}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  )}
+                </View>
               ) : (
                 <View style={styles.characterAvatarPlaceholder}>
                   <Ionicons name="person-outline" size={22} color={theme.colors.text.tertiary} />
@@ -302,7 +345,7 @@ function StoryCharactersSectionInner({
                 <Text style={styles.characterName}>{displayName}</Text>
                 <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
               </View>
-            </View>
+            </Pressable>
             {canSaveCharacter && (
               <AppButton
                 label={t('story_viewer.save_character')}
