@@ -30,6 +30,7 @@ import {
   getPublicSeoLocaleOverrideFromSearch,
 } from '@/utils/publicSeoLocale';
 import { getWebPathname, getWebSearch } from '@/utils/webRuntime';
+import { resetWebNavigationScroll } from '@/utils/navigationScrollReset';
 import {
   WEB_BUILD_CHECK_INTERVAL_MS,
   WEB_BUILD_VERSION_URL,
@@ -341,6 +342,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const lastTrackedRouteKeyRef = useRef<string | null>(null);
   const lastTrackedRouteNameRef = useRef<string | null>(null);
+  const lastScrollResetRouteKeyRef = useRef<string | null>(null);
   const setAuthLoading = useAuthStore((state) => state.setLoading);
   const revenueCatUserId = useAuthStore((state) => state.user?.id ?? null);
 
@@ -499,6 +501,21 @@ export default function App() {
     });
   };
 
+  const handleNavigationReady = () => {
+    const route = navigationRef.getCurrentRoute();
+    lastScrollResetRouteKeyRef.current = route?.key ?? route?.name ?? null;
+    trackNavigation();
+  };
+
+  const resetScrollOnRouteChange = () => {
+    const route = navigationRef.getCurrentRoute();
+    const routeKey = route?.key ?? route?.name;
+    if (!routeKey || lastScrollResetRouteKeyRef.current === routeKey) return;
+
+    lastScrollResetRouteKeyRef.current = routeKey;
+    resetWebNavigationScroll();
+  };
+
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
@@ -514,11 +531,12 @@ export default function App() {
               <NavigationContainer
                 ref={navigationRef}
                 linking={linking}
-                onReady={trackNavigation}
+                onReady={handleNavigationReady}
                 onStateChange={(state) => {
                   if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
                   const route = getActiveMainRouteFromState(state);
                   useMainNavigationStore.getState().setLastMainRoute(route);
+                  resetScrollOnRouteChange();
                   trackNavigation();
                 }}
               >
