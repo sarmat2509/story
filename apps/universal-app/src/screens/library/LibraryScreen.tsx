@@ -28,6 +28,11 @@ import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
+import {
+  calculateGridCardWidth,
+  getStoryGridColumnCount,
+  STORY_GRID_GAP,
+} from '@/utils/responsiveGridLayout';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
 
@@ -59,6 +64,7 @@ export default function LibraryScreen() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [gridWidth, setGridWidth] = useState(0);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -190,13 +196,12 @@ export default function LibraryScreen() {
     setStoryToDelete(null);
   }, []);
 
-  // Grid columns: 1 on mobile, 2 on tablet, 4 on desktop
-  const numColumns = useMemo(() => (width < 640 ? 1 : width < 1024 ? 2 : 4), [width]);
+  // Keep story covers readable around landscape-tablet widths.
+  const numColumns = useMemo(() => getStoryGridColumnCount(width), [width]);
   const gridCardWidth = useMemo(() => {
-    const paddingHorizontal = theme.spacing[4] * 2;
-    const gap = theme.spacing[4];
-    return (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
-  }, [width, numColumns]);
+    const measuredWidth = gridWidth || width - theme.spacing[6] * 2;
+    return calculateGridCardWidth(measuredWidth, numColumns, STORY_GRID_GAP);
+  }, [gridWidth, width, numColumns]);
 
   // Memoized render functions for FlatList items
   const handleStoryPress = useCallback(
@@ -306,6 +311,7 @@ export default function LibraryScreen() {
         />
         <ScrollView contentContainerStyle={styles.grid}>
           <View
+            onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
             style={[
               styles.gridContainer,
               Platform.OS === 'web' &&

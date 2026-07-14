@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { API_BASE_URL } from '@/config/constants';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
+import { calculateGridCardWidth, getScenarioGridColumnCount } from '@/utils/responsiveGridLayout';
 
 interface ScenarioCard {
   id: string | null;
@@ -65,6 +66,7 @@ function getTopicImageUri(scenarioId: string | null) {
 export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
+  const [gridWidth, setGridWidth] = useState(0);
 
   // Add "Free theme" card at the beginning (use i18n)
   const freeThemeCard: ScenarioCard = {
@@ -75,14 +77,22 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
 
   const allScenarios = [freeThemeCard, ...scenarios];
 
-  const numColumns = width < 520 ? 1 : width < 860 ? 2 : 3;
+  const numColumns = gridWidth ? getScenarioGridColumnCount(gridWidth) : width < 520 ? 1 : 2;
   const isDesktop = width >= 1080;
-  const cardWidth = numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : '31.5%';
+  const cardWidth = useMemo(
+    () =>
+      gridWidth
+        ? calculateGridCardWidth(gridWidth, numColumns, theme.spacing[3])
+        : numColumns === 1
+          ? '100%'
+          : '48%',
+    [gridWidth, numColumns]
+  );
 
   return (
     <View style={styles.container} testID="wizard-scenario-grid">
       <Text style={styles.label}>{t('wizard.theme_title')}</Text>
-      <View style={styles.grid}>
+      <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
         {allScenarios.map((scenario) => {
           const isSelected = selected === scenario.id;
 

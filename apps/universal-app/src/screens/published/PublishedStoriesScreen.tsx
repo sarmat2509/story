@@ -23,6 +23,11 @@ import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
+import {
+  calculateGridCardWidth,
+  getStoryGridColumnCount,
+  STORY_GRID_GAP,
+} from '@/utils/responsiveGridLayout';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 
@@ -51,6 +56,7 @@ export default function PublishedStoriesScreen() {
   const [readingTimeFilter, setReadingTimeFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [gridWidth, setGridWidth] = useState(0);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
   const enterKey = useScreenEnter();
 
@@ -163,12 +169,11 @@ export default function PublishedStoriesScreen() {
   const totalStories = data?.pagination?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalStories / ITEMS_PER_PAGE));
 
-  const numColumns = useMemo(() => (width < 640 ? 1 : width < 1024 ? 2 : 4), [width]);
+  const numColumns = useMemo(() => getStoryGridColumnCount(width), [width]);
   const gridCardWidth = useMemo(() => {
-    const paddingHorizontal = theme.spacing[4] * 2;
-    const gap = theme.spacing[4];
-    return (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
-  }, [width, numColumns]);
+    const measuredWidth = gridWidth || width - theme.spacing[6] * 2;
+    return calculateGridCardWidth(measuredWidth, numColumns, STORY_GRID_GAP);
+  }, [gridWidth, width, numColumns]);
 
   const handlePress = useCallback(
     (slug: string) => {
@@ -230,6 +235,7 @@ export default function PublishedStoriesScreen() {
       ) : viewMode === 'grid' ? (
         <ScrollView contentContainerStyle={styles.grid}>
           <View
+            onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
             style={[
               styles.gridContainer,
               Platform.OS === 'web' &&
