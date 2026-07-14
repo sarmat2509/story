@@ -318,8 +318,7 @@ export const config = {
       /** Applied when the validator's characterKind disagrees with the expected roster kind. */
       kindMismatchPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_KIND_MISMATCH || '45', 10),
     },
-    // Turnaround sheet generation for imaginary characters
-    enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
+    // Turnaround sheet generation is mandatory for every visual character.
     turnaroundModel: process.env.TURNAROUND_MODEL || 'gemini-3-pro-image-preview',
     // Parallel streams for image generation within a single story (turnarounds + scene images)
     parallelStreams: parseInt(process.env.IMAGE_PARALLEL_STREAMS || '2', 10),

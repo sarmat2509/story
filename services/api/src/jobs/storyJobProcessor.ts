@@ -1014,7 +1014,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
     const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
-    const { generateTurnaroundSheetFromReference, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
+    const { generateTurnaroundSheetFromReference } = await import('../services/turnaroundSheetService');
     const { localizeCharacterNames } = await import('../services/translationService');
     const { getCharacterRepository } = await import('../repositories');
     const { getCharacterIdentityMatchingService } = await import('../services/characterIdentityMatchingService');
@@ -1115,6 +1115,29 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
 
         if (identityMatch?.matchedCharacter) {
           const matchedCharacter = identityMatch.matchedCharacter;
+          const existingTurnaround = matchedCharacter.turnaroundSheet as
+            | { url?: string }
+            | null
+            | undefined;
+          if (!existingTurnaround?.url) {
+            logger.info({
+              requestId,
+              characterId: matchedCharacter.id,
+              characterName: matchedCharacter.name,
+            }, 'Generating missing mandatory turnaround for reused instant character');
+            await generateTurnaroundSheetFromReference({
+              targetType: 'character',
+              targetId: matchedCharacter.id,
+              referencePhotoUrls: group.photoUrls,
+              characterName: matchedCharacter.name,
+              userId: request.userId,
+              storyId,
+              aiDescription:
+                matchedCharacter.aiGeneratedDescription ||
+                matchedCharacter.description ||
+                analysis.detailedDescription,
+            });
+          }
           addSelectedCharacterId(matchedCharacter.id);
           matchedCharacterIds.push(matchedCharacter.id);
 
@@ -1158,6 +1181,42 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           detectedFrom: group.characterType
         }, 'Character created from photos (instant mode)');
 
+        // 2.3: Generate the mandatory turnaround for ALL character types.
+        try {
+          logger.info({
+            characterId: character.id,
+            characterName: character.name,
+            characterType: group.characterType,
+            requestId
+          }, 'Generating mandatory turnaround sheet (instant mode)');
+
+          const turnaroundResult = await generateTurnaroundSheetFromReference({
+            targetType: 'character',
+            targetId: character.id,
+            referencePhotoUrls: group.photoUrls,
+            characterName: character.name,
+            userId: request.userId,
+            storyId,
+            aiDescription: analysis.detailedDescription,
+          });
+
+          logger.info({
+            characterId: character.id,
+            turnaroundUrl: turnaroundResult.url,
+            characterType: group.characterType,
+            requestId
+          }, 'Mandatory turnaround sheet generated (instant mode)');
+        } catch (turnaroundError) {
+          logger.error({
+            error: turnaroundError,
+            characterId: character.id,
+            characterType: group.characterType,
+            requestId
+          }, 'Mandatory turnaround generation failed; removing instant character');
+          await getCharacterRepository().hardDelete(character.id, request.userId);
+          throw turnaroundError;
+        }
+
         await recordInstantCharacterQuotaUsage(request.userId, {
           childProfileId: request.childProfileId ?? null,
           storyId,
@@ -1176,42 +1235,6 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
             'Character name localization failed (instant mode)',
           );
         });
-        
-        // 2.3: Generate turnaround sheet for ALL character types (person, animal, imaginary)
-        if (isTurnaroundSheetEnabled() && group.photoUrls.length > 0) {
-          try {
-            logger.info({
-              characterId: character.id,
-              characterName: character.name,
-              characterType: group.characterType,
-              requestId
-            }, 'Generating turnaround sheet (instant mode)');
-            
-            const turnaroundResult = await generateTurnaroundSheetFromReference({
-              targetType: 'character',
-              targetId: character.id,
-              referencePhotoUrls: group.photoUrls,
-              characterName: character.name,
-              userId: request.userId,
-              storyId,
-              aiDescription: analysis.detailedDescription,
-            });
-            
-            logger.info({
-              characterId: character.id,
-              turnaroundUrl: turnaroundResult.url,
-              characterType: group.characterType,
-              requestId
-            }, 'Turnaround sheet generated (instant mode)');
-          } catch (turnaroundError) {
-            logger.error({
-              error: turnaroundError,
-              characterId: character.id,
-              characterType: group.characterType,
-              requestId
-            }, 'Turnaround generation failed (continuing without it)');
-          }
-        }
         
         createdCharacterIds.push(character.id);
         addSelectedCharacterId(character.id);

@@ -22,7 +22,10 @@ import {
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
-import { generateTurnaroundSheetFromReference, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import {
+  generateTurnaroundSheetFromReference,
+  generateLlmCharacterTurnaround,
+} from '../services/turnaroundSheetService';
 import { getChildProfileRepository } from '../repositories';
 
 const router = Router();
@@ -459,80 +462,41 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
     }, 'Character validation passed, creating character');
 
     // Keep this route-level so story-generated hidden LLM characters do not consume manual quotas.
-    if (isTurnaroundSheetEnabled()) {
-      quotaReservationChildProfileId = data.childProfileId ?? null;
-      const quotaReservation = await reserveManualCharacterQuota(userId, {
-        childProfileId: quotaReservationChildProfileId,
-        source: req.sessionMode === 'child' ? 'child' : 'parent',
-        characterName: data.name,
-        characterType: data.type,
-      });
-      quotaReservationId = quotaReservation.reservationId;
-    }
+    quotaReservationChildProfileId = data.childProfileId ?? null;
+    const quotaReservation = await reserveManualCharacterQuota(userId, {
+      childProfileId: quotaReservationChildProfileId,
+      source: req.sessionMode === 'child' ? 'child' : 'parent',
+      characterName: data.name,
+      characterType: data.type,
+    });
+    quotaReservationId = quotaReservation.reservationId;
     
     // Create character
     const character = await characterService.createCharacter(userId, data);
     
-    // Generate turnaround (mandatory) - create then generate, rollback on failure
-    if (isTurnaroundSheetEnabled()) {
-      try {
-        const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
-        const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
-        const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
-        const aiDescription = character.aiGeneratedDescription
-          || (character as any).descriptionEn
-          || (character as any).appearance
-          || character.description
-          || undefined;
-
-        if (firstPhoto?.url) {
-          await generateTurnaroundSheetFromReference({
-            targetType: 'character',
-            targetId: character.id,
-            referencePhotoUrls: referencePhotos!.map(p => p.url!).filter(Boolean),
-            characterName: character.name,
-            userId,
-            aiDescription,
-          });
-        } else if (aiDescription && aiDescription.trim().length > 0) {
-          await generateLlmCharacterTurnaround({
-            characterId: character.id,
-            userId,
-            characterName: character.name,
-            characterDescription: aiDescription.trim(),
-            useCache: character.isHidden,
-          });
-        } else {
-          await releaseManualCharacterQuotaOnFailure(
-            userId,
-            quotaReservationId,
-            quotaReservationChildProfileId,
-            new Error('Character must have reference photos or description for turnaround')
-          );
-          await characterService.deleteCharacter(character.id, userId);
-          return res.status(400).json({
-            status: 'error',
-            error: 'Character must have reference photos or description for turnaround',
-          });
-        }
-      } catch (turnaroundError) {
-        logger.error({
-          err: turnaroundError,
-          characterId: character.id,
-          userId,
-        }, 'Turnaround generation failed, rolling back character create');
-        await releaseManualCharacterQuotaOnFailure(
-          userId,
-          quotaReservationId,
-          quotaReservationChildProfileId,
-          turnaroundError
-        );
-        await characterService.deleteCharacter(character.id, userId);
-        return res.status(500).json({
-          status: 'error',
-          error: 'Failed to generate character model',
-        });
-      }
+    // Generate the mandatory turnaround, then expose the character. Roll back on failure.
+    try {
+      await generateManualCharacterTurnaround(character, userId);
+    } catch (turnaroundError) {
+      logger.error({
+        err: turnaroundError,
+        characterId: character.id,
+        userId,
+      }, 'Turnaround generation failed, rolling back character create');
+      await releaseManualCharacterQuotaOnFailure(
+        userId,
+        quotaReservationId,
+        quotaReservationChildProfileId,
+        turnaroundError
+      );
+      await characterService.deleteCharacter(character.id, userId);
+      const errorMessage = turnaroundError instanceof Error ? turnaroundError.message : '';
+      return res.status(errorMessage.includes('must have reference photos or description') ? 400 : 500).json({
+        status: 'error',
+        error: errorMessage.includes('must have reference photos or description')
+          ? errorMessage
+          : 'Failed to generate character model',
+      });
     }
 
     // Refetch character to get full turnaroundSheet data
@@ -699,8 +663,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
       });
     }
 
-    const shouldRegenerateTurnaround =
-      isTurnaroundSheetEnabled() && modelGenerationInputsChanged(existing, data as any);
+    const shouldRegenerateTurnaround = modelGenerationInputsChanged(existing, data as any);
 
     if (shouldRegenerateTurnaround) {
       quotaReservationChildProfileId = existing.childProfileId ?? null;

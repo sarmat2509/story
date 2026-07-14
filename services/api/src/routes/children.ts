@@ -23,7 +23,6 @@ import { config } from '../config';
 import {
   generateTurnaroundSheetFromReference,
   generateTurnaroundSheetFromDescription,
-  isTurnaroundSheetEnabled,
 } from '../services/turnaroundSheetService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import {
@@ -472,48 +471,46 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
 
     // Generate a turnaround when the profile has enough visual/text reference data.
     // First-launch profiles can be intentionally lightweight and add photos later.
-    if (isTurnaroundSheetEnabled()) {
-      try {
-        const referencePhotos = profile.referencePhotos as Array<{ url?: string }> | undefined;
-        const hasPhotos =
-          referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
-        const firstPhoto = hasPhotos ? referencePhotos!.find((p) => p && p.url) : undefined;
-        const hasDescription =
-          profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
+    try {
+      const referencePhotos = profile.referencePhotos as Array<{ url?: string }> | undefined;
+      const hasPhotos =
+        referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
+      const firstPhoto = hasPhotos ? referencePhotos!.find((p) => p && p.url) : undefined;
+      const hasDescription =
+        profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
 
-        if (firstPhoto?.url) {
-          await generateTurnaroundSheetFromReference({
-            targetType: 'child',
-            targetId: profile.id,
-            referencePhotoUrls: referencePhotos!.map((p) => p.url!).filter(Boolean),
-            characterName: profile.name,
-            userId,
-            aiDescription: profile.aiGeneratedDescription,
-          });
-        } else if (hasDescription) {
-          await generateTurnaroundSheetFromDescription({
-            targetType: 'child',
-            targetId: profile.id,
-            characterName: profile.name,
-            characterDescription: profile.aiGeneratedDescription,
-            userId,
-          });
-        }
-      } catch (turnaroundError) {
-        logger.error(
-          {
-            err: turnaroundError,
-            childId: profile.id,
-            userId,
-          },
-          'Turnaround generation failed, rolling back child create'
-        );
-        await childProfileService.deleteChildProfile(profile.id, userId);
-        return res.status(500).json({
-          status: 'error',
-          error: 'Failed to generate character model',
+      if (firstPhoto?.url) {
+        await generateTurnaroundSheetFromReference({
+          targetType: 'child',
+          targetId: profile.id,
+          referencePhotoUrls: referencePhotos!.map((p) => p.url!).filter(Boolean),
+          characterName: profile.name,
+          userId,
+          aiDescription: profile.aiGeneratedDescription,
+        });
+      } else if (hasDescription) {
+        await generateTurnaroundSheetFromDescription({
+          targetType: 'child',
+          targetId: profile.id,
+          characterName: profile.name,
+          characterDescription: profile.aiGeneratedDescription,
+          userId,
         });
       }
+    } catch (turnaroundError) {
+      logger.error(
+        {
+          err: turnaroundError,
+          childId: profile.id,
+          userId,
+        },
+        'Turnaround generation failed, rolling back child create'
+      );
+      await childProfileService.deleteChildProfile(profile.id, userId);
+      return res.status(500).json({
+        status: 'error',
+        error: 'Failed to generate character model',
+      });
     }
 
     // Refetch profile to get full turnaroundSheet data

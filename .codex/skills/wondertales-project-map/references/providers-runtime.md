@@ -52,7 +52,7 @@ Provider implementations:
 - `IMAGE_VALIDATION_MIN_ACCEPT_SCORE`: strict greater-than threshold for acceptance.
 - `IMAGE_VALIDATION_SCENE_MAX_SIDE` and `IMAGE_VALIDATION_REFERENCE_MAX_SIDE`: validation-only downscale sizes.
 - Reference caps: `IMAGE_MAX_CHARACTER_REFERENCE_IMAGES`, `IMAGE_MAX_OBJECT_REFERENCE_IMAGES`.
-- Outfit/environment/turnaround toggles: `ENABLE_OUTFIT_PLATE`, `ENABLE_ENVIRONMENT_REFERENCE`, `ENABLE_TURNAROUND_SHEET`.
+- Outfit/environment toggles: `ENABLE_OUTFIT_PLATE`, `ENABLE_ENVIRONMENT_REFERENCE`. Character turnaround sheets are mandatory and have no disable flag.
 
 ## Audio and Alignment
 

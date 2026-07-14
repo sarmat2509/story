@@ -433,10 +433,3 @@ export async function generateLlmCharacterTurnaround(
 
   return turnaroundSheet;
 }
-
-/**
- * Check whether turnaround sheet generation is enabled via feature flag.
- */
-export function isTurnaroundSheetEnabled(): boolean {
-  return config.image.enableTurnaroundSheet;
-}
