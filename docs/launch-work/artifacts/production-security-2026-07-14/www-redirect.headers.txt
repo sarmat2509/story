@@ -1,0 +1,12 @@
+HTTP 301 Moved Permanently
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: DYNAMIC
+cf-ray: a1b12fe3bee50419-MAD
+connection: keep-alive
+content-type: text/html
+date: Tue, 14 Jul 2026 14:23:45 GMT
+location: https://wondertales.art/
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=O57Ent81d3kmOSxDR0fL4sV8dCuMblYkjzE90YP8wACOhbGRX0euDRZNrGZYvO7PNF0%2B4DfKwPZmwWX%2BDOM07r1nxNR8L7LOAbOPCMu8NDQbLCTzB8NCz9Ykdv%2Bl1C%2B8VgZPH5rp"}]}
+server: cloudflare
+transfer-encoding: chunked

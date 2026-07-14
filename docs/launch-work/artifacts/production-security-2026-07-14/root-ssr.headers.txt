@@ -1,0 +1,31 @@
+HTTP 200 OK
+access-control-allow-credentials: true
+alt-svc: h3=":443"; ma=86400
+cache-control: public, no-cache, must-revalidate
+cf-cache-status: DYNAMIC
+cf-ray: a1b12fe08ba262b2-MAD
+connection: keep-alive
+content-encoding: br
+content-security-policy: default-src 'self';script-src 'self' 'unsafe-inline' https://wondertales.art https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com;script-src-elem 'self' 'unsafe-inline' https://wondertales.art https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com;style-src 'self' 'unsafe-inline';img-src 'self' data: blob: https:;connect-src 'self' https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com;font-src 'self' data: https:;media-src 'self' blob: https:;object-src 'none';frame-src 'self' https://challenges.cloudflare.com;base-uri 'self';form-action 'self';frame-ancestors 'self';script-src-attr 'none';upgrade-insecure-requests
+content-type: text/html; charset=utf-8
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+date: Tue, 14 Jul 2026 14:23:44 GMT
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+origin-agent-cluster: ?1
+ratelimit-limit: 1000
+ratelimit-policy: 1000;w=900
+ratelimit-remaining: 953
+ratelimit-reset: 828
+referrer-policy: no-referrer
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=kL%2Btqs6kky6zOqnDB0KLyGyu1CEglkOCTNwK3PfLIZIKB7dwBQWP8OuTra7Kx9qS6jRbYlgghmCuGxdwhOuP3%2F%2BduORh39KBNohQVtb6Xoh%2BT0GzmSuGBPXi%2FEUgHeXN3Lg%3D"}]}
+server: cloudflare
+strict-transport-security: max-age=15552000; includeSubDomains
+transfer-encoding: chunked
+vary: Accept-Encoding, Origin
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0

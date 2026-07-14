@@ -1,0 +1,23 @@
+HTTP 200 OK
+alt-svc: h3=":443"; ma=86400
+cache-control: no-cache, no-store, must-revalidate
+cf-cache-status: DYNAMIC
+cf-ray: a1b12fe2cd5062b2-MAD
+connection: keep-alive
+content-encoding: br
+content-security-policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com; script-src-elem 'self' https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.i.posthog.com https://*.posthog.com https://challenges.cloudflare.com; media-src 'self' blob: https:; manifest-src 'self'; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self' blob:; form-action 'self'; upgrade-insecure-requests
+content-type: text/html
+cross-origin-opener-policy: same-origin
+date: Tue, 14 Jul 2026 14:23:45 GMT
+last-modified: Tue, 14 Jul 2026 14:22:05 GMT
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+referrer-policy: strict-origin-when-cross-origin
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=HPPwu9HjuBWNlHnXVqln6n2Ht4SoklFh8xp%2BYREJAbw8%2BN4zBPAYCMcYAhP0J9UEBlBlA4RoPXHsV7hO8iUH%2FVoTxyTyV%2BceaADdWuQqw0Q6ILiaQWmzWxXt4sEFD0Z1fpQ%3D"}]}
+server: cloudflare
+strict-transport-security: max-age=15552000; includeSubDomains
+transfer-encoding: chunked
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-robots-tag: noindex,nofollow
