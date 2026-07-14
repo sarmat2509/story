@@ -16,8 +16,8 @@ assert.match(
 );
 assert.match(
   storyViewerSource,
-  /isTabletPortrait\s*\?\s*styles\.tabletHeaderTitleContainer/,
-  'tablet story headers should reserve a dedicated title area beside the feedback action'
+  /const\s+tabletHeaderTitleMaxWidth\s*=\s*isTabletPortrait\s*\?\s*Math\.max\(240,\s*width\s*-\s*176\)/,
+  'tablet story headers should calculate an explicit safe width from the viewport'
 );
 assert.match(
   storyViewerSource,
@@ -26,18 +26,18 @@ assert.match(
 );
 assert.match(
   storyViewerSource,
-  /isTabletPortrait\s*\?\s*\(\s*<Text style=\{styles\.tabletHeaderBreadcrumb\} numberOfLines=\{2\}>/,
+  /style=\{\[\s*styles\.tabletHeaderBreadcrumb,[\s\S]*?width:\s*tabletHeaderTitleMaxWidth,[\s\S]*?maxWidth:\s*tabletHeaderTitleMaxWidth/,
   'tablet breadcrumbs should wrap category and story titles together across two lines'
 );
 assert.match(
   storyViewerSource,
-  /tabletHeaderBreadcrumb:\s*\{[\s\S]*?paddingRight:\s*theme\.spacing\[20\]\s*\+\s*theme\.spacing\[4\][\s\S]*?lineHeight:\s*26/,
-  'tablet breadcrumb text itself should reserve 96px for the feedback action'
+  /styles\.tabletHeaderTitleContainer,[\s\S]*?width:\s*tabletHeaderTitleMaxWidth,[\s\S]*?maxWidth:\s*tabletHeaderTitleMaxWidth/,
+  'tablet navigation title container should use the explicit safe width'
 );
 assert.match(
   storyViewerSource,
-  /tabletHeaderTitle:\s*\{[\s\S]*?paddingRight:\s*theme\.spacing\[20\]\s*\+\s*theme\.spacing\[4\]/,
-  'tablet story titles without breadcrumbs should reserve the same feedback-action space'
+  /style=\{\[\s*styles\.tabletHeaderTitle,[\s\S]*?width:\s*tabletHeaderTitleMaxWidth,[\s\S]*?maxWidth:\s*tabletHeaderTitleMaxWidth/,
+  'tablet story titles without breadcrumbs should use the same explicit safe width'
 );
 assert.ok(
   (storyViewerSource.match(/isSingleColumn\s*&&\s*styles\.singleColumnMedia/g) ?? []).length >= 4,

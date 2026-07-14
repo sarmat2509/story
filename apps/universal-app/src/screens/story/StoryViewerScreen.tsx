@@ -108,8 +108,7 @@ type ManifestClosingArtifact = {
 const removeAudioTags = (text: string): string =>
   stripMarkdownStyleEmphasis(text.replace(/\[[^\]]*\]/g, ''));
 
-const stripArtifactMarkers = (text: string): string =>
-  text.replace(/\{([^{}]+)\}/g, '$1');
+const stripArtifactMarkers = (text: string): string => text.replace(/\{([^{}]+)\}/g, '$1');
 
 const normalizeHighlightText = (text: string): string =>
   stripArtifactMarkers(removeAudioTags(text)).replace(/\s+/g, ' ').trim().toLocaleLowerCase();
@@ -174,7 +173,9 @@ function splitArtifactMarkerText(rawText: string): Array<{
   return parts;
 }
 
-function getArtifactDisplayRanges(rawText: string): Array<{ start: number; end: number; label: string }> {
+function getArtifactDisplayRanges(
+  rawText: string
+): Array<{ start: number; end: number; label: string }> {
   const ranges: Array<{ start: number; end: number; label: string }> = [];
   const markerRe = /\{([^{}]+)\}/g;
   let lastIndex = 0;
@@ -240,7 +241,7 @@ const resolveGraphicNovelBubbleTextStyle = (
       : GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH,
     targetPageHeightPx: finitePositiveNumber(textStyle?.targetPageHeightPx)
       ? textStyle.targetPageHeightPx
-      : Math.round(GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH * 4 / 3),
+      : Math.round((GRAPHIC_NOVEL_BUBBLE_TEXT_TARGET_PAGE_WIDTH * 4) / 3),
   };
 };
 
@@ -250,9 +251,9 @@ const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
 const needsInlineSpaceBefore = (previousText: string, currentText: string): boolean =>
   Boolean(
     previousText &&
-      currentText &&
-      !inlineOpeningBoundaryRe.test(previousText) &&
-      !inlineNoSpaceBeforeRe.test(currentText)
+    currentText &&
+    !inlineOpeningBoundaryRe.test(previousText) &&
+    !inlineNoSpaceBeforeRe.test(currentText)
   );
 
 const needsInlineSpaceAfter = (currentText: string, nextText: string): boolean =>
@@ -269,7 +270,10 @@ const graphicNovelReferenceToUrl = (reference: any): string | null => {
   return typeof candidate === 'string' && candidate.trim() ? candidate : null;
 };
 
-const manifestCharacterToStoryCharacter = (character: any, index: number): StoryCharacter | null => {
+const manifestCharacterToStoryCharacter = (
+  character: any,
+  index: number
+): StoryCharacter | null => {
   const name = typeof character?.name === 'string' ? character.name.trim() : '';
   if (!name) return null;
   const references: unknown[] = Array.isArray(character?.references) ? character.references : [];
@@ -316,6 +320,7 @@ export default function StoryViewerScreen() {
   const { isTabletPortrait, isMobile, width } = useResponsive();
   const isSingleColumn = isMobile || isTabletPortrait;
   const mobileHeaderTitleMaxWidth = isMobile ? Math.max(0, width - 128) : undefined;
+  const tabletHeaderTitleMaxWidth = isTabletPortrait ? Math.max(240, width - 176) : undefined;
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
   const isArtisanMode = user?.mode === 'artisan';
@@ -335,7 +340,11 @@ export default function StoryViewerScreen() {
     }
     const baseTextSizePx = getBaseStoryTextSizePxForAgeGroup(story?.ageGroup);
     return getStoryTextSizePx(baseTextSizePx, story?.readingSettings?.textSizeMultiplier);
-  }, [story?.ageGroup, story?.readingSettings?.textSizeMultiplier, story?.readingSettings?.textSizePx]);
+  }, [
+    story?.ageGroup,
+    story?.readingSettings?.textSizeMultiplier,
+    story?.readingSettings?.textSizePx,
+  ]);
   const sceneTextStyle = useMemo(
     () => [
       styles.sceneText,
@@ -537,7 +546,13 @@ export default function StoryViewerScreen() {
           headerTitleContainerStyle: isMobile
             ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
             : isTabletPortrait
-              ? styles.tabletHeaderTitleContainer
+              ? [
+                  styles.tabletHeaderTitleContainer,
+                  {
+                    width: tabletHeaderTitleMaxWidth,
+                    maxWidth: tabletHeaderTitleMaxWidth,
+                  },
+                ]
               : undefined,
           headerTitleAlign: isSingleColumn ? 'left' : undefined,
           headerTitle: () =>
@@ -566,7 +581,16 @@ export default function StoryViewerScreen() {
                 </Text>
               </View>
             ) : isTabletPortrait ? (
-              <Text style={styles.tabletHeaderBreadcrumb} numberOfLines={2}>
+              <Text
+                style={[
+                  styles.tabletHeaderBreadcrumb,
+                  {
+                    width: tabletHeaderTitleMaxWidth,
+                    maxWidth: tabletHeaderTitleMaxWidth,
+                  },
+                ]}
+                numberOfLines={2}
+              >
                 <Text
                   style={styles.tabletHeaderBreadcrumbLink}
                   accessibilityRole="link"
@@ -657,7 +681,13 @@ export default function StoryViewerScreen() {
           headerTitleContainerStyle: isMobile
             ? [styles.mobileHeaderTitleContainer, { maxWidth: mobileHeaderTitleMaxWidth }]
             : isTabletPortrait
-              ? styles.tabletHeaderTitleContainer
+              ? [
+                  styles.tabletHeaderTitleContainer,
+                  {
+                    width: tabletHeaderTitleMaxWidth,
+                    maxWidth: tabletHeaderTitleMaxWidth,
+                  },
+                ]
               : undefined,
           headerTitleAlign: isSingleColumn ? 'left' : undefined,
           headerTitle: isMobile
@@ -668,7 +698,16 @@ export default function StoryViewerScreen() {
               )
             : isTabletPortrait
               ? () => (
-                  <Text style={styles.tabletHeaderTitle} numberOfLines={2}>
+                  <Text
+                    style={[
+                      styles.tabletHeaderTitle,
+                      {
+                        width: tabletHeaderTitleMaxWidth,
+                        maxWidth: tabletHeaderTitleMaxWidth,
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
                     {story.title}
                   </Text>
                 )
@@ -687,6 +726,7 @@ export default function StoryViewerScreen() {
     isSingleColumn,
     isTabletPortrait,
     mobileHeaderTitleMaxWidth,
+    tabletHeaderTitleMaxWidth,
     navigation,
   ]);
 
@@ -701,23 +741,22 @@ export default function StoryViewerScreen() {
     !isChildSession && story?.createdByMode === 'child' && story.createdByChildProfileId
       ? story.createdByChildProfileId
       : undefined;
-  const {
-    data: storyMapTileStatus,
-    isLoading: isStoryMapTileStatusLoading,
-  } = useStoryMapTileStatus(storyId, {
-    childProfileId: artifactCollectionChildProfileId,
-  });
-  const {
-    data: collectedArtifacts = [],
-    isLoading: isCollectedArtifactsLoading,
-  } = useCollectedArtifacts({
-    locale: i18n.language,
-    childProfileId: artifactCollectionChildProfileId,
-  });
+  const { data: storyMapTileStatus, isLoading: isStoryMapTileStatusLoading } =
+    useStoryMapTileStatus(storyId, {
+      childProfileId: artifactCollectionChildProfileId,
+    });
+  const { data: collectedArtifacts = [], isLoading: isCollectedArtifactsLoading } =
+    useCollectedArtifacts({
+      locale: i18n.language,
+      childProfileId: artifactCollectionChildProfileId,
+    });
   const updateMe = useUpdateMe();
-  const closingArtifact = ((story as any)?.closingArtifact ?? null) as ManifestClosingArtifact | null;
+  const closingArtifact = ((story as any)?.closingArtifact ??
+    null) as ManifestClosingArtifact | null;
   const artifactModalImageUrl =
-    formatAssetUrl(closingArtifact?.thumbnailUrl ?? closingArtifact?.imageUrl ?? closingArtifact?.imagePath) ??
+    formatAssetUrl(
+      closingArtifact?.thumbnailUrl ?? closingArtifact?.imageUrl ?? closingArtifact?.imagePath
+    ) ??
     closingArtifact?.thumbnailUrl ??
     closingArtifact?.imageUrl ??
     closingArtifact?.imagePath ??
@@ -1143,11 +1182,14 @@ export default function StoryViewerScreen() {
     []
   );
 
-  const handleOpenArtifact = useCallback((label: string) => {
-    if (!closingArtifact) return;
-    setArtifactModal({ label });
-    setArtifactModalVisible(true);
-  }, [closingArtifact]);
+  const handleOpenArtifact = useCallback(
+    (label: string) => {
+      if (!closingArtifact) return;
+      setArtifactModal({ label });
+      setArtifactModalVisible(true);
+    },
+    [closingArtifact]
+  );
 
   const handleCloseArtifactModal = useCallback(() => {
     setArtifactModalVisible(false);
@@ -1169,9 +1211,7 @@ export default function StoryViewerScreen() {
         locale: i18n.language,
       });
       const title =
-        result.artifact.acquiredLabel ||
-        result.artifact.artifact.title ||
-        artifactFallbackTitle;
+        result.artifact.acquiredLabel || result.artifact.artifact.title || artifactFallbackTitle;
 
       toastService.success(
         result.alreadyCollected
@@ -1188,7 +1228,16 @@ export default function StoryViewerScreen() {
     } catch (error) {
       toastService.error(t('story_viewer.artifact_collect_error'));
     }
-  }, [artifactCollectionChildProfileId, artifactFallbackTitle, closingArtifact, collectStoryArtifact, handleCloseArtifactModal, i18n.language, storyId, t]);
+  }, [
+    artifactCollectionChildProfileId,
+    artifactFallbackTitle,
+    closingArtifact,
+    collectStoryArtifact,
+    handleCloseArtifactModal,
+    i18n.language,
+    storyId,
+    t,
+  ]);
 
   const handleCloseMapTileModal = useCallback(() => {
     setMapTileModalVisible(false);
@@ -1564,7 +1613,10 @@ export default function StoryViewerScreen() {
     return (
       items.find((item) => {
         const itemText = normalizeHighlightText(item.text || item.audioText || item.rawText || '');
-        return !!itemText && (itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText));
+        return (
+          !!itemText &&
+          (itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText))
+        );
       }) ?? null
     );
   }, [
@@ -1575,7 +1627,10 @@ export default function StoryViewerScreen() {
     hasGraphicNovelPages,
   ]);
   const activeGraphicNovelPanelKey = activeGraphicNovelTextItem
-    ? graphicNovelPanelKey(activeGraphicNovelTextItem.pageNumber, activeGraphicNovelTextItem.panelIndex)
+    ? graphicNovelPanelKey(
+        activeGraphicNovelTextItem.pageNumber,
+        activeGraphicNovelTextItem.panelIndex
+      )
     : null;
 
   const scrollTargetToViewportCenter = useCallback(
@@ -1900,7 +1955,9 @@ export default function StoryViewerScreen() {
             }
             onPress={() => navigateToStory(storyIds[currentIndex - 1])}
             variant="secondary"
-            leading={<Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />}
+            leading={
+              <Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />
+            }
             style={styles.seriesNavAction}
           />
         )}
@@ -2497,9 +2554,7 @@ export default function StoryViewerScreen() {
 
     if (!effectiveHighlightEnabled) {
       return (
-        <Text style={sceneTextStyle}>
-          {renderArtifactAwareSceneText(scene, cleanedSceneText)}
-        </Text>
+        <Text style={sceneTextStyle}>{renderArtifactAwareSceneText(scene, cleanedSceneText)}</Text>
       );
     }
 
@@ -2688,11 +2743,7 @@ export default function StoryViewerScreen() {
           ) : (
             <View style={styles.graphicNovelPagePlaceholder}>
               {pageFailed ? (
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={26}
-                  color={theme.colors.status.error}
-                />
+                <Ionicons name="alert-circle-outline" size={26} color={theme.colors.status.error} />
               ) : (
                 <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
               )}
@@ -2727,7 +2778,11 @@ export default function StoryViewerScreen() {
     return graphicNovelPages.map(renderGraphicNovelPage);
   };
 
-  const renderProseScene = (scene: any, sceneIndex: number, options: { showImage?: boolean } = {}) => {
+  const renderProseScene = (
+    scene: any,
+    sceneIndex: number,
+    options: { showImage?: boolean } = {}
+  ) => {
     const showImage = options.showImage !== false;
     const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
     return (
@@ -2744,7 +2799,8 @@ export default function StoryViewerScreen() {
             style={[styles.sceneImage, isSingleColumn && styles.singleColumnMedia] as ImageStyle}
             resizeMode="cover"
           />
-        ) : showImage && (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
+        ) : showImage &&
+          (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
           <View style={[styles.sceneImagePlaceholder, isSingleColumn && styles.singleColumnMedia]}>
             <Text
               style={[
@@ -2774,9 +2830,7 @@ export default function StoryViewerScreen() {
   };
 
   const renderMixedStoryBlocks = () => {
-    const pageByNumber = new Map(
-      graphicNovelPages.map((page) => [Number(page.pageNumber), page])
-    );
+    const pageByNumber = new Map(graphicNovelPages.map((page) => [Number(page.pageNumber), page]));
     return story.scenes?.map((scene: any, sceneIndex: number) => {
       if (scene?.mixedStoryBlockKind === 'comic' && scene.graphicNovelPageNumber) {
         const pageNumber = Number(scene.graphicNovelPageNumber);
@@ -3127,7 +3181,11 @@ export default function StoryViewerScreen() {
                             disabled={publishStory.isPending || parentReviewBlocksSharing}
                             variant="secondary"
                             leading={
-                              <Ionicons name="create-outline" size={20} color={theme.colors.text.primary} />
+                              <Ionicons
+                                name="create-outline"
+                                size={20}
+                                color={theme.colors.text.primary}
+                              />
                             }
                             style={styles.publicationButtonFlex}
                           />
@@ -3986,7 +4044,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: '100%',
     minWidth: 0,
-    paddingRight: theme.spacing[20] + theme.spacing[4],
     fontSize: theme.typography.fontSize.lg,
     lineHeight: 26,
     color: theme.colors.text.primary,
@@ -4009,7 +4066,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: '100%',
     minWidth: 0,
-    paddingRight: theme.spacing[20] + theme.spacing[4],
     fontSize: theme.typography.fontSize.lg,
     lineHeight: 26,
     fontWeight: theme.typography.fontWeight.semibold,
