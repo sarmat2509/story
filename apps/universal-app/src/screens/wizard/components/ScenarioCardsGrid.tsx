@@ -49,6 +49,7 @@ const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
   macro_scifi: 'robot',
   sports_competitions: 'sports',
   science_facts: 'science-facts',
+  holidays_traditions: 'holidays-traditions',
 };
 
 function getTopicImageUri(scenarioId: string | null) {

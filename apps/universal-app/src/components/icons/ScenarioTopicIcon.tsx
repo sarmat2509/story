@@ -153,6 +153,18 @@ function ScenarioArtwork({ scenarioId }: Pick<ScenarioTopicIconProps, 'scenarioI
           <Circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
         </>
       );
+    case 'holidays_traditions':
+      return (
+        <>
+          <Path d="M4 7c2.6 2 5.3 3 8 3s5.4-1 8-3" />
+          <Path d="m5.5 8.1 1.2 4.2 2.5-3.1" />
+          <Path d="m10 9.7 2 3.8 2-3.8" />
+          <Path d="m14.8 9.2 2.5 3.1 1.2-4.2" />
+          <Path d="m6 15 .55 1.65 1.65.55-1.65.55L6 19.4l-.55-1.65-1.65-.55 1.65-.55L6 15Z" />
+          <Path d="m18 14 .7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7L18 14Z" />
+          <Circle cx="12" cy="18" r="1.5" />
+        </>
+      );
     default:
       return (
         <>
