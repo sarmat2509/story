@@ -341,6 +341,7 @@
     "title": "Characters",
     "no_characters": "You don't have any characters yet",
     "no_characters_hint": "Add characters to include them in stories",
+    "no_characters_instant_hint": "Characters will appear here automatically after you create an Instant story from photos",
     "add_character": "Create Character",
     "character_quota_remaining": "Character generations left this month: {{remaining}}",
     "character_quota_exhausted": "Monthly character limit reached",

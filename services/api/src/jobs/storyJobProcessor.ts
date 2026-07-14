@@ -941,6 +941,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       await getStoryRepository().updateRequest(requestId, {
         intermediateData: { ...intermediateData, storyId },
       });
+      Object.assign(intermediateData, { storyId });
     }
     
     // Step 1: Face deduplication (with progress tracking)
@@ -1003,6 +1004,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     const selectedCharacterIds: string[] = [];
     const createdCharacterIds: string[] = [];
     const matchedCharacterIds: string[] = [];
+    const characterIdentityDiagnostics: Array<Record<string, unknown>> = [];
     const selectedCharacterIdSet = new Set<string>();
     const addSelectedCharacterId = (characterId: string): void => {
       if (selectedCharacterIdSet.has(characterId)) return;
@@ -1057,6 +1059,8 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         
         const { type, subtype } = typeMapping[group.characterType];
 
+        const identityMatchStartedAt = new Date();
+        let identityMatchError: string | null = null;
         const identityMatch = await characterIdentityMatchingService.findMatch({
           userId: request.userId,
           photoUrls: group.photoUrls,
@@ -1065,11 +1069,48 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           language,
           onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
         }).catch(err => {
+          identityMatchError = err instanceof Error ? err.message : String(err);
           logger.warn(
             { err, requestId, groupName: group.name, characterType: type },
             'Character identity matching failed; creating a new instant character'
           );
           return null;
+        });
+
+        const identityDiagnostic = {
+          groupName: group.name,
+          characterType: type,
+          photoUrls: group.photoUrls,
+          analyzedName: characterName,
+          analyzedDescription: analysis.detailedDescription,
+          outcome: identityMatch?.matchedCharacter ? 'reused' : 'created',
+          matchedCharacterId: identityMatch?.matchedCharacter?.id ?? null,
+          error: identityMatchError,
+          ...(identityMatch?.diagnostics ?? {
+            version: 1,
+            candidateSelection: [],
+            candidateEvaluations: [],
+            descriptionEmbeddingAvailable: false,
+          }),
+        };
+        characterIdentityDiagnostics.push(identityDiagnostic);
+
+        await recordStageTiming({
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind: 'story',
+          pipelinePhase: 'validation',
+          operation: 'character_identity_match',
+          targetType: 'instant_character_group',
+          targetKey: group.name,
+          status: identityMatchError ? 'failed' : 'completed',
+          cacheStatus: identityMatch?.matchedCharacter ? 'reused' : 'miss',
+          provider: 'gemini',
+          model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+          startedAt: identityMatchStartedAt,
+          completedAt: new Date(),
+          metadata: identityDiagnostic,
         });
 
         if (identityMatch?.matchedCharacter) {
@@ -1206,6 +1247,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         createdCharacterIds,
         matchedCharacterIds,
         selectedCharacterIds,
+        characterIdentityDiagnostics,
         characterSetupComplete: true,
       }
     });

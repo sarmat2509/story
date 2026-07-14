@@ -334,6 +334,7 @@
     "title": "Charaktere",
     "no_characters": "Du hast noch keine Charaktere",
     "no_characters_hint": "Füge Charaktere hinzu, um sie in Geschichten zu verwenden",
+    "no_characters_instant_hint": "Charaktere erscheinen hier automatisch, nachdem du eine Sofortgeschichte aus Fotos erstellt hast",
     "add_character": "Charakter erstellen",
     "character_quota_remaining": "Verbleibende Charaktergenerierungen diesen Monat: {{remaining}}",
     "character_quota_exhausted": "Monatliches Charakterlimit erreicht",

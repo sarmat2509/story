@@ -41,9 +41,18 @@ export default function CharactersScreen() {
   const { width } = useWindowDimensions();
   const enterKey = useScreenEnter();
   const sessionMode = useAuthStore((state) => state.sessionMode);
+  const userStoryCreationMode = useAuthStore((state) => state.user?.mode);
+  const activeChildStoryCreationMode = useAuthStore(
+    (state) => state.activeChild?.storyCreationMode
+  );
   const isChildSession = sessionMode === 'child';
+  const storyCreationMode =
+    (isChildSession ? activeChildStoryCreationMode : undefined) ||
+    userStoryCreationMode ||
+    'instant';
+  const canAddCharacter = storyCreationMode !== 'instant';
   const { data: characters, isLoading, error } = useCharacters();
-  const { data: characterUsage } = useCharacterGenerationUsage(!isChildSession);
+  const { data: characterUsage } = useCharacterGenerationUsage(!isChildSession && canAddCharacter);
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
   const gap = theme.spacing[4];
@@ -89,7 +98,7 @@ export default function CharactersScreen() {
   }, [isChildSession, navigation]);
 
   const handleAddCharacter = () => {
-    if (characterQuotaExhausted) {
+    if (!canAddCharacter || characterQuotaExhausted) {
       return;
     }
     setEditingCharacter(undefined);
@@ -187,35 +196,49 @@ export default function CharactersScreen() {
               })}
             </View>
 
-            <AnimatedSection delay={cardDelay(characters.length)} trigger={enterKey}>
-              <AppButton
-                label={t('characters.add_character')}
-                onPress={handleAddCharacter}
-                leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
-                disabled={characterQuotaExhausted}
-                style={styles.addCharacterAction}
-                testID="characters-add"
-              />
-              {characterQuotaText && (
-                <Text style={styles.characterQuotaText}>{characterQuotaText}</Text>
-              )}
-            </AnimatedSection>
+            {canAddCharacter && (
+              <AnimatedSection delay={cardDelay(characters.length)} trigger={enterKey}>
+                <AppButton
+                  label={t('characters.add_character')}
+                  onPress={handleAddCharacter}
+                  leading={
+                    <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
+                  }
+                  disabled={characterQuotaExhausted}
+                  style={styles.addCharacterAction}
+                  testID="characters-add"
+                />
+                {characterQuotaText && (
+                  <Text style={styles.characterQuotaText}>{characterQuotaText}</Text>
+                )}
+              </AnimatedSection>
+            )}
           </>
         ) : (
           <AnimatedSection delay={80} trigger={enterKey}>
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>👥</Text>
               <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
-              <Text style={styles.emptyHint}>{t('characters.no_characters_hint')}</Text>
-              <AppButton
-                label={t('characters.add_character')}
-                onPress={handleAddCharacter}
-                disabled={characterQuotaExhausted}
-                style={styles.emptyAction}
-                testID="characters-add"
-              />
-              {characterQuotaText && (
-                <Text style={styles.emptyQuotaText}>{characterQuotaText}</Text>
+              <Text style={styles.emptyHint}>
+                {t(
+                  canAddCharacter
+                    ? 'characters.no_characters_hint'
+                    : 'characters.no_characters_instant_hint'
+                )}
+              </Text>
+              {canAddCharacter && (
+                <>
+                  <AppButton
+                    label={t('characters.add_character')}
+                    onPress={handleAddCharacter}
+                    disabled={characterQuotaExhausted}
+                    style={styles.emptyAction}
+                    testID="characters-add"
+                  />
+                  {characterQuotaText && (
+                    <Text style={styles.emptyQuotaText}>{characterQuotaText}</Text>
+                  )}
+                </>
               )}
             </View>
           </AnimatedSection>

@@ -1300,7 +1300,6 @@ export default function StoryViewerScreen() {
         onSaveCharacter={handleSaveCharacter}
         isSavePending={updateCharacterMutation.isPending}
         collapsible={isMobile}
-        storyLanguage={story?.language}
       />
     );
   }, [
@@ -1311,7 +1310,6 @@ export default function StoryViewerScreen() {
     handleSaveCharacter,
     updateCharacterMutation.isPending,
     isMobile,
-    story?.language,
   ]);
 
   // Handle delete story with confirmation
@@ -2917,7 +2915,6 @@ export default function StoryViewerScreen() {
               onSaveCharacter={!isChildSession && isArtisanMode ? handleSaveCharacter : undefined}
               savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
-              storyLanguage={story?.language}
             />
           )}
         </>

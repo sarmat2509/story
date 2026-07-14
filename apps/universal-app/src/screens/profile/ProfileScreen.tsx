@@ -62,6 +62,8 @@ type ProfilePrivacyRequestIntent = {
   successMessage: string;
 };
 
+type ParentStoryCreationMode = 'instant' | 'artisan';
+
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
@@ -77,6 +79,7 @@ export default function ProfileScreen() {
   const enableRealPayments =
     plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
   const updateProfile = useUpdateMe();
+  const updateStoryMode = useUpdateMe();
   const updateAvatar = useUpdateMe();
   const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
   const deleteAccount = useDeleteAccount();
@@ -147,6 +150,8 @@ export default function ProfileScreen() {
   const avatarInitial =
     profileUser?.displayName?.trim().charAt(0) || profileUser?.email?.trim().charAt(0) || 'U';
   const childModeExitPasscodeConfigured = profileUser?.childModeExitPasscodeConfigured === true;
+  const storyCreationMode: ParentStoryCreationMode =
+    profileUser?.mode === 'artisan' ? 'artisan' : 'instant';
   const trimmedNewExitPasscode = newExitPasscode.trim();
   const canSaveChildModeExitPasscode =
     trimmedNewExitPasscode.length >= 4 &&
@@ -423,6 +428,16 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleStoryCreationModeChange = async (mode: ParentStoryCreationMode) => {
+    if (mode === storyCreationMode || updateStoryMode.isPending) return;
+
+    try {
+      await updateStoryMode.mutateAsync({ mode });
+    } catch (error) {
+      Alert.alert(t('common.error'), getLocalizedApiError(t, error, 'common.error'));
+    }
+  };
+
   return (
     <>
       <ScrollView
@@ -583,6 +598,92 @@ export default function ProfileScreen() {
                 loading={updateProfile.isPending}
                 style={[styles.profileSaveAction, isMobile && styles.mobileFullWidthAction]}
               />
+            </AnimatedSection>
+
+            <AnimatedSection
+              delay={160}
+              trigger={enterKey}
+              style={[
+                styles.settingsPanel,
+                styles.settingsPanelWide,
+                isMobile && styles.settingsPanelMobile,
+              ]}
+            >
+              <View style={styles.settingsPanelHeader}>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.sectionTitle}>{t('profile.mode')}</Text>
+                {updateStoryMode.isPending ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.interactive.primary}
+                    style={styles.storyModeSavingIndicator}
+                  />
+                ) : null}
+              </View>
+
+              <Text style={styles.storyModeDescription}>
+                {t('mode_selection.can_change_later')}
+              </Text>
+
+              <View style={[styles.storyModeOptions, isMobile && styles.storyModeOptionsMobile]}>
+                {(['instant', 'artisan'] as const).map((mode) => {
+                  const selected = storyCreationMode === mode;
+                  const isInstant = mode === 'instant';
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[
+                        styles.storyModeOption,
+                        selected && styles.storyModeOptionSelected,
+                        updateStoryMode.isPending && styles.storyModeOptionDisabled,
+                      ]}
+                      activeOpacity={0.82}
+                      disabled={updateStoryMode.isPending}
+                      onPress={() => handleStoryCreationModeChange(mode)}
+                      accessibilityRole="radio"
+                      accessibilityState={{
+                        checked: selected,
+                        disabled: updateStoryMode.isPending,
+                      }}
+                      aria-checked={selected}
+                      testID={`profile-story-mode-${mode}`}
+                    >
+                      <View
+                        style={[styles.storyModeIcon, selected && styles.storyModeIconSelected]}
+                      >
+                        <Ionicons
+                          name={isInstant ? 'flash' : 'color-palette'}
+                          size={22}
+                          color={
+                            selected ? theme.colors.text.inverse : theme.colors.interactive.primary
+                          }
+                        />
+                      </View>
+                      <View style={styles.storyModeOptionText}>
+                        <Text style={styles.storyModeOptionTitle}>
+                          {isInstant
+                            ? t('mode_selection.instant_mode')
+                            : t('mode_selection.artisan_mode')}
+                        </Text>
+                        <Text style={styles.storyModeOptionDescription}>
+                          {isInstant
+                            ? t('mode_selection.instant_description')
+                            : t('mode_selection.artisan_description')}
+                        </Text>
+                      </View>
+                      <View
+                        style={[styles.storyModeRadio, selected && styles.storyModeRadioSelected]}
+                      >
+                        {selected ? <View style={styles.storyModeRadioDot} /> : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </AnimatedSection>
 
             <AnimatedSection
@@ -1219,6 +1320,83 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 0,
   },
+  storyModeSavingIndicator: {
+    marginLeft: 'auto',
+  },
+  storyModeDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: theme.spacing[4],
+  },
+  storyModeOptions: {
+    flexDirection: 'row',
+    gap: theme.spacing[4],
+  },
+  storyModeOption: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 112,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: theme.colors.background.primary,
+  },
+  storyModeOptionSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: `${theme.colors.interactive.primary}0D`,
+  },
+  storyModeOptionDisabled: {
+    opacity: 0.65,
+  },
+  storyModeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.borders.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${theme.colors.interactive.primary}14`,
+  },
+  storyModeIconSelected: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  storyModeOptionText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  storyModeOptionTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[1],
+  },
+  storyModeOptionDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  storyModeRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: theme.colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storyModeRadioSelected: {
+    borderColor: theme.colors.interactive.primary,
+  },
+  storyModeRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.interactive.primary,
+  },
   profileCard: {
     backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.xl,
@@ -1616,6 +1794,9 @@ const styles = StyleSheet.create({
     flexBasis: 'auto',
     padding: theme.spacing[4],
     borderRadius: theme.borders.radius.lg,
+  },
+  storyModeOptionsMobile: {
+    flexDirection: 'column',
   },
   accountColumnsMobile: {
     flexDirection: 'column',

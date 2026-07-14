@@ -37,6 +37,42 @@ export interface CharacterIdentityMatchResult {
   candidateCount: number;
   validation: CharacterIdentityValidation | null;
   descriptionEmbedding: number[] | null;
+  diagnostics: CharacterIdentityMatchDiagnostics;
+}
+
+export interface CharacterIdentityCandidateSelection {
+  characterId: string;
+  characterName: string;
+  similarity: number | null;
+  abovePrefilterThreshold: boolean | null;
+  selectedForVision: boolean;
+  referenceCount: number;
+  createdAt: string;
+}
+
+export interface CharacterIdentityCandidateEvaluation {
+  characterId: string;
+  characterName: string;
+  similarity: number | null;
+  validation: CharacterIdentityValidation | null;
+  score: number | null;
+  accepted: boolean;
+  blockingReasons: string[];
+  error: string | null;
+}
+
+export interface CharacterIdentityMatchDiagnostics {
+  version: 1;
+  thresholds: {
+    descriptionPrefilter: number;
+    minConfidence: number;
+    minScore: number;
+    maxExistingCharactersToScore: number;
+    maxCandidatesForVision: number;
+  };
+  descriptionEmbeddingAvailable: boolean;
+  candidateSelection: CharacterIdentityCandidateSelection[];
+  candidateEvaluations: CharacterIdentityCandidateEvaluation[];
 }
 
 export interface CharacterIdentityMatchingOptions {
@@ -53,11 +89,26 @@ interface Candidate {
   similarity: number | null;
 }
 
+interface CandidateSelectionResult {
+  selected: Candidate[];
+  diagnostics: CharacterIdentityCandidateSelection[];
+}
+
 const MAX_EXISTING_CHARACTERS_TO_SCORE = 30;
 const MAX_CANDIDATES_FOR_VISION = 4;
 const DESCRIPTION_PREFILTER_THRESHOLD = 0.58;
 const MIN_ACCEPTED_CONFIDENCE = 0.82;
 const MIN_ACCEPTED_SCORE = 0.8;
+
+function identityThresholds(): CharacterIdentityMatchDiagnostics['thresholds'] {
+  return {
+    descriptionPrefilter: DESCRIPTION_PREFILTER_THRESHOLD,
+    minConfidence: MIN_ACCEPTED_CONFIDENCE,
+    minScore: MIN_ACCEPTED_SCORE,
+    maxExistingCharactersToScore: MAX_EXISTING_CHARACTERS_TO_SCORE,
+    maxCandidatesForVision: MAX_CANDIDATES_FOR_VISION,
+  };
+}
 
 function isValidEmbedding(value: unknown): value is number[] {
   return (
@@ -213,11 +264,13 @@ export class CharacterIdentityMatchingService {
       return null;
     });
 
-    const candidates = await this.selectCandidates({
+    const candidateSelection = await this.selectCandidates({
       userId: options.userId,
       characterType: options.characterType,
       descriptionEmbedding,
     });
+    const candidates = candidateSelection.selected;
+    const candidateEvaluations: CharacterIdentityCandidateEvaluation[] = [];
 
     let best:
       | {
@@ -228,6 +281,7 @@ export class CharacterIdentityMatchingService {
       | null = null;
 
     for (const candidate of candidates) {
+      let validationError: string | null = null;
       const validation = await this.validateCandidate({
         newPhotoUrls: options.photoUrls,
         candidate: candidate.character,
@@ -236,6 +290,7 @@ export class CharacterIdentityMatchingService {
         similarity: candidate.similarity,
         onUsage: options.onUsage,
       }).catch((err) => {
+        validationError = err instanceof Error ? err.message : String(err);
         logger.warn(
           {
             err,
@@ -249,10 +304,30 @@ export class CharacterIdentityMatchingService {
       });
 
       if (!validation) {
+        candidateEvaluations.push({
+          characterId: candidate.character.id,
+          characterName: candidate.character.name,
+          similarity: candidate.similarity,
+          validation: null,
+          score: null,
+          accepted: false,
+          blockingReasons: ['vision_validation_failed'],
+          error: validationError || 'Vision validation returned no result',
+        });
         continue;
       }
 
       const score = scoreIdentityValidation(validation);
+      candidateEvaluations.push({
+        characterId: candidate.character.id,
+        characterName: candidate.character.name,
+        similarity: candidate.similarity,
+        validation,
+        score: score.score,
+        accepted: score.accepted,
+        blockingReasons: score.blockingReasons,
+        error: null,
+      });
       logger.info(
         {
           userId: options.userId,
@@ -284,6 +359,13 @@ export class CharacterIdentityMatchingService {
         candidateCount: candidates.length,
         validation: null,
         descriptionEmbedding,
+        diagnostics: {
+          version: 1,
+          thresholds: identityThresholds(),
+          descriptionEmbeddingAvailable: descriptionEmbedding !== null,
+          candidateSelection: candidateSelection.diagnostics,
+          candidateEvaluations,
+        },
       };
     }
 
@@ -294,6 +376,13 @@ export class CharacterIdentityMatchingService {
       candidateCount: candidates.length,
       validation: best.validation,
       descriptionEmbedding,
+      diagnostics: {
+        version: 1,
+        thresholds: identityThresholds(),
+        descriptionEmbeddingAvailable: descriptionEmbedding !== null,
+        candidateSelection: candidateSelection.diagnostics,
+        candidateEvaluations,
+      },
     };
   }
 
@@ -301,7 +390,7 @@ export class CharacterIdentityMatchingService {
     userId: string;
     characterType: string;
     descriptionEmbedding: number[] | null;
-  }): Promise<Candidate[]> {
+  }): Promise<CandidateSelectionResult> {
     const repo = getCharacterRepository();
     const characters = await repo.findByUserId(params.userId, params.characterType);
     const visibleCharacters = characters
@@ -311,7 +400,7 @@ export class CharacterIdentityMatchingService {
       .slice(0, MAX_EXISTING_CHARACTERS_TO_SCORE);
 
     if (visibleCharacters.length === 0) {
-      return [];
+      return { selected: [], diagnostics: [] };
     }
 
     const scoredCandidates: Candidate[] = [];
@@ -349,7 +438,23 @@ export class CharacterIdentityMatchingService {
       }
     }
 
-    return Array.from(uniqueById.values());
+    const selected = Array.from(uniqueById.values());
+    const selectedIds = new Set(selected.map((candidate) => candidate.character.id));
+    return {
+      selected,
+      diagnostics: sorted.map((candidate) => ({
+        characterId: candidate.character.id,
+        characterName: candidate.character.name,
+        similarity: candidate.similarity,
+        abovePrefilterThreshold:
+          candidate.similarity == null
+            ? null
+            : candidate.similarity >= DESCRIPTION_PREFILTER_THRESHOLD,
+        selectedForVision: selectedIds.has(candidate.character.id),
+        referenceCount: this.getReferenceUrlsForCandidate(candidate.character).length,
+        createdAt: new Date(candidate.character.createdAt).toISOString(),
+      })),
+    };
   }
 
   private async getOrCreateDescriptionEmbedding(

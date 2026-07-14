@@ -32,7 +32,6 @@ interface StoryBottomSheetProps {
   onSaveCharacter?: (characterId: string, description?: string | null) => Promise<void>;
   savedCharacterIds?: readonly string[];
   userMode?: 'instant' | 'artisan';
-  storyLanguage?: string | null;
 }
 
 export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
@@ -57,7 +56,6 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
       onSaveCharacter,
       savedCharacterIds = [],
       userMode,
-      storyLanguage,
     },
     _ref
   ) => {
@@ -111,7 +109,6 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                 isArtisanMode={userMode === 'artisan'}
                 onSaveCharacter={onSaveCharacter ?? (() => {})}
                 isSavePending={false}
-                storyLanguage={storyLanguage ?? story?.language}
               />
             </View>
           )}

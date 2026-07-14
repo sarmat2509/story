@@ -9,21 +9,43 @@ function readSource(relativePath: string): string {
 }
 
 const mainNavigatorSource = readSource('navigation/MainNavigator.tsx');
+const charactersScreenSource = readSource('screens/characters/CharactersScreen.tsx');
 
 assert.match(
   mainNavigatorSource,
-  /!\s*isChildSession\s*&&\s*\(\s*<Tab\.Screen\s+name="Children"/s,
+  /<Tab\.Screen\s+name="Children"[\s\S]*?tabBarButton:\s*!isAuthenticated\s*\|\|\s*isChildSession/s,
   'instant-mode parent sessions should still register the Children tab route'
 );
 assert.match(
   mainNavigatorSource,
-  /!\s*isChildSession\s*&&\s*\(\s*<Drawer\.Screen\s+name="Children"/s,
+  /<Drawer\.Screen\s+name="Children"[\s\S]*?drawerItemStyle:\s*!isAuthenticated\s*\|\|\s*isChildSession/s,
   'instant-mode parent sessions should still register the Children drawer route'
 );
 assert.doesNotMatch(
   mainNavigatorSource,
   /!\s*isInstantMode\s*&&\s*!\s*isChildSession\s*&&\s*\(\s*<(Tab|Drawer)\.Screen\s+name="Children"/s,
   'Children routes must not be hidden only because the user is in instant mode'
+);
+
+assert.match(
+  charactersScreenSource,
+  /const\s+canAddCharacter\s*=\s*storyCreationMode\s*!==\s*'instant'/,
+  'characters screen should disable manual character creation in instant mode'
+);
+assert.match(
+  charactersScreenSource,
+  /if\s*\(\s*!canAddCharacter\s*\|\|\s*characterQuotaExhausted\s*\)/,
+  'character creation handler should guard against instant mode'
+);
+assert.equal(
+  charactersScreenSource.match(/\{canAddCharacter\s*&&\s*\(/g)?.length,
+  2,
+  'both populated and empty character states should hide add actions in instant mode'
+);
+assert.match(
+  charactersScreenSource,
+  /characters\.no_characters_instant_hint/,
+  'instant-mode empty state should explain automatic character creation'
 );
 
 const photoUploadGridSource = readSource('components/form/PhotoUploadGrid.tsx');

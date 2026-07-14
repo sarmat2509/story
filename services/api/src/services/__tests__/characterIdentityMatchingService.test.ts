@@ -77,5 +77,20 @@ assert.match(
   /recordInstantCharacterQuotaUsage/,
   'instant-created characters should be tracked in character usage without quota enforcement'
 );
+assert.match(
+  storyJobProcessorSource,
+  /characterIdentityDiagnostics/,
+  'instant identity decisions should be persisted on the story request for later debugging'
+);
+assert.match(
+  storyJobProcessorSource,
+  /operation:\s*'character_identity_match'/,
+  'instant identity decisions should emit a durable generation-stage event'
+);
+assert.match(
+  storyJobProcessorSource,
+  /Object\.assign\(intermediateData,\s*\{\s*storyId\s*\}\)/,
+  'instant setup should preserve the story stub id in later checkpoint updates'
+);
 
 console.log('characterIdentityMatchingService tests passed');

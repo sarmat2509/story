@@ -334,6 +334,7 @@
     "title": "Postacie",
     "no_characters": "Nie masz jeszcze zadnych postaci",
     "no_characters_hint": "Dodaj postacie, aby uwzglednic je w historiach",
+    "no_characters_instant_hint": "Postacie pojawią się tutaj automatycznie po utworzeniu błyskawicznej opowieści ze zdjęć",
     "add_character": "Utworz postac",
     "character_quota_remaining": "Pozostale generowania postaci w tym miesiacu: {{remaining}}",
     "character_quota_exhausted": "Osiagnieto miesieczny limit postaci",

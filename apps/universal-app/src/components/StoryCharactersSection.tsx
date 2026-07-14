@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { stripCharacterIdFromName } from '@wondertales/shared';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { getCharacterDisplayName } from '@/utils/characterDisplayName';
 
 export interface StoryCharacter {
   id: string;
@@ -33,7 +33,6 @@ interface StoryCharactersSectionProps {
   onSaveCharacter: (characterId: string, description?: string | null) => void;
   isSavePending: boolean;
   collapsible?: boolean;
-  storyLanguage?: string | null;
 }
 
 /** Fixed box for reference photo; image is ~90% of the box so content has a slight inset from the frame. */
@@ -186,18 +185,6 @@ const CHARACTER_TYPE_KEYS: Record<string, string> = {
   imaginary: 'story_viewer.character_type_imaginary',
 };
 
-function normalizeLocale(locale?: string | null): string | null {
-  return locale?.split('-')[0]?.toLowerCase() || null;
-}
-
-function getCharacterDisplayName(character: StoryCharacter, storyLanguage?: string | null): string {
-  const locale = normalizeLocale(storyLanguage);
-  const translatedName = locale ? character.nameTranslations?.[locale] : null;
-  const candidate = translatedName || character.localizedName || character.name;
-  const displayName = stripCharacterIdFromName(candidate).trim();
-  return displayName || stripCharacterIdFromName(character.name);
-}
-
 function hasCharacterImage(character: StoryCharacter): boolean {
   return typeof character.referencePhotoUrl === 'string' && character.referencePhotoUrl.trim().length > 0;
 }
@@ -209,9 +196,8 @@ function StoryCharactersSectionInner({
   onSaveCharacter,
   isSavePending,
   collapsible = false,
-  storyLanguage,
 }: StoryCharactersSectionProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
   const visibleCharacters = useMemo(() => characters.filter(hasCharacterImage), [characters]);
   const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
@@ -256,7 +242,7 @@ function StoryCharactersSectionInner({
       {shouldShowCharacters && visibleCharacters.map((char) => {
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
-        const displayName = getCharacterDisplayName(char, storyLanguage);
+        const displayName = getCharacterDisplayName(char, i18n.resolvedLanguage ?? i18n.language);
         return (
           <View
             key={char.id}

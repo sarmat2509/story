@@ -308,7 +308,7 @@ export const useUpdateMe = () => {
       displayName?: string;
       avatarUrl?: string | null;
       preferredLocale?: string;
-      mode?: string;
+      mode?: 'instant' | 'artisan';
       pseudonym?: string | null;
       aboutMe?: string | null;
       themePalette?: ThemePaletteId;

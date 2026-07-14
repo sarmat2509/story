@@ -334,6 +334,7 @@
     "title": "Personnages",
     "no_characters": "Vous n'avez pas encore de personnages",
     "no_characters_hint": "Ajoutez des personnages pour les inclure dans les histoires",
+    "no_characters_instant_hint": "Les personnages apparaîtront ici automatiquement après la création d’un conte instantané à partir de photos",
     "add_character": "Créer un personnage",
     "character_quota_remaining": "Générations de personnages restantes ce mois-ci : {{remaining}}",
     "character_quota_exhausted": "Limite mensuelle de personnages atteinte",

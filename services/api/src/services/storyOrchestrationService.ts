@@ -6427,28 +6427,32 @@ async function fetchStoryChildren(
   );
 }
 
-async function getLocalizedCharacterNames(
-  characterIds: string[],
-  locale: string
-): Promise<Map<string, string>> {
-  if (characterIds.length === 0) return new Map();
+type CharacterNameTranslations = Record<string, string>;
 
-  const translations = await getDictionaryRepository().findTranslations(
+async function getLocalizedCharacterNameTranslations(
+  characterIds: string[]
+): Promise<Map<string, CharacterNameTranslations>> {
+  const uniqueIds = [...new Set(characterIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const translations = await getDictionaryRepository().findTranslationsForEntities(
     'character',
-    characterIds,
-    locale
+    uniqueIds,
+    'name'
   );
-  const names = new Map<string, string>();
+  const namesByCharacterId = new Map<string, CharacterNameTranslations>();
 
   for (const translation of translations) {
-    if (translation.fieldName !== 'name') continue;
+    const locale = translation.locale.split('-')[0]?.toLowerCase();
     const value = stripCharacterIdFromName(translation.value).trim();
-    if (value) {
-      names.set(translation.entityId, value);
-    }
+    if (!locale || !value) continue;
+
+    const names = namesByCharacterId.get(translation.entityId) ?? {};
+    names[locale] = value;
+    namesByCharacterId.set(translation.entityId, names);
   }
 
-  return names;
+  return namesByCharacterId;
 }
 
 function pushCleanCharacterNameAlias(out: string[], value: unknown): void {
@@ -6517,9 +6521,8 @@ export async function getStory(storyId: string, userId: string) {
 
   // Enrich characters with signed reference photo URL
   const assetStorage = getAssetStorageService();
-  const localizedCharacterNames = await getLocalizedCharacterNames(
-    linkedCharactersRaw.map((char) => char.id),
-    story.language
+  const characterNameTranslations = await getLocalizedCharacterNameTranslations(
+    linkedCharactersRaw.map((char) => char.id)
   );
   const enrichedCharacters = await Promise.all(
     linkedCharactersRaw.map(async (char) => {
@@ -6547,13 +6550,12 @@ export async function getStory(storyId: string, userId: string) {
         }
       }
 
+      const nameTranslations = characterNameTranslations.get(char.id);
       return {
         id: char.id,
         name: char.name,
-        localizedName: localizedCharacterNames.get(char.id) ?? null,
-        nameTranslations: localizedCharacterNames.has(char.id)
-          ? { [story.language]: localizedCharacterNames.get(char.id)! }
-          : undefined,
+        localizedName: nameTranslations?.[story.language] ?? null,
+        nameTranslations,
         type: char.type,
         role: char.role,
         isHidden: char.isHidden,
@@ -7005,9 +7007,8 @@ export async function getStoryManifest(storyId: string) {
   // Get linked characters with enrichment
   const linkedCharactersRaw = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
   const assetStorage = getAssetStorageService();
-  const localizedCharacterNames = await getLocalizedCharacterNames(
-    linkedCharactersRaw.map((char) => char.id),
-    story.language
+  const characterNameTranslations = await getLocalizedCharacterNameTranslations(
+    linkedCharactersRaw.map((char) => char.id)
   );
 
   // Resolve scenario card info for breadcrumbs
@@ -7251,13 +7252,12 @@ export async function getStoryManifest(storyId: string) {
               // Non-fatal
             }
           }
+          const nameTranslations = characterNameTranslations.get(char.id);
           return {
             id: char.id,
             name: char.name,
-            localizedName: localizedCharacterNames.get(char.id) ?? null,
-            nameTranslations: localizedCharacterNames.has(char.id)
-              ? { [story.language]: localizedCharacterNames.get(char.id)! }
-              : undefined,
+            localizedName: nameTranslations?.[story.language] ?? null,
+            nameTranslations,
             type: char.type,
             role: char.role,
             isHidden: char.isHidden,
