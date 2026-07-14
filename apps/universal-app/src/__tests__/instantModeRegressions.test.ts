@@ -52,6 +52,16 @@ assert.match(
   /if\s*\(\s*!canAddCharacter\s*\|\|\s*characterQuotaExhausted\s*\)/,
   'character creation handler should guard against instant mode'
 );
+assert.match(
+  charactersScreenSource,
+  /onPress=\{\(\)\s*=>\s*\{\s*if\s*\(canAddCharacter\)\s*handleEditCharacter\(character\);\s*\}\}/s,
+  'character editing should be gated by instant mode rather than child session mode'
+);
+assert.doesNotMatch(
+  charactersScreenSource,
+  /if\s*\(\s*!isChildSession\s*\)\s*handleEditCharacter\(character\)/,
+  'child artisan sessions should be allowed to open the character editor'
+);
 assert.equal(
   charactersScreenSource.match(/\{canAddCharacter\s*&&\s*\(/g)?.length,
   2,

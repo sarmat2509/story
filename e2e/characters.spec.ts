@@ -1,4 +1,5 @@
 import { test, expect } from './support/fixtures';
+import { loginAsChild } from './support/auth';
 
 test.describe('characters', () => {
   test('creates a character in child mode and refreshes the grid', async ({
@@ -75,5 +76,27 @@ test.describe('characters', () => {
     await deleteRequest;
 
     await expect(page.getByTestId('character-card-character-e2e-1')).toHaveCount(0);
+  });
+
+  test('opens an existing character editor in child artisan mode', async ({
+    page,
+    authenticatedChild,
+  }) => {
+    void authenticatedChild;
+
+    await page.goto('/characters');
+    await page.getByTestId('character-card-button-character-e2e-1').click();
+
+    await expect(page.getByTestId('character-form-modal')).toBeVisible();
+    await expect(page.getByTestId('character-form-name')).toHaveValue('Luna');
+  });
+
+  test('does not open an existing character editor in child instant mode', async ({ page }) => {
+    await loginAsChild(page, { storyCreationMode: 'instant' });
+
+    await page.goto('/characters');
+    await page.getByTestId('character-card-button-character-e2e-1').click();
+
+    await expect(page.getByTestId('character-form-modal')).toHaveCount(0);
   });
 });
