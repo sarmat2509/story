@@ -35,6 +35,7 @@ router.get('/:authorId', async (req: Request, res: Response) => {
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('X-Robots-Tag', 'index,follow');
+    res.setHeader('Cache-Control', 'public, max-age=600, must-revalidate');
     res.send(html);
   } catch (error) {
     logger.error({ err: error, authorId: req.params.authorId }, 'SSR author page failed');

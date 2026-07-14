@@ -33,6 +33,7 @@ router.get('/:token', async (req: Request, res: Response) => {
     });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.send(html);
   } catch (error) {
     logger.error({ err: error, token: req.params.token }, 'SSR unlisted story failed');

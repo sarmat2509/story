@@ -16,16 +16,17 @@ function buildBlogEtag(prefix: string, html: string): string {
 
 function sendHtml(req: Request, res: Response, html: string, prefix: string) {
   const etag = buildBlogEtag(prefix, html);
+  const cacheControl = 'public, max-age=600, must-revalidate';
   if (req.headers['if-none-match'] === etag) {
     res.status(304);
     res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
+    res.setHeader('Cache-Control', cacheControl);
     return res.end();
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', cacheControl);
   res.send(html);
 }
 

@@ -25,7 +25,7 @@ export async function getCachedHtml(slug: string, publicRenderVersion: number): 
   }
 }
 
-export async function setCachedHtml(slug: string, publicRenderVersion: number, html: string, ttlSeconds = 3600): Promise<void> {
+export async function setCachedHtml(slug: string, publicRenderVersion: number, html: string, ttlSeconds = 10 * 60): Promise<void> {
   const redis = await getRedisClient();
   if (!redis) return;
   try {

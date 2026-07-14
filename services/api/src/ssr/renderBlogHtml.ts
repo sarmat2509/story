@@ -518,7 +518,7 @@ function renderAlternateLinks(webAppUrl: string, currentLocale: PublicSeoLocale,
 function renderArticleCard(article: BlogArticleSummary, webAppUrl: string, readMore: string): string {
   const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogArticlePath(article.slug, article.locale));
   return `<a class="article-card" href="${escapeHtml(href)}">
-    <img class="article-thumb" src="${escapeHtml(article.heroImage)}" alt="${escapeHtml(article.heroAlt)}" loading="lazy">
+    <img class="article-thumb" src="${escapeHtml(versionPublicIconAsset(article.heroImage))}" alt="${escapeHtml(article.heroAlt)}" loading="lazy">
     <div class="article-card-body">
       <div class="article-meta"><span>${escapeHtml(article.category)}</span><span class="article-read-time" aria-label="${escapeHtml(article.readingTime)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>7 min</span></span></div>
       <h2>${escapeHtml(article.title)}</h2>
@@ -588,7 +588,7 @@ function renderQuoteCard(article: BlogArticleView): string {
 
 function renderInlineImage(image: BlogInlineImage): string {
   return `<figure class="post-inline-image">
-    <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy">
+    <img src="${escapeHtml(versionPublicIconAsset(image.src))}" alt="${escapeHtml(image.alt)}" loading="lazy">
     <figcaption>${escapeHtml(image.caption)}</figcaption>
   </figure>`;
 }
@@ -747,7 +747,7 @@ export function renderBlogIndexHtml(options: { locale?: string | null } = {}): s
           <p class="lead">${escapeHtml(copy.intro)}</p>
         </div>
         <div class="hero-image-card" aria-hidden="true">
-          <img src="${escapeHtml(heroArticle.heroImage)}" alt="">
+          <img src="${escapeHtml(versionPublicIconAsset(heroArticle.heroImage))}" alt="">
         </div>
       </section>
       <section class="article-grid" aria-label="${escapeHtml(copy.h1)}">
@@ -773,7 +773,7 @@ function renderRelatedArticles(article: BlogArticleView, webAppUrl: string, copy
     ${related.map((summary) => {
       const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogArticlePath(summary.slug, article.locale));
       return `<a class="aside-link" href="${escapeHtml(href)}">
-        <img src="${escapeHtml(summary.heroImage)}" alt="">
+        <img src="${escapeHtml(versionPublicIconAsset(summary.heroImage))}" alt="">
         <span><strong>${escapeHtml(summary.title)}</strong><small>${escapeHtml(copy.relatedCta)} →</small></span>
       </a>`;
     }).join('')}
@@ -802,7 +802,7 @@ export function renderBlogArticleHtml(options: { slug: string; locale?: string |
   );
   const createStoryUrl = buildAbsoluteRouteUrl(webAppUrl, createStoryPath);
   const checklistCtaLabel = article.checklistCtaLabel ?? copy.checklistCta;
-  const imageUrl = absoluteAssetUrl(article.heroImage, webAppUrl);
+  const imageUrl = absoluteAssetUrl(versionPublicIconAsset(article.heroImage), webAppUrl);
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -910,7 +910,7 @@ export function renderBlogArticleHtml(options: { slug: string; locale?: string |
           <h1>${escapeHtml(article.title)}</h1>
           <p class="lead">${escapeHtml(article.lead)}</p>
           <figure class="post-hero">
-            <img src="${escapeHtml(article.heroImage)}" alt="${escapeHtml(article.heroAlt)}">
+            <img src="${escapeHtml(versionPublicIconAsset(article.heroImage))}" alt="${escapeHtml(article.heroAlt)}">
           </figure>
           ${renderArticleContent(article)}
           <section class="checklist">

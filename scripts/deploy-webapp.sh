@@ -126,6 +126,16 @@ fi
 
 EXPO_BUNDLE_HASH=$(shasum -a 256 "$EXPO_BUNDLE" | awk '{print substr($1, 1, 12)}')
 
+if ! grep -q '__WT_WEB_BUILD_ID__' apps/universal-app/dist/index.html; then
+  echo "❌ ERROR: Web build is missing the build version placeholder"
+  exit 1
+fi
+perl -0pi -e "s/__WT_WEB_BUILD_ID__/${EXPO_BUNDLE_HASH}/g" \
+  apps/universal-app/dist/index.html \
+  apps/universal-app/dist/build-version.json \
+  apps/universal-app/dist/manifest.json
+echo "   ✓ Embedded web build version: ${EXPO_BUNDLE_HASH}"
+
 mkdir -p apps/universal-app/dist/static/js
 cp "$EXPO_BUNDLE" apps/universal-app/dist/static/js/bundle.js
 echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"

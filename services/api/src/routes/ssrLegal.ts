@@ -22,7 +22,7 @@ function renderLegalRoute(doc: 'terms' | 'privacy') {
       const locale = resolveLegalRouteLocale(req.params.locale);
       const html = await renderLegalHtml({ doc, locale });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Cache-Control', 'public, max-age=600, must-revalidate');
       res.send(html);
     } catch (error) {
       logger.error({ err: error }, `Error rendering ${doc}`);

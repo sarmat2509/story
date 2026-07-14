@@ -70,13 +70,15 @@ router.get('/:slug', async (req: Request, res: Response) => {
     const cached = await getCachedHtml(slug, publicRenderVersion);
     if (cached) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=600, must-revalidate');
       return res.send(cached);
     }
 
     const html = renderPublishedStoryHtml({ story, useStaticBody: true });
-    await setCachedHtml(slug, publicRenderVersion, html, 3600);
+    await setCachedHtml(slug, publicRenderVersion, html, 10 * 60);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=600, must-revalidate');
     res.send(html);
   } catch (error) {
     logger.error({ err: error, slug: req.params.slug }, 'SSR story failed');

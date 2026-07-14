@@ -30,6 +30,11 @@ import {
   getPublicSeoLocaleOverrideFromSearch,
 } from '@/utils/publicSeoLocale';
 import { getWebPathname, getWebSearch } from '@/utils/webRuntime';
+import {
+  WEB_BUILD_CHECK_INTERVAL_MS,
+  WEB_BUILD_VERSION_URL,
+  shouldReloadForWebBuild,
+} from '@/utils/webBuildVersion';
 import type { MainTabParamList } from '@/types/navigation';
 import { APP_ROUTE_PATHS, buildPublicAppEntryPath, isValidLocale } from '@wondertales/shared';
 
@@ -107,6 +112,7 @@ const TRACKED_ROUTE_PATTERNS: Record<string, string> = {
   Dashboard: APP_ROUTE_PATHS.dashboard,
   Wizard: APP_ROUTE_PATHS.wizard,
   Library: APP_ROUTE_PATHS.library,
+  Artifacts: APP_ROUTE_PATHS.artifacts,
   LibraryRedirect: 'library',
   MapTiles: APP_ROUTE_PATHS.mapTiles,
   Series: APP_ROUTE_PATHS.series,
@@ -286,6 +292,7 @@ const linking: any = {
           Dashboard: APP_ROUTE_PATHS.dashboard,
           Wizard: APP_ROUTE_PATHS.wizard,
           Library: APP_ROUTE_PATHS.library,
+          Artifacts: APP_ROUTE_PATHS.artifacts,
           LibraryRedirect: 'library',
           MapTiles: APP_ROUTE_PATHS.mapTiles,
           Series: APP_ROUTE_PATHS.series,
@@ -386,6 +393,55 @@ export default function App() {
 
     return () => {
       window.removeEventListener('popstate', syncLanguageFromPath);
+    };
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || Platform.OS !== 'web') {
+      return;
+    }
+
+    const loadedBuildId = document
+      .querySelector<HTMLMetaElement>('meta[name="wt-build-id"]')
+      ?.content?.trim();
+    if (!loadedBuildId || loadedBuildId === '__WT_WEB_BUILD_ID__') {
+      return;
+    }
+
+    let stopped = false;
+    const checkForNewBuild = async () => {
+      try {
+        const separator = WEB_BUILD_VERSION_URL.includes('?') ? '&' : '?';
+        const response = await fetch(
+          `${WEB_BUILD_VERSION_URL}${separator}checkedAt=${Date.now()}`,
+          { cache: 'no-store' }
+        );
+        if (!response.ok || stopped) {
+          return;
+        }
+
+        const payload = (await response.json()) as { buildId?: string };
+        if (shouldReloadForWebBuild(loadedBuildId, payload.buildId)) {
+          window.location.reload();
+        }
+      } catch (error) {
+        console.warn('Web build version check failed', error);
+      }
+    };
+
+    void checkForNewBuild();
+    const interval = window.setInterval(checkForNewBuild, WEB_BUILD_CHECK_INTERVAL_MS);
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void checkForNewBuild();
+      }
+    };
+    document.addEventListener('visibilitychange', checkWhenVisible);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', checkWhenVisible);
     };
   }, [isReady]);
 

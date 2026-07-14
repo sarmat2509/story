@@ -32,6 +32,7 @@ import {
   type LandingLocale,
 } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { versionPublicIconAsset } from './publicAssetUrls';
 import {
   PUBLIC_FOOTER_STYLES,
   PUBLIC_HEADER_STYLES,
@@ -516,7 +517,7 @@ function buildSrcSet(src: string, widths: readonly number[], format: ResponsiveI
   return widths
     .map((width) => {
       const optimizedPath = getOptimizedImagePath(src, width, format);
-      return optimizedPath ? `${escapeHtml(optimizedPath)} ${width}w` : '';
+      return optimizedPath ? `${escapeHtml(versionPublicIconAsset(optimizedPath))} ${width}w` : '';
     })
     .filter(Boolean)
     .join(', ');
@@ -528,15 +529,16 @@ function renderResponsiveImage(src: string, alt: string, options: ResponsiveImag
   const webpSrcSet = buildSrcSet(src, widths, 'webp');
   const loading = options.loading || 'lazy';
   const fetchPriority = options.fetchPriority ? ` fetchpriority="${options.fetchPriority}"` : '';
+  const versionedSrc = versionPublicIconAsset(src);
 
   if (!avifSrcSet || !webpSrcSet) {
-    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />`;
+    return `<img src="${escapeHtml(versionedSrc)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />`;
   }
 
   return `<picture>
             <source type="image/avif" srcset="${avifSrcSet}" sizes="${escapeHtml(options.sizes)}" />
             <source type="image/webp" srcset="${webpSrcSet}" sizes="${escapeHtml(options.sizes)}" />
-            <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />
+            <img src="${escapeHtml(versionedSrc)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />
           </picture>`;
 }
 
@@ -1050,7 +1052,7 @@ function renderVoicesSection(_webAppUrl: string, voices: LandingVoice[], content
         const hasSample = !!sampleUrl;
         const avatarPath = getVoiceAvatarPath(v.name);
         const avatarHtml = avatarPath
-          ? `<img src="${escapeHtml(avatarPath)}" alt="" class="voice-avatar-img" loading="lazy" />`
+          ? `<img src="${escapeHtml(versionPublicIconAsset(avatarPath))}" alt="" class="voice-avatar-img" loading="lazy" />`
           : `<span class="voice-avatar-fallback">${v.displayName.charAt(0)}</span>`;
         const pos = getVoiceCardPosition(i, items.length);
         const isPremium = isPremiumVoice(v);
@@ -1267,7 +1269,7 @@ export function renderLandingHtml(params?: {
   const billingCurrency = normalizeBillingCurrency(params?.billingCurrency ?? DEFAULT_BILLING_CURRENCY);
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
   const landingUrl = getLandingUrl(webAppUrl, locale);
-  const ogImageUrl = `${webAppUrl}/og-landing.png`;
+  const ogImageUrl = `${webAppUrl}${versionPublicIconAsset('/og-landing.png')}`;
   const exampleStories = params?.exampleStories ?? [];
   const plans = params?.plans ?? [];
   const voices = params?.voices ?? [];

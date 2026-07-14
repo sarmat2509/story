@@ -7,7 +7,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redisClient';
 
-export const PUBLIC_PAGE_CACHE_TTL_SECONDS = 60 * 60;
+export const PUBLIC_PAGE_CACHE_TTL_SECONDS = 10 * 60;
 const PUBLIC_PAGE_VERSION_TTL_SECONDS = 60 * 60 * 24 * 365;
 
 type CacheVariantValue = string | number | boolean | null | undefined;

@@ -14,7 +14,7 @@ function renderSupportRoute(req: Request, res: Response) {
     const locale = resolveSupportRouteLocale(req.params.locale);
     const html = renderSupportHtml({ locale });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'public, max-age=600, must-revalidate');
     res.send(html);
   } catch (error) {
     logger.error({ err: error }, 'Error rendering support page');

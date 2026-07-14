@@ -23,9 +23,10 @@ pnpm launch:gate
 
 Flags:
 
-- no args: deploy API, webapp, migrations, and outfit assets
-- `--api`: API plus migrations and outfit assets
+- no args: deploy API, webapp, migrations, story artifact images, and outfit assets
+- `--api`: API plus migrations, story artifact images, and outfit assets
 - `--web`: webapp only
+- `--artifacts`: story artifact catalog images only
 - `--outfits`: pregenerated outfit plate assets only
 - `--nginx`: legacy nginx handoff/config validation only
 - `--migrate`: migrations only, no rebuild/redeploy
@@ -44,7 +45,7 @@ At a high level, `scripts/deploy.sh --api --web`:
 6. Uploads Google service account JSON when `GOOGLE_APPLICATION_CREDENTIALS` is configured.
 7. Uploads `docker-compose.prod.yml`.
 8. Loads the API image on the droplet and runs `docker compose -f docker-compose.prod.yml up -d api`.
-9. Syncs localized voice samples and pregenerated outfit plates into the API uploads volume.
+9. Syncs localized voice samples, story artifact catalog images, and pregenerated outfit plates into the API uploads volume.
 10. Syncs and validates nginx config, then stops legacy `wondertales-nginx`.
 11. Waits for the API container to become healthy.
 12. Runs SQL migrations inside `wondertales-api-prod` with `npx tsx src/scripts/runAllMigrations.ts`.
@@ -52,6 +53,8 @@ At a high level, `scripts/deploy.sh --api --web`:
 14. Restores ops mode to `normal`.
 15. Builds the webapp locally, uploads `dist`, updates `WEB_BUILD_ID`, recreates `api` and `webapp`, then restarts `shared-nginx-proxy` if present.
 16. Prints `docker compose ps` and public URLs.
+
+The deploy also sends best-effort Telegram notifications at start and completion. The start message includes the deployment id, selected components, Git revision/worktree state, and drain mode. The completion message reports success or failure, duration, and the failed step when applicable. Credentials are read on the droplet from `/etc/wondertales/ops-alert.env` or `/etc/wondertales/deploy-alert.env`, using `DEPLOY_ALERT_TELEGRAM_*`, `OPS_ALERT_TELEGRAM_*`, or the generic `TELEGRAM_*` fallback variables. Telegram delivery failures are logged but do not abort the deployment. Set `DEPLOY_TELEGRAM_ENABLED=false` to skip notifications or `DEPLOY_TELEGRAM_DRY_RUN=true` to print them without sending.
 
 ## API Deploy Details
 

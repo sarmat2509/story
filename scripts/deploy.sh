@@ -3,8 +3,9 @@
 # Full deployment: API + webapp + migrations
 # Usage:
 #   ./scripts/deploy.sh            # Deploy everything (API + webapp + migrations)
-#   ./scripts/deploy.sh --api      # API + migrations only
+#   ./scripts/deploy.sh --api      # API + migrations + required upload assets
 #   ./scripts/deploy.sh --web      # Webapp only
+#   ./scripts/deploy.sh --artifacts # Story artifact catalog images only
 #   ./scripts/deploy.sh --outfits  # Pregenerated outfit plate assets only
 #   ./scripts/deploy.sh --nginx    # Legacy nginx handoff check only; deploy live proxy from ../proxy
 #   ./scripts/deploy.sh --migrate  # Migrations only (no rebuild/redeploy)
@@ -24,6 +25,11 @@ API_PRELOAD_MIN_FREE_KB=2097152
 API_POST_DEPLOY_CLEANUP_MIN_FREE_KB=1048576
 DEPLOY_DRAIN_TIMEOUT_MS="${DEPLOY_DRAIN_TIMEOUT_MS:-900000}"
 DEPLOY_ACTIVE_REQUEST_TTL_MS="${DEPLOY_ACTIVE_REQUEST_TTL_MS:-600000}"
+DEPLOY_TELEGRAM_ENABLED="${DEPLOY_TELEGRAM_ENABLED:-true}"
+DEPLOY_TELEGRAM_DRY_RUN="${DEPLOY_TELEGRAM_DRY_RUN:-false}"
+DEPLOY_STARTED_AT=$(date +%s)
+DEPLOY_STARTED_AT_UTC=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+DEPLOY_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
@@ -33,6 +39,8 @@ LAST_REMOTE_COMMAND=""
 STEP_STARTED_AT=0
 
 cleanup() {
+  rm -f "/tmp/wondertales-story-artifacts-$$.tar.gz"
+  rm -f "/tmp/wondertales-migrations-$$.tar.gz"
   ssh -O exit -o ControlPath=${SSH_CONTROL_PATH} ${DROPLET_USER}@${DROPLET_IP} 2>/dev/null || true
 }
 
@@ -40,6 +48,13 @@ on_error() {
   local exit_code=$?
   local line_no=$1
   local command=$2
+  local failed_at duration deploy_summary failure_message
+
+  trap - ERR
+  set +e
+  failed_at=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+  duration=$(( $(date +%s) - DEPLOY_STARTED_AT ))
+  deploy_summary=$(deploy_characteristics)
 
   echo ""
   echo "❌ Deployment failed"
@@ -53,6 +68,16 @@ on_error() {
   echo ""
   echo "💡 Tip: rerun the failing remote command manually over SSH to inspect it in isolation."
 
+  printf -v failure_message \
+    '❌ WonderTales deploy failed\nID: %s\nTarget: production · wondertales.art\n%s\nFailed step: %s\nExit code: %s\nDuration: %s\nFinished: %s' \
+    "${DEPLOY_ID}" \
+    "${deploy_summary}" \
+    "${CURRENT_STEP}" \
+    "${exit_code}" \
+    "$(format_duration "${duration}")" \
+    "${failed_at}"
+  notify_deploy_telegram_best_effort "${failure_message}" "failure"
+
   exit "${exit_code}"
 }
 
@@ -62,18 +87,21 @@ DEPLOY_WEB=false
 DEPLOY_MIGRATE=false
 DEPLOY_NGINX=false
 DEPLOY_OUTFITS=false
+DEPLOY_ARTIFACTS=false
 
 if [[ $# -eq 0 ]]; then
   DEPLOY_API=true
   DEPLOY_WEB=true
   DEPLOY_MIGRATE=true
   DEPLOY_OUTFITS=true
+  DEPLOY_ARTIFACTS=true
 fi
 
 for arg in "$@"; do
   case "$arg" in
-    --api)     DEPLOY_API=true; DEPLOY_MIGRATE=true; DEPLOY_OUTFITS=true ;;
+    --api)     DEPLOY_API=true; DEPLOY_MIGRATE=true; DEPLOY_OUTFITS=true; DEPLOY_ARTIFACTS=true ;;
     --web)     DEPLOY_WEB=true ;;
+    --artifacts) DEPLOY_ARTIFACTS=true ;;
     --outfits) DEPLOY_OUTFITS=true ;;
     --nginx)   DEPLOY_NGINX=true ;;
     --migrate) DEPLOY_MIGRATE=true ;;
@@ -81,16 +109,9 @@ for arg in "$@"; do
       sed -n '1,10p' "$0"
       exit 0
       ;;
-    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--outfits] [--nginx] [--migrate]"; exit 1 ;;
+    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--artifacts] [--outfits] [--nginx] [--migrate]"; exit 1 ;;
   esac
 done
-
-# Open master connection once (triggers passphrase prompt if needed)
-ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
-
-# Cleanup master connection on exit
-trap cleanup EXIT
-trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -151,6 +172,129 @@ export_expo_public_env_vars() {
 
     export "${key}=${value}"
   done < <(grep -E '^EXPO_PUBLIC_[A-Za-z0-9_]+=' "${env_file}" || true)
+}
+
+format_duration() {
+  local total_seconds="${1:-0}"
+  local hours minutes seconds
+
+  hours=$((total_seconds / 3600))
+  minutes=$(((total_seconds % 3600) / 60))
+  seconds=$((total_seconds % 60))
+
+  if ((hours > 0)); then
+    printf '%dh %dm %ds' "${hours}" "${minutes}" "${seconds}"
+  elif ((minutes > 0)); then
+    printf '%dm %ds' "${minutes}" "${seconds}"
+  else
+    printf '%ds' "${seconds}"
+  fi
+}
+
+deploy_source_summary() {
+  local branch revision state worktree_status
+
+  branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || printf 'detached')
+  revision=$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')
+  worktree_status=$(git status --porcelain --untracked-files=normal 2>/dev/null || true)
+  if [[ -n "${worktree_status}" ]]; then
+    state="dirty"
+  else
+    state="clean"
+  fi
+
+  printf '%s@%s (%s)' "${branch}" "${revision}" "${state}"
+}
+
+deploy_characteristics() {
+  local drain_mode="not applicable"
+
+  if ${DEPLOY_API}; then
+    if [[ "${SKIP_DEPLOY_DRAIN:-false}" == "true" ]]; then
+      drain_mode="skipped"
+    else
+      drain_mode="enabled"
+    fi
+  fi
+
+  printf 'Components: API=%s | Web=%s | Migrations=%s | Artifacts=%s | Outfits=%s | Nginx=%s\nSource: %s\nDrain: %s' \
+    "${DEPLOY_API}" \
+    "${DEPLOY_WEB}" \
+    "${DEPLOY_MIGRATE}" \
+    "${DEPLOY_ARTIFACTS}" \
+    "${DEPLOY_OUTFITS}" \
+    "${DEPLOY_NGINX}" \
+    "$(deploy_source_summary)" \
+    "${drain_mode}"
+}
+
+send_deploy_telegram_notification() {
+  local message="$1"
+  local message_base64
+
+  if [[ "${DEPLOY_TELEGRAM_ENABLED}" != "true" ]]; then
+    echo "ℹ️  DEPLOY_TELEGRAM_ENABLED=${DEPLOY_TELEGRAM_ENABLED}, skipping Telegram deploy notification"
+    return 0
+  fi
+
+  if [[ "${DEPLOY_TELEGRAM_DRY_RUN}" == "true" ]]; then
+    echo "ℹ️  Telegram deploy notification dry run:"
+    printf '%s\n' "${message}"
+    return 0
+  fi
+
+  message_base64=$(printf '%s' "${message}" | base64 | tr -d '\n')
+  ssh $SSH_OPTS -o BatchMode=yes "${DROPLET_USER}@${DROPLET_IP}" \
+    "DEPLOY_MESSAGE_BASE64='${message_base64}' bash -s" <<'REMOTE'
+set -euo pipefail
+
+for env_file in /etc/wondertales/ops-alert.env /etc/wondertales/deploy-alert.env; do
+  if [[ -f "${env_file}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "${env_file}"
+    set +a
+  fi
+done
+
+bot_token="${DEPLOY_ALERT_TELEGRAM_BOT_TOKEN:-${OPS_ALERT_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}}"
+chat_id="${DEPLOY_ALERT_TELEGRAM_CHAT_ID:-${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}}"
+
+if [[ -z "${bot_token}" || -z "${chat_id}" ]]; then
+  echo "Telegram deploy alert credentials are not configured on the droplet" >&2
+  exit 3
+fi
+
+message=$(printf '%s' "${DEPLOY_MESSAGE_BASE64}" | base64 -d)
+if ((${#message} > 3900)); then
+  message="${message:0:3880}"$'\n...truncated'
+fi
+
+curl -fsS \
+  --max-time 15 \
+  -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
+  -d "chat_id=${chat_id}" \
+  --data-urlencode "text=${message}" >/dev/null
+REMOTE
+}
+
+notify_deploy_telegram_best_effort() {
+  local message="$1"
+  local phase="$2"
+
+  if send_deploy_telegram_notification "${message}"; then
+    if [[ "${DEPLOY_TELEGRAM_ENABLED}" != "true" ]]; then
+      echo "ℹ️  Telegram deploy ${phase} notification skipped"
+    elif [[ "${DEPLOY_TELEGRAM_DRY_RUN}" == "true" ]]; then
+      echo "✅ Telegram deploy ${phase} notification dry run completed"
+    else
+      echo "✅ Telegram deploy ${phase} notification sent"
+    fi
+  else
+    echo "⚠️  Telegram deploy ${phase} notification failed; deployment will continue" >&2
+  fi
+
+  return 0
 }
 
 ssh_droplet() {
@@ -241,6 +385,130 @@ docker exec wondertales-api-prod sh -lc '
   done
 '
 rm -f /tmp/wondertales-voice-samples.tar.gz
+EOF
+  print_step_done
+}
+
+sync_story_artifact_images() {
+  local artifact_dir="${PROJECT_ROOT}/services/api/uploads/story-artifacts"
+  local artifact_tarball="/tmp/wondertales-story-artifacts-$$.tar.gz"
+  local artifact_original_count artifact_thumbnail_count artifact_checksum remote_artifact_state
+
+  if [[ "${SKIP_STORY_ARTIFACT_SYNC:-false}" == "true" ]]; then
+    echo "⚠️  SKIP_STORY_ARTIFACT_SYNC=true, skipping story artifact image sync"
+    return 0
+  fi
+
+  if [[ ! -d "${artifact_dir}" ]]; then
+    echo "❌ Local story artifact image directory not found: ${artifact_dir}"
+    exit 1
+  fi
+
+  artifact_original_count=$(find "${artifact_dir}" -maxdepth 1 -type f -name '[0-9][0-9][0-9].png' | wc -l | tr -d ' ')
+  artifact_thumbnail_count=$(find "${artifact_dir}" -maxdepth 1 -type f -name '[0-9][0-9][0-9]_thumb.jpg' | wc -l | tr -d ' ')
+
+  if [[ "${artifact_original_count}" == "0" ]]; then
+    echo "❌ No canonical story artifact PNG files found in ${artifact_dir}"
+    exit 1
+  fi
+  if [[ "${artifact_original_count}" != "${artifact_thumbnail_count}" ]]; then
+    echo "❌ Story artifact originals/thumbnails do not match"
+    echo "   Originals:  ${artifact_original_count}"
+    echo "   Thumbnails: ${artifact_thumbnail_count}"
+    exit 1
+  fi
+
+  local original_path thumbnail_path artifact_code
+  while IFS= read -r original_path; do
+    artifact_code="$(basename "${original_path}" .png)"
+    thumbnail_path="${artifact_dir}/${artifact_code}_thumb.jpg"
+    if [[ ! -f "${thumbnail_path}" ]]; then
+      echo "❌ Missing story artifact thumbnail: ${thumbnail_path}"
+      exit 1
+    fi
+  done < <(find "${artifact_dir}" -maxdepth 1 -type f -name '[0-9][0-9][0-9].png' | sort)
+
+  artifact_checksum=$(
+    cd "${PROJECT_ROOT}/services/api/uploads"
+    while IFS= read -r artifact_path; do
+      shasum -a 256 "${artifact_path}"
+    done < <(
+      find story-artifacts -maxdepth 1 -type f \
+        \( -name '[0-9][0-9][0-9].png' -o -name '[0-9][0-9][0-9]_thumb.jpg' \) \
+        -print | sort
+    ) | shasum -a 256 | awk '{print $1}'
+  )
+
+  if [[ "${FORCE_STORY_ARTIFACT_SYNC:-false}" != "true" ]]; then
+    remote_artifact_state=$(ssh_droplet "docker exec wondertales-api-prod sh -lc '
+      artifact_dir=/app/services/api/uploads/story-artifacts
+      checksum=\$(cat \"\${artifact_dir}/.deploy.sha256\" 2>/dev/null || true)
+      originals=\$(find \"\${artifact_dir}\" -maxdepth 1 -type f -name \"[0-9][0-9][0-9].png\" 2>/dev/null | wc -l | tr -d \" \")
+      thumbnails=\$(find \"\${artifact_dir}\" -maxdepth 1 -type f -name \"[0-9][0-9][0-9]_thumb.jpg\" 2>/dev/null | wc -l | tr -d \" \")
+      printf \"%s|%s|%s\" \"\${checksum}\" \"\${originals}\" \"\${thumbnails}\"
+    ' 2>/dev/null || true")
+    if [[ "${remote_artifact_state}" == "${artifact_checksum}|${artifact_original_count}|${artifact_thumbnail_count}" ]]; then
+      echo "ℹ️  Story artifact images already match production (${artifact_original_count} originals, ${artifact_thumbnail_count} thumbnails)"
+      return 0
+    fi
+  fi
+
+  print_step "Syncing story artifact images to API upload volume..."
+  echo "   Originals:  ${artifact_original_count}"
+  echo "   Thumbnails: ${artifact_thumbnail_count}"
+
+  (
+    cd "${PROJECT_ROOT}/services/api/uploads"
+    find story-artifacts -maxdepth 1 -type f \
+        \( -name '[0-9][0-9][0-9].png' -o -name '[0-9][0-9][0-9]_thumb.jpg' \) \
+        -print | sort | \
+      COPYFILE_DISABLE=1 tar --no-xattrs -czf "${artifact_tarball}" -T -
+  )
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${artifact_tarball}" \
+    ${DROPLET_USER}@${DROPLET_IP}:/tmp/wondertales-story-artifacts.tar.gz
+  rm -f "${artifact_tarball}"
+
+  ssh_droplet << EOF
+if ! docker ps --filter name=wondertales-api-prod --filter status=running --format '{{.Names}}' | grep -q wondertales-api-prod; then
+  echo "❌ wondertales-api-prod is not running; cannot sync story artifacts into the api_uploads volume"
+  exit 1
+fi
+docker cp /tmp/wondertales-story-artifacts.tar.gz wondertales-api-prod:/tmp/wondertales-story-artifacts.tar.gz
+docker exec wondertales-api-prod sh -lc '
+  set -eu
+  upload_root=/app/services/api/uploads
+  staging_root=\${upload_root}/.story-artifacts-sync
+  rm -rf "\${staging_root}"
+  mkdir -p "\${staging_root}"
+  tar -xzf /tmp/wondertales-story-artifacts.tar.gz -C "\${staging_root}"
+  rm -f /tmp/wondertales-story-artifacts.tar.gz
+
+  original_count=\$(find "\${staging_root}/story-artifacts" -maxdepth 1 -type f -name "[0-9][0-9][0-9].png" | wc -l | tr -d " ")
+  thumbnail_count=\$(find "\${staging_root}/story-artifacts" -maxdepth 1 -type f -name "[0-9][0-9][0-9]_thumb.jpg" | wc -l | tr -d " ")
+  if [ "\${original_count}" != "${artifact_original_count}" ] || [ "\${thumbnail_count}" != "${artifact_thumbnail_count}" ]; then
+    echo "❌ Extracted story artifact file count mismatch"
+    echo "   Originals:  \${original_count} (expected ${artifact_original_count})"
+    echo "   Thumbnails: \${thumbnail_count} (expected ${artifact_thumbnail_count})"
+    exit 1
+  fi
+
+  rm -rf "\${upload_root}/story-artifacts.previous"
+  if [ -d "\${upload_root}/story-artifacts" ]; then
+    mv "\${upload_root}/story-artifacts" "\${upload_root}/story-artifacts.previous"
+  fi
+  if ! mv "\${staging_root}/story-artifacts" "\${upload_root}/story-artifacts"; then
+    if [ -d "\${upload_root}/story-artifacts.previous" ]; then
+      mv "\${upload_root}/story-artifacts.previous" "\${upload_root}/story-artifacts"
+    fi
+    exit 1
+  fi
+  printf "%s\n" "${artifact_checksum}" > "\${upload_root}/story-artifacts/.deploy.sha256"
+  rm -rf "\${upload_root}/story-artifacts.previous" "\${staging_root}"
+  printf "story artifact originals: %s\n" "\${original_count}"
+  printf "story artifact thumbnails: %s\n" "\${thumbnail_count}"
+  du -sh "\${upload_root}/story-artifacts" || true
+'
+rm -f /tmp/wondertales-story-artifacts.tar.gz
 EOF
   print_step_done
 }
@@ -372,6 +640,32 @@ docker system df || true
 EOF
 }
 
+sync_migration_files() {
+  local migration_tarball="/tmp/wondertales-migrations-$$.tar.gz"
+
+  print_step "Syncing SQL migration files to the running API container..."
+  (
+    cd "${PROJECT_ROOT}/services/api"
+    COPYFILE_DISABLE=1 tar --no-xattrs -czf "${migration_tarball}" drizzle
+  )
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${migration_tarball}" \
+    ${DROPLET_USER}@${DROPLET_IP}:/tmp/wondertales-migrations.tar.gz
+  rm -f "${migration_tarball}"
+
+  ssh_droplet << 'EOF'
+set -eu
+docker cp /tmp/wondertales-migrations.tar.gz wondertales-api-prod:/tmp/wondertales-migrations.tar.gz
+docker exec wondertales-api-prod sh -lc '
+  set -eu
+  mkdir -p /app/services/api/drizzle
+  tar -xzf /tmp/wondertales-migrations.tar.gz -C /app/services/api
+  rm -f /tmp/wondertales-migrations.tar.gz
+'
+rm -f /tmp/wondertales-migrations.tar.gz
+EOF
+  print_step_done
+}
+
 run_migrations_in_container() {
   local remote_cmd="cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'"
 
@@ -460,6 +754,7 @@ run_migrations() {
     return 0
   fi
 
+  sync_migration_files
   run_migrations_in_container
   echo "✅ Migrations done"
 }
@@ -558,6 +853,7 @@ EOF
 
   rm -f /tmp/${API_IMAGE}.tar.gz
   sync_voice_samples
+  sync_story_artifact_images
   sync_outfit_plate_cache
   sync_nginx_config
   echo "✅ API deployed"
@@ -566,6 +862,22 @@ EOF
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 3: Run migrations after API is up (post-deploy)
 # ─────────────────────────────────────────────────────────────────────────────
+invalidate_remote_ssr_html_cache() {
+  print_step "Invalidating rendered HTML cache after API deploy..."
+  ssh_droplet << 'EOF'
+docker exec wondertales-redis-prod sh -lc '
+  set -eu
+  for pattern in "ssr:pages:*" "ssr:stories:*"; do
+    redis-cli --scan --pattern "$pattern" | while IFS= read -r key; do
+      [ -n "$key" ] || continue
+      redis-cli UNLINK "$key" >/dev/null
+    done
+  done
+'
+EOF
+  print_step_done
+}
+
 run_migrations_post_deploy() {
   print_step "Running pending migrations (post-deploy)..."
 
@@ -591,6 +903,7 @@ run_migrations_post_deploy() {
   fi
 
   run_migrations_in_container
+  invalidate_remote_ssr_html_cache
 
   print_step "Starting worker container..."
   ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d worker"
@@ -653,6 +966,16 @@ deploy_webapp() {
   fi
   echo "   ✓ Fingerprinted web bundle: $(basename "${expo_bundle}")"
 
+  if ! grep -q '__WT_WEB_BUILD_ID__' apps/universal-app/dist/index.html; then
+    echo "❌ ERROR: Web build is missing the build version placeholder"
+    exit 1
+  fi
+  perl -0pi -e "s/__WT_WEB_BUILD_ID__/${expo_bundle_hash}/g" \
+    apps/universal-app/dist/index.html \
+    apps/universal-app/dist/build-version.json \
+    apps/universal-app/dist/manifest.json
+  echo "   ✓ Embedded web build version: ${expo_bundle_hash}"
+
   mkdir -p apps/universal-app/dist/static/js
   cp "${expo_bundle}" apps/universal-app/dist/static/js/bundle.js
   echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"
@@ -694,9 +1017,27 @@ EOF
 # Main
 # ---------------------------------------------------------------------------
 
+# Install traps before opening the master connection so connection failures also
+# produce a best-effort failure notification when the droplet remains reachable.
+trap cleanup EXIT
+trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
+
+# Open master connection once (triggers passphrase prompt if needed).
+ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
+
+deploy_start_summary=$(deploy_characteristics)
+printf -v deploy_start_message \
+  '🚀 WonderTales deploy started\nID: %s\nTarget: production · wondertales.art\n%s\nStarted: %s' \
+  "${DEPLOY_ID}" \
+  "${deploy_start_summary}" \
+  "${DEPLOY_STARTED_AT_UTC}"
+notify_deploy_telegram_best_effort "${deploy_start_message}" "start"
+
 echo "Deploy started"
+echo "   ID:       ${DEPLOY_ID}"
 echo "   API:      $DEPLOY_API"
 echo "   Webapp:   $DEPLOY_WEB"
+echo "   Artifacts: $DEPLOY_ARTIFACTS"
 echo "   Outfits:  $DEPLOY_OUTFITS"
 echo "   Nginx:    $DEPLOY_NGINX"
 echo "   Migrate:  $DEPLOY_MIGRATE"
@@ -720,6 +1061,11 @@ if $DEPLOY_OUTFITS && ! $DEPLOY_API; then
   sync_outfit_plate_cache
 fi
 
+# Sync story artifact catalog images without rebuilding API.
+if $DEPLOY_ARTIFACTS && ! $DEPLOY_API; then
+  sync_story_artifact_images
+fi
+
 # Deploy webapp
 if $DEPLOY_WEB; then
   deploy_webapp
@@ -737,3 +1083,14 @@ ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml ps"
 echo ""
 echo "🌐 API:    https://wondertales.art/health"
 echo "🌐 App:    https://wondertales.art"
+
+deploy_completed_at_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+deploy_duration=$(( $(date +%s) - DEPLOY_STARTED_AT ))
+deploy_success_summary=$(deploy_characteristics)
+printf -v deploy_success_message \
+  '✅ WonderTales deploy succeeded\nID: %s\nTarget: production · wondertales.art\n%s\nDuration: %s\nFinished: %s\nHealth: https://wondertales.art/health' \
+  "${DEPLOY_ID}" \
+  "${deploy_success_summary}" \
+  "$(format_duration "${deploy_duration}")" \
+  "${deploy_completed_at_utc}"
+notify_deploy_telegram_best_effort "${deploy_success_message}" "success"
