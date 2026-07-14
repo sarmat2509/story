@@ -101,8 +101,7 @@ export default function DashboardScreen() {
   } = useStories();
   const { data: quizCandidate } = useStoryQuizCandidate(isChildSession && childQuizEnabled);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [greetingVariant, setGreetingVariant] =
-    useState<DashboardGreetingVariant>('regular');
+  const [greetingVariant, setGreetingVariant] = useState<DashboardGreetingVariant>('regular');
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -157,8 +156,7 @@ export default function DashboardScreen() {
         const dayKey = getLocalDayKey(now);
         const visitState = await storage.getDashboardVisitState();
         const previousVisit = visitState[dashboardVisitorKey];
-        const visitsToday =
-          previousVisit?.dayKey === dayKey ? previousVisit.visitsToday + 1 : 1;
+        const visitsToday = previousVisit?.dayKey === dayKey ? previousVisit.visitsToday + 1 : 1;
 
         if (isActive) {
           setGreetingVariant(getDashboardGreetingVariant(previousVisit, now, visitsToday));
@@ -184,7 +182,8 @@ export default function DashboardScreen() {
 
   // Responsive columns: 1 on mobile, 2 on tablet, 3 on desktop
   const { width } = useWindowDimensions();
-  const isWideHero = width >= 1120;
+  const isStackedHero = width < theme.breakpoints.tablet;
+  const isTabletHero = width >= theme.breakpoints.tablet && width < 1120;
   const numColumns = width < 640 ? 1 : width < 1024 ? 2 : 3;
   const gridCellStyle =
     numColumns === 1
@@ -230,10 +229,20 @@ export default function DashboardScreen() {
   return (
     <>
       <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.gradientBackground}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, isTabletHero && styles.contentTablet]}>
           <AnimatedSection delay={0} trigger={enterKey}>
-            <View style={[styles.topSection, !isWideHero && styles.topSectionCompact]}>
-              <View style={styles.heroColumn}>
+            <View
+              testID="dashboard-top-row"
+              style={[
+                styles.topSection,
+                isStackedHero && styles.topSectionCompact,
+                isTabletHero && styles.topSectionTablet,
+              ]}
+            >
+              <View
+                testID="dashboard-greeting-card"
+                style={[styles.heroColumn, isTabletHero && styles.heroColumnTablet]}
+              >
                 <View style={styles.heroBadgeRow}>
                   <Text style={styles.eyebrow}>
                     {t('dashboard.story_corner', { defaultValue: 'Story corner' })}
@@ -247,10 +256,10 @@ export default function DashboardScreen() {
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.greeting}>
+                <Text style={[styles.greeting, isTabletHero && styles.greetingTablet]}>
                   {t(greetingKey, { name: greetingName || 'User' })}
                 </Text>
-                <Text style={styles.subtext}>
+                <Text style={[styles.subtext, isTabletHero && styles.subtextTablet]}>
                   {featuredStory
                     ? t('dashboard.hero_context_resume', {
                         defaultValue:
@@ -302,12 +311,16 @@ export default function DashboardScreen() {
                 />
               </View>
 
-              <View style={styles.featuredColumn}>
+              <View
+                testID="dashboard-latest-story-card"
+                style={[styles.featuredColumn, isTabletHero && styles.featuredColumnTablet]}
+              >
                 {featuredStory ? (
                   <Pressable
                     onPress={() => navigateToStory(featuredStory.id)}
                     style={({ hovered, pressed }: ExtendedPressableState) => [
                       styles.featuredCard,
+                      isTabletHero && styles.featuredCardTablet,
                       hovered && Platform.OS === 'web' ? styles.featuredCardHover : null,
                       pressed ? styles.featuredCardPressed : null,
                     ]}
@@ -332,16 +345,27 @@ export default function DashboardScreen() {
                       locations={[0.18, 1]}
                       style={styles.featuredOverlay}
                     />
-                    <View style={styles.featuredContent}>
+                    <View
+                      style={[styles.featuredContent, isTabletHero && styles.featuredContentTablet]}
+                    >
                       <View style={styles.featuredPill}>
                         <Text style={styles.featuredPillText}>
                           {t('dashboard.latest_story', { defaultValue: 'Latest story' })}
                         </Text>
                       </View>
-                      <Text style={styles.featuredTitle} numberOfLines={2}>
+                      <Text
+                        style={[styles.featuredTitle, isTabletHero && styles.featuredTitleTablet]}
+                        numberOfLines={2}
+                      >
                         {featuredStoryTitle}
                       </Text>
-                      <Text style={styles.featuredDescription} numberOfLines={2}>
+                      <Text
+                        style={[
+                          styles.featuredDescription,
+                          isTabletHero && styles.featuredDescriptionTablet,
+                        ]}
+                        numberOfLines={2}
+                      >
                         {t('dashboard.featured_story_description', {
                           defaultValue:
                             'Open the latest chapter and keep the evening story ritual moving.',
@@ -497,6 +521,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing[8],
     minHeight: '100%',
   },
+  contentTablet: {
+    padding: theme.spacing[6],
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -532,6 +559,9 @@ const styles = StyleSheet.create({
   topSectionCompact: {
     flexDirection: 'column',
     gap: theme.spacing[6],
+  },
+  topSectionTablet: {
+    gap: theme.spacing[5],
   },
   quizBanner: {
     minHeight: 76,
@@ -615,6 +645,9 @@ const styles = StyleSheet.create({
     backgroundColor: modernColors.surfaceRaised,
     ...modernShadows.raised,
   },
+  heroColumnTablet: {
+    padding: theme.spacing[5],
+  },
   heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -658,11 +691,18 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[2],
   },
+  greetingTablet: {
+    fontSize: theme.typography.fontSize['3xl'],
+  },
   subtext: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.secondary,
     lineHeight: 28,
     maxWidth: 520,
+  },
+  subtextTablet: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 22,
   },
   inlineMetrics: {
     flexDirection: 'row',
@@ -710,6 +750,11 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     flexShrink: 0,
   },
+  featuredColumnTablet: {
+    flex: 1,
+    width: 'auto',
+    minWidth: 0,
+  },
   featuredCard: {
     position: 'relative',
     flex: 1,
@@ -725,6 +770,9 @@ const styles = StyleSheet.create({
       } as any,
       default: {},
     }),
+  },
+  featuredCardTablet: {
+    minHeight: 340,
   },
   featuredCardHover: Platform.select({
     web: {
@@ -748,6 +796,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: theme.spacing[6],
   },
+  featuredContentTablet: {
+    padding: theme.spacing[5],
+  },
   featuredPill: {
     alignSelf: 'flex-start',
     marginBottom: theme.spacing[3],
@@ -767,12 +818,20 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: '#FFFFFF',
   },
+  featuredTitleTablet: {
+    fontSize: theme.typography.fontSize.xl,
+    lineHeight: 28,
+  },
   featuredDescription: {
     marginTop: theme.spacing[2],
     fontSize: theme.typography.fontSize.base,
     lineHeight: 24,
     color: 'rgba(255,255,255,0.88)',
     maxWidth: 320,
+  },
+  featuredDescriptionTablet: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
   },
   featuredActionRow: {
     marginTop: theme.spacing[5],
