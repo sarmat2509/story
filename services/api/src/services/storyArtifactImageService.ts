@@ -1,7 +1,42 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 const ASSET_ROUTE_PREFIX = '/api/v1/assets/';
+const STORY_ARTIFACT_DEPLOY_CHECKSUM_PATH = path.resolve(
+  process.cwd(),
+  'uploads/story-artifacts/.deploy.sha256'
+);
+
+let cachedChecksumMtimeMs: number | null = null;
+let cachedAssetVersion: string | null = null;
 
 function isRemoteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
+}
+
+function getStoryArtifactAssetVersion(): string | null {
+  try {
+    const stats = fs.statSync(STORY_ARTIFACT_DEPLOY_CHECKSUM_PATH);
+    if (cachedChecksumMtimeMs !== stats.mtimeMs) {
+      const checksum = fs.readFileSync(STORY_ARTIFACT_DEPLOY_CHECKSUM_PATH, 'utf8').trim();
+      cachedChecksumMtimeMs = stats.mtimeMs;
+      cachedAssetVersion = /^[a-f0-9]{12,}$/i.test(checksum) ? checksum.slice(0, 16) : null;
+    }
+  } catch {
+    cachedChecksumMtimeMs = null;
+    cachedAssetVersion = null;
+  }
+
+  return cachedAssetVersion || process.env.WEB_BUILD_ID?.trim() || null;
+}
+
+function versionStoryArtifactAssetUrl(url: string, version: string | null): string {
+  if (!version || isRemoteUrl(url)) {
+    return url;
+  }
+
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${encodeURIComponent(version)}`;
 }
 
 export function normalizeStoryArtifactImagePath(imagePath: string): string | null {
@@ -44,11 +79,19 @@ export function storyArtifactImageUrls(imagePath: string): {
 } {
   const fullImagePath = normalizeStoryArtifactImagePath(imagePath) ?? imagePath;
   const thumbnailPath = storyArtifactThumbnailPath(imagePath);
-  const thumbnailUrl = storyArtifactAssetUrl(thumbnailPath);
+  const assetVersion = getStoryArtifactAssetVersion();
+  const fullImageUrl = versionStoryArtifactAssetUrl(
+    storyArtifactAssetUrl(fullImagePath),
+    assetVersion
+  );
+  const thumbnailUrl = versionStoryArtifactAssetUrl(
+    storyArtifactAssetUrl(thumbnailPath),
+    assetVersion
+  );
 
   return {
     fullImagePath,
-    fullImageUrl: storyArtifactAssetUrl(fullImagePath),
+    fullImageUrl,
     thumbnailPath,
     thumbnailUrl,
     imageUrl: thumbnailUrl,

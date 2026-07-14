@@ -35,7 +35,7 @@ function ArtifactTile({
   const imageUrl = formatAssetUrl(
     item.artifact.thumbnailUrl || item.artifact.imageUrl || item.artifact.imagePath
   );
-  const title = item.acquiredLabel || item.artifact.title;
+  const title = item.artifact.title;
 
   return (
     <TouchableOpacity
@@ -191,7 +191,7 @@ export default function ArtifactsScreen() {
             {selectedArtifact ? (
               <>
                 <Text style={styles.detailTitle}>
-                  {selectedArtifact.acquiredLabel || selectedArtifact.artifact.title}
+                  {selectedArtifact.artifact.title}
                 </Text>
                 <Text style={styles.detailSource}>
                   {(() => {

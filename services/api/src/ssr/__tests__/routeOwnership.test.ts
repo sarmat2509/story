@@ -56,6 +56,7 @@ assert.deepEqual(
 
 assert.equal(APP_ROUTE_PATHS.billingPlans, 'billing/plans');
 assert.notEqual(APP_ROUTE_PATHS.billingPlans, 'pricing');
+assert.equal(APP_ROUTE_PATHS.artifacts, 'me/artifacts');
 
 assert.deepEqual(
   buildPublicSeoSitemapStaticRoutes().map((route) => route.path),

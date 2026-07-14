@@ -142,6 +142,7 @@ export const APP_ROUTE_PATHS = {
   dashboard: 'dashboard',
   wizard: 'wizard',
   library: 'me/stories',
+  artifacts: 'me/artifacts',
   mapTiles: 'me/map-tiles',
   series: 'me/series',
   story: 'me/stories/:storyId',

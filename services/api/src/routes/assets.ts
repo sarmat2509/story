@@ -45,13 +45,18 @@ function getMimeTypeForFile(filePath: string): string {
   return mimeTypes[ext] || 'application/octet-stream';
 }
 
-async function sendPublicFile(res: Response, relativePath: string, mimeType?: string) {
+async function sendPublicFile(
+  res: Response,
+  relativePath: string,
+  mimeType?: string,
+  cacheControl = 'public, max-age=86400'
+) {
   const fullPath = path.resolve(UPLOADS_DIR, relativePath);
 
   await fs.access(fullPath);
 
   res.setHeader('Content-Type', mimeType || getMimeTypeForFile(fullPath));
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Cache-Control', cacheControl);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
@@ -528,11 +533,19 @@ router.get('/*', async (req: Request, res: Response) => {
       });
     }
 
-    if (
-      assetPath.startsWith('env_cache/') ||
-      assetPath.startsWith('outfit_plate_cache/') ||
-      assetPath.startsWith('story-artifacts/')
-    ) {
+    if (assetPath.startsWith('story-artifacts/')) {
+      try {
+        await sendPublicFile(res, assetPath, undefined, 'public, max-age=600, must-revalidate');
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Asset file not found',
+        });
+      }
+    }
+
+    if (assetPath.startsWith('env_cache/') || assetPath.startsWith('outfit_plate_cache/')) {
       try {
         await sendPublicFile(res, assetPath);
         return;

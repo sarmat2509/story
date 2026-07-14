@@ -121,4 +121,30 @@ export class CollectedStoryArtifactRepository {
       .where(and(...ownerConditions(owner)))
       .orderBy(desc(schema.collectedStoryArtifacts.acquiredAt));
   }
+
+  /**
+   * Parent collection view: include artifacts collected in the parent context
+   * and in every child profile owned by the same user.
+   */
+  async listForUser(userId: string): Promise<CollectedStoryArtifactDetails[]> {
+    return this.db
+      .select({
+        collection: schema.collectedStoryArtifacts,
+        artifact: schema.storyArtifacts,
+        story: {
+          id: schema.stories.id,
+          title: schema.stories.title,
+          language: schema.stories.language,
+          createdAt: schema.stories.createdAt,
+        },
+      })
+      .from(schema.collectedStoryArtifacts)
+      .innerJoin(
+        schema.storyArtifacts,
+        eq(schema.collectedStoryArtifacts.artifactId, schema.storyArtifacts.id)
+      )
+      .innerJoin(schema.stories, eq(schema.collectedStoryArtifacts.storyId, schema.stories.id))
+      .where(eq(schema.collectedStoryArtifacts.userId, userId))
+      .orderBy(desc(schema.collectedStoryArtifacts.acquiredAt));
+  }
 }

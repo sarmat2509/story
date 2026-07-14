@@ -38,7 +38,7 @@ export function useCollectedArtifacts(params: { childProfileId?: string; locale?
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params.childProfileId) {
-        searchParams.set('child_profile_id', params.childProfileId);
+        searchParams.set('childProfileId', params.childProfileId);
       }
       if (params.locale) {
         searchParams.set('locale', params.locale.slice(0, 2));

@@ -1,6 +1,6 @@
 /**
  * Me Artifacts API
- * GET /api/v1/me/artifacts - List collected artifacts for current parent/child profile
+ * GET /api/v1/me/artifacts - List the family collection for a parent, or the current child collection
  * POST /api/v1/me/artifacts/collect - Collect the closing artifact from a readable story
  */
 
@@ -133,10 +133,16 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const rows = await getCollectedStoryArtifactRepository().listForOwner(ownerResult.owner);
+    const repository = getCollectedStoryArtifactRepository();
+    const rows = req.sessionMode === 'child' || parsed.data.childProfileId
+      ? await repository.listForOwner(ownerResult.owner)
+      : await repository.listForUser(req.user!.id);
     const locale = resolveArtifactLocale(req, parsed.data.locale);
     const artifacts = await Promise.all(rows.map((row) => mapCollectedArtifact(row, locale)));
 
+    // The collection is authenticated, user-specific data and must never be
+    // reused by a browser intermediary or CDN for another session.
+    res.setHeader('Cache-Control', 'private, no-store');
     return res.json({
       status: 'success',
       artifacts,

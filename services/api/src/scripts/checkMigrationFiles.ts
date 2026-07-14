@@ -11,6 +11,13 @@ const destructiveAllowedThrough = 112;
 const destructivePattern = /\b(DROP|TRUNCATE)\b/i;
 const trackedJournalBaseline = 52;
 
+function stripSqlCommentsAndStringLiterals(sql: string): string {
+  return sql
+    .replace(/--.*$/gm, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(?:E|U&)?'(?:''|\\.|[^'])*'/gi, "''");
+}
+
 const files = readdirSync(migrationsDir).filter((file) => file.endsWith('.sql')).sort();
 assert.ok(files.length > 0, 'expected SQL migration files');
 
@@ -30,7 +37,10 @@ for (const file of files) {
   const sql = readFileSync(join(migrationsDir, file), 'utf8');
   assert.ok(sql.trim().length > 0, `migration must not be empty: ${file}`);
 
-  if (migrationNumber > destructiveAllowedThrough && destructivePattern.test(sql)) {
+  if (
+    migrationNumber > destructiveAllowedThrough &&
+    destructivePattern.test(stripSqlCommentsAndStringLiterals(sql))
+  ) {
     destructiveTooNew.push(file);
   }
 }
