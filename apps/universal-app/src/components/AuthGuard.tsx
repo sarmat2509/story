@@ -6,6 +6,7 @@ import type { MainDrawerParamList } from '@/types/navigation';
 import { hasAuthStoreHydrated, useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { rememberCurrentWebPathForAuthRedirect } from '@/utils/authRedirect';
+import { useCurrentChildModeControls } from '@/api/children';
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -18,8 +19,13 @@ type AuthGuardProps = {
 export function AuthGuard({ children }: AuthGuardProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const updateActiveChildMode = useAuthStore((state) => state.updateActiveChildMode);
   const [hasHydrated, setHasHydrated] = useState(hasAuthStoreHydrated);
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const { data: currentChildMode } = useCurrentChildModeControls(
+    hasHydrated && isAuthenticated && sessionMode === 'child'
+  );
 
   useEffect(() => {
     const persistApi = (
@@ -47,6 +53,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
       navigation.navigate('Welcome');
     }
   }, [hasHydrated, isAuthenticated, isLoading, navigation]);
+
+  useEffect(() => {
+    if (currentChildMode) {
+      updateActiveChildMode(currentChildMode);
+    }
+  }, [currentChildMode, updateActiveChildMode]);
 
   if (!hasHydrated || isLoading || !isAuthenticated) {
     return (

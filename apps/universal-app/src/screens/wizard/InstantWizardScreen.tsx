@@ -106,7 +106,7 @@ export default function InstantWizardScreen() {
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
   const childModeSettings = activeChild?.childMode?.childModeSettings;
-  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
+  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled === true;
   const allowedLanguageCodes = isChildSession
     ? (childModeSettings?.allowedLanguageCodes ?? [])
     : [];
@@ -144,10 +144,24 @@ export default function InstantWizardScreen() {
 
   // Set default language from i18n
   useEffect(() => {
-    if (!storyLanguage && i18n.language) {
-      setStoryLanguage(i18n.language);
+    const localeLanguage = i18n.language?.split('-')[0];
+    const childAllowedLanguages = childModeSettings?.allowedLanguageCodes ?? [];
+
+    if (isChildSession && childAllowedLanguages.length > 0) {
+      if (!childAllowedLanguages.includes(storyLanguage)) {
+        setStoryLanguage(
+          localeLanguage && childAllowedLanguages.includes(localeLanguage)
+            ? localeLanguage
+            : childAllowedLanguages[0]
+        );
+      }
+      return;
     }
-  }, [i18n.language]);
+
+    if (!storyLanguage && localeLanguage) {
+      setStoryLanguage(localeLanguage);
+    }
+  }, [childModeSettings?.allowedLanguageCodes, i18n.language, isChildSession, storyLanguage]);
 
   useEffect(() => {
     const ageSource = isChildSession

@@ -323,6 +323,9 @@ export default function StoryViewerScreen() {
   const tabletHeaderTitleMaxWidth = isTabletPortrait ? Math.max(240, width - 176) : undefined;
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
+  const childModeSettings = activeChild?.childMode?.childModeSettings;
+  const audioGenerationEnabled =
+    !isChildSession || childModeSettings?.audioGenerationEnabled === true;
   const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
   const canOpenAdminStory = Platform.OS === 'web' && user?.role === 'admin' && !isChildSession;
@@ -473,9 +476,9 @@ export default function StoryViewerScreen() {
     isLoading: isLoadingVoices,
     error: voicesError,
   } = useVoices(storyLanguage ?? 'uk', {
-    enabled: !!storyLanguage,
+    enabled: !!storyLanguage && audioGenerationEnabled,
   });
-  const voices = voicesData?.data || [];
+  const voices = (voicesData?.data || []).filter((voice) => !isChildSession || !voice.isLocked);
   const userPlan = voicesData?.meta?.userPlan || 'free';
   const hasPremiumAccess = voicesData?.meta?.hasPremiumAccess || false;
 
@@ -1693,8 +1696,7 @@ export default function StoryViewerScreen() {
     scrollTargetToViewportCenter,
   ]);
 
-  const quizEnabled =
-    !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled !== false;
+  const quizEnabled = !isChildSession || childModeSettings?.quizGenerationEnabled === true;
 
   useEffect(() => {
     if (!route.params?.scrollToQuiz || !storyId || !story || !quizEnabled) return;
@@ -1898,6 +1900,8 @@ export default function StoryViewerScreen() {
 
   // M8: Render continue section (after story content)
   const renderContinueButton = () => {
+    if (isChildSession) return null;
+
     // Hide if there's a next part in the series
     if (seriesInfo && story.partNumber && story.partNumber < seriesInfo.totalParts) {
       return null;
@@ -1984,7 +1988,7 @@ export default function StoryViewerScreen() {
   // Render audio generation section (reusable component)
   // Hide when we have valid playerAudioData (API returned audioUrl) — prevents showing error + player together
   const renderAudioGenerationSection = () =>
-    isChildSession
+    !audioGenerationEnabled
       ? null
       : !playerAudioData &&
         (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
@@ -2003,21 +2007,25 @@ export default function StoryViewerScreen() {
                   })}
                 </Text>
 
-                <AppButton
-                  label={t('story_viewer.upgrade_plan')}
-                  onPress={() => navigation.navigate('Plans')}
-                  style={styles.audioLimitAction}
-                />
+                {!isChildSession ? (
+                  <>
+                    <AppButton
+                      label={t('story_viewer.upgrade_plan')}
+                      onPress={() => navigation.navigate('Plans')}
+                      style={styles.audioLimitAction}
+                    />
 
-                <Text style={styles.limitExceededDetails}>
-                  {t('story_viewer.next_plan_benefit')}
-                </Text>
-                <Text style={styles.limitExceededDetails}>{bundleHintText}</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
-                  <Text style={styles.bundlePricingLink}>
-                    {t('story_viewer.bundle_pricing_link')}
-                  </Text>
-                </TouchableOpacity>
+                    <Text style={styles.limitExceededDetails}>
+                      {t('story_viewer.next_plan_benefit')}
+                    </Text>
+                    <Text style={styles.limitExceededDetails}>{bundleHintText}</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
+                      <Text style={styles.bundlePricingLink}>
+                        {t('story_viewer.bundle_pricing_link')}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : null}
               </View>
             ) : showGeneratingBlock ? (
               // Show loading state during generation with queue info
@@ -2117,9 +2125,13 @@ export default function StoryViewerScreen() {
                     language={storyLanguage ?? 'uk'}
                     userPlan={userPlan}
                     hasPremiumAccess={hasPremiumAccess}
-                    onUpgrade={() => {
-                      navigation.navigate('Plans' as any);
-                    }}
+                    onUpgrade={
+                      isChildSession
+                        ? undefined
+                        : () => {
+                            navigation.navigate('Plans' as any);
+                          }
+                    }
                     audioUsage={audioUsage}
                   />
                 )}

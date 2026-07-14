@@ -81,8 +81,8 @@ export default function WizardScreen() {
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
   const childModeSettings = activeChild?.childMode?.childModeSettings;
-  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
-  const notesEnabled = !isChildSession || childModeSettings?.freeTextPromptsEnabled !== false;
+  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled === true;
+  const notesEnabled = !isChildSession || childModeSettings?.freeTextPromptsEnabled === true;
   const allowedLanguageCodes = isChildSession
     ? (childModeSettings?.allowedLanguageCodes ?? [])
     : [];
@@ -186,10 +186,24 @@ export default function WizardScreen() {
 
   // Set default language from i18n
   useEffect(() => {
-    if (!storyLanguage && i18n.language) {
-      setStoryLanguage(i18n.language);
+    const localeLanguage = i18n.language?.split('-')[0];
+    const childAllowedLanguages = childModeSettings?.allowedLanguageCodes ?? [];
+
+    if (isChildSession && childAllowedLanguages.length > 0) {
+      if (!childAllowedLanguages.includes(storyLanguage)) {
+        setStoryLanguage(
+          localeLanguage && childAllowedLanguages.includes(localeLanguage)
+            ? localeLanguage
+            : childAllowedLanguages[0]
+        );
+      }
+      return;
     }
-  }, [i18n.language]);
+
+    if (!storyLanguage && localeLanguage) {
+      setStoryLanguage(localeLanguage);
+    }
+  }, [childModeSettings?.allowedLanguageCodes, i18n.language, isChildSession, storyLanguage]);
 
   useEffect(() => {
     if (!isChildSession || !activeChild?.id) return;
@@ -247,15 +261,33 @@ export default function WizardScreen() {
   const availableCharacters = useMemo(() => {
     const allCharacters = characters ?? [];
     const allowed = childModeSettings?.allowedCharacterIds ?? [];
-    if (!isChildSession || allowed.length === 0) return allCharacters;
-    return allCharacters.filter(
+    const siblingSafeCharacters =
+      isChildSession && childModeSettings?.allowSiblingCharacters !== true
+        ? allCharacters.filter((character) => {
+            const characterChildProfileId = (
+              character as {
+                childProfileId?: string | null;
+              }
+            ).childProfileId;
+            return !characterChildProfileId || characterChildProfileId === childProfileId;
+          })
+        : allCharacters;
+
+    if (!isChildSession || allowed.length === 0) return siblingSafeCharacters;
+    return siblingSafeCharacters.filter(
       (character) =>
         allowed.includes(character.id) ||
         (childProfileId &&
           (character as { childProfileId?: string | null }).childProfileId === childProfileId &&
           isChildProfileCharacter(character))
     );
-  }, [characters, childModeSettings?.allowedCharacterIds, childProfileId, isChildSession]);
+  }, [
+    characters,
+    childModeSettings?.allowSiblingCharacters,
+    childModeSettings?.allowedCharacterIds,
+    childProfileId,
+    isChildSession,
+  ]);
 
   useEffect(() => {
     setSelectedCharacters((current) =>
@@ -421,6 +453,11 @@ export default function WizardScreen() {
       setTimeout(scrollToTop, 0);
     }
   }, [activeStep]);
+
+  useEffect(() => {
+    const allowedGoalIds = new Set(availableGoals.map((goal) => goal.slug));
+    setSelectedGoals((current) => current.filter((slug) => allowedGoalIds.has(slug)));
+  }, [availableGoals]);
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));

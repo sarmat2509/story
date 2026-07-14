@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
+import {
+  requireAuth,
+  requireChildSession,
+  requireParentSession,
+} from '../middleware/authMiddleware';
 import type { ChildProfile } from '../db/schema';
 import * as childProfileService from '../services/childProfileService';
 import * as childModeControlsService from '../services/childModeControlsService';
@@ -359,6 +363,38 @@ router.get('/child-mode/switcher', requireAuth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to fetch child profiles',
+    });
+  }
+});
+
+// GET /api/v1/children/child-mode/current - Live controls for the active Child Mode session
+router.get('/child-mode/current', requireAuth, requireChildSession, async (req, res) => {
+  try {
+    const controls = await childModeControlsService.getChildModeControls(
+      req.parentUserId || req.user!.id,
+      req.childProfileId!
+    );
+
+    res.json({
+      status: 'success',
+      childMode: {
+        childModeEnabled: controls.childModeEnabled,
+        childModeSettings: controls.childModeSettings,
+      },
+    });
+  } catch (error) {
+    if (sendChildModeError(res, error)) return;
+    logger.error(
+      {
+        error,
+        userId: req.parentUserId || req.user?.id,
+        childId: req.childProfileId,
+      },
+      'Error fetching current child mode controls'
+    );
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to fetch child mode controls',
     });
   }
 });

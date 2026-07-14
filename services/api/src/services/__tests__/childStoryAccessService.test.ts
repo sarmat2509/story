@@ -24,8 +24,8 @@ assert.equal(
     sessionMode: 'child',
     sessionScopes: [FAMILY_STORIES_READ_SCOPE],
   }),
-  false,
-  'legacy family-story scope does not unlock sibling reads'
+  true,
+  'family-story scope unlocks the shared family library'
 );
 
 assert.equal(
@@ -50,8 +50,8 @@ assert.equal(
     childProfileId: 'child-1',
     sessionScopes: [FAMILY_STORIES_READ_SCOPE],
   }),
-  'child-1',
-  'legacy family-story scope keeps the active-child filter'
+  undefined,
+  'family-story scope removes the active-child library filter'
 );
 
 assert.equal(
@@ -70,6 +70,19 @@ assert.equal(
   ),
   false,
   'child sessions cannot read sibling stories without family-story scope'
+);
+
+assert.equal(
+  canReadStoryForSession(
+    {
+      sessionMode: 'child',
+      childProfileId: 'child-1',
+      sessionScopes: [FAMILY_STORIES_READ_SCOPE],
+    },
+    { childProfileId: 'child-2', createdByChildProfileId: null }
+  ),
+  true,
+  'child sessions can read sibling stories when family-story access is enabled'
 );
 
 console.log('childStoryAccessService tests passed');

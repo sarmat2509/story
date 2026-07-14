@@ -6,7 +6,7 @@
  * GET /api/v1/me/stories/:id/alignment - Get alignment (owner only)
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import {
   getStory,
@@ -30,6 +30,10 @@ import {
 } from '../services/storyQuizService';
 import { stripAllTags } from '../utils/audioTags';
 import { logger } from '../utils/logger';
+import {
+  assertChildQuizGenerationAllowed,
+  ChildModePolicyError,
+} from '../services/childModePolicyService';
 
 function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: string } {
   const vp = scene.visualPrompt;
@@ -76,8 +80,39 @@ async function findReadableStoryForRequest(req: Request, storyId: string) {
   return story;
 }
 
-function childSessionCanUseQuizzes(req: Request): boolean {
-  return req.sessionMode !== 'child' || Boolean(req.sessionScopes?.includes('story:quiz'));
+async function requireQuizAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.sessionMode !== 'child') {
+    next();
+    return;
+  }
+
+  const parentUserId = req.parentUserId || req.user?.id;
+  if (!parentUserId || !req.childProfileId) {
+    res.status(403).json({
+      status: 'error',
+      code: 'CHILD_SESSION_QUIZ_DISABLED',
+      message: 'Quizzes are disabled for this child profile',
+    });
+    return;
+  }
+
+  try {
+    await assertChildQuizGenerationAllowed({
+      parentUserId,
+      sessionChildProfileId: req.childProfileId,
+    });
+    next();
+  } catch (error) {
+    if (error instanceof ChildModePolicyError) {
+      res.status(error.statusCode).json({
+        status: 'error',
+        code: error.code,
+        message: error.message,
+      });
+      return;
+    }
+    next(error);
+  }
 }
 
 function sendStoryQuizError(res: Response, error: unknown) {
@@ -121,7 +156,8 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
     // caseTransformMiddleware converts query params to camelCase (has_audio → hasAudio, scenario_card_id → scenarioCardId)
     const hasAudio = req.query.hasAudio === 'true' || req.query.hasAudio === '1';
-    const scenarioCardId = typeof req.query.scenarioCardId === 'string' ? req.query.scenarioCardId : undefined;
+    const scenarioCardId =
+      typeof req.query.scenarioCardId === 'string' ? req.query.scenarioCardId : undefined;
     const seriesId = typeof req.query.seriesId === 'string' ? req.query.seriesId : undefined;
     const language = parseLanguageQuery(req.query.language);
     const view = req.query.view as string | undefined;
@@ -164,11 +200,13 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 
     const storyForClient = stories.map((story: any) => ({
       ...story,
-      scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
-        ...scene,
-        text: stripAllTags(scene.text || ''),
-        ...parseSceneVisual(scene),
-      })) : story.scenes,
+      scenes: Array.isArray(story.scenes)
+        ? story.scenes.map((scene: any) => ({
+            ...scene,
+            text: stripAllTags(scene.text || ''),
+            ...parseSceneVisual(scene),
+          }))
+        : story.scenes,
       fullText: stripAllTags(story.fullText || ''),
     }));
 
@@ -190,35 +228,32 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
  * GET /api/v1/me/stories/quiz-candidate
  * Returns one random readable story where the current child/parent has not completed quiz rewards.
  */
-router.get('/quiz-candidate', requireAuth, async (req: Request, res: Response) => {
-  try {
-    if (!childSessionCanUseQuizzes(req)) {
-      return res.status(403).json({
+router.get(
+  '/quiz-candidate',
+  requireAuth,
+  requireQuizAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const candidate = await getStoryQuizCandidateForProgress({
+        userId: req.user!.id,
+        childProfileId: req.childProfileId ?? null,
+        sessionMode: req.sessionMode,
+      });
+
+      return res.json({
+        status: 'success',
+        candidate,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Get story quiz candidate failed');
+      return res.status(500).json({
         status: 'error',
-        code: 'CHILD_SESSION_QUIZ_DISABLED',
-        message: 'Quizzes are disabled for this child profile',
+        code: 'QUIZ_CANDIDATE_FAILED',
+        message: 'Failed to get quiz candidate',
       });
     }
-
-    const candidate = await getStoryQuizCandidateForProgress({
-      userId: req.user!.id,
-      childProfileId: req.childProfileId ?? null,
-      sessionMode: req.sessionMode,
-    });
-
-    return res.json({
-      status: 'success',
-      candidate,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Get story quiz candidate failed');
-    return res.status(500).json({
-      status: 'error',
-      code: 'QUIZ_CANDIDATE_FAILED',
-      message: 'Failed to get quiz candidate',
-    });
   }
-});
+);
 
 /**
  * GET /api/v1/me/stories/:id/alignment
@@ -252,7 +287,10 @@ router.get('/:id/alignment', requireAuth, async (req: Request, res: Response) =>
       alignment,
     });
   } catch (error) {
-    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get my story alignment failed');
+    logger.error(
+      { err: error, userId: req.user?.id, storyId: req.params.id },
+      'Get my story alignment failed'
+    );
     res.status(500).json({
       status: 'error',
       message: 'Failed to get alignment',
@@ -264,16 +302,8 @@ router.get('/:id/alignment', requireAuth, async (req: Request, res: Response) =>
  * GET /api/v1/me/stories/:id/quiz
  * Cheap cache check for an already generated story quiz. Never starts LLM generation.
  */
-router.get('/:id/quiz', requireAuth, async (req: Request, res: Response) => {
+router.get('/:id/quiz', requireAuth, requireQuizAccess, async (req: Request, res: Response) => {
   try {
-    if (!childSessionCanUseQuizzes(req)) {
-      return res.status(403).json({
-        status: 'error',
-        code: 'CHILD_SESSION_QUIZ_DISABLED',
-        message: 'Quizzes are disabled for this child profile',
-      });
-    }
-
     const { id } = req.params;
     const story = await findReadableStoryForRequest(req, id);
     if (!story) {
@@ -314,16 +344,8 @@ router.get('/:id/quiz', requireAuth, async (req: Request, res: Response) => {
  * POST /api/v1/me/stories/:id/quiz
  * Generates a story quiz after an explicit invitation CTA click.
  */
-router.post('/:id/quiz', requireAuth, async (req: Request, res: Response) => {
+router.post('/:id/quiz', requireAuth, requireQuizAccess, async (req: Request, res: Response) => {
   try {
-    if (!childSessionCanUseQuizzes(req)) {
-      return res.status(403).json({
-        status: 'error',
-        code: 'CHILD_SESSION_QUIZ_DISABLED',
-        message: 'Quizzes are disabled for this child profile',
-      });
-    }
-
     const { id } = req.params;
     const story = await findReadableStoryForRequest(req, id);
     if (!story) {
@@ -338,7 +360,8 @@ router.post('/:id/quiz', requireAuth, async (req: Request, res: Response) => {
       story,
       {
         userId: req.user!.id,
-        childProfileId: req.childProfileId ?? story.childProfileId ?? story.createdByChildProfileId ?? null,
+        childProfileId:
+          req.childProfileId ?? story.childProfileId ?? story.createdByChildProfileId ?? null,
         sessionMode: req.sessionMode,
       },
       { force: req.body?.force === true }
@@ -369,56 +392,57 @@ router.post('/:id/quiz', requireAuth, async (req: Request, res: Response) => {
  * PUT /api/v1/me/stories/:id/quiz/answers/:activityId
  * Saves one answer for the current parent or child profile. The server recomputes result.
  */
-router.put('/:id/quiz/answers/:activityId', requireAuth, async (req: Request, res: Response) => {
-  try {
-    if (!childSessionCanUseQuizzes(req)) {
-      return res.status(403).json({
-        status: 'error',
-        code: 'CHILD_SESSION_QUIZ_DISABLED',
-        message: 'Quizzes are disabled for this child profile',
-      });
-    }
-
-    const { id, activityId } = req.params;
-    const story = await findReadableStoryForRequest(req, id);
-    if (!story) {
-      return res.status(404).json({
-        status: 'error',
-        code: 'STORY_NOT_FOUND',
-        message: 'Story not found',
-      });
-    }
-
-    const progress = await saveStoryQuizAnswer(story, {
-      userId: req.user!.id,
-      childProfileId: req.childProfileId ?? null,
-      sessionMode: req.sessionMode,
-    }, {
-      activityId,
-      selectedIds: req.body?.selectedIds,
-      matchedPairs: req.body?.matchedPairs,
-    });
-
-    return res.json({
-      status: 'success',
-      progress,
-    });
-  } catch (error) {
+router.put(
+  '/:id/quiz/answers/:activityId',
+  requireAuth,
+  requireQuizAccess,
+  async (req: Request, res: Response) => {
     try {
-      return sendStoryQuizError(res, error);
-    } catch (unexpected) {
-      logger.error(
-        { err: unexpected, userId: req.user?.id, storyId: req.params.id },
-        'Save story quiz answer failed'
+      const { id, activityId } = req.params;
+      const story = await findReadableStoryForRequest(req, id);
+      if (!story) {
+        return res.status(404).json({
+          status: 'error',
+          code: 'STORY_NOT_FOUND',
+          message: 'Story not found',
+        });
+      }
+
+      const progress = await saveStoryQuizAnswer(
+        story,
+        {
+          userId: req.user!.id,
+          childProfileId: req.childProfileId ?? null,
+          sessionMode: req.sessionMode,
+        },
+        {
+          activityId,
+          selectedIds: req.body?.selectedIds,
+          matchedPairs: req.body?.matchedPairs,
+        }
       );
-      return res.status(500).json({
-        status: 'error',
-        code: 'QUIZ_ANSWER_SAVE_FAILED',
-        message: 'Failed to save story quiz answer',
+
+      return res.json({
+        status: 'success',
+        progress,
       });
+    } catch (error) {
+      try {
+        return sendStoryQuizError(res, error);
+      } catch (unexpected) {
+        logger.error(
+          { err: unexpected, userId: req.user?.id, storyId: req.params.id },
+          'Save story quiz answer failed'
+        );
+        return res.status(500).json({
+          status: 'error',
+          code: 'QUIZ_ANSWER_SAVE_FAILED',
+          message: 'Failed to save story quiz answer',
+        });
+      }
     }
   }
-});
+);
 
 /**
  * GET /api/v1/me/stories/:id
@@ -443,7 +467,10 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       manifest,
     });
   } catch (error) {
-    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get my story failed');
+    logger.error(
+      { err: error, userId: req.user?.id, storyId: req.params.id },
+      'Get my story failed'
+    );
     res.status(500).json({
       status: 'error',
       message: 'Failed to get story',

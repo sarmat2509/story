@@ -62,6 +62,11 @@ export interface ChildModeControls {
   activeSessionCount: number;
 }
 
+export type CurrentChildModeControls = Pick<
+  ChildModeControls,
+  'childModeEnabled' | 'childModeSettings'
+>;
+
 export interface ChildModeSessionResponse {
   token: string;
   expiresAt: number;
@@ -131,6 +136,22 @@ export const useChildModeSwitcherChildren = (enabled = true) => {
         children: ChildModeSwitcherChild[];
       }>('/api/v1/children/child-mode/switcher');
       return { children: response.data.children };
+    },
+  });
+};
+
+export const useCurrentChildModeControls = (enabled = true) => {
+  return useQuery({
+    queryKey: ['children', 'child-mode', 'current'],
+    enabled,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<CurrentChildModeControls> => {
+      const response = await apiClient.get<{
+        status: string;
+        childMode: CurrentChildModeControls;
+      }>('/api/v1/children/child-mode/current');
+      return response.data.childMode;
     },
   });
 };

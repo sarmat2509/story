@@ -88,12 +88,10 @@ void (async function main() {
   );
 
   assert.strictEqual(
-    buildChildModeControls(
-      {
-        childModeEnabled: true,
-        childModeSettings: {},
-      } as any
-    ).childModePasscodeConfigured,
+    buildChildModeControls({
+      childModeEnabled: true,
+      childModeSettings: {},
+    } as any).childModePasscodeConfigured,
     false,
     'controls response marks missing account-level child mode passcode as not configured'
   );
@@ -106,8 +104,8 @@ void (async function main() {
       quizGenerationEnabled: true,
       allowSharedFamilyStories: true,
     }),
-    ['child_mode', 'story:free_text', 'story:audio', 'story:quiz'],
-    'child session scopes reflect enabled creation controls without sibling-story reads'
+    ['child_mode', 'story:free_text', 'story:audio', 'story:quiz', 'family_stories:read'],
+    'child session scopes reflect every enabled scoped capability'
   );
 
   assert.deepStrictEqual(

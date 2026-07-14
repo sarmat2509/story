@@ -13,7 +13,10 @@ export interface ChildReadableStoryRef {
 }
 
 export function childSessionCanReadFamilyStories(context: ChildStorySessionContext): boolean {
-  return context.sessionMode !== 'child';
+  return (
+    context.sessionMode !== 'child' ||
+    Boolean(context.sessionScopes?.includes(FAMILY_STORIES_READ_SCOPE))
+  );
 }
 
 export function getChildScopedStoryFilter(context: ChildStorySessionContext): string | undefined {
@@ -33,8 +36,8 @@ export function canReadStoryForSession(
   }
 
   return Boolean(
-    context.childProfileId
-      && (story.childProfileId === context.childProfileId
-        || story.createdByChildProfileId === context.childProfileId)
+    context.childProfileId &&
+    (story.childProfileId === context.childProfileId ||
+      story.createdByChildProfileId === context.childProfileId)
   );
 }

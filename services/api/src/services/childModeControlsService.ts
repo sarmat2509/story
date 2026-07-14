@@ -11,6 +11,7 @@ import { hashPassword, verifyPassword } from './passwordService';
 import { sendChildModeRecoveryEmail } from './emailService';
 import { logger } from '../utils/logger';
 import config from '../config';
+import { FAMILY_STORIES_READ_SCOPE } from './childStoryAccessService';
 
 export interface ChildModeSettings {
   storyGenerationEnabled: boolean;
@@ -233,6 +234,7 @@ export function buildChildSessionScopes(settings: ChildModeSettings): string[] {
   if (settings.freeTextPromptsEnabled) scopes.push('story:free_text');
   if (settings.audioGenerationEnabled) scopes.push('story:audio');
   if (settings.quizGenerationEnabled) scopes.push('story:quiz');
+  if (settings.allowSharedFamilyStories) scopes.push(FAMILY_STORIES_READ_SCOPE);
   return scopes;
 }
 
@@ -288,11 +290,20 @@ export async function updateChildModeControls(
     updatedAt: new Date(),
   });
 
+  const sessionRepo = getSessionRepository();
+  const updatedSessionCount = nextEnabled
+    ? await sessionRepo.updateChildSessionScopes(
+        childProfileId,
+        buildChildSessionScopes(nextSettings)
+      )
+    : await sessionRepo.deleteByChildProfileId(childProfileId);
+
   logger.info(
     {
       userId,
       childProfileId,
       childModeEnabled: updated.childModeEnabled,
+      updatedSessionCount,
     },
     'Updated child mode controls'
   );

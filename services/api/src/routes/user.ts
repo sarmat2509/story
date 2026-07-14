@@ -26,6 +26,7 @@ import {
 import { getStoryCharacterSelectionLimit } from '../domain/story/storyCharacterSelectionLimit';
 import { logger } from '../utils/logger';
 import { toUserResponse } from '../utils/userResponse';
+import { childSessionCanReadFamilyStories } from '../services/childStoryAccessService';
 
 const router = Router();
 
@@ -431,8 +432,22 @@ router.delete(
 );
 
 // List user's story series (requires series_enabled feature)
-router.get('/series', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.get('/series', requireAuth, async (req: Request, res: Response) => {
   try {
+    if (
+      !childSessionCanReadFamilyStories({
+        sessionMode: req.sessionMode,
+        childProfileId: req.childProfileId,
+        sessionScopes: req.sessionScopes,
+      })
+    ) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Family stories are disabled for this child profile',
+        code: 'CHILD_FAMILY_STORIES_DISABLED',
+      });
+    }
+
     const userId = req.parentUserId || req.user!.id;
     const { hasFeature } = await import('../services/planService');
     const hasSeriesAccess = await hasFeature(userId, 'series_enabled');

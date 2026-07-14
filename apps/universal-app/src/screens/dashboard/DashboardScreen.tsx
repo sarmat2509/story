@@ -91,7 +91,7 @@ export default function DashboardScreen() {
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
   const childQuizEnabled =
-    !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled !== false;
+    !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled === true;
   const enterKey = useScreenEnter();
   const {
     data: storiesData,

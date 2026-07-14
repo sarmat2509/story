@@ -1,9 +1,10 @@
 import type { CreateStoryRequestInput } from '@wondertales/shared';
-import { getCharacterRepository, getChildProfileRepository, getStoryRepository } from '../repositories';
 import {
-  buildChildModeControls,
-  type ChildModeSettings,
-} from './childModeControlsService';
+  getCharacterRepository,
+  getChildProfileRepository,
+  getStoryRepository,
+} from '../repositories';
+import { buildChildModeControls, type ChildModeSettings } from './childModeControlsService';
 import { getUsageForPeriod } from './usageEventsService';
 import { syncChildProfileCharacter } from './childProfileService';
 
@@ -17,6 +18,7 @@ export class ChildModePolicyError extends Error {
       | 'CHILD_STORY_GENERATION_DISABLED'
       | 'CHILD_FREE_TEXT_DISABLED'
       | 'CHILD_AUDIO_DISABLED'
+      | 'CHILD_SESSION_QUIZ_DISABLED'
       | 'CHILD_PUBLISH_REQUIRES_PARENT_REVIEW'
       | 'CHILD_THEME_NOT_ALLOWED'
       | 'CHILD_LANGUAGE_NOT_ALLOWED'
@@ -70,6 +72,7 @@ export function assertChildStoryRequestControls(params: {
   dailyCreatedCount: number;
   monthlyCreatedCount: number;
   selfCharacterIds?: string[];
+  selectedCharacterChildProfileIds?: string[];
 }): ChildStoryPolicyDecision {
   const { input, settings, sessionChildProfileId } = params;
 
@@ -137,7 +140,10 @@ export function assertChildStoryRequestControls(params: {
 
   if (
     !settings.allowSiblingCharacters &&
-    getSelectedChildren(input).some((childId) => childId !== sessionChildProfileId)
+    (getSelectedChildren(input).some((childId) => childId !== sessionChildProfileId) ||
+      (params.selectedCharacterChildProfileIds ?? []).some(
+        (childId) => childId !== sessionChildProfileId
+      ))
   ) {
     throw new ChildModePolicyError(
       'Sibling characters are disabled in Child Mode',
@@ -215,6 +221,7 @@ export async function assertChildStoryRequestAllowed(params: {
     ),
   ]);
 
+  let selectedCharacterChildProfileIds: string[] = [];
   if (selectedCharacterIds.length > 0) {
     const childCharacters = await getCharacterRepository().findByIds(
       params.parentUserId,
@@ -228,6 +235,9 @@ export async function assertChildStoryRequestAllowed(params: {
         403
       );
     }
+    selectedCharacterChildProfileIds = childCharacters
+      .map((character) => character.childProfileId)
+      .filter((childProfileId): childProfileId is string => Boolean(childProfileId));
   }
 
   return assertChildStoryRequestControls({
@@ -237,7 +247,37 @@ export async function assertChildStoryRequestAllowed(params: {
     dailyCreatedCount,
     monthlyCreatedCount,
     selfCharacterIds: selfCharacter ? [selfCharacter.id] : [],
+    selectedCharacterChildProfileIds,
   });
+}
+
+export function assertChildAudioGenerationControls(params: {
+  settings: ChildModeSettings;
+  dailyGeneratedCount: number | null;
+}): ChildModeSettings {
+  const { settings, dailyGeneratedCount } = params;
+
+  if (!settings.audioGenerationEnabled) {
+    throw new ChildModePolicyError(
+      'Audio generation is disabled in Child Mode',
+      'CHILD_AUDIO_DISABLED',
+      403
+    );
+  }
+
+  if (
+    settings.dailyAudioGenerationLimit !== null &&
+    dailyGeneratedCount !== null &&
+    dailyGeneratedCount >= settings.dailyAudioGenerationLimit
+  ) {
+    throw new ChildModePolicyError(
+      'Daily Child Mode audio limit reached',
+      'CHILD_DAILY_AUDIO_LIMIT_REACHED',
+      429
+    );
+  }
+
+  return settings;
 }
 
 export async function assertChildAudioGenerationAllowed(params: {
@@ -264,13 +304,7 @@ export async function assertChildAudioGenerationAllowed(params: {
   }
 
   const settings = controls.childModeSettings;
-  if (!settings.audioGenerationEnabled) {
-    throw new ChildModePolicyError(
-      'Audio generation is disabled in Child Mode',
-      'CHILD_AUDIO_DISABLED',
-      403
-    );
-  }
+  assertChildAudioGenerationControls({ settings, dailyGeneratedCount: null });
 
   if (settings.dailyAudioGenerationLimit !== null) {
     const now = params.now ?? new Date();
@@ -282,16 +316,46 @@ export async function assertChildAudioGenerationAllowed(params: {
       { childProfileId: params.sessionChildProfileId }
     );
 
-    if (usage >= settings.dailyAudioGenerationLimit) {
-      throw new ChildModePolicyError(
-        'Daily Child Mode audio limit reached',
-        'CHILD_DAILY_AUDIO_LIMIT_REACHED',
-        429
-      );
-    }
+    return assertChildAudioGenerationControls({ settings, dailyGeneratedCount: usage });
   }
 
   return settings;
+}
+
+export function assertChildQuizGenerationControls(settings: ChildModeSettings): ChildModeSettings {
+  if (!settings.quizGenerationEnabled) {
+    throw new ChildModePolicyError(
+      'Quiz generation is disabled in Child Mode',
+      'CHILD_SESSION_QUIZ_DISABLED',
+      403
+    );
+  }
+  return settings;
+}
+
+export async function assertChildQuizGenerationAllowed(params: {
+  parentUserId: string;
+  sessionChildProfileId: string;
+}): Promise<ChildModeSettings> {
+  const profile = await getChildProfileRepository().findById(
+    params.sessionChildProfileId,
+    params.parentUserId
+  );
+
+  if (!profile) {
+    throw new ChildModePolicyError('Child profile not found', 'CHILD_PROFILE_NOT_FOUND', 404);
+  }
+
+  const controls = buildChildModeControls(profile);
+  if (!controls.childModeEnabled) {
+    throw new ChildModePolicyError(
+      'Child Mode is not enabled for this child',
+      'CHILD_MODE_DISABLED',
+      403
+    );
+  }
+
+  return assertChildQuizGenerationControls(controls.childModeSettings);
 }
 
 export async function assertChildPublishAllowed(params: {

@@ -103,6 +103,8 @@ interface ChildModeLabels {
   characters: string;
   siblings: string;
   siblingsDescription: string;
+  familyStories: string;
+  familyStoriesDescription: string;
   anyTheme: string;
   anyLanguage: string;
   anyCharacter: string;
@@ -752,6 +754,16 @@ export function ChildCard({
                 onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })
               }
               testID={`child-mode-setting-${child.id}-siblings`}
+            />
+            <SettingSwitch
+              label={labels.familyStories}
+              description={labels.familyStoriesDescription}
+              value={childModeSettings.allowSharedFamilyStories}
+              disabled={controlsDisabled}
+              onValueChange={(allowSharedFamilyStories) =>
+                onChildModeSettingsChange?.(child.id, { allowSharedFamilyStories })
+              }
+              testID={`child-mode-setting-${child.id}-family-stories`}
             />
 
             <View style={styles.sessionsRow}>

@@ -6,10 +6,7 @@ export class SessionRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
   async create(data: schema.NewSession): Promise<schema.Session> {
-    const [session] = await this.db
-      .insert(schema.sessions)
-      .values(data)
-      .returning();
+    const [session] = await this.db.insert(schema.sessions).values(data).returning();
     return session;
   }
 
@@ -52,18 +49,18 @@ export class SessionRepository {
         )
       )
       .limit(1);
-    
+
     if (!session) return null;
-    
+
     // Then, fetch the associated user
     const [user] = await this.db
       .select()
       .from(schema.users)
       .where(eq(schema.users.id, session.userId))
       .limit(1);
-    
+
     if (!user) return null;
-    
+
     return { session, user };
   }
 
@@ -71,10 +68,7 @@ export class SessionRepository {
     return this.db
       .select()
       .from(schema.sessions)
-      .where(and(
-        eq(schema.sessions.userId, userId),
-        isNull(schema.sessions.revokedAt)
-      ))
+      .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.revokedAt)))
       .orderBy(desc(schema.sessions.lastActiveAt));
   }
 
@@ -105,7 +99,10 @@ export class SessionRepository {
 
     return new Map(
       rows
-        .filter((row): row is { childProfileId: string; count: number } => typeof row.childProfileId === 'string')
+        .filter(
+          (row): row is { childProfileId: string; count: number } =>
+            typeof row.childProfileId === 'string'
+        )
         .map((row) => [row.childProfileId, Number(row.count)])
     );
   }
@@ -117,13 +114,25 @@ export class SessionRepository {
       .where(eq(schema.sessions.token, token));
   }
 
+  async updateChildSessionScopes(childProfileId: string, scopes: string[]): Promise<number> {
+    const result = await this.db
+      .update(schema.sessions)
+      .set({ scopes })
+      .where(
+        and(
+          eq(schema.sessions.mode, 'child'),
+          eq(schema.sessions.childProfileId, childProfileId),
+          gt(schema.sessions.expiresAt, new Date()),
+          isNull(schema.sessions.revokedAt)
+        )
+      );
+    return result.rowCount || 0;
+  }
+
   async deleteByToken(token: string): Promise<void> {
     await this.db
       .delete(schema.sessions)
-      .where(or(
-        eq(schema.sessions.token, token),
-        eq(schema.sessions.id, token)
-      ));
+      .where(or(eq(schema.sessions.token, token), eq(schema.sessions.id, token)));
   }
 
   async revokeById(sessionId: string): Promise<void> {
@@ -134,9 +143,7 @@ export class SessionRepository {
   }
 
   async deleteByUserId(userId: string): Promise<number> {
-    const result = await this.db
-      .delete(schema.sessions)
-      .where(eq(schema.sessions.userId, userId));
+    const result = await this.db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
     return result.rowCount || 0;
   }
 

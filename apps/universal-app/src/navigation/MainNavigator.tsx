@@ -122,8 +122,11 @@ function MapTilesScreenWithAuth() {
   );
 }
 function SeriesListScreenWithAuth() {
-  const sessionMode = useAuthStore((state) => state.sessionMode);
-  if (sessionMode === 'child') {
+  const { sessionMode, activeChild } = useAuthStore();
+  const childCanReadFamilyStories =
+    sessionMode === 'child' &&
+    activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
+  if (sessionMode === 'child' && !childCanReadFamilyStories) {
     return (
       <AuthGuard>
         <NotFoundScreen />
@@ -137,8 +140,11 @@ function SeriesListScreenWithAuth() {
   );
 }
 function SeriesDetailScreenWithAuth() {
-  const sessionMode = useAuthStore((state) => state.sessionMode);
-  if (sessionMode === 'child') {
+  const { sessionMode, activeChild } = useAuthStore();
+  const childCanReadFamilyStories =
+    sessionMode === 'child' &&
+    activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
+  if (sessionMode === 'child' && !childCanReadFamilyStories) {
     return (
       <AuthGuard>
         <NotFoundScreen />
@@ -284,9 +290,15 @@ const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = [
   'Characters',
   'Artifacts',
   'MapTiles',
+  'Series',
   'Stories',
 ];
-const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Artifacts', 'MapTiles', 'Stories'];
+const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = [
+  'Series',
+  'Artifacts',
+  'MapTiles',
+  'Stories',
+];
 
 const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
 const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
@@ -331,21 +343,27 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
   const activeChild = useAuthStore((auth) => auth.activeChild);
   const isChildSession = isAuthenticated && sessionMode === 'child';
   const childCanReadPublicStories =
-    isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled !== false;
+    isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled === true;
+  const childCanReadFamilyStories =
+    isChildSession && activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
   const activeRouteName = state.routes[state.index]?.name;
   const moreMenuRoutes = isChildSession
-    ? childCanReadPublicStories
-      ? MORE_MENU_ROUTES_CHILD
-      : MORE_MENU_ROUTES_CHILD.filter((name) => name !== 'Stories')
+    ? MORE_MENU_ROUTES_CHILD.filter(
+        (name) =>
+          (name !== 'Stories' || childCanReadPublicStories) &&
+          (name !== 'Series' || childCanReadFamilyStories)
+      )
     : isAuthenticated
       ? MORE_MENU_ROUTES
       : MORE_MENU_ROUTES_PUBLIC;
   const isMoreActive = moreMenuRoutes.includes(activeRouteName as keyof MainTabParamList);
 
   const tabOrder = isChildSession
-    ? isTablet && childCanReadPublicStories
-      ? TABLET_TAB_ORDER_CHILD
-      : MOBILE_TAB_ORDER_CHILD
+    ? (isTablet ? TABLET_TAB_ORDER_CHILD : MOBILE_TAB_ORDER_CHILD).filter(
+        (name) =>
+          (name !== 'Stories' || childCanReadPublicStories) &&
+          (name !== 'Series' || childCanReadFamilyStories)
+      )
     : isAuthenticated
       ? isTablet
         ? TABLET_TAB_ORDER
@@ -377,6 +395,15 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     labelKey: string;
   }[] = isChildSession
     ? [
+        ...(childCanReadFamilyStories
+          ? [
+              {
+                name: 'Series' as const,
+                icon: 'layers-outline' as const,
+                labelKey: 'navigation.series',
+              },
+            ]
+          : []),
         { name: 'Artifacts', icon: 'sparkles-outline', labelKey: 'navigation.artifacts' },
         { name: 'MapTiles', icon: 'map-outline', labelKey: 'navigation.map_tiles' },
         ...(childCanReadPublicStories
@@ -881,7 +908,9 @@ function DrawerNavigator() {
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
   const isChildSession = isAuthenticated && sessionMode === 'child';
   const childCanReadPublicStories =
-    isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled !== false;
+    isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled === true;
+  const childCanReadFamilyStories =
+    isChildSession && activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
 
   const drawerWidth = collapsed
     ? theme.layout.drawer.widthCollapsed
@@ -1026,7 +1055,10 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="layers-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
+          drawerItemStyle:
+            !isAuthenticated || (isChildSession && !childCanReadFamilyStories)
+              ? { display: 'none' }
+              : undefined,
         }}
       />
       <Drawer.Screen

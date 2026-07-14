@@ -213,7 +213,7 @@ export default function ChildDetailScreen() {
     }),
     audio: t('children_screen.child_mode_audio'),
     audioDescription: t('children_screen.child_mode_audio_description', {
-      defaultValue: 'Allows generating and listening to story narration.',
+      defaultValue: 'Allows generating story narration.',
     }),
     quizzes: t('children_screen.child_mode_quizzes', {
       defaultValue: 'Story quizzes',
@@ -223,7 +223,7 @@ export default function ChildDetailScreen() {
     }),
     review: t('children_screen.child_mode_review'),
     reviewDescription: t('children_screen.child_mode_review_description', {
-      defaultValue: 'Stories wait for parent approval before the child can read them.',
+      defaultValue: 'Stories wait for parent approval before they can be shared or published.',
     }),
     themes: t('children_screen.child_mode_allowed_themes'),
     languages: t('children_screen.child_mode_allowed_languages'),
@@ -231,6 +231,12 @@ export default function ChildDetailScreen() {
     siblings: t('children_screen.child_mode_siblings'),
     siblingsDescription: t('children_screen.child_mode_siblings_description', {
       defaultValue: 'Allows using other child profiles as story characters.',
+    }),
+    familyStories: t('children_screen.child_mode_family_stories', {
+      defaultValue: 'Family stories',
+    }),
+    familyStoriesDescription: t('children_screen.child_mode_family_stories_description', {
+      defaultValue: 'Allows reading stories and series shared across the family account.',
     }),
     anyTheme: t('children_screen.child_mode_any_theme'),
     anyLanguage: t('children_screen.child_mode_any_language'),
