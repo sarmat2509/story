@@ -732,7 +732,8 @@ export function StoryReflectionSection({
 }: StoryReflectionSectionProps) {
   const { t } = useTranslation();
   const { isMobile } = useResponsive();
-  const quizQuery = useStoryQuiz(storyId, enabled);
+  const [quizRequestedStoryId, setQuizRequestedStoryId] = useState<string | null>(null);
+  const quizQuery = useStoryQuiz(storyId, enabled && quizRequestedStoryId === storyId);
   const generateQuiz = useGenerateStoryQuiz();
   const saveQuizAnswer = useSaveStoryQuizAnswer();
   const quiz = quizQuery.data ?? null;
@@ -769,6 +770,15 @@ export function StoryReflectionSection({
       selectedIds: next.selectedIds,
       matchedPairs: next.matchedPairs,
     });
+  };
+
+  const handleGenerateQuiz = () => {
+    generateQuiz.mutate(
+      { storyId },
+      {
+        onSettled: () => setQuizRequestedStoryId(storyId),
+      }
+    );
   };
 
   if (!enabled || dismissed) return null;
@@ -828,7 +838,7 @@ export function StoryReflectionSection({
         <View style={styles.invitationActions}>
           <AppButton
             label={t('story_quiz.generate_cta', { defaultValue: 'Prepare activities' })}
-            onPress={() => generateQuiz.mutate({ storyId })}
+            onPress={handleGenerateQuiz}
             size="md"
           />
           <TouchableOpacity style={styles.laterButton} onPress={() => setDismissed(true)}>
