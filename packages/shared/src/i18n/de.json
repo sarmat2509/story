@@ -257,7 +257,7 @@
   "wizard": {
     "theme_title": "Geschichtsthema",
     "free_theme": "Freies Thema",
-    "free_theme_desc": "Eine Geschichte ohne ein bestimmtes Thema generieren",
+    "free_theme_desc": "Ein Thema zufällig auswählen",
     "language_title": "Sprache der Geschichte",
     "language_required": "Bitte wählen Sie die Sprache der Geschichte",
     "subtitle": "Wähle ein Thema, Heldinnen und kleine Details. Daraus machen wir deine Geschichte.",

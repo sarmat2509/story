@@ -264,7 +264,7 @@
   "wizard": {
     "theme_title": "Story Theme",
     "free_theme": "Free Theme",
-    "free_theme_desc": "Generate a story without a specific theme",
+    "free_theme_desc": "Choose a theme at random",
     "language_title": "Story Language",
     "language_required": "Please select story language",
     "subtitle": "Pick a theme, heroes, and tiny details. We'll turn them into your story.",
