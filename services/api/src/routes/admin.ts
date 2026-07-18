@@ -49,6 +49,7 @@ import {
   updateAdminDiscountCode,
   type AdminDiscountCodeInput,
 } from '../services/discountService';
+import { listAdminOutfits, searchAdminOutfits } from '../services/adminOutfitService';
 
 const router = Router();
 
@@ -87,7 +88,7 @@ const UpdateDataPrivacyRequestBodySchema = z
   .strict();
 
 const DashboardQuerySchema = z.object({
-  days: z.coerce.number().int().min(0).max(3650).default(30),
+  days: z.coerce.number().finite().min(0).max(3650).default(30),
 });
 
 const StoryIdParamsSchema = z.object({
@@ -141,6 +142,18 @@ const AdminDiscountCodeBodySchema = z
       });
     }
   });
+
+const AdminOutfitListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(24),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const AdminOutfitSearchBodySchema = z
+  .object({
+    description: z.string().trim().min(1).max(4000),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
 
 const DataPrivacyRequestIdParamsSchema = z.object({
   requestId: z.string().uuid(),
@@ -918,6 +931,64 @@ router.patch('/discount-codes/:discountCodeId', async (req: Request, res: Respon
       status: 'error',
       ...(error instanceof DiscountCodeError ? { code: error.code } : {}),
       message: error instanceof Error ? error.message : 'Failed to update discount code',
+    });
+  }
+});
+
+router.get('/outfits', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminOutfitListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const data = await listAdminOutfits({
+      limit: parsed.data.limit ?? 24,
+      offset: parsed.data.offset ?? 0,
+    });
+    return res.json({ status: 'success', data });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin outfits list failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to list outfits',
+    });
+  }
+});
+
+router.post('/outfits/search', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminOutfitSearchBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const data = await searchAdminOutfits({
+      description: parsed.data.description!,
+      limit: parsed.data.limit ?? 20,
+    });
+    return res.json({ status: 'success', data });
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        userId: req.user?.id,
+        descriptionLength:
+          typeof req.body?.description === 'string' ? req.body.description.length : null,
+      },
+      'Admin outfit search failed'
+    );
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to search outfits',
     });
   }
 });

@@ -325,6 +325,7 @@ const linking: any = {
           AdminPrivacyRequests: 'privacy-requests',
           AdminContentConfig: 'content-config',
           AdminVoices: 'voices',
+          AdminOutfits: 'outfits',
           AdminUsers: 'users',
           AdminDiscountCodes: 'discounts',
           AdminAppReleases: 'updates',

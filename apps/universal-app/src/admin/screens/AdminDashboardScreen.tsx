@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   useAdminDashboard,
   type AdminDashboardBreakdownItem,
@@ -18,13 +18,27 @@ import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminStat
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 
-const RANGE_OPTIONS = [
-  { days: 7, label: '7d' },
-  { days: 30, label: '30d' },
-  { days: 90, label: '90d' },
-  { days: 365, label: '365d' },
-  { days: 0, label: 'All' },
+const PERIOD_OPTIONS = [
+  { value: 'hours', label: 'Hours', singularLabel: 'hour', daysMultiplier: 1 / 24 },
+  { value: 'days', label: 'Days', singularLabel: 'day', daysMultiplier: 1 },
+  { value: 'weeks', label: 'Weeks', singularLabel: 'week', daysMultiplier: 7 },
+  { value: 'months', label: 'Months', singularLabel: 'month', daysMultiplier: 30 },
 ] as const;
+
+type PeriodUnit = (typeof PERIOD_OPTIONS)[number]['value'];
+
+const MAX_DASHBOARD_RANGE_DAYS = 3650;
+
+function getRangeDays(amount: number, unit: PeriodUnit) {
+  const option = PERIOD_OPTIONS.find((item) => item.value === unit);
+  return amount * (option?.daysMultiplier ?? 1);
+}
+
+function formatRangeSummary(amount: number, unit: PeriodUnit) {
+  const option = PERIOD_OPTIONS.find((item) => item.value === unit);
+  const unitLabel = amount === 1 ? option?.singularLabel : option?.label.toLowerCase();
+  return `last ${amount} ${unitLabel ?? unit}`;
+}
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
@@ -460,9 +474,7 @@ function StoryReadinessHistogram({ items }: { items: AdminDashboardReadinessHist
     <View style={styles.histogramList}>
       {groups.map(([generationKind, groupItems]) => (
         <View key={generationKind} style={styles.histogramGroup}>
-          <Text style={styles.histogramGroupTitle}>
-            {prettifyBreakdownValue(generationKind)}
-          </Text>
+          <Text style={styles.histogramGroupTitle}>{prettifyBreakdownValue(generationKind)}</Text>
           <VerticalBarChart
             items={groupItems
               .slice()
@@ -509,8 +521,39 @@ function buildQualityReviewBars(review: AdminDashboardQualityReview) {
 
 export default function AdminDashboardScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
+  const [rangeValue, setRangeValue] = useState('30');
+  const [rangeUnit, setRangeUnit] = useState<PeriodUnit>('days');
+  const [isPeriodMenuOpen, setIsPeriodMenuOpen] = useState(false);
   const [days, setDays] = useState<number>(30);
+  const [appliedRange, setAppliedRange] = useState<{ amount: number; unit: PeriodUnit }>({
+    amount: 30,
+    unit: 'days',
+  });
   const { data, isLoading, error } = useAdminDashboard(days);
+
+  const rangeAmount = Number(rangeValue);
+  const requestedRangeDays = getRangeDays(rangeAmount, rangeUnit);
+  const isRangeValid =
+    Number.isSafeInteger(rangeAmount) &&
+    rangeAmount > 0 &&
+    requestedRangeDays <= MAX_DASHBOARD_RANGE_DAYS;
+  const rangeError =
+    rangeValue.length === 0 || !Number.isSafeInteger(rangeAmount) || rangeAmount <= 0
+      ? 'Enter a positive whole number.'
+      : requestedRangeDays > MAX_DASHBOARD_RANGE_DAYS
+        ? 'Maximum range is 10 years.'
+        : null;
+
+  useEffect(() => {
+    if (!isRangeValid) return undefined;
+
+    const timeout = setTimeout(() => {
+      setDays(requestedRangeDays);
+      setAppliedRange({ amount: rangeAmount, unit: rangeUnit });
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [isRangeValid, rangeAmount, rangeUnit, requestedRangeDays]);
 
   const overview = data?.overview;
   const retryBars = overview
@@ -534,21 +577,70 @@ export default function AdminDashboardScreen() {
           </Text>
         </View>
 
-        <View style={styles.rangeRow}>
-          {RANGE_OPTIONS.map((option) => {
-            const isActive = option.days === days;
-            return (
+        <View style={styles.rangeControl}>
+          <Text style={styles.rangeLabel}>Time range</Text>
+          <View style={styles.rangeRow}>
+            <TextInput
+              accessibilityLabel="Time range value"
+              style={[styles.rangeInput, rangeError && styles.rangeInputError]}
+              value={rangeValue}
+              onChangeText={(value) => setRangeValue(value.replace(/\D/g, ''))}
+              onBlur={() => {
+                if (rangeValue.length === 0) setRangeValue('1');
+              }}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              maxLength={6}
+              selectTextOnFocus
+            />
+
+            <View style={styles.periodSelect}>
               <TouchableOpacity
-                key={option.label}
-                style={[styles.rangeChip, isActive && styles.rangeChipActive]}
-                onPress={() => setDays(option.days)}
+                accessibilityRole="button"
+                accessibilityLabel="Time range unit"
+                accessibilityState={{ expanded: isPeriodMenuOpen }}
+                style={[styles.periodSelectTrigger, isPeriodMenuOpen && styles.periodSelectOpen]}
+                onPress={() => setIsPeriodMenuOpen((isOpen) => !isOpen)}
               >
-                <Text style={[styles.rangeChipText, isActive && styles.rangeChipTextActive]}>
-                  {option.label}
+                <Text style={styles.periodSelectText}>
+                  {PERIOD_OPTIONS.find((option) => option.value === rangeUnit)?.label}
                 </Text>
+                <Text style={styles.periodSelectChevron}>{isPeriodMenuOpen ? '▲' : '▼'}</Text>
               </TouchableOpacity>
-            );
-          })}
+
+              {isPeriodMenuOpen ? (
+                <View style={styles.periodSelectMenu}>
+                  {PERIOD_OPTIONS.map((option) => {
+                    const isActive = option.value === rangeUnit;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        accessibilityRole="button"
+                        style={[
+                          styles.periodSelectOption,
+                          isActive && styles.periodSelectOptionActive,
+                        ]}
+                        onPress={() => {
+                          setRangeUnit(option.value);
+                          setIsPeriodMenuOpen(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.periodSelectOptionText,
+                            isActive && styles.periodSelectOptionTextActive,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </View>
+          </View>
+          {rangeError ? <Text style={styles.rangeError}>{rangeError}</Text> : null}
         </View>
       </View>
 
@@ -561,7 +653,7 @@ export default function AdminDashboardScreen() {
             <MetricCard
               label="Stories"
               value={formatNumber(overview.totalStories)}
-              helper={`${days === 0 ? 'all time' : `last ${days} days`} • ${formatUsd(overview.totalCostUsd)} total AI cost`}
+              helper={`${formatRangeSummary(appliedRange.amount, appliedRange.unit)} • ${formatUsd(overview.totalCostUsd)} total AI cost`}
             />
             <MetricCard
               label="Avg story cost"
@@ -886,30 +978,100 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: theme.colors.text.secondary,
   },
-  rangeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  rangeControl: {
+    alignSelf: 'flex-start',
+    gap: 7,
+    zIndex: 20,
   },
-  rangeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.border.medium,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  rangeChipActive: {
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  rangeChipText: {
+  rangeLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: theme.colors.text.primary,
+    color: theme.colors.text.secondary,
   },
-  rangeChipTextActive: {
-    color: theme.colors.text.inverse,
+  rangeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  rangeInput: {
+    width: 112,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: theme.colors.border.medium,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  rangeInputError: {
+    borderColor: theme.colors.status.error,
+  },
+  rangeError: {
+    fontSize: 12,
+    color: theme.colors.status.error,
+  },
+  periodSelect: {
+    position: 'relative',
+    width: 150,
+    zIndex: 21,
+  },
+  periodSelectTrigger: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: theme.colors.border.medium,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.background.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  periodSelectOpen: {
+    borderColor: theme.colors.interactive.primary,
+  },
+  periodSelectText: {
+    color: theme.colors.text.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  periodSelectChevron: {
+    color: theme.colors.text.secondary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  periodSelectMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    backgroundColor: theme.colors.background.primary,
+    overflow: 'hidden',
+    elevation: 6,
+  },
+  periodSelectOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+  },
+  periodSelectOptionActive: {
+    backgroundColor: theme.colors.primary[50],
+  },
+  periodSelectOptionText: {
+    color: theme.colors.text.primary,
+    fontWeight: '500',
+  },
+  periodSelectOptionTextActive: {
+    color: theme.colors.interactive.primary,
+    fontWeight: '700',
   },
   pageContent: {
     gap: 20,

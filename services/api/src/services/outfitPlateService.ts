@@ -519,7 +519,6 @@ export async function getCatalogOutfitPlateImage(params: {
         filters: catalogFilters,
         plannedCatalogOnly: true,
         relaxedFallback: true,
-        limitCandidates: 300,
         excludeIds: staleCacheIds,
       },
     )) ||
@@ -530,7 +529,6 @@ export async function getCatalogOutfitPlateImage(params: {
         filters: catalogFilters,
         plannedCatalogOnly: true,
         relaxedFallback: true,
-        limitCandidates: 300,
         excludeIds: staleCacheIds,
       },
     ));

@@ -727,6 +727,76 @@ export function useUpdateAdminStory() {
   });
 }
 
+export type AdminOutfitCatalogItem = {
+  id: string;
+  description: string;
+  imageUrl: string;
+  storagePath: string;
+  catalogSource: string | null;
+  imageStyle: string;
+  ageGroup: string;
+  formality: string | null;
+  presentationGroups: string[];
+  purposeTags: string[];
+  seasonTags: string[];
+  climateTags: string[];
+  settingTags: string[];
+  activityTags: string[];
+  silhouetteTags: string[];
+  footwearTags: string[];
+  componentTags: string[];
+  colorPalette: string[];
+  materials: string[];
+  patterns: string[];
+  detailTags: string[];
+  coverageTags: string[];
+  createdAt: string;
+};
+
+export type AdminOutfitSearchItem = {
+  id: string;
+  description: string;
+  imageUrl: string;
+  storagePath: string;
+  catalogSource: string | null;
+  score: number;
+  tagScore: number;
+  meetsThreshold: boolean;
+};
+
+export type AdminOutfitSearchResult = {
+  description: string;
+  threshold: number;
+  filters: Record<string, string | string[]>;
+  items: AdminOutfitSearchItem[];
+};
+
+export function useAdminOutfits(params: { limit: number; offset: number }) {
+  const { limit, offset } = params;
+  return useQuery({
+    queryKey: ['admin', 'outfits', limit, offset],
+    queryFn: async () => {
+      const response = await apiClient.get<PaginatedResponse<AdminOutfitCatalogItem>>(
+        '/api/v1/admin/outfits',
+        { params: { limit, offset } }
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useSearchAdminOutfits() {
+  return useMutation({
+    mutationFn: async (params: { description: string; limit?: number }) => {
+      const response = await apiClient.post<{ status: string; data: AdminOutfitSearchResult }>(
+        '/api/v1/admin/outfits/search',
+        { description: params.description, limit: params.limit ?? 20 }
+      );
+      return response.data.data;
+    },
+  });
+}
+
 export type AdminVoiceListItem = {
   id: string;
   provider: string;

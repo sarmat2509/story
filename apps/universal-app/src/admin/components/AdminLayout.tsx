@@ -14,7 +14,8 @@ type AdminRouteName =
   | 'AdminPrivacyRequests'
   | 'AdminValidations'
   | 'AdminContentConfig'
-  | 'AdminVoices';
+  | 'AdminVoices'
+  | 'AdminOutfits';
 
 const sections: Array<{
   title: string;
@@ -38,6 +39,7 @@ const sections: Array<{
       { key: 'AdminContentConfig', label: 'Content Config', routeName: 'AdminContentConfig' },
       { key: 'AdminAppReleases', label: 'Updates', routeName: 'AdminAppReleases' },
       { key: 'AdminVoices', label: 'Voices', routeName: 'AdminVoices' },
+      { key: 'AdminOutfits', label: 'Outfits', routeName: 'AdminOutfits' },
     ],
   },
 ];

@@ -18,6 +18,7 @@ export type AdminStackParamList = {
   AdminValidations: undefined;
   AdminContentConfig: undefined;
   AdminVoices: undefined;
+  AdminOutfits: undefined;
   AdminValidationDetail: { id: string };
   AdminImageGenerationDetail: { storyId: string; sceneIndex: number; generationIndex: number };
   AdminScenes: undefined;

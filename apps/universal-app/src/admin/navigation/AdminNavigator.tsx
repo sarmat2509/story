@@ -18,6 +18,7 @@ import AdminImageGenerationDetailScreen from '@/admin/screens/AdminImageGenerati
 import AdminValidationDetailScreen from '@/admin/screens/AdminValidationDetailScreen';
 import AdminValidationsScreen from '@/admin/screens/AdminValidationsScreen';
 import AdminAppReleasesScreen from '@/admin/screens/AdminAppReleasesScreen';
+import AdminOutfitsScreen from '@/admin/screens/AdminOutfitsScreen';
 
 const Stack = createNativeStackNavigator<AdminStackParamList>();
 
@@ -65,6 +66,7 @@ export default function AdminNavigator() {
       <Stack.Screen name="AdminContentConfig" component={AdminContentConfigScreen} />
       <Stack.Screen name="AdminAppReleases" component={AdminAppReleasesScreen} />
       <Stack.Screen name="AdminVoices" component={AdminVoicesScreen} />
+      <Stack.Screen name="AdminOutfits" component={AdminOutfitsScreen} />
       <Stack.Screen name="AdminValidationDetail" component={AdminValidationDetailScreen} />
       <Stack.Screen name="AdminImageGenerationDetail" component={AdminImageGenerationDetailScreen} />
       <Stack.Screen name="AdminScenesStory" component={AdminScenesScreen} />

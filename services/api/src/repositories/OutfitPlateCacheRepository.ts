@@ -1,4 +1,4 @@
-import { SQL, and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import { SQL, and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { cosineSimilarity } from '../services/embeddingService';
@@ -58,7 +58,7 @@ export interface OutfitPlateFindSimilarOptions {
   plannedCatalogOnly?: boolean;
   generatedOnly?: boolean;
   relaxedFallback?: boolean;
-  limitCandidates?: number;
+  limitResults?: number;
   excludeIds?: string[];
 }
 
@@ -226,44 +226,10 @@ export class OutfitPlateCacheRepository {
     threshold: number,
     options?: OutfitPlateFindSimilarOptions,
   ): Promise<OutfitPlateFindSimilarResult | null> {
-    const primaryCandidates = await this.listRowsForSearch(options?.filters, {
-      catalogOnly: options?.catalogOnly,
-      plannedCatalogOnly: options?.plannedCatalogOnly,
-      limit: options?.limitCandidates,
-      excludeIds: options?.excludeIds,
+    const [best] = await this.findSimilarMany(embedding, threshold, {
+      ...options,
+      limitResults: 1,
     });
-    const all =
-      primaryCandidates.length > 0 || !options?.relaxedFallback
-        ? primaryCandidates
-        : await this.listRowsForSearch(undefined, {
-          catalogOnly: options?.catalogOnly,
-          plannedCatalogOnly: options?.plannedCatalogOnly,
-          generatedOnly: options?.generatedOnly,
-          limit: options?.limitCandidates,
-          excludeIds: options?.excludeIds,
-        });
-
-    if (all.length === 0) return null;
-
-    let best: OutfitPlateFindSimilarResult | null = null;
-
-    for (const row of all) {
-      const stored = row.descriptionEmbedding as number[];
-      if (!stored || stored.length !== embedding.length) continue;
-
-      const score = cosineSimilarity(embedding, stored);
-      if (score >= threshold && (!best || score > best.score)) {
-        best = {
-          id: row.id,
-          outfitText: row.outfitText,
-          storagePath: row.storagePath,
-          storageUrl: row.storageUrl,
-          score,
-          tagScore: tagScoreForRow(row, options?.filters),
-          catalogSource: row.catalogSource,
-        };
-      }
-    }
 
     if (best) {
       logger.info(
@@ -277,7 +243,74 @@ export class OutfitPlateCacheRepository {
       );
     }
 
-    return best;
+    return best || null;
+  }
+
+  async findSimilarMany(
+    embedding: number[],
+    threshold: number,
+    options?: OutfitPlateFindSimilarOptions,
+  ): Promise<OutfitPlateFindSimilarResult[]> {
+    const primaryCandidates = await this.listRowsForSearch(options?.filters, {
+      catalogOnly: options?.catalogOnly,
+      plannedCatalogOnly: options?.plannedCatalogOnly,
+      excludeIds: options?.excludeIds,
+    });
+    const all =
+      primaryCandidates.length > 0 || !options?.relaxedFallback
+        ? primaryCandidates
+        : await this.listRowsForSearch(undefined, {
+          catalogOnly: options?.catalogOnly,
+          plannedCatalogOnly: options?.plannedCatalogOnly,
+          generatedOnly: options?.generatedOnly,
+          excludeIds: options?.excludeIds,
+        });
+
+    if (all.length === 0) return [];
+
+    const matches: OutfitPlateFindSimilarResult[] = [];
+
+    for (const row of all) {
+      const stored = row.descriptionEmbedding as number[];
+      if (!stored || stored.length !== embedding.length) continue;
+
+      const score = cosineSimilarity(embedding, stored);
+      if (score >= threshold) {
+        matches.push({
+          id: row.id,
+          outfitText: row.outfitText,
+          storagePath: row.storagePath,
+          storageUrl: row.storageUrl,
+          score,
+          tagScore: tagScoreForRow(row, options?.filters),
+          catalogSource: row.catalogSource,
+        });
+      }
+    }
+
+    matches.sort((left, right) => right.score - left.score);
+
+    const limitResults = Math.max(1, options?.limitResults ?? matches.length);
+    return matches.slice(0, limitResults);
+  }
+
+  async listForAdmin(params: {
+    limit: number;
+    offset: number;
+  }): Promise<schema.OutfitPlateCache[]> {
+    return this.db
+      .select()
+      .from(schema.outfitPlateCache)
+      .orderBy(desc(schema.outfitPlateCache.createdAt), desc(schema.outfitPlateCache.id))
+      .limit(params.limit)
+      .offset(params.offset);
+  }
+
+  async countForAdmin(): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.outfitPlateCache);
+    return Number(row?.count || 0);
   }
 
   async searchCatalog(
