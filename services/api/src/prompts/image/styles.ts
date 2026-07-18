@@ -103,7 +103,7 @@ export const ART_STYLES: Record<string, StyleDefinition> = {
     },
   },
   
-  retro_shojo_fantasy: {
+  retro_magical_shojo: {
     imagePrefix: [
       'retro shojo anime fantasy illustration',
       'cel-shaded characters with bright saturated colors',
