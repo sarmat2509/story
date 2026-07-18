@@ -24,6 +24,7 @@ import {
   userSubscriptions,
 } from '../db/schema';
 import * as characterService from '../services/characterService';
+import { recordUsage } from '../services/aiUsageService';
 import {
   CHARACTER_QUOTA_FEATURE_SLUG,
   CHARACTER_USAGE_EVENT,
@@ -35,12 +36,58 @@ import {
   resolveActiveSubscriptionPeriod,
 } from '../services/subscriptionPeriodService';
 import { generateLlmCharacterTurnaround } from '../services/turnaroundSheetService';
+import { localizeCharacterNames } from '../services/translationService';
+import { getDictionaryRepository } from '../repositories';
+import type { Character } from '../db/schema';
 
 const EXECUTE = process.argv.includes('--execute');
 const REFRESH_DEMO_PERIOD = process.argv.includes('--refresh-demo-period');
 const userId =
-  process.argv.find((arg) => arg.startsWith('--user-id='))?.slice('--user-id='.length).trim() ||
-  process.env.PRESENTATION_USER_ID?.trim();
+  process.argv
+    .find((arg) => arg.startsWith('--user-id='))
+    ?.slice('--user-id='.length)
+    .trim() || process.env.PRESENTATION_USER_ID?.trim();
+
+const REQUIRED_NAME_LOCALES = 7;
+
+async function getCharacterNameLocaleCounts(characterIds: string[]): Promise<Map<string, number>> {
+  const rows = await getDictionaryRepository().findTranslationsForEntities(
+    'character',
+    characterIds,
+    'name'
+  );
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    counts.set(row.entityId, (counts.get(row.entityId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+async function waitForBackgroundNameLocalizations(
+  characterIds: string[],
+  timeoutMs = 60_000
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const counts = await getCharacterNameLocaleCounts(characterIds);
+    if (characterIds.every((id) => (counts.get(id) ?? 0) >= REQUIRED_NAME_LOCALES)) return;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+async function ensureCharacterNameLocalizations(charactersToCheck: Character[]): Promise<void> {
+  const counts = await getCharacterNameLocaleCounts(
+    charactersToCheck.map((character) => character.id)
+  );
+  for (const character of charactersToCheck) {
+    if ((counts.get(character.id) ?? 0) >= REQUIRED_NAME_LOCALES) continue;
+    await localizeCharacterNames(character, {
+      sourceLocale: character.descriptionLanguage,
+      onUsage: (usage) =>
+        recordUsage(usage, { userId: character.userId, characterId: character.id }),
+    });
+  }
+}
 
 const characterDefinitions = [
   {
@@ -224,7 +271,8 @@ const characterDefinitions = [
         secondaryColor: 'cream and gold',
         size: 'approximately 48 cm at the shoulder',
         magicalFeatures: ['gold fins', 'wingless', 'broad tail fin'],
-        customDescription: 'A friendly four-legged turquoise dragon with soft golden fins and no wings.',
+        customDescription:
+          'A friendly four-legged turquoise dragon with soft golden fins and no wings.',
       },
       personality: {
         traits: ['brave', 'friendly', 'curious'],
@@ -247,7 +295,8 @@ const characterDefinitions = [
         secondaryColor: 'navy, teal, brass, red, and blue',
         size: 'approximately 42 cm tall',
         magicalFeatures: ['floating body', 'chest compass', 'gold diamond'],
-        customDescription: 'A legless floating guide spirit with a brass compass embedded in the chest.',
+        customDescription:
+          'A legless floating guide spirit with a brass compass embedded in the chest.',
       },
       personality: {
         traits: ['wise', 'careful', 'encouraging'],
@@ -297,7 +346,8 @@ const characterDefinitions = [
         secondaryColor: 'pale blue and rainbow bands',
         size: 'approximately 55 cm tall',
         magicalFeatures: ['cloud body', 'rainbow boots'],
-        customDescription: 'A small cloud spirit with a fixed five-lobed silhouette and rainbow boots.',
+        customDescription:
+          'A small cloud spirit with a fixed five-lobed silhouette and rainbow boots.',
       },
       personality: {
         traits: ['empathetic', 'cheerful', 'gentle'],
@@ -320,7 +370,8 @@ const characterDefinitions = [
         secondaryColor: 'amber and glowing orange',
         size: 'approximately 65 cm long',
         magicalFeatures: ['eight glowing spots', 'three-part flame crest', 'glowing tail tip'],
-        customDescription: 'A friendly four-legged fire salamander with glowing markings but no open flames.',
+        customDescription:
+          'A friendly four-legged fire salamander with glowing markings but no open flames.',
       },
       personality: {
         traits: ['brave', 'energetic', 'loyal'],
@@ -343,7 +394,8 @@ const characterDefinitions = [
         secondaryColor: 'brass and pale blue',
         size: 'approximately 85 cm tall',
         magicalFeatures: ['screen face', 'two antennae', 'chest star'],
-        customDescription: 'A small brass-and-blue robot with a circular screen face and stable broad feet.',
+        customDescription:
+          'A small brass-and-blue robot with a circular screen face and stable broad feet.',
       },
       personality: {
         traits: ['analytical', 'friendly', 'helpful'],
@@ -366,7 +418,8 @@ const characterDefinitions = [
         secondaryColor: 'ink blue and brass',
         size: 'approximately 46 cm tall',
         magicalFeatures: ['layered paper feathers', 'three chest marks'],
-        customDescription: 'A small living owl constructed from layered cream paper with ink-blue edges.',
+        customDescription:
+          'A small living owl constructed from layered cream paper with ink-blue edges.',
       },
       personality: {
         traits: ['thoughtful', 'observant', 'patient'],
@@ -389,7 +442,8 @@ const characterDefinitions = [
         secondaryColor: 'violet blue, silver, and teal',
         size: 'approximately 62 cm at the shoulder',
         magicalFeatures: ['glowing eyes', 'seven-dot constellation', 'silver star speckles'],
-        customDescription: 'A young cosmic lynx with a seven-dot constellation and a silver crescent on the chest.',
+        customDescription:
+          'A young cosmic lynx with a seven-dot constellation and a silver crescent on the chest.',
       },
       personality: {
         traits: ['independent', 'observant', 'calm'],
@@ -517,7 +571,9 @@ async function main(): Promise<void> {
       throw new Error('Demo subscription period is expired; pass --refresh-demo-period');
     }
     if (!mayRefreshDemoPeriod) {
-      throw new Error('Refusing to refresh period: target is not the guarded QA presentation account');
+      throw new Error(
+        'Refusing to refresh period: target is not the guarded QA presentation account'
+      );
     }
 
     const { periodStart, periodEnd } = createMonthlyPeriod();
@@ -591,6 +647,9 @@ async function main(): Promise<void> {
 
   if (!EXECUTE) return;
 
+  const processedCharacters: Character[] = [];
+  let createdAny = false;
+
   for (const definition of parsedDefinitions) {
     const data = definition.payload;
     let character = existingByName.get(data.name);
@@ -622,6 +681,7 @@ async function main(): Promise<void> {
           createdByChildProfileId: null,
         });
         createdNow = true;
+        createdAny = true;
       } catch (error) {
         await releaseManualCharacterQuotaReservation(userId, reservationId, {
           reason: 'generation_failed',
@@ -658,16 +718,28 @@ async function main(): Promise<void> {
     }
 
     const updated = await characterService.getCharacterById(character.id, userId);
+    processedCharacters.push(updated ?? character);
     console.log(
       JSON.stringify({
         name: character.name,
         id: character.id,
         childName: definition.childName,
-        status: createdNow ? 'created' : turnaroundReady ? 'already-complete' : 'turnaround-resumed',
+        status: createdNow
+          ? 'created'
+          : turnaroundReady
+            ? 'already-complete'
+            : 'turnaround-resumed',
         turnaroundReady: hasTurnaround(updated?.turnaroundSheet),
       })
     );
   }
+
+  // createCharacter localizes names in the background. Keep the database open until those
+  // tasks finish, then repair any missing locale rows explicitly before the runner exits.
+  if (createdAny) {
+    await waitForBackgroundNameLocalizations(processedCharacters.map((character) => character.id));
+  }
+  await ensureCharacterNameLocalizations(processedCharacters);
 }
 
 main()
