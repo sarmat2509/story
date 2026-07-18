@@ -3,7 +3,10 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { randomBytes } from 'crypto';
 
-export type PasswordResetTokenPurpose = 'password_reset' | 'child_mode_recovery';
+export type PasswordResetTokenPurpose =
+  | 'password_reset'
+  | 'child_mode_recovery'
+  | 'child_mode_passcode_reset';
 
 export class PasswordResetTokenRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}

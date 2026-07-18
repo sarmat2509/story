@@ -44,7 +44,9 @@ import {
   ChildModePasscodeError,
   ChildModeRecoveryError,
   consumeChildModeExitPasscodeRecoveryToken,
+  issueChildModeExitPasscodeResetToken,
   requestChildModeExitPasscodeRecovery,
+  requestParentChildModeExitPasscodeRecovery,
   verifyChildModePasscode,
 } from '../services/childModeControlsService';
 import { toUserResponse } from '../utils/userResponse';
@@ -1027,10 +1029,9 @@ router.post(
   '/child-mode/recovery',
   passwordResetLimiter,
   requireAuth,
-  requireChildSession,
   async (req: Request, res: Response) => {
     try {
-      if (!req.user || !req.sessionId || !req.childProfileId) {
+      if (!req.user || !req.sessionId) {
         return res.status(401).json({
           status: 'error',
           message: 'Not authenticated',
@@ -1038,7 +1039,18 @@ router.post(
         });
       }
 
-      await requestChildModeExitPasscodeRecovery(req.user.id, req.childProfileId, req.sessionId);
+      if (req.sessionMode === 'child') {
+        if (!req.childProfileId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Child profile context required',
+            code: 'CHILD_PROFILE_CONTEXT_REQUIRED',
+          });
+        }
+        await requestChildModeExitPasscodeRecovery(req.user.id, req.childProfileId, req.sessionId);
+      } else {
+        await requestParentChildModeExitPasscodeRecovery(req.user.id);
+      }
 
       res.json({
         status: 'success',
@@ -1092,6 +1104,9 @@ router.post(
         userId: recovery.user.id,
         sessionId: parentSession.id,
       });
+      const childModeExitPasscodeResetToken = await issueChildModeExitPasscodeResetToken(
+        recovery.user.id
+      );
 
       if (recovery.childSessionId) {
         await deleteSession(recovery.childSessionId);
@@ -1114,6 +1129,7 @@ router.post(
         user: toUserResponse(recovery.user),
         expiresAt: parentSession.expiresAt.getTime(),
         sessionMode: 'parent' as const,
+        childModeExitPasscodeResetToken,
       });
     } catch (error) {
       if (error instanceof ChildModeRecoveryError) {

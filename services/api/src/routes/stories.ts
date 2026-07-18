@@ -68,6 +68,7 @@ import {
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
 import {
+  assertChildStoryContinuationAllowed,
   assertChildStoryRequestAllowed,
   assertChildAudioGenerationAllowed,
   assertChildPublishAllowed,
@@ -1416,7 +1417,6 @@ router.delete('/:id', requireAuth, requireParentSession, async (req: Request, re
 router.post(
   '/:id/continue',
   requireAuth,
-  requireParentSession,
   requireGenerationAvailable,
   expensiveGenerationLimiter,
   async (req: Request, res: Response) => {
@@ -1425,11 +1425,34 @@ router.post(
     try {
       const { id: storyId } = req.params;
       const ownerUserId = getRequestOwnerUserId(req);
-      const userId = req.user!.id;
+      const isChildSession = req.sessionMode === 'child';
+
+      if (isChildSession && (!req.childProfileId || !req.sessionScopes?.includes('child_mode'))) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'SESSION_SCOPE_REQUIRED',
+          message: 'Child session scope required',
+        });
+      }
+
+      const story = await getStoryRepository().findByIdAndUser(storyId, ownerUserId);
+      if (!story || !storyReadableByRequestSession(req, story)) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Story not found',
+        });
+      }
+
+      const childPolicyDecision = isChildSession
+        ? await assertChildStoryContinuationAllowed({
+            parentUserId: ownerUserId,
+            sessionChildProfileId: req.childProfileId!,
+          })
+        : null;
 
       // Enforce per-user concurrent job limit
       try {
-        await enforceUserJobLimit(userId);
+        await enforceUserJobLimit(ownerUserId);
       } catch (limitError) {
         return res.status(429).json({
           status: 'error',
@@ -1439,7 +1462,7 @@ router.post(
 
       // Check if user has series feature enabled
       const { hasFeature } = await import('../services/planService');
-      const hasSeriesAccess = await hasFeature(userId, 'series_enabled');
+      const hasSeriesAccess = await hasFeature(ownerUserId, 'series_enabled');
 
       if (!hasSeriesAccess) {
         return res.status(403).json({
@@ -1452,15 +1475,6 @@ router.post(
       // Import series service
       const { getOrCreateSeries } = await import('../services/seriesService');
 
-      // 1. Verify ownership
-      const story = await getStoryRepository().findByIdAndUser(storyId, userId);
-      if (!story) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Story not found',
-        });
-      }
-
       // 2. Continuations consume the same monthly story quota as other generation entrypoints.
 
       // 3. Get or create series
@@ -1468,7 +1482,8 @@ router.post(
 
       logger.info(
         {
-          userId,
+          userId: ownerUserId,
+          childProfileId: isChildSession ? req.childProfileId : undefined,
           storyId,
           seriesId,
           nextPartNumber: partNumber + 1,
@@ -1485,24 +1500,34 @@ router.post(
         requestIntermediateData: originalRequest?.intermediateData,
       });
 
-      requestId = await createContinuationRequest(userId, {
-        language: story.language,
-        ageGroup: story.ageGroup,
-        childProfileId: story.childProfileId,
-        imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
-        moralTheme: null,
-        excludedMoralTheme: story.moralTheme,
-        generationKind,
-        // Preserve original request settings
-        scenarioCardId: originalRequest?.scenarioCardId || null,
-        selectedCharacters: originalRequest?.selectedCharacters || null,
-        selectedChildren: originalRequest?.selectedChildren || null,
-        userNotes: originalRequest?.userNotes || null,
-        // Series context
-        seriesId,
-        partNumber: partNumber + 1,
-        continuationContext,
-      });
+      requestId = await createContinuationRequest(
+        ownerUserId,
+        {
+          language: story.language,
+          ageGroup: story.ageGroup,
+          childProfileId: story.childProfileId,
+          imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
+          moralTheme: null,
+          excludedMoralTheme: story.moralTheme,
+          generationKind,
+          // Preserve original request settings
+          scenarioCardId: originalRequest?.scenarioCardId || null,
+          selectedCharacters: originalRequest?.selectedCharacters || null,
+          selectedChildren: originalRequest?.selectedChildren || null,
+          userNotes: originalRequest?.userNotes || null,
+          // Series context
+          seriesId,
+          partNumber: partNumber + 1,
+          continuationContext,
+        },
+        isChildSession
+          ? {
+              createdByMode: 'child',
+              createdByChildProfileId: req.childProfileId!,
+              parentReviewRequired: childPolicyDecision?.parentReviewRequired === true,
+            }
+          : undefined
+      );
 
       // 5. Queue job
       const jobId = await storyJobQueue.addJob(requestId);
@@ -1510,7 +1535,8 @@ router.post(
 
       logger.info(
         {
-          userId,
+          userId: ownerUserId,
+          childProfileId: isChildSession ? req.childProfileId : undefined,
           requestId,
           jobId,
           seriesId,
@@ -1526,6 +1552,11 @@ router.post(
           status: 'pending',
           progress: 0,
           createdAt: new Date().toISOString(),
+          ...(isChildSession && {
+            createdByMode: 'child',
+            createdByChildProfileId: req.childProfileId,
+            parentReviewRequired: childPolicyDecision?.parentReviewRequired === true,
+          }),
         },
       });
     } catch (error) {
@@ -1533,6 +1564,7 @@ router.post(
         await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
       }
       if (sendPromptSafetyError(res, error)) return;
+      if (sendChildModePolicyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
 
       logger.error(

@@ -54,6 +54,7 @@ interface AuthState {
   ) => void;
   enterChildSession: (token: string, child: ActiveChildSession) => void;
   updateActiveChildMode: (childMode: NonNullable<ActiveChildSession['childMode']>) => void;
+  setParentSession: (user: User, token: string) => void;
   returnToParentSession: (user: User, token: string) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
@@ -121,6 +122,16 @@ export const useAuthStore = create<AuthState>()(
               }
             : null,
         })),
+
+      setParentSession: (user, token) =>
+        set({
+          user,
+          token,
+          sessionMode: 'parent',
+          activeChild: null,
+          isAuthenticated: true,
+          isLoading: false,
+        }),
 
       returnToParentSession: (user, token) => {
         set({

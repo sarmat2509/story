@@ -4,6 +4,7 @@ import {
   ChildModePolicyError,
   assertChildAudioGenerationControls,
   assertChildQuizGenerationControls,
+  assertChildStoryContinuationControls,
   assertChildStoryRequestControls,
 } from '../childModePolicyService';
 
@@ -193,6 +194,68 @@ void (async function main() {
     }).parentReviewRequired,
     true,
     'parent review setting is carried into the story creation decision'
+  );
+
+  assertPolicyError(
+    () =>
+      assertChildStoryContinuationControls({
+        settings: { ...DEFAULT_CHILD_MODE_SETTINGS, storyContinuationEnabled: false },
+        dailyCreatedCount: 0,
+        monthlyCreatedCount: 0,
+      }),
+    'CHILD_STORY_CONTINUATION_DISABLED'
+  );
+
+  assert.doesNotThrow(
+    () =>
+      assertChildStoryContinuationControls({
+        settings: DEFAULT_CHILD_MODE_SETTINGS,
+        dailyCreatedCount: 0,
+        monthlyCreatedCount: 0,
+      }),
+    'child continuations are enabled by default'
+  );
+
+  assert.deepStrictEqual(
+    assertChildStoryContinuationControls({
+      settings: {
+        ...DEFAULT_CHILD_MODE_SETTINGS,
+        storyContinuationEnabled: true,
+        parentReviewRequired: true,
+      },
+      dailyCreatedCount: 0,
+      monthlyCreatedCount: 0,
+    }).parentReviewRequired,
+    true,
+    'enabled child continuations carry the parent-review requirement'
+  );
+
+  assertPolicyError(
+    () =>
+      assertChildStoryContinuationControls({
+        settings: {
+          ...DEFAULT_CHILD_MODE_SETTINGS,
+          storyGenerationEnabled: false,
+          storyContinuationEnabled: true,
+        },
+        dailyCreatedCount: 0,
+        monthlyCreatedCount: 0,
+      }),
+    'CHILD_STORY_GENERATION_DISABLED'
+  );
+
+  assertPolicyError(
+    () =>
+      assertChildStoryContinuationControls({
+        settings: {
+          ...DEFAULT_CHILD_MODE_SETTINGS,
+          storyContinuationEnabled: true,
+          dailyGenerationLimit: 1,
+        },
+        dailyCreatedCount: 1,
+        monthlyCreatedCount: 1,
+      }),
+    'CHILD_DAILY_LIMIT_REACHED'
   );
 
   assertPolicyError(

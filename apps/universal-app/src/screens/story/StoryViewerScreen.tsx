@@ -326,6 +326,8 @@ export default function StoryViewerScreen() {
   const childModeSettings = activeChild?.childMode?.childModeSettings;
   const audioGenerationEnabled =
     !isChildSession || childModeSettings?.audioGenerationEnabled === true;
+  const storyContinuationEnabled =
+    !isChildSession || childModeSettings?.storyContinuationEnabled === true;
   const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
   const canOpenAdminStory = Platform.OS === 'web' && user?.role === 'admin' && !isChildSession;
@@ -1900,7 +1902,7 @@ export default function StoryViewerScreen() {
 
   // M8: Render continue section (after story content)
   const renderContinueButton = () => {
-    if (isChildSession) return null;
+    if (!storyContinuationEnabled) return null;
 
     // Hide if there's a next part in the series
     if (seriesInfo && story.partNumber && story.partNumber < seriesInfo.totalParts) {
@@ -1916,6 +1918,8 @@ export default function StoryViewerScreen() {
         }
         userPlan={userPlan}
         onNavigateToPlans={() => navigation.navigate('Plans' as any)}
+        allowScheduling={!isChildSession}
+        skipPlanGate={isChildSession}
       />
     );
   };

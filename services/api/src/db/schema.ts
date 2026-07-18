@@ -715,6 +715,7 @@ export const childProfiles = pgTable(
     childModePasscodeSetAt: timestamp('child_mode_passcode_set_at'),
     childModeSettings: jsonb('child_mode_settings').notNull().default({
       storyGenerationEnabled: true,
+      storyContinuationEnabled: true,
       publicStoriesEnabled: true,
       dailyGenerationLimit: null,
       dailyAudioGenerationLimit: null,

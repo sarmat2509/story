@@ -38,7 +38,11 @@ export default function SeriesDetailScreen() {
   const { width } = useWindowDimensions();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const enterKey = useScreenEnter();
-  const isChildSession = useAuthStore((state) => state.sessionMode === 'child');
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const activeChild = useAuthStore((state) => state.activeChild);
+  const isChildSession = sessionMode === 'child';
+  const storyContinuationEnabled =
+    !isChildSession || activeChild?.childMode?.childModeSettings?.storyContinuationEnabled === true;
 
   const seriesId = route.params?.seriesId;
 
@@ -174,7 +178,7 @@ export default function SeriesDetailScreen() {
                 <PendingPartCard partNumber={nextPartNumber} />
               </AnimatedSection>
             ))}
-          {!isChildSession &&
+          {storyContinuationEnabled &&
             !showPendingCard &&
             lastStory &&
             (Platform.OS === 'web' ? (
@@ -188,6 +192,8 @@ export default function SeriesDetailScreen() {
                   }
                   userPlan={userPlan}
                   onNavigateToPlans={() => navigation.navigate('Plans' as never)}
+                  allowScheduling={!isChildSession}
+                  skipPlanGate={isChildSession}
                   variant="card"
                 />
               </AnimatedSection>
@@ -207,6 +213,8 @@ export default function SeriesDetailScreen() {
                   }
                   userPlan={userPlan}
                   onNavigateToPlans={() => navigation.navigate('Plans' as never)}
+                  allowScheduling={!isChildSession}
+                  skipPlanGate={isChildSession}
                   variant="card"
                 />
               </AnimatedSection>

@@ -16,6 +16,7 @@ export class ChildModePolicyError extends Error {
       | 'CHILD_PROFILE_MISMATCH'
       | 'CHILD_MODE_DISABLED'
       | 'CHILD_STORY_GENERATION_DISABLED'
+      | 'CHILD_STORY_CONTINUATION_DISABLED'
       | 'CHILD_FREE_TEXT_DISABLED'
       | 'CHILD_AUDIO_DISABLED'
       | 'CHILD_SESSION_QUIZ_DISABLED'
@@ -37,6 +38,8 @@ export interface ChildStoryPolicyDecision {
   parentReviewRequired: boolean;
   settings: ChildModeSettings;
 }
+
+export type ChildStoryContinuationPolicyDecision = ChildStoryPolicyDecision;
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -248,6 +251,101 @@ export async function assertChildStoryRequestAllowed(params: {
     monthlyCreatedCount,
     selfCharacterIds: selfCharacter ? [selfCharacter.id] : [],
     selectedCharacterChildProfileIds,
+  });
+}
+
+export function assertChildStoryContinuationControls(params: {
+  settings: ChildModeSettings;
+  dailyCreatedCount: number;
+  monthlyCreatedCount: number;
+}): ChildStoryContinuationPolicyDecision {
+  const { settings } = params;
+
+  if (!settings.storyGenerationEnabled) {
+    throw new ChildModePolicyError(
+      'Story generation is disabled in Child Mode',
+      'CHILD_STORY_GENERATION_DISABLED',
+      403
+    );
+  }
+
+  if (!settings.storyContinuationEnabled) {
+    throw new ChildModePolicyError(
+      'Story continuations are disabled in Child Mode',
+      'CHILD_STORY_CONTINUATION_DISABLED',
+      403
+    );
+  }
+
+  if (
+    settings.dailyGenerationLimit !== null &&
+    params.dailyCreatedCount >= settings.dailyGenerationLimit
+  ) {
+    throw new ChildModePolicyError(
+      'Daily Child Mode story limit reached',
+      'CHILD_DAILY_LIMIT_REACHED',
+      429
+    );
+  }
+
+  if (
+    settings.monthlyGenerationLimit !== null &&
+    params.monthlyCreatedCount >= settings.monthlyGenerationLimit
+  ) {
+    throw new ChildModePolicyError(
+      'Monthly Child Mode story limit reached',
+      'CHILD_MONTHLY_LIMIT_REACHED',
+      429
+    );
+  }
+
+  return {
+    parentReviewRequired: settings.parentReviewRequired,
+    settings,
+  };
+}
+
+export async function assertChildStoryContinuationAllowed(params: {
+  parentUserId: string;
+  sessionChildProfileId: string;
+  now?: Date;
+}): Promise<ChildStoryContinuationPolicyDecision> {
+  const profile = await getChildProfileRepository().findById(
+    params.sessionChildProfileId,
+    params.parentUserId
+  );
+
+  if (!profile) {
+    throw new ChildModePolicyError('Child profile not found', 'CHILD_PROFILE_NOT_FOUND', 404);
+  }
+
+  const controls = buildChildModeControls(profile);
+  if (!controls.childModeEnabled) {
+    throw new ChildModePolicyError(
+      'Child Mode is not enabled for this child',
+      'CHILD_MODE_DISABLED',
+      403
+    );
+  }
+
+  const now = params.now ?? new Date();
+  const [dailyCreatedCount, monthlyCreatedCount] = await Promise.all([
+    getStoryRepository().countChildCreatedRequestsSince(
+      params.parentUserId,
+      params.sessionChildProfileId,
+      startOfDay(now)
+    ),
+    getStoryRepository().countChildCreatedRequestsSince(
+      params.parentUserId,
+      params.sessionChildProfileId,
+      startOfMonth(now)
+    ),
+  ]);
+
+  return assertChildStoryContinuationControls({
+    settings: controls.childModeSettings,
+    dailyCreatedCount,
+    monthlyCreatedCount,
   });
 }
 

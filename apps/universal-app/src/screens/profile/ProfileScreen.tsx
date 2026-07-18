@@ -36,7 +36,13 @@ import {
   usePrivacyRequests,
   type PrivacyRequestType,
 } from '@/api/privacyRequests';
-import { useDeleteAccount, useUpdateChildModeExitPasscode, useUpdateMe, useUser } from '@/api/auth';
+import {
+  useDeleteAccount,
+  useRequestChildModeExitRecovery,
+  useUpdateChildModeExitPasscode,
+  useUpdateMe,
+  useUser,
+} from '@/api/auth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
@@ -82,6 +88,7 @@ export default function ProfileScreen() {
   const updateStoryMode = useUpdateMe();
   const updateAvatar = useUpdateMe();
   const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
+  const requestChildModeExitRecovery = useRequestChildModeExitRecovery();
   const deleteAccount = useDeleteAccount();
   const currentUserQuery = useUser();
   const profileUser = currentUserQuery.data ?? user;
@@ -385,6 +392,23 @@ export default function ProfileScreen() {
       Alert.alert(
         t('common.error'),
         getLocalizedApiError(t, error, 'profile.child_mode_exit_passcode_error')
+      );
+    }
+  };
+
+  const handleRequestChildModeExitPasscodeRecovery = async () => {
+    try {
+      await requestChildModeExitRecovery.mutateAsync();
+      Alert.alert(
+        t('auth.reset_link_sent_title'),
+        t('child_mode.recovery_request_sent', {
+          defaultValue: 'A recovery link was sent to the parent email. It works for 30 minutes.',
+        })
+      );
+    } catch (error) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, error, 'child_mode.recovery_request_failed')
       );
     }
   };
@@ -1148,6 +1172,23 @@ export default function ProfileScreen() {
                   maxLength={128}
                   testID="profile-child-mode-passcode-current"
                 />
+                <TouchableOpacity
+                  onPress={handleRequestChildModeExitPasscodeRecovery}
+                  disabled={requestChildModeExitRecovery.isPending}
+                  accessibilityRole="button"
+                  style={styles.passcodeRecoveryLink}
+                  testID="profile-child-mode-passcode-recovery"
+                >
+                  <Text style={styles.passcodeRecoveryLinkText}>
+                    {requestChildModeExitRecovery.isPending
+                      ? t('child_mode.recovery_request_sending', {
+                          defaultValue: 'Sending recovery link...',
+                        })
+                      : t('child_mode.recovery_request_link', {
+                          defaultValue: 'Forgot the exit password?',
+                        })}
+                  </Text>
+                </TouchableOpacity>
               </View>
             ) : null}
 
@@ -1599,6 +1640,16 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     lineHeight: 20,
+  },
+  passcodeRecoveryLink: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  passcodeRecoveryLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
   },
   passcodeModalClose: {
     width: 40,

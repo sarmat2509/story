@@ -35,6 +35,10 @@ interface Props {
   seriesInfo?: SeriesInfo | null;
   userPlan?: string | null;
   onNavigateToPlans: () => void;
+  /** Child Mode can continue immediately but cannot manage automatic schedules. */
+  allowScheduling?: boolean;
+  /** The API remains the source of truth for plan access in Child Mode. */
+  skipPlanGate?: boolean;
   /** When true, renders compact card-style layout for grid placement */
   variant?: 'default' | 'card';
 }
@@ -44,6 +48,8 @@ export function ContinueSeriesSection({
   seriesInfo: _seriesInfo,
   userPlan,
   onNavigateToPlans,
+  allowScheduling = true,
+  skipPlanGate = false,
   variant = 'default',
 }: Props) {
   const { t } = useTranslation();
@@ -53,7 +59,7 @@ export function ContinueSeriesSection({
   const [cadenceDropdownOpen, setCadenceDropdownOpen] = useState(false);
   const [continuationRequestId, setContinuationRequestId] = useState<string | null>(null);
 
-  const { data: scheduleData } = useScheduleStatus(storyId);
+  const { data: scheduleData } = useScheduleStatus(storyId, { enabled: allowScheduling });
   const generateContinuation = useGenerateContinuation();
   const scheduleContinuation = useScheduleContinuation();
   const unscheduleContinuation = useUnscheduleContinuation();
@@ -62,7 +68,7 @@ export function ContinueSeriesSection({
     !!continuationRequestId
   );
 
-  const hasSeriesAccess = userPlan === 'golden' || userPlan === 'fairyworld';
+  const hasSeriesAccess = skipPlanGate || userPlan === 'golden' || userPlan === 'fairyworld';
   const hasSchedule =
     scheduleData &&
     typeof scheduleData === 'object' &&
@@ -135,12 +141,16 @@ export function ContinueSeriesSection({
           onPress={handleContinue}
           disabled={generateContinuation.isPending}
           loading={generateContinuation.isPending}
+          testID="continue-story-button"
           leading={<Ionicons name="play-forward" size={22} color={theme.colors.text.inverse} />}
           style={actionStyle}
           size={variant === 'card' ? 'md' : 'lg'}
         />
+        {!allowScheduling && (
+          <Text style={styles.childScheduleHint}>{t('story_viewer.child_schedule_hint')}</Text>
+        )}
 
-        {scheduleData !== undefined && !inProgressOnly && (
+        {allowScheduling && scheduleData !== undefined && !inProgressOnly && (
           <View style={styles.scheduleBlock}>
             <View style={styles.scheduleOrRow}>
               <View style={styles.scheduleOrLine} />
@@ -256,7 +266,7 @@ export function ContinueSeriesSection({
             )}
           </View>
         )}
-        {inProgressOnly && (
+        {allowScheduling && inProgressOnly && (
           <Text style={styles.scheduleInProgressText}>
             {t('story_viewer.schedule_cancel_in_progress')}
           </Text>
@@ -314,6 +324,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textAlign: 'center',
     marginBottom: theme.spacing[4],
+  },
+  childScheduleHint: {
+    marginTop: theme.spacing[3],
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+    maxWidth: 440,
   },
   continueAction: {
     minWidth: 280,

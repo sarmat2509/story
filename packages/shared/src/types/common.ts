@@ -61,6 +61,7 @@ export interface ChildProfileData {
 
 export interface ChildModeSettings {
   storyGenerationEnabled: boolean;
+  storyContinuationEnabled: boolean;
   publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
   dailyAudioGenerationLimit: number | null;

@@ -201,6 +201,12 @@ export default function ChildDetailScreen() {
     storyGenerationDescription: t('children_screen.child_mode_story_generation_description', {
       defaultValue: 'Lets the child create stories in child mode.',
     }),
+    storyContinuation: t('children_screen.child_mode_story_continuation', {
+      defaultValue: 'Story continuations',
+    }),
+    storyContinuationDescription: t('children_screen.child_mode_story_continuation_description', {
+      defaultValue: 'Lets the child continue a finished story as a new part of its series.',
+    }),
     publicStories: t('children_screen.child_mode_public_stories', {
       defaultValue: 'Public stories',
     }),

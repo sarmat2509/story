@@ -57,6 +57,7 @@ interface Props {
 
 interface ChildModeSettings {
   storyGenerationEnabled: boolean;
+  storyContinuationEnabled: boolean;
   publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
   dailyAudioGenerationLimit: number | null;
@@ -95,6 +96,8 @@ interface ChildModeLabels {
   reviewDescription: string;
   storyGeneration: string;
   storyGenerationDescription: string;
+  storyContinuation: string;
+  storyContinuationDescription: string;
   publicStories: string;
   publicStoriesDescription: string;
   dailyAudioLimit: string;
@@ -136,6 +139,7 @@ interface ChildModeLimitHints {
 
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   storyGenerationEnabled: true,
+  storyContinuationEnabled: true,
   publicStoriesEnabled: true,
   dailyGenerationLimit: null,
   dailyAudioGenerationLimit: null,
@@ -660,6 +664,16 @@ export function ChildCard({
                 onChildModeSettingsChange?.(child.id, { storyGenerationEnabled })
               }
               testID={`child-mode-setting-${child.id}-story-generation`}
+            />
+            <SettingSwitch
+              label={labels.storyContinuation}
+              description={labels.storyContinuationDescription}
+              value={childModeSettings.storyContinuationEnabled}
+              disabled={controlsDisabled}
+              onValueChange={(storyContinuationEnabled) =>
+                onChildModeSettingsChange?.(child.id, { storyContinuationEnabled })
+              }
+              testID={`child-mode-setting-${child.id}-story-continuation`}
             />
             <SettingSwitch
               label={labels.publicStories}

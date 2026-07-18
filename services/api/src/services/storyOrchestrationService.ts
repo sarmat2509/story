@@ -580,6 +580,11 @@ export async function createContinuationRequest(
     // Scheduled continuation (from scheduler)
     isScheduledContinuation?: boolean;
     scheduleId?: string;
+  },
+  options?: {
+    createdByMode?: StoryCreatedByMode;
+    createdByChildProfileId?: string | null;
+    parentReviewRequired?: boolean;
   }
 ): Promise<string> {
   try {
@@ -603,10 +608,19 @@ export async function createContinuationRequest(
       ageGroup: input.ageGroup,
       excludedGoal: input.excludedMoralTheme,
     });
+    const attribution = buildStoryCreationAttribution({
+      createdByMode: options?.createdByMode,
+      createdByChildProfileId: options?.createdByChildProfileId,
+      fallbackChildProfileId: input.childProfileId,
+      parentReviewRequired: options?.parentReviewRequired,
+    });
 
     const requestData = {
       userId,
       childProfileId: input.childProfileId,
+      createdByMode: attribution.createdByMode,
+      createdByChildProfileId: attribution.createdByChildProfileId,
+      parentReviewRequired: attribution.parentReviewRequired,
       uiLocale: 'uk', // Use default, doesn't affect story
       storyLanguage: input.language,
       goal: resolvedGoal,

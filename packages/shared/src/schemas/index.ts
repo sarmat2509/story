@@ -374,6 +374,7 @@ export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({
 
 export const ChildModeSettingsSchema = z.object({
   storyGenerationEnabled: z.boolean().optional(),
+  storyContinuationEnabled: z.boolean().optional(),
   publicStoriesEnabled: z.boolean().optional(),
   dailyGenerationLimit: z.number().int().min(0).max(100).nullable().optional(),
   dailyAudioGenerationLimit: z.number().int().min(0).max(100).nullable().optional(),
@@ -396,6 +397,7 @@ export const UpdateChildModeControlsSchema = z.object({
 
 export const UpdateChildModeExitPasscodeSchema = z.object({
   oldPasscode: z.string().min(4).max(128).optional(),
+  recoveryToken: z.string().min(1).max(255).optional(),
   newPasscode: z.string().min(4).max(128),
 });
 

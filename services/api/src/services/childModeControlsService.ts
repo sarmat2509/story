@@ -15,6 +15,7 @@ import { FAMILY_STORIES_READ_SCOPE } from './childStoryAccessService';
 
 export interface ChildModeSettings {
   storyGenerationEnabled: boolean;
+  storyContinuationEnabled: boolean;
   publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
   dailyAudioGenerationLimit: number | null;
@@ -64,9 +65,11 @@ export interface ChildModeRecoveryTokenResult {
 }
 
 const CHILD_MODE_RECOVERY_TOKEN_EXPIRY_MINUTES = 30;
+const CHILD_MODE_PASSCODE_RESET_TOKEN_EXPIRY_MINUTES = 15;
 
 export const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   storyGenerationEnabled: true,
+  storyContinuationEnabled: true,
   publicStoriesEnabled: true,
   dailyGenerationLimit: null,
   dailyAudioGenerationLimit: null,
@@ -98,7 +101,8 @@ export class ChildModePasscodeError extends Error {
     public readonly code:
       | 'CHILD_MODE_PASSCODE_REQUIRED'
       | 'CHILD_MODE_PASSCODE_NOT_CONFIGURED'
-      | 'CHILD_MODE_PASSCODE_INVALID',
+      | 'CHILD_MODE_PASSCODE_INVALID'
+      | 'CHILD_MODE_PASSCODE_RECOVERY_INVALID',
     public readonly statusCode: number
   ) {
     super(message);
@@ -141,6 +145,10 @@ export function normalizeChildModeSettings(raw: unknown): ChildModeSettings {
     storyGenerationEnabled: normalizeBoolean(
       input.storyGenerationEnabled,
       DEFAULT_CHILD_MODE_SETTINGS.storyGenerationEnabled
+    ),
+    storyContinuationEnabled: normalizeBoolean(
+      input.storyContinuationEnabled,
+      DEFAULT_CHILD_MODE_SETTINGS.storyContinuationEnabled
     ),
     publicStoriesEnabled: normalizeBoolean(
       input.publicStoriesEnabled,
@@ -395,11 +403,13 @@ export async function updateChildModeExitPasscode(
   userId: string,
   input: {
     oldPasscode?: string;
+    recoveryToken?: string;
     newPasscode: string;
   }
 ): Promise<UpdateChildModeExitPasscodeResult> {
   const user = await getUserRepository().findById(userId);
   const newPasscode = input.newPasscode.trim();
+  const recoveryToken = input.recoveryToken?.trim();
 
   if (!user) {
     throw new ChildModePasscodeError(
@@ -417,7 +427,23 @@ export async function updateChildModeExitPasscode(
     );
   }
 
-  if (user.childModeExitPasscodeHash) {
+  let recoveryAuthorized = false;
+  if (recoveryToken) {
+    const tokenRow = await getPasswordResetTokenRepository().findByToken(
+      recoveryToken,
+      'child_mode_passcode_reset'
+    );
+    if (!tokenRow || tokenRow.userId !== userId) {
+      throw new ChildModePasscodeError(
+        'Child Mode exit passcode recovery is invalid or expired',
+        'CHILD_MODE_PASSCODE_RECOVERY_INVALID',
+        400
+      );
+    }
+    recoveryAuthorized = true;
+  }
+
+  if (user.childModeExitPasscodeHash && !recoveryAuthorized) {
     const oldPasscode = input.oldPasscode?.trim();
     if (!oldPasscode) {
       throw new ChildModePasscodeError(
@@ -441,6 +467,10 @@ export async function updateChildModeExitPasscode(
     childModeExitPasscodeHash: await hashPassword(newPasscode),
     childModeExitPasscodeSetAt: new Date(),
   });
+
+  if (recoveryAuthorized && recoveryToken) {
+    await getPasswordResetTokenRepository().deleteByToken(recoveryToken);
+  }
 
   logger.info({ userId }, 'Updated account-level Child Mode exit passcode');
 
@@ -501,6 +531,43 @@ export async function requestChildModeExitPasscodeRecovery(
     { userId, childProfileId, childSessionId },
     'Child Mode exit passcode recovery email requested'
   );
+}
+
+export async function requestParentChildModeExitPasscodeRecovery(userId: string): Promise<void> {
+  const user = await getUserRepository().findById(userId);
+
+  if (!user) {
+    throw new ChildModeRecoveryError(
+      'Parent account was not found',
+      'CHILD_MODE_RECOVERY_USER_NOT_FOUND',
+      404
+    );
+  }
+
+  const tokenRepo = getPasswordResetTokenRepository();
+  const expiresAt = new Date(Date.now() + CHILD_MODE_RECOVERY_TOKEN_EXPIRY_MINUTES * 60 * 1000);
+  const tokenRow = await tokenRepo.create(user.id, expiresAt, {
+    purpose: 'child_mode_recovery',
+    metadata: { requestedFrom: 'parent_profile' },
+  });
+
+  await sendChildModeRecoveryEmail(
+    user.email,
+    buildChildModeRecoveryLink(tokenRow.token, user.preferredLocale),
+    user.preferredLocale
+  );
+
+  logger.info({ userId }, 'Child Mode exit passcode recovery requested from parent profile');
+}
+
+export async function issueChildModeExitPasscodeResetToken(userId: string): Promise<string> {
+  const expiresAt = new Date(
+    Date.now() + CHILD_MODE_PASSCODE_RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000
+  );
+  const tokenRow = await getPasswordResetTokenRepository().create(userId, expiresAt, {
+    purpose: 'child_mode_passcode_reset',
+  });
+  return tokenRow.token;
 }
 
 export async function consumeChildModeExitPasscodeRecoveryToken(

@@ -21,6 +21,9 @@ type ChildModeRecoveryRequestResponse = {
   status: string;
   message: string;
 };
+type ChildModeRecoveryCompleteResponse = ParentGateResponse & {
+  childModeExitPasscodeResetToken: string;
+};
 
 /**
  * Mirror the user's server-side theme palette preference into the local
@@ -213,11 +216,11 @@ export const useRequestChildModeExitRecovery = () => {
 
 export const useCompleteChildModeExitRecovery = () => {
   const queryClient = useQueryClient();
-  const { returnToParentSession } = useAuthStore();
+  const { setParentSession } = useAuthStore();
 
   return useMutation({
     mutationFn: async (token: string) => {
-      const response = await apiClient.post<ParentGateResponse>(
+      const response = await apiClient.post<ChildModeRecoveryCompleteResponse>(
         '/api/v1/auth/child-mode/recovery/complete',
         { token },
         { skipAuthLogoutOn401: true }
@@ -225,7 +228,7 @@ export const useCompleteChildModeExitRecovery = () => {
       return response.data;
     },
     onSuccess: async (data) => {
-      await applyParentGateResponse(data, queryClient, returnToParentSession);
+      await applyParentGateResponse(data, queryClient, setParentSession);
     },
   });
 };
@@ -330,7 +333,11 @@ export const useUpdateChildModeExitPasscode = () => {
   const { setUser } = useAuthStore();
 
   return useMutation({
-    mutationFn: async (data: { oldPasscode?: string; newPasscode: string }) => {
+    mutationFn: async (data: {
+      oldPasscode?: string;
+      recoveryToken?: string;
+      newPasscode: string;
+    }) => {
       const response = await apiClient.patch<{
         status: string;
         user: User;
