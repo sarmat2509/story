@@ -514,6 +514,9 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       const firstPhoto = hasPhotos ? referencePhotos!.find((p) => p && p.url) : undefined;
       const hasDescription =
         profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
+      const currentAgeMonths = childProfileService.getAgeData(
+        new Date(profile.birthDate)
+      ).ageMonths;
 
       if (firstPhoto?.url) {
         await generateTurnaroundSheetFromReference({
@@ -523,6 +526,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
           characterName: profile.name,
           userId,
           aiDescription: profile.aiGeneratedDescription,
+          currentAgeMonths,
         });
       } else if (hasDescription) {
         await generateTurnaroundSheetFromDescription({
@@ -530,6 +534,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
           targetId: profile.id,
           characterName: profile.name,
           characterDescription: profile.aiGeneratedDescription,
+          currentAgeMonths,
           userId,
         });
       }

@@ -839,6 +839,7 @@ export class ImageDomainService {
       referenceMimeType: string;
       characterName: string;
       characterDescription?: string;
+      currentAgeMonths?: number;
     },
     options?: ImageDomainOptions
   ): Promise<GeneratedImage> {
@@ -854,6 +855,7 @@ export class ImageDomainService {
     const prompt = buildTurnaroundPrompt({
       characterName: params.characterName,
       characterDescription: params.characterDescription,
+      currentAgeMonths: params.currentAgeMonths,
     });
 
     // Build request with the child's drawing as a reference image.
@@ -895,6 +897,7 @@ export class ImageDomainService {
       characterName: string;
       characterDescription: string;
       imageStyle?: string;
+      currentAgeMonths?: number;
     },
     options?: ImageDomainOptions
   ): Promise<GeneratedImage> {
@@ -910,6 +913,7 @@ export class ImageDomainService {
       characterName: params.characterName,
       characterDescription: params.characterDescription,
       imageStyle: params.imageStyle,
+      currentAgeMonths: params.currentAgeMonths,
     });
 
     // Do NOT pass personGeneration: turnaround model (gemini-3-pro-image-preview) does not support it.

@@ -42,8 +42,7 @@ function getLlmTurnaroundImageDomain(): ImageDomainService {
   return llmTurnaroundImageDomain;
 }
 
-export interface TurnaroundSheetFromReferenceParams {
-  targetType: 'character' | 'child';
+interface TurnaroundSheetFromReferenceBaseParams {
   targetId: string;
   referencePhotoUrls: string[];
   characterName: string;
@@ -52,11 +51,22 @@ export interface TurnaroundSheetFromReferenceParams {
   aiDescription?: string;
 }
 
+export type TurnaroundSheetFromReferenceParams =
+  | (TurnaroundSheetFromReferenceBaseParams & {
+      targetType: 'child';
+      currentAgeMonths: number;
+    })
+  | (TurnaroundSheetFromReferenceBaseParams & {
+      targetType: 'character';
+      currentAgeMonths?: never;
+    });
+
 export interface TurnaroundSheetFromDescriptionParams {
   targetType: 'child';
   targetId: string;
   characterName: string;
   characterDescription: string;
+  currentAgeMonths: number;
   userId: string;
 }
 
@@ -96,7 +106,16 @@ async function uploadFrontThumbnail(params: {
 export async function generateTurnaroundSheetFromReference(
   params: TurnaroundSheetFromReferenceParams,
 ): Promise<TurnaroundSheetResult> {
-  const { targetType, targetId, referencePhotoUrls, characterName, userId, storyId, aiDescription } = params;
+  const {
+    targetType,
+    targetId,
+    referencePhotoUrls,
+    characterName,
+    userId,
+    storyId,
+    aiDescription,
+    currentAgeMonths,
+  } = params;
 
   const firstUrl = referencePhotoUrls.find(u => u && u.trim());
   if (!firstUrl) {
@@ -108,6 +127,7 @@ export async function generateTurnaroundSheetFromReference(
     targetId,
     characterName,
     hasDescription: !!aiDescription,
+    currentAgeMonths,
   }, 'Starting turnaround sheet generation from reference');
 
   const assetStorage = getAssetStorageService();
@@ -133,6 +153,7 @@ export async function generateTurnaroundSheetFromReference(
       referenceMimeType: mimeType,
       characterName,
       characterDescription: aiDescription,
+      currentAgeMonths,
     },
     { onUsage: (u) => recordUsage(u, usageContext) }
   );
@@ -204,20 +225,21 @@ export async function generateTurnaroundSheetFromReference(
 export async function generateTurnaroundSheetFromDescription(
   params: TurnaroundSheetFromDescriptionParams,
 ): Promise<TurnaroundSheetResult> {
-  const { targetId, characterName, characterDescription, userId } = params;
+  const { targetId, characterName, characterDescription, currentAgeMonths, userId } = params;
 
   logger.info({
     childId: targetId,
     userId,
     characterName,
     descriptionLength: characterDescription.length,
+    currentAgeMonths,
   }, 'Starting text-only turnaround sheet generation for child');
 
   const imageDomain = getTurnaroundImageDomain();
   const usageContext = { userId, childProfileId: targetId };
 
   const generated = await imageDomain.generateTurnaroundSheetFromDescription(
-    { characterName, characterDescription },
+    { characterName, characterDescription, currentAgeMonths },
     { onUsage: (u) => recordUsage(u, usageContext) }
   );
 

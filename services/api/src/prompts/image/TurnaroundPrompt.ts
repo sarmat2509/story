@@ -9,6 +9,28 @@
 export interface TurnaroundPromptParams {
   characterName: string;
   characterDescription?: string; // AI-generated description from Gemini Vision analysis
+  currentAgeMonths?: number;
+}
+
+function formatCurrentAge(totalMonths: number): string {
+  const normalizedMonths = Math.max(0, Math.floor(totalMonths));
+  const years = Math.floor(normalizedMonths / 12);
+  const months = normalizedMonths % 12;
+  const yearPart = `${years} ${years === 1 ? 'year' : 'years'}`;
+  const monthPart = `${months} ${months === 1 ? 'month' : 'months'}`;
+
+  if (years === 0) return monthPart;
+  if (months === 0) return yearPart;
+  return `${yearPart} and ${monthPart}`;
+}
+
+function appendCurrentAge(lines: string[], currentAgeMonths: number | undefined): void {
+  if (currentAgeMonths === undefined || !Number.isFinite(currentAgeMonths)) return;
+  lines.push(
+    '',
+    `CURRENT AGE: ${formatCurrentAge(currentAgeMonths)}.`,
+    'Treat this server-calculated age as authoritative for body proportions and facial maturity.',
+  );
 }
 
 /**
@@ -16,7 +38,7 @@ export interface TurnaroundPromptParams {
  * The reference drawing is passed separately as an image to the provider.
  */
 export function buildTurnaroundPrompt(params: TurnaroundPromptParams): string {
-  const { characterName, characterDescription } = params;
+  const { characterName, characterDescription, currentAgeMonths } = params;
 
   const lines: string[] = [
     `Create a character turnaround model sheet for the attached character drawing of "${characterName}".`,
@@ -49,6 +71,8 @@ export function buildTurnaroundPrompt(params: TurnaroundPromptParams): string {
     );
   }
 
+  appendCurrentAge(lines, currentAgeMonths);
+
   return lines.join('\n');
 }
 
@@ -56,6 +80,7 @@ export interface TextOnlyTurnaroundParams {
   characterName: string;
   characterDescription: string;
   imageStyle?: string;
+  currentAgeMonths?: number;
 }
 
 /**
@@ -64,7 +89,7 @@ export interface TextOnlyTurnaroundParams {
  * Used for LLM-invented characters.
  */
 export function buildTextOnlyTurnaroundPrompt(params: TextOnlyTurnaroundParams): string {
-  const { characterName, characterDescription, imageStyle } = params;
+  const { characterName, characterDescription, imageStyle, currentAgeMonths } = params;
 
   const styleNote = imageStyle
     ? `Art style: ${imageStyle} — apply this style consistently across all 4 views.`
@@ -81,6 +106,11 @@ export function buildTextOnlyTurnaroundPrompt(params: TextOnlyTurnaroundParams):
     '',
     'CHARACTER DESCRIPTION (create the character from this description):',
     characterDescription,
+  ];
+
+  appendCurrentAge(lines, currentAgeMonths);
+
+  lines.push(
     '',
     'CRITICAL RULES:',
     '- Faithfully interpret every detail from the description above',
@@ -93,7 +123,7 @@ export function buildTextOnlyTurnaroundPrompt(params: TextOnlyTurnaroundParams):
     '- Same scale for all views',
     `- ${styleNote}`,
     '- Do NOT add any elements or accessories not mentioned in the description',
-  ];
+  );
 
   return lines.join('\n');
 }
