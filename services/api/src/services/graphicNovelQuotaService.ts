@@ -10,6 +10,7 @@ import {
   truncateQuotaReleaseErrorMessage,
   type QuotaReservationReleaseReason,
 } from './quotaReservationReleaseUtils';
+import { getActivatedConditionalQuotaExtension } from './conditionalQuotaExtensionService';
 
 export const GRAPHIC_NOVEL_USAGE_EVENT = 'graphic_novel_created';
 
@@ -101,7 +102,14 @@ export async function assertGraphicNovelQuotaAvailable(userId: string): Promise<
         graphicNovelsPlanLimit: planLimit,
       })
     : 0;
-  const limit = planLimit + bundleBonus;
+  const conditionalExtension = getActivatedConditionalQuotaExtension({
+    metadata: subscription?.metadata as Record<string, unknown> | null,
+    featureSlug: 'graphic_novels_per_month',
+    currentUsage: used,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+  });
+  const limit = planLimit + bundleBonus + conditionalExtension;
   const quota = calculateGraphicNovelQuota({ limit, used });
 
   if (!quota.allowed) {

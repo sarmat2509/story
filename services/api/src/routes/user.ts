@@ -274,6 +274,8 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } =
       await import('../services/bundleService');
     const { getGraphicNovelUsageForPeriod } = await import('../services/graphicNovelQuotaService');
+    const { getActivatedConditionalQuotaExtension } =
+      await import('../services/conditionalQuotaExtensionService');
     const usageOwnerId = req.parentUserId || req.user!.id;
     const childSafe = req.sessionMode === 'child';
     const features = await getPlanFeatures(usageOwnerId);
@@ -314,10 +316,26 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       storiesPlanLimit,
       graphicNovelsPlanLimit,
     });
-    const storiesLimit = storiesPlanLimit + bundleBonus.extraStories;
+    const storiesConditionalExtension = getActivatedConditionalQuotaExtension({
+      metadata: subscription.metadata as Record<string, unknown> | null,
+      featureSlug: 'stories_per_month',
+      currentUsage: storiesUsed,
+      periodStart: currentPeriodStart,
+      periodEnd: currentPeriodEnd,
+    });
+    const graphicNovelsConditionalExtension = getActivatedConditionalQuotaExtension({
+      metadata: subscription.metadata as Record<string, unknown> | null,
+      featureSlug: 'graphic_novels_per_month',
+      currentUsage: graphicNovelsUsed,
+      periodStart: currentPeriodStart,
+      periodEnd: currentPeriodEnd,
+    });
+    const storiesLimit =
+      storiesPlanLimit + bundleBonus.extraStories + storiesConditionalExtension;
     const mixedStoriesLimit =
       mixedStoriesPlanLimit > 0 ? mixedStoriesPlanLimit + bundleBonus.extraStories : 0;
-    const graphicNovelsLimit = graphicNovelsPlanLimit + graphicNovelsBundleBonus;
+    const graphicNovelsLimit =
+      graphicNovelsPlanLimit + graphicNovelsBundleBonus + graphicNovelsConditionalExtension;
     const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
 
     const { default: config } = await import('../config');

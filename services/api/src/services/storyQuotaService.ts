@@ -8,6 +8,7 @@ import {
   type QuotaReservationReleaseReason,
 } from './quotaReservationReleaseUtils';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
+import { getActivatedConditionalQuotaExtension } from './conditionalQuotaExtensionService';
 
 export type StoryQuotaReservationSource =
   | 'wizard'
@@ -123,6 +124,7 @@ export async function createStoryRequestWithQuotaReservation(
         currentPeriodEnd: schema.userSubscriptions.currentPeriodEnd,
         resetAt: schema.userSubscriptions.resetAt,
         paymentProvider: schema.userSubscriptions.paymentProvider,
+        metadata: schema.userSubscriptions.metadata,
       })
       .from(schema.userSubscriptions)
       .where(eq(schema.userSubscriptions.userId, userId))
@@ -200,9 +202,16 @@ export async function createStoryRequestWithQuotaReservation(
 
     const bundleBonus = Number(bundleRow?.extraStories ?? 0);
     const currentUsage = Number(usageRow?.total ?? 0);
+    const conditionalExtension = getActivatedConditionalQuotaExtension({
+      metadata: subscription.metadata as Record<string, unknown> | null,
+      featureSlug: 'stories_per_month',
+      currentUsage,
+      periodStart,
+      periodEnd,
+    });
     const quota = calculateStoryQuota({
       planLimit,
-      bundleBonus,
+      bundleBonus: bundleBonus + conditionalExtension,
       currentUsage,
       requestedQty: 1,
     });
@@ -250,6 +259,7 @@ export async function createStoryRequestWithQuotaReservation(
         source: options.source,
         limit: quota.effectiveLimit,
         usedBeforeReservation: currentUsage,
+        conditionalExtension,
       },
       'Reserved monthly story quota'
     );

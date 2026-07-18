@@ -7,6 +7,7 @@ import {
 } from '../services/bundleService';
 import { getUsageForPeriod } from '../services/usageEventsService';
 import type { UsageEventType } from '../services/usageEventsService';
+import { getActivatedConditionalQuotaExtension } from '../services/conditionalQuotaExtensionService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -93,12 +94,22 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
         } else if (slug === 'graphic_novels_per_month') {
           bundleBonusQty = graphicNovelsBundleBonus;
         }
-        const effectiveLimit = planLimit + bundleBonusQty;
         let used = 0;
         const eventType = FEATURE_SLUG_TO_EVENT_TYPE[slug];
         if (eventType) {
           used = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
         }
+        const conditionalExtension =
+          slug === 'stories_per_month' || slug === 'graphic_novels_per_month'
+            ? getActivatedConditionalQuotaExtension({
+                metadata: subscription.metadata as Record<string, unknown> | null,
+                featureSlug: slug,
+                currentUsage: used,
+                periodStart,
+                periodEnd,
+              })
+            : 0;
+        const effectiveLimit = planLimit + bundleBonusQty + conditionalExtension;
         const row: FeatureWithUsage = {
           limit: effectiveLimit,
           used,

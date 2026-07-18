@@ -1,6 +1,7 @@
 import { getPlanRepository } from '../repositories';
 import type { PlanFeatureWithDetails } from '../repositories/PlanRepository';
 import { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } from './bundleService';
+import { getActivatedConditionalQuotaExtension } from './conditionalQuotaExtensionService';
 import type {
   Plan,
   Feature,
@@ -392,8 +393,6 @@ export async function checkUsageLimit(
     }
   }
 
-  const effectiveLimit = limit + bundleBonus;
-
   // Get current usage from usage_events
   let currentUsage = 0;
   const eventType = FEATURE_SLUG_TO_EVENT_TYPE[featureSlug];
@@ -401,6 +400,18 @@ export async function checkUsageLimit(
     const { getUsageForPeriod } = await import('./usageEventsService');
     currentUsage = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
   }
+
+  const conditionalExtension =
+    featureSlug === 'stories_per_month' || featureSlug === 'graphic_novels_per_month'
+      ? getActivatedConditionalQuotaExtension({
+          metadata: subscription.metadata as Record<string, unknown> | null,
+          featureSlug,
+          currentUsage,
+          periodStart,
+          periodEnd,
+        })
+      : 0;
+  const effectiveLimit = limit + bundleBonus + conditionalExtension;
 
   const remaining = effectiveLimit - currentUsage;
   const allowed = remaining >= requestedQty;
