@@ -30,6 +30,7 @@
     "generate:story-artifact-thumbnails": "tsx src/scripts/generateStoryArtifactThumbnails.ts",
     "generate:voice-samples": "tsx src/scripts/generateVoiceSamples.ts",
     "seed:test-accounts": "tsx src/scripts/seedQaTestAccounts.ts",
+    "create:presentation-children": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/createPresentationChildProfiles.ts",
     "test:imagen": "npx tsx src/scripts/testImagenAPI.ts",
     "test:llm-character-persistence": "tsx src/services/__tests__/llmCharacterPersistence.test.ts",
     "test:character-identity-matching": "tsx src/services/__tests__/characterIdentityMatchingService.test.ts",
