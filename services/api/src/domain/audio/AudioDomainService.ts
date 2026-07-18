@@ -17,6 +17,26 @@ import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 export interface AudioDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
 }
+
+type AudioCacheInfrastructure = Pick<
+  ReturnType<typeof getTTSCacheService>,
+  'checkCache' | 'generateTextHash'
+>;
+type AudioStorageInfrastructure = Pick<
+  ReturnType<typeof getAssetStorageService>,
+  'uploadAsset' | 'getAssetBuffer'
+>;
+type AudioRateLimiterInfrastructure = Pick<ReturnType<typeof getAudioRateLimiter>, 'execute'>;
+
+/**
+ * Optional infrastructure boundaries for deterministic domain tests.
+ * Production callers omit this object and retain the existing singleton-backed behavior.
+ */
+export interface AudioDomainInfrastructure {
+  cacheService?: AudioCacheInfrastructure;
+  storageService?: AudioStorageInfrastructure;
+  rateLimiter?: AudioRateLimiterInfrastructure;
+}
 import type { Story } from '../../db/schema';
 import type { AudioMetadata, StoryAudioMetadata } from '@wondertales/shared';
 import { getAssetRepository, getVoiceRepository, getStoryRepository } from '../../repositories';
@@ -24,8 +44,8 @@ import { logger } from '../../utils/logger';
 import { getTTSCacheService } from '../../services/ttsCacheService';
 import { getAssetStorageService } from '../../services/assetStorageService';
 import { getAudioRateLimiter } from '../../services/audioRateLimiter';
+import { getAudioProvider } from '../../services/aiService';
 import { config } from '../../config';
-import { ElevenLabsProvider } from '../../providers/audio/elevenlabs/ElevenLabsProvider';
 import { stripForAudio } from '../../utils/audioTags';
 import {
   moveApprovedBracketTagsToSentenceStarts,
@@ -70,11 +90,30 @@ export interface AudioResult {
  * M6: Added forced alignment generation support
  */
 export class AudioDomainService {
-  private readonly cacheService = getTTSCacheService();
-  private readonly storageService = getAssetStorageService();
-  private readonly rateLimiter = getAudioRateLimiter();
+  private configuredCacheService?: AudioCacheInfrastructure;
+  private configuredStorageService?: AudioStorageInfrastructure;
+  private configuredRateLimiter?: AudioRateLimiterInfrastructure;
 
-  constructor(private audioProvider: IAudioProvider) {}
+  constructor(
+    private audioProvider: IAudioProvider,
+    infrastructure: AudioDomainInfrastructure = {}
+  ) {
+    this.configuredCacheService = infrastructure.cacheService;
+    this.configuredStorageService = infrastructure.storageService;
+    this.configuredRateLimiter = infrastructure.rateLimiter;
+  }
+
+  private get cacheService(): AudioCacheInfrastructure {
+    return (this.configuredCacheService ??= getTTSCacheService());
+  }
+
+  private get storageService(): AudioStorageInfrastructure {
+    return (this.configuredStorageService ??= getAssetStorageService());
+  }
+
+  private get rateLimiter(): AudioRateLimiterInfrastructure {
+    return (this.configuredRateLimiter ??= getAudioRateLimiter());
+  }
 
   /**
    * Synthesize story to audio
@@ -1632,32 +1671,32 @@ export class AudioDomainService {
  * Singleton instance
  */
 let audioDomainServiceInstance: AudioDomainService | null = null;
+let audioDomainServiceProvider: IAudioProvider | null = null;
+
+/**
+ * Test hook for exercising the real audio domain/route path with a fake provider.
+ * It replaces only the provider-backed service instance and is disabled in production.
+ */
+export function setAudioDomainServiceForTesting(service: AudioDomainService | null): void {
+  if (config.nodeEnv === 'production') {
+    throw new Error('Audio domain test override cannot be installed in production');
+  }
+  audioDomainServiceInstance = service;
+  audioDomainServiceProvider = null;
+}
 
 /**
  * Get AudioDomainService singleton
  */
 export function getAudioDomainService(): AudioDomainService {
-  if (!audioDomainServiceInstance) {
-    logger.info(
-      {
-        hasApiKey: !!config.audio?.elevenlabs?.apiKey,
-        keyLength: config.audio?.elevenlabs?.apiKey?.length || 0,
-        keyPrefix: config.audio?.elevenlabs?.apiKey?.substring(0, 5) || '',
-        model: config.audio?.elevenlabs?.model,
-      },
-      'Initializing AudioDomainService'
-    );
-
-    if (!config.audio?.elevenlabs?.apiKey) {
-      throw new Error('ElevenLabs API key is required');
-    }
-
-    const provider = new ElevenLabsProvider(
-      config.audio.elevenlabs.apiKey,
-      config.audio.elevenlabs.model
-    );
-
+  const provider = getAudioProvider();
+  if (
+    !audioDomainServiceInstance ||
+    (audioDomainServiceProvider !== null && audioDomainServiceProvider !== provider)
+  ) {
+    logger.info('Initializing AudioDomainService');
     audioDomainServiceInstance = new AudioDomainService(provider);
+    audioDomainServiceProvider = provider;
   }
   return audioDomainServiceInstance;
 }

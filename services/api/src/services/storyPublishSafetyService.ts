@@ -39,6 +39,7 @@ export interface PublishSafetyStoryLike {
   parentReviewStatus?: string | null;
   fullText?: string | null;
   policyChecks?: unknown;
+  metadata?: unknown;
 }
 
 export interface PublishImageValidationScore {
@@ -52,6 +53,17 @@ function getPolicyFlag(policyChecks: unknown, key: string): boolean {
     return false;
   }
   return (policyChecks as Record<string, unknown>)[key] === true;
+}
+
+function getStoryFormat(metadata: unknown): 'story' | 'graphic_novel' | 'mixed_story' {
+  if (!metadata || typeof metadata !== 'object') return 'story';
+  const value = (metadata as Record<string, unknown>).storyFormat;
+  return value === 'graphic_novel' || value === 'mixed_story' ? value : 'story';
+}
+
+function getMetadataFlag(metadata: unknown, key: string): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  return (metadata as Record<string, unknown>)[key] === true;
 }
 
 export function evaluateStoryPublishSafety(input: {
@@ -95,6 +107,30 @@ export function evaluateStoryPublishSafety(input: {
       allowed: false,
       code: 'STORY_INCOMPLETE',
       message: 'Story is not ready to publish',
+    };
+  }
+
+  const storyFormat = getStoryFormat(story.metadata);
+  if (
+    storyFormat !== 'story' &&
+    !getMetadataFlag(story.metadata, 'graphicNovelGenerationComplete')
+  ) {
+    return {
+      allowed: false,
+      code: 'STORY_INCOMPLETE',
+      message: 'Comic pages are not ready to publish',
+    };
+  }
+  const failedComicPages =
+    story.metadata && typeof story.metadata === 'object'
+      ? (story.metadata as Record<string, unknown>).failedGraphicNovelPages
+      : null;
+  if (storyFormat !== 'story' && Array.isArray(failedComicPages) && failedComicPages.length > 0) {
+    return {
+      allowed: false,
+      code: 'STORY_INCOMPLETE',
+      message: 'Failed comic pages must be regenerated before publishing',
+      details: { failedPageCount: failedComicPages.length },
     };
   }
 

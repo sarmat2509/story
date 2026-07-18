@@ -33,14 +33,17 @@ import type { IImageProvider } from '../providers/base/IImageProvider';
 import type { IAudioProvider } from '../providers/base/IAudioProvider';
 import type { IAlignmentProvider } from '../providers/base/IAlignmentProvider';
 import type { IQuotaProvider } from '../providers/base/IQuotaProvider';
-import config from '../config';
+import config, { getStoryValidationTextModelOverride } from '../config';
 import { logger } from '../utils/logger';
+import { setEmbeddingGeneratorForTesting } from './embeddingService';
 
 // Singleton instances
 let storyDomainService: StoryDomainService | null = null;
 let imageDomainService: ImageDomainService | null = null;
 let complexImageDomainService: ImageDomainService | null = null;
 let mapTileImageDomainService: ImageDomainService | null = null;
+let turnaroundImageDomainService: ImageDomainService | null = null;
+let llmTurnaroundImageDomainService: ImageDomainService | null = null;
 let graphicNovelDomainService: GraphicNovelDomainService | null = null;
 let mixedStoryDomainService: MixedStoryDomainService | null = null;
 let childPhotoValidationService: ChildPhotoValidationService | null = null;
@@ -49,6 +52,7 @@ let childPhotoValidationService: ChildPhotoValidationService | null = null;
 let textProvider: ITextProvider | null = null;
 let directorTextProvider: ITextProvider | null = null;
 let validationTextProvider: ITextProvider | null = null;
+let storyValidationTextProvider: ITextProvider | null = null;
 let imageValidationFallbackTextProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let complexImageProvider: IImageProvider | null = null;
@@ -64,6 +68,31 @@ let quotaProvider: IQuotaProvider | null = null;
 let textQuotaProvider: IQuotaProvider | null = null;
 
 /**
+ * Test-only provider overrides. They keep route/service/domain tests on the
+ * production call path while replacing only external provider boundaries.
+ */
+export interface AiServiceTestOverrides {
+  textProvider?: ITextProvider;
+  directorTextProvider?: ITextProvider;
+  validationTextProvider?: ITextProvider;
+  imageValidationFallbackTextProvider?: ITextProvider;
+  imageProvider?: IImageProvider;
+  complexImageProvider?: IImageProvider;
+  mapTileImageProvider?: IImageProvider;
+  turnaroundImageProvider?: IImageProvider;
+  llmTurnaroundImageProvider?: IImageProvider;
+  environmentImageProvider?: IImageProvider;
+  batchImageProvider?: IImageProvider | null;
+  audioProvider?: IAudioProvider;
+  alignmentProvider?: IAlignmentProvider;
+  imageQuotaProvider?: IQuotaProvider;
+  textQuotaProvider?: IQuotaProvider;
+  embeddingGenerator?: (text: string) => Promise<number[]>;
+}
+
+let testOverrides: AiServiceTestOverrides | null = null;
+
+/**
  * Get Story Domain Service instance
  * Orchestration should ONLY call this, never getTextProvider()
  */
@@ -73,9 +102,14 @@ export function getStoryDomainService(): StoryDomainService {
 
     const mainText = getTextProvider();
     const directorText = getDirectorTextProvider();
-    const validationText = getValidationTextProvider();
+    const validationText = getStoryValidationTextProvider();
 
-    storyDomainService = new StoryDomainService(mainText, directorText, validationText);
+    storyDomainService = new StoryDomainService(
+      mainText,
+      directorText,
+      validationText,
+      getStoryValidationTextModelOverride()
+    );
   }
 
   return storyDomainService;
@@ -148,6 +182,10 @@ export function getChildPhotoValidationService(): ChildPhotoValidationService {
  */
 export function getMapTileImageDomainService(): ImageDomainService {
   if (!mapTileImageDomainService) {
+    if (testOverrides?.mapTileImageProvider) {
+      mapTileImageDomainService = new ImageDomainService(testOverrides.mapTileImageProvider);
+      return mapTileImageDomainService;
+    }
     const model = config.image.mapTileModel || config.image.simpleModel || 'gemini-3.1-flash-lite-image';
     logger.info({ model }, 'Initializing map tile image provider');
     mapTileImageDomainService = new ImageDomainService(
@@ -158,11 +196,36 @@ export function getMapTileImageDomainService(): ImageDomainService {
   return mapTileImageDomainService;
 }
 
+/** Dedicated character turnaround image path, with a test-replaceable provider boundary. */
+export function getTurnaroundImageDomainService(): ImageDomainService {
+  if (!turnaroundImageDomainService) {
+    const provider =
+      testOverrides?.turnaroundImageProvider ??
+      new NanoBananaProProvider(config.google.apiKey, config.image.turnaroundModel);
+    turnaroundImageDomainService = new ImageDomainService(provider);
+  }
+  return turnaroundImageDomainService;
+}
+
+/** Lightweight text-only turnaround image path, with a test-replaceable provider boundary. */
+export function getLlmTurnaroundImageDomainService(): ImageDomainService {
+  if (!llmTurnaroundImageDomainService) {
+    const provider =
+      testOverrides?.llmTurnaroundImageProvider ??
+      new NanoBananaProProvider(config.google.apiKey, config.image.simpleModel);
+    llmTurnaroundImageDomainService = new ImageDomainService(provider);
+  }
+  return llmTurnaroundImageDomainService;
+}
+
 /**
  * Get text provider instance
  * Used by getStoryDomainService() and translation services
  */
 export function getTextProvider(): ITextProvider {
+  if (testOverrides?.textProvider) {
+    return testOverrides.textProvider;
+  }
   if (!textProvider) {
     const vendor = config.ai.textVendor;
     
@@ -192,6 +255,9 @@ function effectiveDirectorTextVendor(): string {
  * returns the same instance as getTextProvider().
  */
 export function getDirectorTextProvider(): ITextProvider {
+  if (testOverrides?.directorTextProvider) {
+    return testOverrides.directorTextProvider;
+  }
   if (effectiveDirectorTextVendor() === config.ai.textVendor) {
     return getTextProvider();
   }
@@ -219,6 +285,9 @@ export function getDirectorTextProvider(): ITextProvider {
 }
 
 export function getValidationTextProvider(): ITextProvider {
+  if (testOverrides?.validationTextProvider) {
+    return testOverrides.validationTextProvider;
+  }
   const validationVendor = normalizedValidationTextVendor();
   const validationModel = config.ai.validationModel;
 
@@ -267,6 +336,60 @@ export function getValidationTextProvider(): ITextProvider {
   return getTextProvider();
 }
 
+function getStoryValidationTextProvider(): ITextProvider {
+  if (testOverrides?.validationTextProvider) {
+    return testOverrides.validationTextProvider;
+  }
+
+  const requestedVendor = String(config.ai.storyValidationTextVendor || 'openai')
+    .trim()
+    .toLowerCase();
+  if (requestedVendor === 'openai' && config.ai.openaiApiKey?.trim()) {
+    if (!storyValidationTextProvider) {
+      logger.info(
+        { model: config.ai.openaiStoryValidationModel },
+        'Initializing dedicated story coherence validation provider'
+      );
+      storyValidationTextProvider = new OpenAITextProvider(
+        config.ai.openaiApiKey,
+        config.ai.openaiStoryValidationModel
+      );
+    }
+    return storyValidationTextProvider;
+  }
+
+  if (requestedVendor !== 'gemini' && requestedVendor !== 'openai') {
+    logger.warn(
+      { storyValidationTextVendor: config.ai.storyValidationTextVendor },
+      'Unknown story validation vendor; using the available fallback'
+    );
+  }
+  if (config.ai.geminiApiKey?.trim()) {
+    if (!storyValidationTextProvider) {
+      logger.info(
+        { model: config.ai.geminiStoryValidationModel },
+        'Initializing Gemini story coherence validation provider'
+      );
+      storyValidationTextProvider = new GeminiTextProvider(
+        config.ai.geminiApiKey,
+        config.ai.geminiStoryValidationModel
+      );
+    }
+    return storyValidationTextProvider;
+  }
+
+  if (config.ai.openaiApiKey?.trim()) {
+    if (!storyValidationTextProvider) {
+      storyValidationTextProvider = new OpenAITextProvider(
+        config.ai.openaiApiKey,
+        config.ai.openaiStoryValidationModel
+      );
+    }
+    return storyValidationTextProvider;
+  }
+  return getValidationTextProvider();
+}
+
 function normalizedValidationTextVendor(): 'gemini' | 'openai' {
   const vendor = String(config.ai.validationTextVendor || 'gemini').trim().toLowerCase();
   if (vendor === 'openai') return 'openai';
@@ -279,6 +402,9 @@ function normalizedValidationTextVendor(): 'gemini' | 'openai' {
 }
 
 function getImageValidationFallbackTextProvider(): ITextProvider | undefined {
+  if (testOverrides?.imageValidationFallbackTextProvider) {
+    return testOverrides.imageValidationFallbackTextProvider;
+  }
   const validationVendor = normalizedValidationTextVendor();
 
   if (validationVendor === 'openai') {
@@ -344,6 +470,9 @@ function createImageDomainService(
  * Used for first-pass story illustrations and other light visuals.
  */
 function getImageProvider(): IImageProvider {
+  if (testOverrides?.imageProvider) {
+    return testOverrides.imageProvider;
+  }
   if (!imageProvider) {
     imageProvider = createConfiguredImageProvider({
       provider: config.image.simpleProvider || 'nanobananapro',
@@ -360,6 +489,9 @@ function getImageProvider(): IImageProvider {
  * Used for full comic pages and second-pass story illustrations after validation failure.
  */
 function getComplexImageProvider(): IImageProvider {
+  if (testOverrides?.complexImageProvider) {
+    return testOverrides.complexImageProvider;
+  }
   if (!complexImageProvider) {
     complexImageProvider = createConfiguredImageProvider({
       provider: config.image.complexProvider || 'nanobananapro',
@@ -418,6 +550,9 @@ function createConfiguredImageProvider(params: {
  * Environment and outfit reference images use the simple image route.
  */
 export function getEnvironmentImageProvider(): IImageProvider {
+  if (testOverrides?.environmentImageProvider) {
+    return testOverrides.environmentImageProvider;
+  }
   if (!environmentImageProvider) {
     logger.info(
       { model: config.image.simpleModel },
@@ -436,6 +571,9 @@ export function getEnvironmentImageProvider(): IImageProvider {
  * Returns null if BATCH_IMAGE_GCS_BUCKET is not set.
  */
 export function getBatchImageProvider(): IImageProvider | null {
+  if (testOverrides && 'batchImageProvider' in testOverrides) {
+    return testOverrides.batchImageProvider ?? null;
+  }
   if (!config.image.gemini.batchGcsBucket) {
     return null;
   }
@@ -452,6 +590,9 @@ export function getBatchImageProvider(): IImageProvider | null {
  * M5: Supports ElevenLabs, Google Cloud TTS, OpenAI TTS, Grok (xAI) TTS
  */
 function getAudioProviderInternal(): IAudioProvider {
+  if (testOverrides?.audioProvider) {
+    return testOverrides.audioProvider;
+  }
   if (!audioProvider) {
     const vendor = config.audio?.provider || 'elevenlabs';
     
@@ -505,6 +646,9 @@ function getAudioProviderInternal(): IAudioProvider {
  * Private - used only by getImageRateLimiter()
  */
 function getQuotaProvider(): IQuotaProvider {
+  if (testOverrides?.imageQuotaProvider) {
+    return testOverrides.imageQuotaProvider;
+  }
   if (!quotaProvider) {
     const vendor = config.ai.imageVendor || 'gemini';
     
@@ -554,6 +698,9 @@ export function getAudioProvider(): IAudioProvider {
  * Used by scripts that need to work with multiple providers
  */
 export function getAudioProviderByName(providerName: string): IAudioProvider {
+  if (testOverrides?.audioProvider) {
+    return testOverrides.audioProvider;
+  }
   logger.info({ providerName }, 'Creating audio provider by name');
   
   switch (providerName) {
@@ -613,6 +760,9 @@ export function getAudioProviderByName(providerName: string): IAudioProvider {
  * Singleton pattern for provider reuse
  */
 export function getAlignmentProvider(): IAlignmentProvider {
+  if (testOverrides?.alignmentProvider) {
+    return testOverrides.alignmentProvider;
+  }
   if (!alignmentProvider) {
     const vendor = config.ai.alignmentVendor || 'elevenlabs';
     
@@ -649,6 +799,9 @@ export function getAlignmentProvider(): IAlignmentProvider {
  * Private - used only by getTextRateLimiter()
  */
 function getTextQuotaProvider(): IQuotaProvider {
+  if (testOverrides?.textQuotaProvider) {
+    return testOverrides.textQuotaProvider;
+  }
   if (!textQuotaProvider) {
     const vendor = config.ai.textVendor || 'gemini';
     
@@ -693,19 +846,41 @@ export function stopAllRateLimiters(): void {
 }
 
 /**
+ * Install provider fakes without replacing any production domain/service logic.
+ * The guard prevents test hooks from being enabled by a production process.
+ */
+export function installAiServiceTestOverrides(overrides: AiServiceTestOverrides): void {
+  if (config.nodeEnv === 'production') {
+    throw new Error('AI test overrides cannot be installed in production');
+  }
+  resetServices();
+  testOverrides = { ...overrides };
+  setEmbeddingGeneratorForTesting(overrides.embeddingGenerator ?? null);
+}
+
+export function clearAiServiceTestOverrides(): void {
+  resetServices();
+  testOverrides = null;
+}
+
+/**
  * Reset all domain services and providers (useful for testing)
  */
 export function resetServices(): void {
+  setEmbeddingGeneratorForTesting(null);
   storyDomainService = null;
   imageDomainService = null;
   complexImageDomainService = null;
   mapTileImageDomainService = null;
+  turnaroundImageDomainService = null;
+  llmTurnaroundImageDomainService = null;
   graphicNovelDomainService = null;
   mixedStoryDomainService = null;
   childPhotoValidationService = null;
   textProvider = null;
   directorTextProvider = null;
   validationTextProvider = null;
+  storyValidationTextProvider = null;
   imageValidationFallbackTextProvider = null;
   imageProvider = null;
   complexImageProvider = null;

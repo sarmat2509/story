@@ -5,7 +5,7 @@ import type { Character } from '../db/schema';
 import type { CharacterAnalysisResult } from './characterAnalysisService';
 import { config } from '../config';
 import { getCharacterRepository } from '../repositories';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import { getTextProvider } from './aiService';
 import { getAssetStorageService } from './assetStorageService';
 import { cosineSimilarity, generateEmbedding } from './embeddingService';
 import { getReferencePhotoUrls } from './photoInputSafetyService';
@@ -681,12 +681,13 @@ Use "mismatch" for any meaningful contradiction, "unclear" when the photos do no
 }
 
 let singleton: CharacterIdentityMatchingService | null = null;
+let singletonProvider: ITextProvider | null = null;
 
 export function getCharacterIdentityMatchingService(): CharacterIdentityMatchingService {
-  if (!singleton) {
-    singleton = new CharacterIdentityMatchingService(
-      new GeminiTextProvider(config.google.apiKey || config.ai.geminiApiKey, config.ai.modelVersion)
-    );
+  const provider = getTextProvider();
+  if (!singleton || singletonProvider !== provider) {
+    singleton = new CharacterIdentityMatchingService(provider);
+    singletonProvider = provider;
   }
   return singleton;
 }

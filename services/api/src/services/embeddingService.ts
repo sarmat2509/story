@@ -6,6 +6,17 @@ import { logger } from '../utils/logger';
 const EMBEDDING_MODEL = 'gemini-embedding-001';
 
 let genaiInstance: GoogleGenAI | null = null;
+let testEmbeddingGenerator: ((text: string) => Promise<number[]>) | null = null;
+
+/** Test-only external boundary replacement; production embedding logic is unchanged. */
+export function setEmbeddingGeneratorForTesting(
+  generator: ((text: string) => Promise<number[]>) | null
+): void {
+  if (generator && config.nodeEnv === 'production') {
+    throw new Error('Embedding test override cannot be installed in production');
+  }
+  testEmbeddingGenerator = generator;
+}
 
 function getGenAI(): GoogleGenAI {
   if (!genaiInstance) {
@@ -19,6 +30,9 @@ function getGenAI(): GoogleGenAI {
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
+  if (testEmbeddingGenerator) {
+    return testEmbeddingGenerator(text);
+  }
   const ai = getGenAI();
   try {
     const result = await ai.models.embedContent({

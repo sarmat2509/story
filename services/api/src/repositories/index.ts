@@ -141,62 +141,126 @@ let storyGenerationStageEventRepo: StoryGenerationStageEventRepository;
 let discountRepo: DiscountRepository;
 let appReleaseRepo: AppReleaseRepository;
 
+export interface RepositoryTestOverrides {
+  user?: UserRepository;
+  oauth?: OAuthRepository;
+  session?: SessionRepository;
+  plan?: PlanRepository;
+  childProfile?: ChildProfileRepository;
+  character?: CharacterRepository;
+  story?: StoryRepository;
+  scene?: SceneRepository;
+  asset?: AssetRepository;
+  voice?: VoiceRepository;
+  graphicNovel?: GraphicNovelRepository;
+  imageValidation?: ImageValidationRepository;
+  storyGenerationStageEvent?: StoryGenerationStageEventRepository;
+  alignment?: AlignmentRepository;
+  aiUsage?: AiUsageRepository;
+  dictionary?: DictionaryRepository;
+  storyArtifact?: StoryArtifactRepository;
+  collectedStoryArtifact?: CollectedStoryArtifactRepository;
+  storyQuiz?: StoryQuizRepository;
+  storyQuizProgress?: StoryQuizProgressRepository;
+  collectedMapTile?: CollectedMapTileRepository;
+  usageEvents?: UsageEventsRepository;
+  userConsent?: UserConsentRepository;
+  dataPrivacyRequest?: DataPrivacyRequestRepository;
+  bundle?: BundleRepository;
+  passwordResetToken?: PasswordResetTokenRepository;
+  discount?: DiscountRepository;
+  opsRuntime?: OpsRuntimeRepository;
+  generationJob?: GenerationJobRepository;
+  appRelease?: AppReleaseRepository;
+  storyRating?: StoryRatingRepository;
+  feedback?: FeedbackRepository;
+  outfitPlateCache?: OutfitPlateCacheRepository;
+  storyOutfitPlateCache?: StoryOutfitPlateCacheRepository;
+  characterOutfitTurnaroundCache?: CharacterOutfitTurnaroundCacheRepository;
+}
+
+let testOverrides: RepositoryTestOverrides | null = null;
+
+/** Replace repository boundaries only; production route/service logic stays unchanged. */
+export function installRepositoryTestOverrides(overrides: RepositoryTestOverrides): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Repository test overrides cannot be installed in production');
+  }
+  testOverrides = { ...overrides };
+}
+
+export function clearRepositoryTestOverrides(): void {
+  testOverrides = null;
+}
+
 export function getUserRepository(): UserRepository {
+  if (testOverrides?.user) return testOverrides.user;
   if (!userRepo) userRepo = new UserRepository(db);
   return userRepo;
 }
 
 export function getOAuthRepository(): OAuthRepository {
+  if (testOverrides?.oauth) return testOverrides.oauth;
   if (!oauthRepo) oauthRepo = new OAuthRepository(db);
   return oauthRepo;
 }
 
 export function getSessionRepository(): SessionRepository {
+  if (testOverrides?.session) return testOverrides.session;
   if (!sessionRepo) sessionRepo = new SessionRepository(db);
   return sessionRepo;
 }
 
 export function getPlanRepository(): PlanRepository {
+  if (testOverrides?.plan) return testOverrides.plan;
   if (!planRepo) planRepo = new PlanRepository(db);
   return planRepo;
 }
 
 export function getChildProfileRepository(): ChildProfileRepository {
+  if (testOverrides?.childProfile) return testOverrides.childProfile;
   if (!childProfileRepo) childProfileRepo = new ChildProfileRepository(db);
   return childProfileRepo;
 }
 
 export function getCharacterRepository(): CharacterRepository {
+  if (testOverrides?.character) return testOverrides.character;
   if (!characterRepo) characterRepo = new CharacterRepository(db);
   return characterRepo;
 }
 
 export function getStoryRepository(): StoryRepository {
+  if (testOverrides?.story) return testOverrides.story;
   if (!storyRepo) storyRepo = new StoryRepository(db);
   return storyRepo;
 }
 
 export function getGraphicNovelRepository(): GraphicNovelRepository {
+  if (testOverrides?.graphicNovel) return testOverrides.graphicNovel;
   if (!graphicNovelRepo) graphicNovelRepo = new GraphicNovelRepository(db);
   return graphicNovelRepo;
 }
 
 export function getSceneRepository(): SceneRepository {
+  if (testOverrides?.scene) return testOverrides.scene;
   if (!sceneRepo) sceneRepo = new SceneRepository(db);
   return sceneRepo;
 }
 
 export function getAssetRepository(): AssetRepository {
+  if (testOverrides?.asset) return testOverrides.asset;
   if (!assetRepo) assetRepo = new AssetRepository(db);
   return assetRepo;
 }
 
 export function getVoiceRepository(): VoiceRepository {
+  if (testOverrides?.voice) return testOverrides.voice;
   if (!voiceRepo) voiceRepo = new VoiceRepository(db);
   return voiceRepo;
 }
 
 export function getDictionaryRepository(): DictionaryRepository {
+  if (testOverrides?.dictionary) return testOverrides.dictionary;
   if (!dictionaryRepo) dictionaryRepo = new DictionaryRepository(db);
   return dictionaryRepo;
 }
@@ -224,48 +288,58 @@ export function getLlmTurnaroundCacheRepository(): LlmTurnaroundCacheRepository 
 }
 
 export function getOutfitPlateCacheRepository(): OutfitPlateCacheRepository {
+  if (testOverrides?.outfitPlateCache) return testOverrides.outfitPlateCache;
   if (!outfitPlateCacheRepo) outfitPlateCacheRepo = new OutfitPlateCacheRepository(db);
   return outfitPlateCacheRepo;
 }
 
 export function getStoryOutfitPlateCacheRepository(): StoryOutfitPlateCacheRepository {
+  if (testOverrides?.storyOutfitPlateCache) return testOverrides.storyOutfitPlateCache;
   if (!storyOutfitPlateCacheRepo)
     storyOutfitPlateCacheRepo = new StoryOutfitPlateCacheRepository(db);
   return storyOutfitPlateCacheRepo;
 }
 
 export function getCharacterOutfitTurnaroundCacheRepository(): CharacterOutfitTurnaroundCacheRepository {
+  if (testOverrides?.characterOutfitTurnaroundCache)
+    return testOverrides.characterOutfitTurnaroundCache;
   if (!characterOutfitTurnaroundCacheRepo)
     characterOutfitTurnaroundCacheRepo = new CharacterOutfitTurnaroundCacheRepository(db);
   return characterOutfitTurnaroundCacheRepo;
 }
 
 export function getAlignmentRepository(): AlignmentRepository {
+  if (testOverrides?.alignment) return testOverrides.alignment;
   if (!alignmentRepo) alignmentRepo = new AlignmentRepository(db);
   return alignmentRepo;
 }
 
 export function getAiUsageRepository(): AiUsageRepository {
+  if (testOverrides?.aiUsage) return testOverrides.aiUsage;
   if (!aiUsageRepo) aiUsageRepo = new AiUsageRepository(db);
   return aiUsageRepo;
 }
 
 export function getUsageEventsRepository(): UsageEventsRepository {
+  if (testOverrides?.usageEvents) return testOverrides.usageEvents;
   if (!usageEventsRepo) usageEventsRepo = new UsageEventsRepository(db);
   return usageEventsRepo;
 }
 
 export function getStoryRatingRepository(): StoryRatingRepository {
+  if (testOverrides?.storyRating) return testOverrides.storyRating;
   if (!storyRatingRepo) storyRatingRepo = new StoryRatingRepository(db);
   return storyRatingRepo;
 }
 
 export function getPasswordResetTokenRepository(): PasswordResetTokenRepository {
+  if (testOverrides?.passwordResetToken) return testOverrides.passwordResetToken;
   if (!passwordResetTokenRepo) passwordResetTokenRepo = new PasswordResetTokenRepository(db);
   return passwordResetTokenRepo;
 }
 
 export function getImageValidationRepository(): ImageValidationRepository {
+  if (testOverrides?.imageValidation) return testOverrides.imageValidation;
   if (!imageValidationRepo) imageValidationRepo = new ImageValidationRepository(db);
   return imageValidationRepo;
 }
@@ -281,6 +355,7 @@ export function getAdminConfigRepository(): AdminConfigRepository {
 }
 
 export function getFeedbackRepository(): FeedbackRepository {
+  if (testOverrides?.feedback) return testOverrides.feedback;
   if (!feedbackRepo) feedbackRepo = new FeedbackRepository(db);
   return feedbackRepo;
 }
@@ -291,16 +366,19 @@ export function getAdminDashboardRepository(): AdminDashboardRepository {
 }
 
 export function getBundleRepository(): BundleRepository {
+  if (testOverrides?.bundle) return testOverrides.bundle;
   if (!bundleRepo) bundleRepo = new BundleRepository(db);
   return bundleRepo;
 }
 
 export function getUserConsentRepository(): UserConsentRepository {
+  if (testOverrides?.userConsent) return testOverrides.userConsent;
   if (!userConsentRepo) userConsentRepo = new UserConsentRepository(db);
   return userConsentRepo;
 }
 
 export function getDataPrivacyRequestRepository(): DataPrivacyRequestRepository {
+  if (testOverrides?.dataPrivacyRequest) return testOverrides.dataPrivacyRequest;
   if (!dataPrivacyRequestRepo) dataPrivacyRequestRepo = new DataPrivacyRequestRepository(db);
   return dataPrivacyRequestRepo;
 }
@@ -311,53 +389,63 @@ export function getModerationDecisionRepository(): ModerationDecisionRepository 
 }
 
 export function getStoryArtifactRepository(): StoryArtifactRepository {
+  if (testOverrides?.storyArtifact) return testOverrides.storyArtifact;
   if (!storyArtifactRepo) storyArtifactRepo = new StoryArtifactRepository(db);
   return storyArtifactRepo;
 }
 
 export function getCollectedStoryArtifactRepository(): CollectedStoryArtifactRepository {
+  if (testOverrides?.collectedStoryArtifact) return testOverrides.collectedStoryArtifact;
   if (!collectedStoryArtifactRepo)
     collectedStoryArtifactRepo = new CollectedStoryArtifactRepository(db);
   return collectedStoryArtifactRepo;
 }
 
 export function getCollectedMapTileRepository(): CollectedMapTileRepository {
+  if (testOverrides?.collectedMapTile) return testOverrides.collectedMapTile;
   if (!collectedMapTileRepo) collectedMapTileRepo = new CollectedMapTileRepository(db);
   return collectedMapTileRepo;
 }
 
 export function getStoryQuizRepository(): StoryQuizRepository {
+  if (testOverrides?.storyQuiz) return testOverrides.storyQuiz;
   if (!storyQuizRepo) storyQuizRepo = new StoryQuizRepository(db);
   return storyQuizRepo;
 }
 
 export function getStoryQuizProgressRepository(): StoryQuizProgressRepository {
+  if (testOverrides?.storyQuizProgress) return testOverrides.storyQuizProgress;
   if (!storyQuizProgressRepo) storyQuizProgressRepo = new StoryQuizProgressRepository(db);
   return storyQuizProgressRepo;
 }
 
 export function getOpsRuntimeRepository(): OpsRuntimeRepository {
+  if (testOverrides?.opsRuntime) return testOverrides.opsRuntime;
   if (!opsRuntimeRepo) opsRuntimeRepo = new OpsRuntimeRepository(db);
   return opsRuntimeRepo;
 }
 
 export function getGenerationJobRepository(): GenerationJobRepository {
+  if (testOverrides?.generationJob) return testOverrides.generationJob;
   if (!generationJobRepo) generationJobRepo = new GenerationJobRepository(db);
   return generationJobRepo;
 }
 
 export function getStoryGenerationStageEventRepository(): StoryGenerationStageEventRepository {
+  if (testOverrides?.storyGenerationStageEvent) return testOverrides.storyGenerationStageEvent;
   if (!storyGenerationStageEventRepo)
     storyGenerationStageEventRepo = new StoryGenerationStageEventRepository(db);
   return storyGenerationStageEventRepo;
 }
 
 export function getDiscountRepository(): DiscountRepository {
+  if (testOverrides?.discount) return testOverrides.discount;
   if (!discountRepo) discountRepo = new DiscountRepository(db);
   return discountRepo;
 }
 
 export function getAppReleaseRepository(): AppReleaseRepository {
+  if (testOverrides?.appRelease) return testOverrides.appRelease;
   if (!appReleaseRepo) appReleaseRepo = new AppReleaseRepository(db);
   return appReleaseRepo;
 }

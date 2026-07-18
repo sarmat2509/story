@@ -9,6 +9,7 @@ import { startTask, completeTask, updateTaskProgress, STORY_TASKS } from '../sto
 import { getGenerationCoefficients } from '../generationTimeService';
 import { hashModerationSubject, recordModerationDecision } from '../moderationDecisionService';
 import config from '../../config';
+import { countStoryKeepsakeMarkers } from '../../utils/audioTags';
 import type {
   TextValidationAttemptPhase,
   TextValidationAttemptRecord,
@@ -17,10 +18,19 @@ import type {
   ValidateResult,
 } from './types';
 
+type SceneTextViolation = {
+  category: string;
+  message: string;
+  severity?: string;
+  suggestion?: string;
+  relatedSceneIds?: number[];
+  evidence?: string;
+};
+
 type SceneValidationLike = {
   sceneId: number;
   isValid: boolean;
-  violations: Array<{ category: string; message: string }>;
+  violations: SceneTextViolation[];
   validationScore?: number | null;
   requestManifest?: Record<string, unknown>;
   correctedCameraComposition?: {
@@ -86,8 +96,7 @@ function scoreTextSceneValidation(
     medium: 35,
   };
   const penalty = validation.violations.reduce((sum, violation) => {
-    const severity =
-      typeof (violation as any).severity === 'string' ? (violation as any).severity : '';
+    const severity = typeof violation.severity === 'string' ? violation.severity : '';
     return sum + (penaltyBySeverity[severity] ?? 45);
   }, 0);
   return Math.max(0, 100 - penalty);
@@ -226,6 +235,49 @@ async function runWithConcurrencyLimit<T, TResult>(
   return results;
 }
 
+function batchValidationRequiresSceneFallback(
+  result: { failedScenes?: Array<{ sceneId: number; violations?: SceneTextViolation[] }> },
+  scenes: Array<{ sceneId: number }>
+): boolean {
+  const failedScenes = Array.isArray(result.failedScenes) ? result.failedScenes : [];
+  if (failedScenes.length !== scenes.length) return false;
+
+  const failedById = new Map(failedScenes.map((scene) => [scene.sceneId, scene]));
+  return scenes.every((scene) => {
+    const failed = failedById.get(scene.sceneId);
+    return (
+      failed != null &&
+      Array.isArray(failed.violations) &&
+      failed.violations.some(
+        (violation) =>
+          violation?.category === 'content_policy' &&
+          violation?.severity === 'critical' &&
+          /provider content filter blocked validation/i.test(String(violation?.message || ''))
+      )
+    );
+  });
+}
+
+function formatSceneRepairFeedback(validation?: SceneValidationLike): string {
+  if (!validation) return '';
+
+  return validation.violations
+    .map((violation) => {
+      const details = [`[${violation.category || 'validation'}] ${violation.message || ''}`];
+      if (Array.isArray(violation.relatedSceneIds) && violation.relatedSceneIds.length > 0) {
+        details.push(`Related scenes: ${violation.relatedSceneIds.join(', ')}`);
+      }
+      if (typeof violation.evidence === 'string' && violation.evidence.trim()) {
+        details.push(`Evidence: ${violation.evidence.trim()}`);
+      }
+      if (typeof violation.suggestion === 'string' && violation.suggestion.trim()) {
+        details.push(`Required repair: ${violation.suggestion.trim()}`);
+      }
+      return details.join('. ');
+    })
+    .join('\n');
+}
+
 /**
  * Validate story prose scenes with retry logic
  * Used by both standard and continuation flows
@@ -267,23 +319,73 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
     });
   };
 
-  logger.info(
-    { requestId, sceneCount: text.scenes.length, validationConcurrency },
-    'Starting parallel scene validation'
-  );
   const initialValidationDurations: number[] = [];
-  const validations = await runWithConcurrencyLimit(
-    text.scenes,
-    validationConcurrency,
-    async (scene: any, idx: number): Promise<SceneValidationLike> => {
-      const sceneStart = Date.now();
-      const isLastScene = idx === text.scenes.length - 1;
+  const runSceneFallbackValidation = async (
+    phase: TextValidationAttemptPhase,
+    attemptNumber: number
+  ): Promise<SceneValidationLike[]> => {
+    logger.info(
+      { requestId, sceneCount: text.scenes.length, validationConcurrency, phase, attemptNumber },
+      'Starting parallel per-scene validation fallback'
+    );
 
-      logger.info({ requestId, sceneId: scene.sceneId, isLastScene }, 'Scene validation started');
-      const validation = await storyDomain.validateScene(
-        scene,
+    return runWithConcurrencyLimit(
+      text.scenes,
+      validationConcurrency,
+      async (scene: any, idx: number): Promise<SceneValidationLike> => {
+        const sceneStart = Date.now();
+        const isLastScene = idx === text.scenes.length - 1;
+        const validation = await storyDomain.validateScene(
+          scene,
+          spec.policyProfile,
+          isLastScene,
+          spec.scenarioCard?.id,
+          {
+            onUsage: (u) => recordUsage(u, usageContext),
+            reservedCharacters: spec.characters,
+            operation: 'writer_text_validation',
+          }
+        );
+        const durationMs = Date.now() - sceneStart;
+        if (phase === 'initial') initialValidationDurations.push(durationMs);
+        completedValidationUnits += 1;
+        const normalizedValidation = normalizeSceneValidation({
+          sceneId: validation.sceneId,
+          isValid: validation.isValid,
+          violations: validation.violations,
+          validationScore: validation.validationScore,
+          requestManifest: validation.requestManifest,
+          correctedCameraComposition: (validation as any).correctedCameraComposition,
+        });
+        validationAttempts.push(
+          buildTextValidationAttempt({
+            validation: normalizedValidation,
+            rawValidation: validation,
+            phase,
+            attempt: attemptNumber,
+            durationMs,
+          })
+        );
+        await reportValidationProgress(scene.sceneId);
+        return normalizedValidation;
+      }
+    );
+  };
+
+  const runFullStoryValidation = async (
+    phase: TextValidationAttemptPhase,
+    attemptNumber: number
+  ): Promise<SceneValidationLike[]> => {
+    const batchStart = Date.now();
+    logger.info(
+      { requestId, sceneCount: text.scenes.length, phase, attemptNumber },
+      'Starting full-story batch validation'
+    );
+
+    try {
+      const batchValidation = await storyDomain.validateScenesBatch(
+        text.scenes,
         spec.policyProfile,
-        isLastScene,
         spec.scenarioCard?.id,
         {
           onUsage: (u) => recordUsage(u, usageContext),
@@ -291,43 +393,62 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
           operation: 'writer_text_validation',
         }
       );
-      const durationMs = Date.now() - sceneStart;
-      initialValidationDurations.push(durationMs);
-      completedValidationUnits += 1;
-      const normalizedValidation = normalizeSceneValidation({
-        sceneId: validation.sceneId,
-        isValid: validation.isValid,
-        violations: validation.violations,
-        validationScore: validation.validationScore,
-        requestManifest: validation.requestManifest,
-        correctedCameraComposition: (validation as any).correctedCameraComposition,
-      });
-      validationAttempts.push(
-        buildTextValidationAttempt({
-          validation: normalizedValidation,
-          rawValidation: validation,
-          phase: 'initial',
-          attempt: 1,
-          durationMs,
-        })
-      );
+      if (batchValidationRequiresSceneFallback(batchValidation, text.scenes)) {
+        throw new Error('Full-story validation was blocked by the provider content filter');
+      }
 
-      logger.info(
+      const knownSceneIds = new Set<number>(text.scenes.map((scene: any) => scene.sceneId));
+      const failedBySceneId = new Map<number, SceneTextViolation[]>();
+      for (const failedScene of batchValidation.failedScenes ?? []) {
+        if (!knownSceneIds.has(failedScene.sceneId) || !Array.isArray(failedScene.violations)) {
+          throw new Error(`Full-story validator returned invalid scene ${failedScene.sceneId}`);
+        }
+        failedBySceneId.set(failedScene.sceneId, [
+          ...(failedBySceneId.get(failedScene.sceneId) ?? []),
+          ...failedScene.violations,
+        ]);
+      }
+
+      const durationMs = Date.now() - batchStart;
+      if (phase === 'initial') initialValidationDurations.push(durationMs);
+      completedValidationUnits += text.scenes.length;
+      const normalized = text.scenes.map((scene: any): SceneValidationLike => {
+        const hasFailure = failedBySceneId.has(scene.sceneId);
+        const rawValidation = {
+          sceneId: scene.sceneId,
+          isValid: !hasFailure,
+          violations: failedBySceneId.get(scene.sceneId) ?? [],
+          requestManifest: batchValidation.requestManifest,
+        };
+        const validation = normalizeSceneValidation(rawValidation);
+        validationAttempts.push(
+          buildTextValidationAttempt({
+            validation,
+            rawValidation,
+            phase,
+            attempt: attemptNumber,
+            durationMs,
+          })
+        );
+        return validation;
+      });
+      await reportValidationProgress(null);
+      return normalized;
+    } catch (error) {
+      logger.warn(
         {
           requestId,
-          sceneId: scene.sceneId,
-          durationMs,
-          isValid: normalizedValidation.isValid,
-          violationCount: normalizedValidation.violations.length,
+          phase,
+          attemptNumber,
+          error: error instanceof Error ? error.message : String(error),
         },
-        'Scene validation completed'
+        'Full-story batch validation unavailable; using per-scene fallback'
       );
-
-      await reportValidationProgress(scene.sceneId);
-
-      return normalizedValidation;
+      return runSceneFallbackValidation(phase, attemptNumber);
     }
-  );
+  };
+
+  let validations = await runFullStoryValidation('initial', 1);
 
   const failedScenes = validations.filter((v) => !v.isValid);
 
@@ -368,7 +489,7 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
       const batchFailedScenes = sceneIds.map((sceneId) => {
         const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
         const validation = validations.find((v) => v.sceneId === sceneId);
-        const feedback = validation?.violations.map((v: any) => v.message).join('; ') || '';
+        const feedback = formatSceneRepairFeedback(validation);
         return {
           sceneId,
           originalText: scene?.text ?? '',
@@ -379,13 +500,35 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
         spec,
         text.scenes.length,
         batchFailedScenes,
-        { onUsage: (u) => recordUsage(u, usageContext) }
+        {
+          onUsage: (u) => recordUsage(u, usageContext),
+          storyScenes: text.scenes.map((scene: any) => ({
+            sceneId: scene.sceneId,
+            text: scene.text,
+          })),
+        }
       );
       const textBySceneId = new Map(batchResult.map((r) => [r.sceneId, r.text]));
       const newTexts = sceneIds.map((id) => {
         const t = textBySceneId.get(id);
-        if (t) return t;
         const scene = text.scenes.find((s: any) => s.sceneId === id);
+        if (
+          t &&
+          scene &&
+          countStoryKeepsakeMarkers(t) !== countStoryKeepsakeMarkers(scene.text)
+        ) {
+          logger.warn(
+            {
+              requestId,
+              sceneId: id,
+              originalMarkerCount: countStoryKeepsakeMarkers(scene.text),
+              repairedMarkerCount: countStoryKeepsakeMarkers(t),
+            },
+            'Rejecting text repair that changed the keepsake marker count'
+          );
+          return scene.text;
+        }
+        if (t) return t;
         return scene?.text ?? '';
       });
 
@@ -400,86 +543,15 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
       text.fullText = text.scenes.map((s: any) => s.text).join('\n\n');
       text.wordCount = text.fullText.split(/\s+/).length;
 
-      // Re-validate updated scenes
-      const scenesToRevalidate = sceneIds
-        .map((id) => text.scenes.find((s: any) => s.sceneId === id))
-        .filter(Boolean);
-      let revalidations: SceneValidationLike[];
-      if (scenesToRevalidate.length > 0) {
-        totalValidationUnits += scenesToRevalidate.length;
-        await reportValidationProgress(null);
-        revalidations = await runWithConcurrencyLimit(
-          scenesToRevalidate as any[],
-          validationConcurrency,
-          async (scene: any): Promise<SceneValidationLike> => {
-            const sceneStart = Date.now();
+      // Revalidate the complete story because a targeted repair can affect cross-scene logic.
+      totalValidationUnits += text.scenes.length;
+      await reportValidationProgress(null);
+      const revalidations = await runFullStoryValidation('revalidation', attempt + 2);
+      validations = revalidations;
 
-            logger.info(
-              { requestId, sceneId: scene.sceneId, attempt: attempt + 1 },
-              'Scene revalidation started'
-            );
-            const validation = await storyDomain.validateScene(
-              scene,
-              spec.policyProfile,
-              scene.sceneId === text.scenes[text.scenes.length - 1]?.sceneId,
-              spec.scenarioCard?.id,
-              {
-                onUsage: (u) => recordUsage(u, usageContext),
-                reservedCharacters: spec.characters,
-                operation: 'writer_text_validation',
-              }
-            );
-            const durationMs = Date.now() - sceneStart;
-            completedValidationUnits += 1;
-            const normalizedValidation = normalizeSceneValidation({
-              sceneId: validation.sceneId,
-              isValid: validation.isValid,
-              violations: validation.violations,
-              validationScore: validation.validationScore,
-              requestManifest: validation.requestManifest,
-              correctedCameraComposition: (validation as any).correctedCameraComposition,
-            });
-            validationAttempts.push(
-              buildTextValidationAttempt({
-                validation: normalizedValidation,
-                rawValidation: validation,
-                phase: 'revalidation',
-                attempt: attempt + 2,
-                durationMs,
-              })
-            );
-
-            logger.info(
-              {
-                requestId,
-                sceneId: scene.sceneId,
-                attempt: attempt + 1,
-                durationMs,
-                isValid: normalizedValidation.isValid,
-                violationCount: normalizedValidation.violations.length,
-              },
-              'Scene revalidation completed'
-            );
-
-            await reportValidationProgress(scene.sceneId);
-
-            return normalizedValidation;
-          }
-        );
-      } else {
-        revalidations = sceneIds.map((sceneId) => ({ sceneId, isValid: true, violations: [] }));
-      }
-
-      // Update validations for next iteration (scenesToRegenerate logic)
-      revalidations.forEach((validation, idx) => {
-        const sceneId = sceneIds[idx];
-        const valIdx = validations.findIndex((v) => v.sceneId === sceneId);
-        if (valIdx >= 0) {
-          validations[valIdx] = validation;
-        }
-        if (validation.isValid) {
-          scenesToRegenerate.delete(sceneId);
-        } else {
+      scenesToRegenerate.clear();
+      revalidations.forEach((validation) => {
+        if (!validation.isValid) {
           recordFailedSceneValidation({
             requestId,
             userId,
@@ -488,7 +560,7 @@ export async function validateStoryTextScenes(params: ValidateParams): Promise<V
             stage: 'generated_text_revalidation',
             attempt: attempt + 1,
           });
-          scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
+          scenesToRegenerate.set(validation.sceneId, attempt + 1);
         }
       });
     }

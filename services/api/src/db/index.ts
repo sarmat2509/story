@@ -40,8 +40,26 @@ pool.on('acquire', (client) => {
 // Create Drizzle instance
 export const db = drizzle(pool, { schema });
 
+let databaseHealthTestOverride: (() => Promise<boolean>) | null = null;
+
+/** Keep health-route contracts deterministic without replacing route logic. */
+export function installDatabaseHealthTestOverride(override: () => Promise<boolean>): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Database health test override cannot be installed in production');
+  }
+  databaseHealthTestOverride = override;
+}
+
+export function clearDatabaseHealthTestOverride(): void {
+  databaseHealthTestOverride = null;
+}
+
 // Health check with retry
 export async function checkDatabaseHealth(retries = 3): Promise<boolean> {
+  if (databaseHealthTestOverride) {
+    return databaseHealthTestOverride();
+  }
+
   // Check if pool is already closed
   if (pool.ended || isClosing) {
     logger.warn('Database pool is closed or closing, health check skipped');

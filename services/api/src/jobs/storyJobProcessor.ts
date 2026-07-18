@@ -222,6 +222,53 @@ interface RegenerateGraphicNovelPageImageInput {
   style?: string;
 }
 
+export type StoryJobQueueInput =
+  | string
+  | AudioGenerationJobInput
+  | RegenerateSceneImageInput
+  | RegenerateGraphicNovelPageImageInput;
+
+type StoryJobQueueAddJobTestOverride = (input: StoryJobQueueInput) => Promise<string>;
+
+let storyJobQueueAddJobTestOverride: StoryJobQueueAddJobTestOverride | null = null;
+
+/** Replace only the durable queue boundary while route/service logic remains real. */
+export function installStoryJobQueueAddJobTestOverride(
+  override: StoryJobQueueAddJobTestOverride
+): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Story job queue test override cannot be installed in production');
+  }
+  storyJobQueueAddJobTestOverride = override;
+}
+
+export function clearStoryJobQueueAddJobTestOverride(): void {
+  storyJobQueueAddJobTestOverride = null;
+}
+
+type StoryTextPhaseTestOverride = (requestId: string) => Promise<{
+  storyId: string;
+  isScheduledContinuation?: boolean;
+  scheduleId?: string | null;
+}>;
+
+let storyTextPhaseTestOverride: StoryTextPhaseTestOverride | null = null;
+
+/**
+ * Replace only the story text-phase orchestration boundary so worker handoff
+ * (image enqueue / batch_pending / enqueue-failure completion) stays real.
+ */
+export function installStoryTextPhaseTestOverride(override: StoryTextPhaseTestOverride): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Story text phase test override cannot be installed in production');
+  }
+  storyTextPhaseTestOverride = override;
+}
+
+export function clearStoryTextPhaseTestOverride(): void {
+  storyTextPhaseTestOverride = null;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -487,7 +534,9 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   }
 
   const { processStoryRequest } = await import('../services/storyOrchestrationService');
-  const result = await processStoryRequest(job.requestId);
+  const result = storyTextPhaseTestOverride
+    ? await storyTextPhaseTestOverride(job.requestId)
+    : await processStoryRequest(job.requestId);
   storyId = result.storyId;
   startStoryQuizWarmup(storyId, job.requestId);
 
@@ -1013,15 +1062,14 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     };
     
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
-    const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
+    const { getTextProvider } = await import('../services/aiService');
     const { generateTurnaroundSheetFromReference } = await import('../services/turnaroundSheetService');
     const { localizeCharacterNames } = await import('../services/translationService');
     const { getCharacterRepository } = await import('../repositories');
     const { getCharacterIdentityMatchingService } = await import('../services/characterIdentityMatchingService');
     const { recordInstantCharacterQuotaUsage } = await import('../services/characterQuotaService');
     
-    const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
-    const analysisService = new CharacterAnalysisService(geminiProvider);
+    const analysisService = new CharacterAnalysisService(getTextProvider());
     const characterIdentityMatchingService = getCharacterIdentityMatchingService();
     
     for (const group of photoGroups) {
@@ -1346,12 +1394,12 @@ class StoryJobQueue {
   }
 
   async addJob(
-    requestIdOrJobData:
-      | string
-      | AudioGenerationJobInput
-      | RegenerateSceneImageInput
-      | RegenerateGraphicNovelPageImageInput
+    requestIdOrJobData: StoryJobQueueInput
   ): Promise<string> {
+    if (storyJobQueueAddJobTestOverride) {
+      return storyJobQueueAddJobTestOverride(requestIdOrJobData);
+    }
+
     if (typeof requestIdOrJobData === 'string') {
       // Story generation -- redirect to appropriate queue based on request type
       // Check if this is instant mode or continuation by reading intermediateData from DB
@@ -1486,6 +1534,48 @@ async function processRegenerateGraphicNovelPageImageLegacy(
 // ── Exports ──
 
 export const storyJobQueue = new StoryJobQueue();
+
+/**
+ * Test-only entry into the production instant character setup worker.
+ * Keeps queue scheduling out of the test while exercising the real processor.
+ */
+export async function processInstantCharacterSetupForTesting(
+  job: InstantCharacterSetupJob
+): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('processInstantCharacterSetupForTesting cannot run in production');
+  }
+  return processInstantCharacterSetup(job);
+}
+
+/**
+ * Test-only entry into the production text→images handoff worker.
+ * Keeps queue scheduling out of the test while exercising the real processor.
+ */
+export async function processTextGenerationForTesting(job: TextGenerationJob): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('processTextGenerationForTesting cannot run in production');
+  }
+  return processTextGeneration(job);
+}
+
+/** Test-only entry into the production image-batch worker. */
+export async function processImageGenerationForTesting(job: ImageGenerationJob): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('processImageGenerationForTesting cannot run in production');
+  }
+  return processImageGeneration(job);
+}
+
+/**
+ * Test-only entry into the production audio generation worker.
+ */
+export async function processAudioGenerationForTesting(job: AudioGenerationJob): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('processAudioGenerationForTesting cannot run in production');
+  }
+  return processAudioGeneration(job);
+}
 
 /**
  * Start all queues

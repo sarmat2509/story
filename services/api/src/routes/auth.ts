@@ -356,6 +356,10 @@ function rejectSuspendedUser(
 }
 
 async function verifyGoogleIdTokenProfile(idToken: string): Promise<GoogleProfile> {
+  if (googleIdTokenVerifierTestOverride) {
+    return googleIdTokenVerifierTestOverride(idToken);
+  }
+
   const { OAuth2Client } = require('google-auth-library');
   const client = new OAuth2Client();
 
@@ -380,6 +384,20 @@ async function verifyGoogleIdTokenProfile(idToken: string): Promise<GoogleProfil
     name: payload.name || payload.email.split('@')[0],
     picture: payload.picture,
   };
+}
+
+type GoogleIdTokenVerifier = (idToken: string) => Promise<GoogleProfile>;
+let googleIdTokenVerifierTestOverride: GoogleIdTokenVerifier | null = null;
+
+export function installGoogleIdTokenVerifierTestOverride(override: GoogleIdTokenVerifier): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Google ID token verifier test override cannot be installed in production');
+  }
+  googleIdTokenVerifierTestOverride = override;
+}
+
+export function clearGoogleIdTokenVerifierTestOverride(): void {
+  googleIdTokenVerifierTestOverride = null;
 }
 
 async function verifyAppleIdentityTokenProfile(
@@ -434,6 +452,14 @@ function getParentGateErrorCode(error: unknown): string | undefined {
 
 // Google OAuth - Start
 router.get('/google/start', oauthLimiter, (req: Request, res: Response, next) => {
+  if (!config.oauth.google.clientId || !config.oauth.google.clientSecret) {
+    return res.status(404).json({
+      status: 'error',
+      code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+      message: 'Google sign in is not configured',
+    });
+  }
+
   const consentInput = parseOAuthRegistrationConsentInput(req.query);
   passport.authenticate('google', {
     scope: ['profile', 'email'],
@@ -446,6 +472,16 @@ router.get('/google/start', oauthLimiter, (req: Request, res: Response, next) =>
 router.get(
   '/google/callback',
   oauthLimiter,
+  (_req: Request, res: Response, next) => {
+    if (!config.oauth.google.clientId || !config.oauth.google.clientSecret) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+        message: 'Google sign in is not configured',
+      });
+    }
+    next();
+  },
   passport.authenticate('google', { session: false, failureRedirect: '/auth/error' }),
   async (req: Request, res: Response) => {
     try {

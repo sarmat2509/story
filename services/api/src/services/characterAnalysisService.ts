@@ -10,7 +10,7 @@
  */
 
 import type { UsageMetadata } from '../providers/base/UsageMetadata';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import type { ITextProvider } from '../providers/base/ITextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import type { CharacterType } from '@wondertales/shared';
@@ -161,7 +161,7 @@ export interface CharacterAnalysisResult {
  */
 export class CharacterAnalysisService {
   constructor(
-    private textProvider: GeminiTextProvider
+    private textProvider: ITextProvider
   ) {}
   
   /**

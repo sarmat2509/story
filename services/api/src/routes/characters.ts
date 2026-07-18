@@ -20,8 +20,7 @@ import {
 } from '../services/characterQuotaService';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
-import { config } from '../config';
+import { getTextProvider } from '../services/aiService';
 import {
   generateTurnaroundSheetFromReference,
   generateLlmCharacterTurnaround,
@@ -206,8 +205,9 @@ async function generateManualCharacterTurnaround(character: Character, userId: s
 }
 
 // Initialize analysis service
-const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
-const analysisService = new CharacterAnalysisService(geminiProvider);
+function getAnalysisService(): CharacterAnalysisService {
+  return new CharacterAnalysisService(getTextProvider());
+}
 
 // POST /api/v1/characters/analyze - Analyze character photos
 router.post('/analyze', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
@@ -249,7 +249,7 @@ router.post('/analyze', requireAuth, requireParentOrScopedChildSession, async (r
     // Call analysis service
     const { recordUsage } = await import('../services/aiUsageService');
     const usageContext = { userId: req.user!.id };
-    const result = await analysisService.analyzeCharacter(
+    const result = await getAnalysisService().analyzeCharacter(
       {
         photos,
         characterType,

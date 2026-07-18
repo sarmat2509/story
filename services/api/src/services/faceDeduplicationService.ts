@@ -10,7 +10,7 @@
  */
 
 import type { UsageMetadata } from '../providers/base/UsageMetadata';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import type { ITextProvider } from '../providers/base/ITextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 
@@ -35,7 +35,7 @@ export interface FaceDeduplicationOptions {
 }
 
 export class FaceDeduplicationService {
-  constructor(private textProvider: GeminiTextProvider) {}
+  constructor(private textProvider: ITextProvider) {}
 
   /**
    * Group photos by individual identity
@@ -234,17 +234,14 @@ Return ONLY valid JSON matching this structure. Each photo must appear in exactl
  * Get singleton instance of Face Deduplication Service
  */
 let faceDeduplicationServiceInstance: FaceDeduplicationService | null = null;
+let faceDeduplicationTextProvider: ITextProvider | null = null;
 
 export function getFaceDeduplicationService(): FaceDeduplicationService {
-  if (!faceDeduplicationServiceInstance) {
-    const { getTextProvider } = require('./aiService');
-    const textProvider = getTextProvider();
-    
-    if (!(textProvider instanceof GeminiTextProvider)) {
-      throw new Error('Face deduplication requires Gemini text provider');
-    }
-    
+  const { getTextProvider } = require('./aiService');
+  const textProvider = getTextProvider() as ITextProvider;
+  if (!faceDeduplicationServiceInstance || faceDeduplicationTextProvider !== textProvider) {
     faceDeduplicationServiceInstance = new FaceDeduplicationService(textProvider);
+    faceDeduplicationTextProvider = textProvider;
   }
   
   return faceDeduplicationServiceInstance;

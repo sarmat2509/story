@@ -859,6 +859,37 @@ type RenderedGraphicNovelPageAssets = {
   coverSource?: GraphicNovelCoverSource;
 };
 
+type GraphicNovelPageRenderTestOverride = (params: {
+  requestId: string;
+  storyId: string;
+  userId: string;
+  generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
+  page: any;
+  style: string;
+  ageGroup: string;
+  scenarioCardId?: string;
+  environments: StoryEnvironment[];
+  characters: GraphicNovelCharacterManifest;
+  storyArtifactReference?: GraphicNovelStoryArtifactReference | null;
+  createCoverCandidate?: boolean;
+}) => Promise<RenderedGraphicNovelPageAssets>;
+
+let graphicNovelPageRenderTestOverride: GraphicNovelPageRenderTestOverride | null = null;
+
+/** Replace only page render/storage while processGraphicNovelPages handoff stays real. */
+export function installGraphicNovelPageRenderTestOverride(
+  override: GraphicNovelPageRenderTestOverride
+): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Graphic novel page render test override cannot be installed in production');
+  }
+  graphicNovelPageRenderTestOverride = override;
+}
+
+export function clearGraphicNovelPageRenderTestOverride(): void {
+  graphicNovelPageRenderTestOverride = null;
+}
+
 type RenderedGraphicNovelPageArt = {
   imageData: Buffer;
   mimeType: string;
@@ -4070,6 +4101,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         }),
       },
       policyChecks: {
+        textValidated: true,
         graphicNovelScriptGenerated: true,
         timestamp: new Date().toISOString(),
       },
@@ -4486,6 +4518,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         }),
       },
       policyChecks: {
+        textValidated: true,
         mixedStoryScriptGenerated: true,
         graphicNovelScriptGenerated: true,
         timestamp: new Date().toISOString(),
@@ -4696,6 +4729,10 @@ async function renderAndStorePage(params: {
   storyArtifactReference?: GraphicNovelStoryArtifactReference | null;
   createCoverCandidate?: boolean;
 }): Promise<RenderedGraphicNovelPageAssets> {
+  if (graphicNovelPageRenderTestOverride) {
+    return graphicNovelPageRenderTestOverride(params);
+  }
+
   const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
   const complexImageDomain = getComplexImageDomainService();
@@ -5906,3 +5943,9 @@ export function buildGraphicNovelGenerationStatus(params: {
     })),
   };
 }
+
+/** Test-only access to production orchestration without replacing its logic. */
+export const graphicNovelOrchestrationTestSeams = {
+  renderAndStorePage,
+  applyVisionBubblePlacementForRenderedPage,
+};

@@ -20,6 +20,8 @@ export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
   onRawResponse?: (response: StructuredRawResponse) => void | Promise<void>;
   reservedCharacters?: StorySpec['characters'];
+  /** Complete prose context for selective repairs that must preserve cross-scene logic. */
+  storyScenes?: Array<{ sceneId: number; text: string }>;
   /** Usage operation name for provider calls; callers can distinguish writer validation from other validators. */
   operation?: string;
   /** When true, uses continuation prompt with previousOutlines, usedPlots, required/optional characters */
@@ -101,11 +103,49 @@ function assertPlainStoryHasReadableScenes(parsed: {
 }
 
 export interface BatchValidationResult {
+  requestManifest?: Record<string, unknown>;
+  narrativeObligations?: Array<{
+    setupSceneId: number;
+    kind:
+      | 'goal'
+      | 'question'
+      | 'threat'
+      | 'clue'
+      | 'plan'
+      | 'promise'
+      | 'rule'
+      | 'object'
+      | 'consequence'
+      | 'other';
+    setupAnchor: string;
+    status: 'closed' | 'open' | 'intentional_carry_forward';
+    closureSceneId?: number | null;
+    closureAnchor?: string | null;
+    repairSceneId?: number | null;
+  }>;
   failedScenes: Array<{
     sceneId: number;
-    violations: Array<{ category: string; severity: string; message: string; suggestion?: string }>;
+    violations: Array<{
+      category: string;
+      severity: string;
+      message: string;
+      suggestion?: string;
+      relatedSceneIds?: number[];
+      evidence?: string;
+    }>;
   }>;
 }
+
+type BatchValidationProviderResult = {
+  audit?: string[];
+  open?: Array<{
+    s: number;
+    k: NonNullable<BatchValidationResult['narrativeObligations']>[number]['kind'];
+    a: string;
+    r: number;
+  }>;
+  failedScenes: BatchValidationResult['failedScenes'];
+};
 
 function isProviderContentBlockedError(message: string): boolean {
   return /PROHIBITED_CONTENT|blocked|content filter/i.test(message);
@@ -146,11 +186,12 @@ export class StoryDomainService {
   constructor(
     private textProvider: ITextProvider,
     private directorTextProvider: ITextProvider = textProvider,
-    private validationTextProvider: ITextProvider = textProvider
+    private validationTextProvider: ITextProvider = textProvider,
+    private validationModelOverride: string | undefined = getValidationTextModelOverride()
   ) {}
 
   private getValidationModelOverride(): string | undefined {
-    return getValidationTextModelOverride();
+    return this.validationModelOverride;
   }
 
   /**
@@ -591,8 +632,8 @@ export class StoryDomainService {
   }
 
   /**
-   * Validate all scenes in one batch request.
-   * Returns only failed scenes (minimal info).
+   * Validate local scene quality and whole-story coherence in one batch request.
+   * Returns repair-target scenes plus the shared request manifest.
    */
   async validateScenesBatch(
     scenes: EpisodeText['scenes'],
@@ -600,6 +641,8 @@ export class StoryDomainService {
     scenarioCardId?: string,
     options?: StoryDomainOptions
   ): Promise<BatchValidationResult> {
+    const operation = options?.operation ?? 'validateScene';
+    const model = this.getValidationModelOverride();
     const prompt = buildBatchValidationRuntimePrompt({
       scenes,
       policy,
@@ -610,6 +653,22 @@ export class StoryDomainService {
       key: TEXT_VALIDATION_CACHE_KEY,
       content: buildBatchValidationCachedPrefix(),
       displayName: TEXT_VALIDATION_CACHE_KEY,
+    };
+    const requestManifest = {
+      version: 1,
+      operation,
+      endpoint: 'generateStructured',
+      model: model ?? null,
+      prompt,
+      cachedPrefix,
+      config: {
+        schemaName: 'BATCH_VALIDATION_SCHEMA',
+        temperature: 0.3,
+      },
+      context: {
+        sceneIds: scenes.map((scene) => scene.sceneId),
+        scenarioCardId: scenarioCardId ?? null,
+      },
     };
     logger.info(
       { sceneCount: scenes.length, promptLength: prompt.length },
@@ -627,22 +686,62 @@ export class StoryDomainService {
     );
 
     try {
-      const result = await this.validationTextProvider.generateStructured<BatchValidationResult>({
+      const result = await this.validationTextProvider.generateStructured<BatchValidationProviderResult>({
         prompt,
         cachedPrefix,
         schema: BATCH_VALIDATION_SCHEMA,
         temperature: 0.3,
-        model: this.getValidationModelOverride(),
+        model,
         onUsage: options?.onUsage,
-        operation: options?.operation ?? 'validateScene',
+        onRawResponse: options?.onRawResponse,
+        operation,
       });
 
-      const failedCount = result.failedScenes?.length ?? 0;
+      if (!Array.isArray(result.failedScenes)) {
+        throw new Error('Batch validation returned an invalid failedScenes payload');
+      }
+
+      const narrativeObligations: NonNullable<BatchValidationResult['narrativeObligations']> =
+        (result.open ?? []).map((item) => ({
+          setupSceneId: item.s,
+          kind: item.k,
+          setupAnchor: item.a,
+          status: 'open',
+          closureSceneId: null,
+          closureAnchor: null,
+          repairSceneId: item.r,
+        }));
+
+      const failedScenes = result.failedScenes.map((scene) => ({
+        ...scene,
+        violations: [...scene.violations],
+      }));
+      for (const obligation of narrativeObligations) {
+        if (obligation.status !== 'open' || typeof obligation.repairSceneId !== 'number') continue;
+        let failedScene = failedScenes.find(
+          (scene) => scene.sceneId === obligation.repairSceneId
+        );
+        if (!failedScene) {
+          failedScene = { sceneId: obligation.repairSceneId, violations: [] };
+          failedScenes.push(failedScene);
+        }
+        if (!failedScene.violations.some((violation) => violation.category === 'setup_payoff_gap')) {
+          failedScene.violations.push({
+            category: 'setup_payoff_gap',
+            severity: 'medium',
+            message: `The story leaves this ${obligation.kind} open: ${obligation.setupAnchor}`,
+            suggestion: 'Close this thread through a concrete observation, action, or consequence.',
+            relatedSceneIds: [obligation.setupSceneId, obligation.repairSceneId],
+          });
+        }
+      }
+
+      const failedCount = failedScenes.length;
       logger.info(
         {
           sceneCount: scenes.length,
           failedCount,
-          ...(failedCount > 0 && { failedSceneIds: result.failedScenes!.map((f) => f.sceneId) }),
+          ...(failedCount > 0 && { failedSceneIds: failedScenes.map((f) => f.sceneId) }),
         },
         'Batch validation complete'
       );
@@ -650,13 +749,22 @@ export class StoryDomainService {
       logger.debug(
         {
           failedCount,
-          responseSummary: { failedScenes: result.failedScenes ?? [] },
+          responseSummary: {
+            narrativeObligationCount: narrativeObligations.length,
+            openNarrativeObligationCount:
+              narrativeObligations.filter((item) => item.status === 'open').length,
+            failedScenes,
+          },
           rawResponse: JSON.stringify(result),
         },
         'Batch validation response'
       );
 
-      return { failedScenes: result.failedScenes ?? [] };
+      return {
+        narrativeObligations,
+        failedScenes,
+        requestManifest,
+      };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       if (isProviderContentBlockedError(errorMsg)) {
@@ -665,6 +773,7 @@ export class StoryDomainService {
           'Batch validation blocked by provider content filter - failing closed'
         );
         return {
+          requestManifest,
           failedScenes: scenes.map((scene) => ({
             sceneId: scene.sceneId,
             violations: [buildProviderBlockedViolation()],
@@ -691,6 +800,7 @@ export class StoryDomainService {
       spec,
       sceneCount,
       failedScenes,
+      storyScenes: options?.storyScenes,
       vocabLevel,
     });
     const cachedPrefix = {

@@ -22,8 +22,7 @@ import { generateToken } from '../services/jwtService';
 import { setSessionCookie } from '../utils/sessionCookie';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
-import { config } from '../config';
+import { getTextProvider } from '../services/aiService';
 import {
   generateTurnaroundSheetFromReference,
   generateTurnaroundSheetFromDescription,
@@ -154,8 +153,9 @@ function extractDeviceInfo(req: Parameters<typeof requireAuth>[0]) {
 }
 
 // Initialize analysis service
-const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
-const analysisService = new CharacterAnalysisService(geminiProvider);
+function getAnalysisService(): CharacterAnalysisService {
+  return new CharacterAnalysisService(getTextProvider());
+}
 
 function buildConsentAuditContext(
   req: Parameters<typeof requireAuth>[0],
@@ -273,7 +273,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     );
 
     // Call analysis service (always 'person' for children)
-    const result = await analysisService.analyzeCharacter(
+    const result = await getAnalysisService().analyzeCharacter(
       {
         photos,
         characterType: 'person',

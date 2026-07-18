@@ -21,12 +21,16 @@ declare module '@aws-sdk/client-s3' {
 
 declare module 'ioredis' {
   export default class Redis {
-    constructor(url: string);
+    constructor(url: string, options?: Record<string, unknown>);
+    connect(): Promise<void>;
     get(key: string): Promise<string | null>;
+    set(key: string, value: string, expiryMode: 'EX', ttl: number): Promise<'OK'>;
     setex(key: string, ttl: number, value: string): Promise<'OK'>;
+    ttl(key: string): Promise<number>;
     del(key: string): Promise<number>;
     sadd(key: string, ...members: string[]): Promise<number>;
     srem(key: string, ...members: string[]): Promise<number>;
     sismember(key: string, member: string): Promise<number>;
+    disconnect(): void;
   }
 }

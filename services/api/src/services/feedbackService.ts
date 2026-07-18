@@ -2,11 +2,9 @@
  * Feedback service - handles user feedback and bug reports
  */
 
-import { db } from '../db';
-import { userFeedback } from '../db/schema';
 import { logger } from '../utils/logger';
 import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
-import { eq } from 'drizzle-orm';
+import { getFeedbackRepository } from '../repositories';
 import {
   mergeFeedbackContentReviewResult,
   type FeedbackContentReviewResult,
@@ -38,21 +36,15 @@ export interface CreateFeedbackInput {
 }
 
 export async function createFeedback(input: CreateFeedbackInput): Promise<{ id: string }> {
-  const [row] = await db
-    .insert(userFeedback)
-    .values({
-      userId: input.userId ?? null,
-      category: input.category,
-      message: input.message,
-      email: input.email ?? null,
-      screenshotUrl: input.screenshotUrl ?? null,
-      context: input.context ?? {},
-    })
-    .returning({ id: userFeedback.id });
-
-  if (!row) {
-    throw new Error('Failed to create feedback');
-  }
+  const repo = getFeedbackRepository();
+  const row = await repo.create({
+    userId: input.userId ?? null,
+    category: input.category,
+    message: input.message,
+    email: input.email ?? null,
+    screenshotUrl: input.screenshotUrl ?? null,
+    context: input.context ?? {},
+  });
 
   logger.info(
     {
@@ -74,11 +66,8 @@ export async function updateFeedbackContentReviewResult(
   feedbackId: string,
   review: FeedbackContentReviewResult
 ): Promise<void> {
-  const [row] = await db
-    .select({ context: userFeedback.context })
-    .from(userFeedback)
-    .where(eq(userFeedback.id, feedbackId))
-    .limit(1);
+  const repo = getFeedbackRepository();
+  const row = await repo.findContextById(feedbackId);
 
   if (!row) {
     logger.warn(
@@ -89,8 +78,5 @@ export async function updateFeedbackContentReviewResult(
   }
 
   const context = mergeFeedbackContentReviewResult(row.context, review);
-  await db
-    .update(userFeedback)
-    .set({ context })
-    .where(eq(userFeedback.id, feedbackId));
+  await repo.updateContext(feedbackId, context);
 }

@@ -9,6 +9,25 @@
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 import { MAX_SCENE_IMAGE_CHARACTERS } from './sceneCharacterLimits';
 
+const BATCH_TEXT_VALIDATION_CATEGORIES = [
+  'content_policy',
+  'age_inappropriate',
+  'fear_level',
+  'emotional_tone',
+  'vocabulary',
+  'language_clarity',
+  'reserved_character_identity_conflict',
+  'reserved_name_reused_for_new_entity',
+  'character_identity_unclear',
+  'causal_link_missing',
+  'means_end_mismatch',
+  'problem_resolution_gap',
+  'motivation_gap',
+  'setup_payoff_gap',
+  'continuity_error',
+  'physical_or_world_logic_error',
+];
+
 /**
  * One row in sceneVisual.cameraComposition.characters — pose plus wardrobe ref (replaces top-level outfitBindings).
  */
@@ -43,6 +62,41 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
 export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
+    audit: {
+      type: 'array',
+      description:
+        'One terse setup|anchor|closure|closure-anchor string per material expectation; closure 0 means open and -1 means valid future carry-forward.',
+      items: { type: 'string', minLength: 5, maxLength: 160 },
+    },
+    open: {
+      type: 'array',
+      description:
+        'Only unresolved material reader expectations. Keys: s setup scene, k kind, a exact setup anchor, r repair scene.',
+      items: {
+        type: 'object',
+        properties: {
+          s: { type: 'number' },
+          k: {
+            type: 'string',
+            enum: [
+              'goal',
+              'question',
+              'threat',
+              'clue',
+              'plan',
+              'promise',
+              'rule',
+              'object',
+              'consequence',
+              'other',
+            ],
+          },
+          a: { type: 'string', minLength: 1, maxLength: 80 },
+          r: { type: 'number' },
+        },
+        required: ['s', 'k', 'a', 'r'],
+      },
+    },
     failedScenes: {
       type: 'array',
       description: 'Only scenes that failed validation. Empty if all pass.',
@@ -55,10 +109,16 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
             items: {
               type: 'object',
               properties: {
-                category: { type: 'string' },
-                severity: { type: 'string' },
+                category: { type: 'string', enum: BATCH_TEXT_VALIDATION_CATEGORIES },
+                severity: { type: 'string', enum: ['critical', 'high', 'medium'] },
                 message: { type: 'string' },
                 suggestion: { type: 'string', nullable: true },
+                relatedSceneIds: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  nullable: true,
+                },
+                evidence: { type: 'string', nullable: true },
               },
               required: ['category', 'severity', 'message'],
             },
@@ -68,7 +128,7 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ['failedScenes'],
+  required: ['audit', 'open', 'failedScenes'],
 };
 
 /**

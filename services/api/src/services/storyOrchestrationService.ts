@@ -5891,6 +5891,11 @@ async function generateSceneImageWithReference(
   }
 }
 
+/** Test-only access to the production scene-image orchestration path. */
+export const storyOrchestrationTestSeams = {
+  generateSceneImageWithReference,
+};
+
 /**
  * Metadata for building character-aware reference instruction text.
  * Follows Google's "Image N: <role>" numbered label convention.

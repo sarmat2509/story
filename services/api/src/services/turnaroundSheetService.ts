@@ -11,36 +11,12 @@ import { recordUsage } from './aiUsageService';
 import { generateEmbedding } from './embeddingService';
 import { extractFrontFromTurnaround } from './turnaroundFrontExtractor';
 import { getCharacterRepository, getChildProfileRepository, getLlmTurnaroundCacheRepository } from '../repositories';
-import { NanoBananaProProvider } from '../providers/image/nanobananapro';
-import { ImageDomainService } from '../domain/image';
 import { logger } from '../utils/logger';
 import config from '../config';
-
-// Lazy singleton for turnaround-specific image domain (uses pro model)
-let turnaroundImageDomain: ImageDomainService | null = null;
-
-// Lazy singleton for LLM text-only character turnaround (Gemini 2.5 Flash Image)
-let llmTurnaroundImageDomain: ImageDomainService | null = null;
-
-function getTurnaroundImageDomain(): ImageDomainService {
-  if (!turnaroundImageDomain) {
-    const model = config.image.turnaroundModel;
-    logger.info({ model }, 'Initializing dedicated turnaround image provider');
-    const provider = new NanoBananaProProvider(config.google.apiKey, model);
-    turnaroundImageDomain = new ImageDomainService(provider);
-  }
-  return turnaroundImageDomain;
-}
-
-function getLlmTurnaroundImageDomain(): ImageDomainService {
-  if (!llmTurnaroundImageDomain) {
-    const model = config.image.simpleModel;
-    logger.info({ model }, 'Initializing LLM turnaround image provider');
-    const provider = new NanoBananaProProvider(config.google.apiKey, model);
-    llmTurnaroundImageDomain = new ImageDomainService(provider);
-  }
-  return llmTurnaroundImageDomain;
-}
+import {
+  getLlmTurnaroundImageDomainService,
+  getTurnaroundImageDomainService,
+} from './aiService';
 
 interface TurnaroundSheetFromReferenceBaseParams {
   targetId: string;
@@ -142,7 +118,7 @@ export async function generateTurnaroundSheetFromReference(
     mimeType,
   }, 'Loaded reference for turnaround sheet');
 
-  const imageDomain = getTurnaroundImageDomain();
+  const imageDomain = getTurnaroundImageDomainService();
   const usageContext = targetType === 'character'
     ? { userId, characterId: targetId, storyId }
     : { userId, childProfileId: targetId, storyId };
@@ -235,7 +211,7 @@ export async function generateTurnaroundSheetFromDescription(
     currentAgeMonths,
   }, 'Starting text-only turnaround sheet generation for child');
 
-  const imageDomain = getTurnaroundImageDomain();
+  const imageDomain = getTurnaroundImageDomainService();
   const usageContext = { userId, childProfileId: targetId };
 
   const generated = await imageDomain.generateTurnaroundSheetFromDescription(
@@ -382,7 +358,7 @@ export async function generateLlmCharacterTurnaround(
   }
 
   // 2. Generate new turnaround (text-only LLM characters: Flash Image, not photo-reference turnaround model)
-  const imageDomain = getLlmTurnaroundImageDomain();
+  const imageDomain = getLlmTurnaroundImageDomainService();
   const usageContext = { userId, characterId, storyId };
   const generated = await imageDomain.generateTurnaroundSheetFromDescription(
     {

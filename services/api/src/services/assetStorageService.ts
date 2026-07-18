@@ -911,8 +911,21 @@ export class AssetStorageService {
 
 // Singleton instance
 let assetStorageServiceInstance: AssetStorageService | null = null;
+let assetStorageServiceTestOverride: AssetStorageService | null = null;
+
+export function installAssetStorageServiceTestOverride(service: AssetStorageService): void {
+  if (config.nodeEnv === 'production') {
+    throw new Error('Asset storage test override cannot be installed in production');
+  }
+  assetStorageServiceTestOverride = service;
+}
+
+export function clearAssetStorageServiceTestOverride(): void {
+  assetStorageServiceTestOverride = null;
+}
 
 export function getAssetStorageService(): AssetStorageService {
+  if (assetStorageServiceTestOverride) return assetStorageServiceTestOverride;
   if (!assetStorageServiceInstance) {
     assetStorageServiceInstance = new AssetStorageService();
   }

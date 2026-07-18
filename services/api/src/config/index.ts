@@ -188,6 +188,18 @@ export const config = {
     openaiValidationModel: process.env.OPENAI_VALIDATION_MODEL || 'gpt-4o',
     /** Primary text/vision provider for image validation; defaults to Gemini. */
     validationTextVendor: (process.env.AI_VALIDATION_TEXT_VENDOR || '').trim() || 'gemini',
+    /** Dedicated provider for full-story prose coherence validation. */
+    storyValidationTextVendor:
+      (process.env.AI_STORY_VALIDATION_TEXT_VENDOR || '').trim() || 'openai',
+    openaiStoryValidationModel:
+      process.env.OPENAI_STORY_VALIDATION_MODEL ||
+      process.env.AI_DIRECTOR_OPENAI_MODEL ||
+      process.env.OPENAI_TEXT_MODEL ||
+      'gpt-5.2',
+    geminiStoryValidationModel:
+      process.env.GEMINI_STORY_VALIDATION_MODEL ||
+      process.env.GEMINI_VALIDATION_MODEL ||
+      'gemini-3.1-flash-lite',
     /** When set, Director (`callDirector`) uses this text vendor; otherwise same as textVendor */
     directorTextVendor: (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || undefined,
     /** OpenAI model for Director only; falls back to OPENAI_TEXT_MODEL default */
@@ -672,6 +684,22 @@ export function getValidationTextModelLabel(): string {
     config.ai.geminiVisionModel ??
     'unknown'
   );
+}
+
+export function getStoryValidationTextModelOverride(): string | undefined {
+  const vendor = (config.ai.storyValidationTextVendor || 'openai').trim().toLowerCase();
+
+  if (vendor === 'openai' && config.ai.openaiApiKey?.trim()) {
+    return config.ai.openaiStoryValidationModel;
+  }
+
+  if (vendor === 'gemini' && config.ai.geminiApiKey?.trim()) {
+    return config.ai.geminiStoryValidationModel;
+  }
+
+  if (config.ai.openaiApiKey?.trim()) return config.ai.openaiStoryValidationModel;
+  if (config.ai.geminiApiKey?.trim()) return config.ai.geminiStoryValidationModel;
+  return undefined;
 }
 
 export default config;

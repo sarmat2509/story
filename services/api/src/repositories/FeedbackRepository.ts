@@ -5,6 +5,50 @@ import * as schema from '../db/schema';
 export class FeedbackRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
+  async create(input: {
+    userId?: string | null;
+    category: string;
+    message: string;
+    email?: string | null;
+    screenshotUrl?: string | null;
+    context?: unknown;
+  }): Promise<{ id: string }> {
+    const [row] = await this.db
+      .insert(schema.userFeedback)
+      .values({
+        userId: input.userId ?? null,
+        category: input.category,
+        message: input.message,
+        email: input.email ?? null,
+        screenshotUrl: input.screenshotUrl ?? null,
+        context: input.context ?? {},
+      })
+      .returning({ id: schema.userFeedback.id });
+
+    if (!row) {
+      throw new Error('Failed to create feedback');
+    }
+
+    return row;
+  }
+
+  async findContextById(feedbackId: string): Promise<{ context: unknown } | null> {
+    const [row] = await this.db
+      .select({ context: schema.userFeedback.context })
+      .from(schema.userFeedback)
+      .where(eq(schema.userFeedback.id, feedbackId))
+      .limit(1);
+
+    return row ?? null;
+  }
+
+  async updateContext(feedbackId: string, context: unknown): Promise<void> {
+    await this.db
+      .update(schema.userFeedback)
+      .set({ context })
+      .where(eq(schema.userFeedback.id, feedbackId));
+  }
+
   async listAllPaginated(options: {
     limit: number;
     offset: number;

@@ -19,8 +19,7 @@ export interface UsageContext {
 /** Distinct ai_usage_events.operation values; priced like scene image_generate */
 export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
 export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
-export const USAGE_OP_IMAGE_CHARACTER_OUTFIT_TURNAROUND =
-  'image_character_outfit_turnaround';
+export const USAGE_OP_IMAGE_CHARACTER_OUTFIT_TURNAROUND = 'image_character_outfit_turnaround';
 export const USAGE_OP_IMAGE_MAP_TILE = 'image_map_tile';
 export const USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT = 'graphic_novel_page_edit';
 export const USAGE_OP_GRAPHIC_NOVEL_PAGE_ART_EDIT = 'graphic_novel_page_art_edit';
@@ -51,8 +50,12 @@ const TEXT_PRICED_OPERATIONS = new Set([
   'map_tile_brief',
   'graphic_novel_script',
   'graphic_novel_script_safety_fallback',
+  'graphic_novel_page_repair',
   'graphic_novel_bubble_vision',
   'graphic_novel_bubble_vision_panel_crop',
+  'graphic_novel_bubble_vision_panel_image',
+  'mixed_story_script',
+  'mixed_story_script_retry',
 ]);
 
 function isTextPricedOperation(operation: string): boolean {

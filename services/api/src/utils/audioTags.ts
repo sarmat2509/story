@@ -69,6 +69,10 @@ export function countNarrationWords(text: string): number {
  * Extract the small tangible keepsake label from raw story prose.
  * Writer marks it once as `{label}` (see formatCoreStoryRules). If multiple matches exist, returns the last (typical for the resolution beat).
  */
+export function countStoryKeepsakeMarkers(fullText: string): number {
+  return fullText.match(/\{[^{}]+\}/g)?.length ?? 0;
+}
+
 export function extractStoryKeepsakeLabel(fullText: string): string | null {
   const re = /\{([^{}]+)\}/g;
   let last: string | null = null;
