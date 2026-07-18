@@ -1,7 +1,12 @@
 /**
  * Render full HTML document for SSR published story
  */
-import type { StoryPublicView } from './types';
+import type {
+  PublicGraphicNovelPage,
+  PublicGraphicNovelTextOverlay,
+  PublicStoryFormat,
+  StoryPublicView,
+} from './types';
 import { buildStoryMeta } from './buildStoryMeta';
 import { buildStoryJsonLd } from './buildStoryJsonLd';
 
@@ -21,20 +26,133 @@ body{min-height:100vh}
 #root>*{flex:1;min-height:100%}
 `;
 
+function publicStoryFormat(value: unknown): PublicStoryFormat {
+  return value === 'graphic_novel' || value === 'mixed_story' ? value : 'story';
+}
+
+function sanitizeComicTextOverlay(value: any): PublicGraphicNovelTextOverlay | null {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.items)) return null;
+  const pageWidth = Number(value.pageSize?.width);
+  const pageHeight = Number(value.pageSize?.height);
+  if (!Number.isFinite(pageWidth) || pageWidth <= 0 || !Number.isFinite(pageHeight) || pageHeight <= 0) {
+    return null;
+  }
+  const numberOr = (candidate: unknown, fallback: number) => {
+    const parsed = Number(candidate);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const items = value.items.flatMap((item: any, index: number) => {
+    const kind = item?.kind;
+    if (kind !== 'speech' && kind !== 'thought' && kind !== 'caption') return [];
+    const text = String(item?.text ?? '').trim();
+    if (!text) return [];
+    return [{
+      id: String(item?.id ?? `bubble-${index + 1}`),
+      segmentId: String(item?.segmentId ?? `segment-${index + 1}`),
+      pageNumber: numberOr(item?.pageNumber, numberOr(value.pageNumber, 1)),
+      panelIndex: numberOr(item?.panelIndex, 1),
+      bubbleIndex: numberOr(item?.bubbleIndex, index + 1),
+      readingOrder: numberOr(item?.readingOrder, index + 1),
+      kind,
+      ...(item?.speaker != null ? { speaker: String(item.speaker) } : {}),
+      text,
+      rect: {
+        x: numberOr(item?.rect?.x, 0),
+        y: numberOr(item?.rect?.y, 0),
+        width: numberOr(item?.rect?.width, 0),
+        height: numberOr(item?.rect?.height, 0),
+      },
+      ...(item?.cssPercent
+        ? {
+            cssPercent: {
+              left: String(item.cssPercent.left ?? ''),
+              top: String(item.cssPercent.top ?? ''),
+              width: String(item.cssPercent.width ?? ''),
+              height: String(item.cssPercent.height ?? ''),
+            },
+          }
+        : {}),
+      ...(item?.tailTo
+        ? { tailTo: { x: numberOr(item.tailTo.x, 0), y: numberOr(item.tailTo.y, 0) } }
+        : {}),
+      ...(item?.ariaLabel != null ? { ariaLabel: String(item.ariaLabel) } : {}),
+    }];
+  });
+  const textStyle = value.textStyle;
+  const sanitizedTextStyle = textStyle
+    ? {
+        fontSizePx: numberOr(textStyle.fontSizePx, 20),
+        lineHeightPx: numberOr(textStyle.lineHeightPx, 23),
+        paddingXPx: numberOr(textStyle.paddingXPx, 14),
+        paddingYPx: numberOr(textStyle.paddingYPx, 6),
+        targetPageWidthPx: numberOr(textStyle.targetPageWidthPx, pageWidth),
+        targetPageHeightPx: numberOr(textStyle.targetPageHeightPx, pageHeight),
+      }
+    : undefined;
+  return {
+    mode: 'html_overlay',
+    coordinateSpace: 'normalized_0_1',
+    pageNumber: numberOr(value.pageNumber, 1),
+    pageSize: { width: pageWidth, height: pageHeight },
+    ...(sanitizedTextStyle ? { textStyle: sanitizedTextStyle } : {}),
+    items,
+  };
+}
+
+function sanitizeComicPage(page: any): PublicGraphicNovelPage {
+  return {
+    pageNumber: Number(page?.pageNumber ?? 0),
+    pageRole: String(page?.pageRole ?? ''),
+    status: String(page?.status ?? ''),
+    imageUrl: page?.imageUrl == null ? null : String(page.imageUrl),
+    textOverlay: sanitizeComicTextOverlay(page?.textOverlay),
+  };
+}
+
 function sanitizeStoryPublicView(story: StoryPublicView): StoryPublicView {
   const source = story as StoryPublicView & Record<string, any>;
+  const storyFormat = publicStoryFormat(source.storyFormat);
   const publicStory: StoryPublicView = {
     id: String(source.id),
     title: String(source.title ?? ''),
     fullText: String(source.fullText ?? ''),
+    storyFormat,
     ...(typeof source.seoDescription === 'string' ? { seoDescription: source.seoDescription } : {}),
     scenes: Array.isArray(source.scenes)
       ? source.scenes.map((scene: any) => ({
           sceneId: Number(scene?.sceneId ?? 0),
           text: String(scene?.text ?? ''),
           ...(scene?.imageUrl != null ? { imageUrl: String(scene.imageUrl) } : {}),
+          ...(scene?.mixedStoryBlockKind === 'prose' || scene?.mixedStoryBlockKind === 'comic'
+            ? { mixedStoryBlockKind: scene.mixedStoryBlockKind }
+            : {}),
+          ...(Number.isFinite(Number(scene?.mixedStoryScreenOrder))
+            ? { mixedStoryScreenOrder: Number(scene.mixedStoryScreenOrder) }
+            : {}),
+          ...(Number.isFinite(Number(scene?.graphicNovelPageNumber))
+            ? { graphicNovelPageNumber: Number(scene.graphicNovelPageNumber) }
+            : {}),
         }))
       : [],
+    ...(storyFormat !== 'story' && Array.isArray(source.comicPages)
+      ? { comicPages: source.comicPages.map(sanitizeComicPage) }
+      : {}),
+    ...(storyFormat === 'mixed_story' && Array.isArray(source.mixedStoryReadingOrder)
+      ? {
+          mixedStoryReadingOrder: source.mixedStoryReadingOrder.map((entry: any, index: number) => ({
+            screenOrder: Number(entry?.screenOrder ?? index + 1),
+            kind: entry?.kind === 'comic' ? 'comic' : 'prose',
+            ...(Number.isFinite(Number(entry?.sceneId)) ? { sceneId: Number(entry.sceneId) } : {}),
+            ...(Number.isFinite(Number(entry?.pageNumber)) ? { pageNumber: Number(entry.pageNumber) } : {}),
+            sourceSceneIds: Array.isArray(entry?.sourceSceneIds)
+              ? entry.sourceSceneIds.map(Number).filter(Number.isFinite)
+              : [],
+            textSegmentIds: Array.isArray(entry?.textSegmentIds)
+              ? entry.textSegmentIds.map(String)
+              : [],
+          })),
+        }
+      : {}),
     ...(source.author
       ? {
           author: {

@@ -5,6 +5,7 @@ const story = {
   id: 'story-1',
   title: 'Launch Story',
   fullText: 'A short launch story.',
+  storyFormat: 'story' as const,
   scenes: [],
   author: {
     id: 'author-1',
@@ -45,6 +46,74 @@ void (async function main() {
     staticHtml,
     /href="[^"]+\/authors\/author-1"/,
     'published story SSR links public author pages when author id is present'
+  );
+
+  const comicHtml = renderPublishedStoryHtml({
+    story: {
+      ...story,
+      storyFormat: 'graphic_novel',
+      comicPages: [
+        {
+          pageNumber: 1,
+          pageRole: 'story',
+          status: 'completed',
+          imageUrl: '/api/v1/assets/comics/page-1.jpg',
+          textOverlay: {
+            mode: 'html_overlay',
+            coordinateSpace: 'normalized_0_1',
+            pageNumber: 1,
+            pageSize: { width: 1024, height: 1536 },
+            items: [
+              {
+                id: 'bubble-1',
+                segmentId: 'segment-1',
+                pageNumber: 1,
+                panelIndex: 1,
+                bubbleIndex: 1,
+                readingOrder: 1,
+                kind: 'speech',
+                text: 'We found the moon key!',
+                rect: { x: 0.1, y: 0.1, width: 0.3, height: 0.12 },
+              },
+            ],
+          },
+        },
+      ],
+    },
+    useStaticBody: true,
+  });
+  assert.match(comicHtml, /class="comic-page"/);
+  assert.match(comicHtml, /comics\/page-1\.jpg/);
+  assert.match(comicHtml, /We found the moon key!/);
+
+  const mixedHtml = renderPublishedStoryHtml({
+    story: {
+      ...story,
+      storyFormat: 'mixed_story',
+      scenes: [
+        { sceneId: 1, text: 'Prose comes first.' },
+        { sceneId: 2, text: 'Internal comic source text.' },
+      ],
+      comicPages: [
+        {
+          pageNumber: 1,
+          pageRole: 'story',
+          status: 'completed',
+          imageUrl: '/api/v1/assets/comics/mixed-1.jpg',
+          textOverlay: null,
+        },
+      ],
+      mixedStoryReadingOrder: [
+        { screenOrder: 1, kind: 'prose', sceneId: 1, sourceSceneIds: [1], textSegmentIds: [] },
+        { screenOrder: 2, kind: 'comic', pageNumber: 1, sourceSceneIds: [2], textSegmentIds: [] },
+      ],
+    },
+    useStaticBody: true,
+  });
+  assert.ok(mixedHtml.indexOf('Prose comes first.') < mixedHtml.indexOf('mixed-1.jpg'));
+  assert.doesNotMatch(
+    mixedHtml.split('<script>window.__INITIAL_STORY__')[0] ?? mixedHtml,
+    /Internal comic source text/
   );
 
   const artifactLeakAttemptHtml = renderPublishedStoryHtml({

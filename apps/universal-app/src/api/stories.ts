@@ -13,6 +13,8 @@ import type {
   CreateStoryRequestInput,
   UserStoryLanguagesResponse,
   RequestStatus,
+  PublicStoryListItem,
+  StoryPublicView,
 } from '@wondertales/shared';
 import apiClient from './client';
 
@@ -909,7 +911,7 @@ export function usePublishedStories(params?: {
     typeof readingTimeMin !== 'number' &&
     typeof readingTimeMax !== 'number';
   const initialStoriesRef = React.useRef<{
-    stories: any[];
+    stories: PublicStoryListItem[];
     pagination: { limit: number; offset: number; total: number };
   } | null>(null);
   if (
@@ -946,7 +948,7 @@ export function usePublishedStories(params?: {
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
-        stories: any[];
+        stories: PublicStoryListItem[];
         pagination: { limit: number; offset: number; total: number };
       }>('/api/v1/public/stories', { params: searchParams });
       return {
@@ -986,7 +988,7 @@ export function usePublicAuthor(
 
 // Get published story by slug (public). On web, may use __INITIAL_STORY__ from SSR.
 export function usePublicStory(slug: string | undefined, enabled = true) {
-  const initialStoryRef = React.useRef<any>(null);
+  const initialStoryRef = React.useRef<StoryPublicView | null>(null);
   if (
     typeof window !== 'undefined' &&
     slug &&
@@ -1003,7 +1005,7 @@ export function usePublicStory(slug: string | undefined, enabled = true) {
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
-        story: any;
+        story: StoryPublicView;
       }>(`/api/v1/public/stories/${slug}`);
       return response.data.story;
     },
@@ -1031,7 +1033,7 @@ export function usePublicStoryByToken(token: string, enabled = true) {
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
-        story: any;
+        story: StoryPublicView;
       }>(`/api/v1/public/u/${token}`);
       return response.data.story;
     },

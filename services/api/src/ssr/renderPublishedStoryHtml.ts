@@ -48,6 +48,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .scene-img-acc{position:absolute;opacity:0;width:1px;height:1px;overflow:hidden}
 .scene-text{font-size:18px;line-height:31.5px;color:#1e293b;margin:0}
 
+/* ── Comic and mixed-story pages ── */
+.comic-page{width:100%;max-width:900px;margin:0 auto 24px}
+.comic-page-canvas{position:relative;width:100%;overflow:hidden;border-radius:12px;background:#e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.08)}
+.comic-page-image{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.comic-bubble{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:clamp(3px,1.1vw,14px);color:#111;font-size:clamp(8px,1.45vw,22px);font-weight:700;line-height:1.15;text-align:center;overflow-wrap:anywhere}
+.comic-bubble-caption{font-weight:600}
+.comic-bubble span{display:block;max-width:100%}
+
 /* ── Right sidebar ── */
 .sidebar{width:360px;flex-shrink:0;border-left:1px solid #e2e8f0;padding:24px}
 .sidebar-sticky{position:sticky;top:80px}
@@ -62,6 +70,7 @@ audio{width:100%;display:block}
   .layout{flex-direction:column}
   .sidebar{display:none}
   .main{padding:16px 16px 48px}
+  .comic-bubble{font-size:clamp(7px,2.4vw,18px)}
 }
 
 /* Smooth handoff: brief fade-in when React replaces root content */

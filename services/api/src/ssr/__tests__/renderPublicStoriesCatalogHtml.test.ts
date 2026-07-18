@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { renderPublicStoriesCatalogHtml } from '../renderPublicStoriesCatalogHtml';
-import type { PublicStoryListItem } from '../../services/publicStoryService';
+import type { PublicStoryListItem } from '@wondertales/shared';
 
 const story: PublicStoryListItem = {
   id: 'story-1',
   title: 'Moonlit Garden',
   language: 'en',
   ageGroup: '4-5',
+  storyFormat: 'story',
   authorId: '11111111-1111-4111-8111-111111111111',
   authorDisplayName: 'Ada',
   authorAvatarUrl: null,
@@ -43,6 +44,7 @@ assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/stories">E
 assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories" selected>Українська<\/option>/);
 assert.match(ukHtml, /window\.__INITIAL_STORIES__/);
 assert.match(ukHtml, /A small child found a lantern in the moonlit garden\./);
+assert.match(ukHtml, /class="format-badge">Історія<\/span>/);
 assert.doesNotMatch(
   ukHtml.split('window.__INITIAL_STORIES__ = ')[1] ?? '',
   /A small child found a lantern/,
@@ -63,6 +65,14 @@ assert.match(enHtml, /<select aria-label="Language"/);
 assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/stories" selected>English<\/option>/);
 assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories">Українська<\/option>/);
 assert.doesNotMatch(enHtml, /onchange=/);
+
+const ruMixedHtml = renderPublicStoriesCatalogHtml({
+  locale: 'ru',
+  stories: [{ ...story, storyFormat: 'mixed_story' }],
+  total: 1,
+});
+assert.match(ruMixedHtml, /class="format-badge">История \+ комикс<\/span>/);
+assert.doesNotMatch(ruMixedHtml, /персонализированн/i);
 
 const fallbackHtml = renderPublicStoriesCatalogHtml({
   locale: 'en',

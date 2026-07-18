@@ -1,6 +1,5 @@
 import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
-import type { PublicAuthorView } from '@wondertales/shared';
-import type { PublicStoryListItem } from '../services/publicStoryService';
+import type { PublicAuthorView, PublicStoryListItem } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { getVersionedWebBundleUrl } from './webBundleUrl';

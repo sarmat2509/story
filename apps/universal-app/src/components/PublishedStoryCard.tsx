@@ -1,25 +1,11 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { StoryAudioMetadata } from '@wondertales/shared';
+import { useTranslation } from 'react-i18next';
+import type { PublicStoryListItem, PublicStoryFormat } from '@wondertales/shared';
 import { emojiForAvg } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
-
-export interface PublicStoryListItem {
-  id: string;
-  title: string;
-  publishedSlug: string;
-  authorId?: string;
-  authorDisplayName: string;
-  authorAvatarUrl?: string | null;
-  coverImageUrl?: string | null;
-  coverThumbnailUrl?: string | null;
-  scenes?: Array<{ sceneId: number; imageUrl?: string | null }>;
-  hasAudio?: boolean;
-  audioMetadata?: StoryAudioMetadata | null;
-  rating?: { avg: number; count: number };
-}
 
 interface Props {
   story: PublicStoryListItem;
@@ -29,6 +15,7 @@ interface Props {
 }
 
 export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props) {
+  const { t } = useTranslation();
   const coverUrl =
     story.coverThumbnailUrl ??
     story.coverImageUrl ??
@@ -37,6 +24,12 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
     null;
   const thumbnail = coverUrl ? formatAssetUrl(coverUrl) : null;
   const hasAudio = story.hasAudio ?? !!story.audioMetadata;
+  const formatKey: Record<PublicStoryFormat, string> = {
+    story: 'wizard.format_story',
+    graphic_novel: 'wizard.format_comic',
+    mixed_story: 'wizard.format_mixed',
+  };
+  const formatLabel = t(formatKey[story.storyFormat ?? 'story']);
 
   if (variant === 'grid') {
     return (
@@ -54,6 +47,9 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
               <Text style={styles.placeholderIcon}>📖</Text>
             </View>
           )}
+          <View style={styles.formatBadge}>
+            <Text style={styles.formatBadgeText}>{formatLabel}</Text>
+          </View>
           <View style={styles.gridContent}>
             <Text style={styles.gridTitle} numberOfLines={2}>
               {story.title}
@@ -106,6 +102,9 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
           <Text style={styles.listAuthor} numberOfLines={1}>
             {story.authorDisplayName || 'Anonymous'}
           </Text>
+          <View style={styles.listFormatBadge}>
+            <Text style={styles.formatBadgeText}>{formatLabel}</Text>
+          </View>
           {story.rating && story.rating.count > 0 && (
             <Text style={styles.listRating}>
               {emojiForAvg(story.rating.avg)} {story.rating.avg.toFixed(1)} ({story.rating.count})
@@ -186,6 +185,21 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.full,
     padding: theme.spacing[1],
   },
+  formatBadge: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    maxWidth: '72%',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: theme.borders.radius.full,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  formatBadgeText: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
   listCard: {
     marginBottom: theme.spacing[3],
     borderRadius: theme.borders.radius.xl,
@@ -222,6 +236,14 @@ const styles = StyleSheet.create({
   listAuthor: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
+  },
+  listFormatBadge: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.tertiary,
   },
   listRating: {
     fontSize: theme.typography.fontSize.sm,

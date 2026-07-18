@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Platform,
   type ImageStyle,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp, type NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,11 @@ import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
+import type {
+  PublicGraphicNovelPage,
+  PublicGraphicNovelTextOverlayItem,
+  PublicStoryScene,
+} from '@wondertales/shared';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const removeAudioTags = (text: string): string => {
@@ -69,6 +75,7 @@ export default function PublishedStoryScreen() {
   // All hooks MUST come before any early returns (Rules of Hooks)
   const [isHighlightEnabled, setIsHighlightEnabled] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
+  const [comicPageWidths, setComicPageWidths] = useState<Record<number, number>>({});
   const activeStoryId = useAudioPlayerStore((s) => s.activeStoryId);
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
   const isHighlightEnabledRef = useRef(false);
@@ -318,29 +325,7 @@ export default function PublishedStoryScreen() {
 
       {!useDesktopLayout && renderReportStoryButton()}
 
-      <View style={styles.scenesSection}>
-        {(story.scenes ?? []).map((scene: any, index: number) => {
-          const imgUrl = scene.imageUrl ? formatAssetUrl(scene.imageUrl) : null;
-          return (
-            <View
-              key={scene.sceneId ?? index}
-              style={styles.scene}
-              ref={(ref: View | null) => {
-                sceneRefs.current[index] = ref;
-              }}
-            >
-              {imgUrl && (
-                <Image
-                  source={{ uri: imgUrl }}
-                  style={styles.sceneImage as ImageStyle}
-                  resizeMode="cover"
-                />
-              )}
-              {renderSceneText(removeAudioTags(scene.text || ''), index)}
-            </View>
-          );
-        })}
-      </View>
+      <View style={styles.scenesSection}>{renderPublishedContent()}</View>
 
       {!useDesktopLayout && <PublishedStoryCta slug={slug} isAuthenticated={!!isAuthenticated} />}
     </>
@@ -407,6 +392,172 @@ export default function PublishedStoryScreen() {
       renderedText.push(cleanedText.substring(lastIndex));
     }
     return <Text style={styles.sceneText}>{renderedText}</Text>;
+  };
+
+  const renderProseScene = (scene: PublicStoryScene, sceneIndex: number, showImage = true) => {
+    const imgUrl = showImage && scene.imageUrl ? formatAssetUrl(scene.imageUrl) : null;
+    return (
+      <View
+        key={`prose-${scene.sceneId}-${sceneIndex}`}
+        style={styles.scene}
+        ref={(ref: View | null) => {
+          sceneRefs.current[sceneIndex] = ref;
+        }}
+      >
+        {imgUrl && (
+          <Image
+            source={{ uri: imgUrl }}
+            style={styles.sceneImage as ImageStyle}
+            resizeMode="cover"
+          />
+        )}
+        {renderSceneText(removeAudioTags(scene.text || ''), sceneIndex)}
+      </View>
+    );
+  };
+
+  const renderComicTextItem = (
+    item: PublicGraphicNovelTextOverlayItem,
+    page: PublicGraphicNovelPage
+  ) => {
+    const text = removeAudioTags(item.text || '');
+    if (!text) return null;
+    const pageSize = page.textOverlay?.pageSize;
+    const textStyle = page.textOverlay?.textStyle;
+    const pageWidth = comicPageWidths[page.pageNumber] || pageSize?.width || 1024;
+    const targetWidth = textStyle?.targetPageWidthPx || pageSize?.width || 1024;
+    const scale = pageWidth / targetWidth;
+    const rectStyle = {
+      left: `${item.rect.x * 100}%`,
+      top: `${item.rect.y * 100}%`,
+      width: `${item.rect.width * 100}%`,
+      height: `${item.rect.height * 100}%`,
+    };
+    return (
+      <View
+        key={item.segmentId || item.id}
+        pointerEvents="box-none"
+        accessibilityLabel={item.ariaLabel}
+        style={[
+          styles.comicTextBox,
+          rectStyle as any,
+          {
+            paddingHorizontal: (textStyle?.paddingXPx ?? 14) * scale,
+            paddingVertical: (textStyle?.paddingYPx ?? 6) * scale,
+          },
+        ]}
+      >
+        <Text
+          selectable
+          style={[
+            styles.comicBubbleText,
+            {
+              fontSize: (textStyle?.fontSizePx ?? 20) * scale,
+              lineHeight: (textStyle?.lineHeightPx ?? 23) * scale,
+            },
+          ]}
+        >
+          {text}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderComicPage = (page: PublicGraphicNovelPage) => {
+    const imageUrl = page.imageUrl ? formatAssetUrl(page.imageUrl) : null;
+    const pageSize = page.textOverlay?.pageSize;
+    const aspectRatio =
+      pageSize?.width && pageSize?.height ? pageSize.width / pageSize.height : 3 / 4;
+    const sceneIndex = (story.scenes ?? []).findIndex(
+      (scene: PublicStoryScene) => scene.graphicNovelPageNumber === page.pageNumber
+    );
+    const refIndex = sceneIndex >= 0 ? sceneIndex : Math.max(0, page.pageNumber - 1);
+    const handleLayout = (event: LayoutChangeEvent) => {
+      const width = event.nativeEvent.layout.width;
+      setComicPageWidths((current) =>
+        current[page.pageNumber] === width ? current : { ...current, [page.pageNumber]: width }
+      );
+    };
+    return (
+      <View
+        key={`comic-page-${page.pageNumber}`}
+        ref={(ref: View | null) => {
+          sceneRefs.current[refIndex] = ref;
+        }}
+        style={styles.comicPage}
+      >
+        <View style={[styles.comicPageCanvas, { aspectRatio }]} onLayout={handleLayout}>
+          {imageUrl ? (
+            <>
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.comicPageImage as ImageStyle}
+                resizeMode="contain"
+              />
+              {(page.textOverlay?.items ?? [])
+                .slice()
+                .sort((a, b) => a.readingOrder - b.readingOrder)
+                .map((item) => renderComicTextItem(item, page))}
+            </>
+          ) : (
+            <View style={styles.comicPagePlaceholder}>
+              <Ionicons name="image-outline" size={26} color={theme.colors.text.tertiary} />
+              <Text style={styles.comicPagePlaceholderText}>
+                {t('story_viewer.comic_page_preparing', { page: page.pageNumber })}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderMixedContent = () => {
+    const scenes = story.scenes ?? [];
+    const pages = story.comicPages ?? [];
+    const order = story.mixedStoryReadingOrder ?? [];
+    if (order.length === 0) {
+      return scenes
+        .slice()
+        .sort((a, b) => (a.mixedStoryScreenOrder ?? 0) - (b.mixedStoryScreenOrder ?? 0))
+        .map((scene) => {
+          const sceneIndex = scenes.findIndex((candidate) => candidate.sceneId === scene.sceneId);
+          if (scene.mixedStoryBlockKind === 'comic' && scene.graphicNovelPageNumber) {
+            const page = pages.find(
+              (candidate) => candidate.pageNumber === scene.graphicNovelPageNumber
+            );
+            return page ? renderComicPage(page) : null;
+          }
+          return renderProseScene(scene, sceneIndex, false);
+        });
+    }
+    return order
+      .slice()
+      .sort((a, b) => a.screenOrder - b.screenOrder)
+      .map((entry) => {
+        if (entry.kind === 'comic') {
+          const page = pages.find((candidate) => candidate.pageNumber === entry.pageNumber);
+          return page ? renderComicPage(page) : null;
+        }
+        const sourceSceneId = entry.sceneId ?? entry.sourceSceneIds[0];
+        const sceneIndex = scenes.findIndex(
+          (candidate) =>
+            candidate.sceneId === sourceSceneId ||
+            candidate.mixedStoryScreenOrder === entry.screenOrder
+        );
+        const scene = scenes[sceneIndex];
+        return scene ? renderProseScene(scene, sceneIndex, false) : null;
+      });
+  };
+
+  const renderPublishedContent = () => {
+    if (story.storyFormat === 'graphic_novel') {
+      return (story.comicPages ?? []).map(renderComicPage);
+    }
+    if (story.storyFormat === 'mixed_story') {
+      return renderMixedContent();
+    }
+    return (story.scenes ?? []).map((scene, index) => renderProseScene(scene, index));
   };
 
   const renderRightColumn = () => (
@@ -636,6 +787,57 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.lg,
     color: theme.colors.text.primary,
+  },
+  comicPage: {
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  comicPageCanvas: {
+    position: 'relative',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  comicPageImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  comicTextBox: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  comicBubbleText: {
+    width: '100%',
+    minWidth: 0,
+    flexShrink: 1,
+    color: '#111111',
+    fontWeight: theme.typography.fontWeight.bold,
+    textAlign: 'center',
+    includeFontPadding: false,
+    ...Platform.select({
+      web: {
+        // @ts-ignore web-only text wrapping
+        textWrap: 'balance',
+        // @ts-ignore web-only overflow wrapping
+        overflowWrap: 'break-word',
+      },
+      default: {},
+    }),
+  },
+  comicPagePlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[6],
+  },
+  comicPagePlaceholderText: {
+    marginTop: theme.spacing[3],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
   sentenceText: {
     // Inline text wrapper — inherits sceneText styles

@@ -6,7 +6,7 @@ import {
   normalizePublicSeoLocale,
   type PublicSeoLocale,
 } from '@wondertales/shared';
-import type { PublicStoryListItem } from '../services/publicStoryService';
+import type { PublicStoryFormat, PublicStoryListItem } from '@wondertales/shared';
 import { config } from '../config';
 import { formatLandingAgeGroup, formatLandingDuration } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
@@ -149,6 +149,16 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
   },
 };
 
+const FORMAT_LABELS: Record<PublicSeoLocale, Record<PublicStoryFormat, string>> = {
+  uk: { story: 'Історія', graphic_novel: 'Комікс', mixed_story: 'Історія + комікс' },
+  en: { story: 'Story', graphic_novel: 'Comic', mixed_story: 'Story + comic' },
+  ru: { story: 'История', graphic_novel: 'Комикс', mixed_story: 'История + комикс' },
+  es: { story: 'Historia', graphic_novel: 'Cómic', mixed_story: 'Historia + cómic' },
+  de: { story: 'Geschichte', graphic_novel: 'Comic', mixed_story: 'Geschichte + Comic' },
+  fr: { story: 'Histoire', graphic_novel: 'BD', mixed_story: 'Histoire + BD' },
+  pl: { story: 'Historia', graphic_novel: 'Komiks', mixed_story: 'Historia + komiks' },
+};
+
 const CATALOG_STYLES = `
 *{box-sizing:border-box}
 html,body{min-height:100%}
@@ -169,6 +179,8 @@ h1{font-size:42px;line-height:1.08;margin:0 0 14px;letter-spacing:0}
 .thumb{aspect-ratio:16/9;width:100%;object-fit:cover;background:#e2e8f0;display:block}
 .thumb-placeholder{aspect-ratio:16/9;background:linear-gradient(135deg,#e0f2fe,#fef3c7);display:flex;align-items:center;justify-content:center;color:#334155;font-weight:800}
 .card-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.format-badge{display:inline-flex;align-items:center;width:max-content;padding:5px 9px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:12px;font-weight:800}
 .card h2{font-size:19px;line-height:1.25;margin:0;color:#172033}
 .meta{display:flex;flex-wrap:wrap;gap:8px;margin:0;color:#64748b;font-size:13px}
 .meta span{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#f1f5f9}
@@ -256,6 +268,7 @@ function renderStoryCard(
       }
     </a>
     <div class="card-body">
+      <div class="badges"><span class="format-badge">${escapeHtml(FORMAT_LABELS[locale][story.storyFormat ?? 'story'])}</span></div>
       <h2><a href="${escapeHtml(storyUrl)}">${escapeHtml(story.title)}</a></h2>
       <p class="meta">
         <span>${escapeHtml(age)}</span>
@@ -276,6 +289,7 @@ function buildInitialCatalogStories(stories: PublicStoryListItem[]) {
       id: story.id,
       title: story.title,
       publishedSlug: story.publishedSlug,
+      storyFormat: story.storyFormat,
       authorId: story.authorId,
       authorDisplayName: story.authorDisplayName,
       authorAvatarUrl: story.authorAvatarUrl ?? null,
