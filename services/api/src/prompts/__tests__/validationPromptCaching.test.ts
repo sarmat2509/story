@@ -43,6 +43,28 @@ function testTextValidationPromptSplit() {
   });
 
   assert.ok(cached.includes('Output contract'));
+  assert.ok(cached.includes('PASS 2 — WHOLE-STORY COHERENCE'));
+  assert.ok(cached.includes('causal_link_missing'));
+  assert.ok(cached.includes('means_end_mismatch'));
+  assert.ok(cached.includes('problem_resolution_gap'));
+  assert.ok(cached.includes('intentional internal marker for the required keepsake'));
+  assert.ok(cached.includes('needs no earlier setup'));
+  assert.ok(cached.includes('entirely inside the top-level repair target sceneId'));
+  assert.ok(cached.includes('emphasized as a scene-ending hook'));
+  assert.ok(cached.includes("unsupported guess is not a payoff"));
+  assert.ok(cached.includes('neutral background ambience'));
+  assert.ok(cached.includes('target the later reveal or resolution scene'));
+  assert.ok(cached.includes('MANDATORY NARRATIVE-OBLIGATION AUDIT'));
+  assert.ok(cached.includes('Inspect every non-final scene ending separately'));
+  assert.ok(cached.includes('textual function, not genre or subject matter'));
+  assert.ok(cached.includes('"open"'));
+  assert.ok(cached.includes('"audit"'));
+  assert.ok(cached.includes('AUDIT/FAILURE CONSISTENCY IS REQUIRED'));
+  assert.ok(cached.includes('one terse string for every distinct material expectation'));
+  assert.ok(cached.includes('Use -1 only for an explicit future-facing anchor'));
+  assert.ok(cached.includes('Every setup_payoff_gap must have at least one matching open row'));
+  assert.ok(cached.includes('Audit one row per distinct expectation'));
+  assert.ok(cached.includes('Never merge different sounds, sights, objects, goals'));
   assert.ok(!cached.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
@@ -87,6 +109,7 @@ function testSingleSceneValidationPrompt() {
   assert.ok(prompt.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
   assert.ok(prompt.includes('reserved_character_identity_conflict'));
   assert.ok(prompt.includes('Do not infer, complete, rewrite, or repair illustration character rosters'));
+  assert.ok(prompt.includes('intentional keepsake marker'));
   assert.ok(!prompt.includes('CAMERA:'));
   assert.ok(!prompt.includes('correctedCameraComposition'));
   assert.ok(!prompt.includes('camera_composition_incomplete'));
@@ -103,6 +126,10 @@ function testTextRegenerationPromptSplit() {
     sceneCount: 3,
     vocabLevel: 'simple',
     failedScenes: [{ sceneId: 2, originalText: 'Old text', feedback: 'Too scary' }],
+    storyScenes: [
+      { sceneId: 1, text: 'Mia found the lantern beside a locked gate.' },
+      { sceneId: 2, text: 'Old text' },
+    ],
   });
 
   assert.ok(
@@ -111,6 +138,11 @@ function testTextRegenerationPromptSplit() {
   assert.ok(!cached.includes('Old text'));
   assert.ok(runtime.includes('Old text'));
   assert.ok(runtime.includes('Too scary'));
+  assert.ok(runtime.includes('FULL STORY CONTEXT'));
+  assert.ok(runtime.includes('Mia found the lantern beside a locked gate.'));
+  assert.ok(runtime.includes('TARGET SCENES TO FIX'));
+  assert.ok(cached.includes('Apply every repair entirely inside its target sceneId'));
+  assert.ok(cached.includes('Preserve exactly one such marker'));
 }
 
 function testImageValidationPromptSplit() {
@@ -128,7 +160,7 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v18');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v19');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
   assert.ok(
     cached.content.includes(

@@ -1,4 +1,4 @@
-import type { Page, Request, Route } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import {
   billingPlans,
   defaultChildModeSettings,
@@ -13,90 +13,910 @@ import {
   testUser,
 } from './testData';
 
+export type ApiMockScenario =
+  | 'default'
+  | 'onboarding'
+  | 'billing-usd'
+  | 'character-create'
+  | 'character-edit-delete'
+  | 'child-controls-update'
+  | 'child-series-allowed'
+  | 'child-series-denied'
+  | 'child-wizard-restricted'
+  | 'child-story-generation-disabled'
+  | 'child-continuation-disabled'
+  | 'child-public-stories-allowed'
+  | 'child-public-stories-denied'
+  | 'child-free-text-disabled'
+  | 'child-audio-disabled'
+  | 'child-quiz-disabled'
+  | 'child-siblings-allowed'
+  | 'child-siblings-denied'
+  | 'child-parent-review-required'
+  | 'parent-mode-switch-instant'
+  | 'child-mode-switch-instant'
+  | 'story-continuation-retry'
+  | 'story-review-publish';
+
+type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+type MockResponse = {
+  status?: number;
+  body: unknown;
+};
+
+type MockDefinition = {
+  method: ApiMethod;
+  target: string;
+  responses: MockResponse[];
+};
+
+export type ApiMockController = {
+  assertNoUnexpectedRequests(): void;
+};
+
 const transparentPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
   'base64'
 );
 
-async function json(route: Route, data: unknown, status = 200) {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(data),
-  });
-}
+const createdCharacter = {
+  ...testCharacter,
+  id: 'character-e2e-created-1',
+  name: 'Nimbus',
+  type: 'animal',
+  description: 'A silver fox who maps the wind.',
+};
+
+const updatedCharacter = {
+  ...testCharacter,
+  name: 'Luna Updated',
+};
+
+const siblingCharacter = {
+  ...testCharacter,
+  id: 'character-e2e-sibling-1',
+  name: 'Orion Sibling',
+  childProfileId: 'child-e2e-sibling',
+};
+
+const usdBillingPlans = [
+  { ...billingPlans[0], pricingCurrency: 'USD' },
+  { ...billingPlans[1], pricingCurrency: 'USD', priceMonthly: 1099 },
+];
+
+const magicStoryManifest = {
+  ...privateStoryManifests['private-story-magic-audio'],
+  audioMetadata: {
+    ...privateStoryManifests['private-story-magic-audio'].audioMetadata,
+    alignment: { words: [], wordStartTimes: [], wordEndTimes: [] },
+  },
+};
+
+const approvedChildStoryManifest = {
+  ...privateStoryManifests['private-story-child-review'],
+  parentReviewStatus: 'approved',
+};
+
+const publishedChildStoryManifest = {
+  ...approvedChildStoryManifest,
+  isPublished: true,
+  visibility: 'public',
+  publishedSlug: 'private-story-child-review-published',
+  shareUrl: 'https://app.wondertales.com/stories/private-story-child-review-published',
+};
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function requestJson(request: Request) {
-  try {
-    return request.postDataJSON() as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+function response(body: unknown, status = 200): MockResponse {
+  return { body, status };
 }
 
-function childModeSettingsFromSnakeCase(
-  settings: Record<string, unknown>
-): Partial<typeof defaultChildModeSettings> {
-  const next: Partial<typeof defaultChildModeSettings> = {};
-  if (typeof settings.story_generation_enabled === 'boolean') {
-    next.storyGenerationEnabled = settings.story_generation_enabled;
-  }
-  if (typeof settings.public_stories_enabled === 'boolean') {
-    next.publicStoriesEnabled = settings.public_stories_enabled;
-  }
-  if (
-    typeof settings.daily_generation_limit === 'number' ||
-    settings.daily_generation_limit === null
-  ) {
-    next.dailyGenerationLimit = settings.daily_generation_limit;
-  }
-  if (
-    typeof settings.monthly_generation_limit === 'number' ||
-    settings.monthly_generation_limit === null
-  ) {
-    next.monthlyGenerationLimit = settings.monthly_generation_limit;
-  }
-  if (
-    typeof settings.daily_audio_generation_limit === 'number' ||
-    settings.daily_audio_generation_limit === null
-  ) {
-    next.dailyAudioGenerationLimit = settings.daily_audio_generation_limit;
-  }
-  if (Array.isArray(settings.allowed_theme_slugs)) {
-    next.allowedThemeSlugs = settings.allowed_theme_slugs.map(String);
-  }
-  if (Array.isArray(settings.allowed_language_codes)) {
-    next.allowedLanguageCodes = settings.allowed_language_codes.map(String);
-  }
-  if (Array.isArray(settings.allowed_character_ids)) {
-    next.allowedCharacterIds = settings.allowed_character_ids.map(String);
-  }
-  if (typeof settings.free_text_prompts_enabled === 'boolean') {
-    next.freeTextPromptsEnabled = settings.free_text_prompts_enabled;
-  }
-  if (typeof settings.audio_generation_enabled === 'boolean') {
-    next.audioGenerationEnabled = settings.audio_generation_enabled;
-  }
-  if (typeof settings.quiz_generation_enabled === 'boolean') {
-    next.quizGenerationEnabled = settings.quiz_generation_enabled;
-  }
-  if (typeof settings.parent_review_required === 'boolean') {
-    next.parentReviewRequired = settings.parent_review_required;
-  }
-  if (typeof settings.allow_sibling_characters === 'boolean') {
-    next.allowSiblingCharacters = settings.allow_sibling_characters;
-  }
-  if (typeof settings.allow_shared_family_stories === 'boolean') {
-    next.allowSharedFamilyStories = settings.allow_shared_family_stories;
-  }
-  return next;
+function normalizedTarget(target: string): string {
+  const url = new URL(target, 'https://e2e.invalid');
+  url.searchParams.sort();
+  const query = url.searchParams.toString();
+  return `${url.pathname}${query ? `?${query}` : ''}`;
 }
 
-async function png(route: Route) {
+function key(method: string, target: string): string {
+  return `${method.toUpperCase()} ${normalizedTarget(target)}`;
+}
+
+function pagination(stories: unknown[], total = stories.length) {
+  return { status: 'success', stories, pagination: { limit: 24, offset: 0, total } };
+}
+
+function childModeControls(settings = defaultChildModeSettings) {
+  return {
+    childModeEnabled: true,
+    childModeSettings: settings,
+    childModePasscodeConfigured: true,
+    activeSessionCount: 0,
+  };
+}
+
+function childProfile(
+  settings = defaultChildModeSettings,
+  storyCreationMode: 'instant' | 'artisan' = 'artisan'
+) {
+  return {
+    ...testChildProfile,
+    storyCreationMode,
+    childModeSettings: settings,
+    childMode: childModeControls(settings),
+  };
+}
+
+function childrenResponse(
+  settings = defaultChildModeSettings,
+  storyCreationMode: 'instant' | 'artisan' = 'artisan'
+) {
+  return {
+    status: 'success',
+    children: [childProfile(settings, storyCreationMode)],
+    limit: 5,
+    canCreateMore: true,
+  };
+}
+
+function currentChildModeDefinition(settings: typeof defaultChildModeSettings): MockDefinition {
+  return {
+    method: 'GET',
+    target: '/api/v1/children/child-mode/current',
+    responses: [
+      response({
+        status: 'success',
+        childMode: {
+          childModeEnabled: true,
+          childModeSettings: settings,
+        },
+      }),
+    ],
+  };
+}
+
+function plansResponse(
+  plans: typeof billingPlans,
+  billingCurrency: 'EUR' | 'USD',
+  preferredBillingCurrency: 'EUR' | 'USD'
+) {
+  return {
+    status: 'success',
+    plans,
+    enableRealPayments: true,
+    billingCurrency,
+    preferredBillingCurrency,
+    supportedBillingCurrencies: ['EUR', 'USD'],
+  };
+}
+
+function staticDefinitions(): MockDefinition[] {
+  const definitions: MockDefinition[] = [];
+  const add = (
+    method: ApiMethod,
+    target: string,
+    body: unknown,
+    status = 200,
+    moreResponses: MockResponse[] = []
+  ) => definitions.push({ method, target, responses: [response(body, status), ...moreResponses] });
+
+  add('GET', '/api/v1/me', { status: 'success', user: testUser });
+  add('PATCH', '/api/v1/me', { status: 'success', user: testUser });
+  add('PATCH', '/api/v1/me/child-mode-exit-passcode', {
+    status: 'success',
+    user: { ...testUser, childModeExitPasscodeConfigured: true },
+    childModeExitPasscode: { configured: true, setAt: '2026-07-10T10:00:00.000Z' },
+  });
+  add('POST', '/api/v1/auth/parent-gate', {
+    status: 'success',
+    token: 'e2e-parent-token-from-gate',
+    sessionMode: 'parent',
+    user: testUser,
+  });
+  add('POST', '/api/v1/auth/child-mode/recovery', {
+    status: 'success',
+    message: 'Recovery email sent',
+  });
+  add('POST', '/api/v1/auth/child-mode/recovery/complete', {
+    status: 'success',
+    token: 'e2e-parent-token-from-recovery',
+    sessionMode: 'parent',
+    user: testUser,
+    expiresAt: Date.parse('2026-07-10T18:00:00.000Z'),
+    childModeExitPasscodeResetToken: 'e2e-exit-passcode-reset-token',
+  });
+
+  add('GET', '/api/v1/dictionaries/story-themes?locale=en', {
+    status: 'success',
+    data: storyThemes,
+  });
+  add('GET', '/api/v1/me/subscription-usage', {
+    status: 'success',
+    data: subscriptionUsage,
+  });
+  add('GET', '/api/v1/entitlements', {
+    status: 'success',
+    features: { characters_per_month: { used: 1, limit: 10, remaining: 9 } },
+  });
+
+  add('GET', '/api/v1/children', childrenResponse());
+  add('POST', '/api/v1/children', {
+    status: 'success',
+    child: {
+      ...testChild,
+      id: 'child-e2e-onboarded',
+      name: 'Nina',
+      birthDate: '2020-01-01',
+      storyCreationMode: 'artisan',
+      childMode: {
+        childModeEnabled: false,
+        childModeSettings: defaultChildModeSettings,
+        activeSessionCount: 0,
+      },
+    },
+  });
+  add('GET', '/api/v1/children/child-mode/switcher', {
+    status: 'success',
+    children: [childProfile()],
+  });
+  add('GET', '/api/v1/children/child-mode/current', {
+    status: 'success',
+    childMode: {
+      childModeEnabled: true,
+      childModeSettings: defaultChildModeSettings,
+    },
+  });
+  add('GET', `/api/v1/children/${testChild.id}/child-mode`, {
+    status: 'success',
+    childMode: childModeControls(),
+  });
+  add('PATCH', `/api/v1/children/${testChild.id}/child-mode`, {
+    status: 'success',
+    childMode: childModeControls(),
+  });
+  add('POST', `/api/v1/children/${testChild.id}/child-mode/sessions`, {
+    status: 'success',
+    token: 'e2e-child-token-from-parent',
+    expiresAt: Date.parse('2026-07-10T18:00:00.000Z'),
+    child: childProfile(),
+    session: {
+      id: 'child-session-e2e-1',
+      mode: 'child',
+      parentUserId: testUser.id,
+      childProfileId: testChild.id,
+      scopes: ['child_mode'],
+      expiresAt: '2026-07-10T18:00:00.000Z',
+    },
+    childMode: childModeControls(),
+  });
+  add('DELETE', `/api/v1/children/${testChild.id}/child-mode/sessions`, {
+    status: 'success',
+    revokedCount: 1,
+  });
+
+  add('GET', '/api/v1/characters', { status: 'success', characters: [testCharacter] });
+  add('POST', '/api/v1/characters', { status: 'success', character: createdCharacter });
+  add('PATCH', `/api/v1/characters/${testCharacter.id}`, {
+    status: 'success',
+    character: updatedCharacter,
+  });
+  add('DELETE', `/api/v1/characters/${testCharacter.id}`, { status: 'success' });
+
+  add('GET', '/api/v1/me/stories/languages', {
+    status: 'success',
+    languages: ['en', 'es'],
+  });
+  add('GET', '/api/v1/me/stories/quiz-candidate', { status: 'success', candidate: null });
+  add('GET', '/api/v1/me/stories?limit=20&offset=0&view=summary', pagination(privateStories));
+  add('GET', '/api/v1/me/stories?limit=24&offset=0&view=summary', pagination(privateStories));
+  add(
+    'GET',
+    '/api/v1/me/stories?limit=24&offset=0&view=summary&has_audio=true',
+    pagination([privateStories[0]], 1)
+  );
+  add(
+    'GET',
+    '/api/v1/me/stories?limit=24&offset=0&view=summary&scenario_card_id=space_odyssey',
+    pagination([privateStories[2]], 1)
+  );
+  add(
+    'GET',
+    '/api/v1/me/stories?limit=24&offset=0&view=summary&scenario_card_id=space_odyssey&language=es',
+    pagination([privateStories[2]], 1)
+  );
+
+  add('GET', '/api/v1/public/stories?limit=24&offset=0', pagination(publicStories));
+  add(
+    'GET',
+    '/api/v1/public/stories?limit=24&offset=0&has_audio=true',
+    pagination([publicStories[0], publicStories[2]], 2)
+  );
+  add(
+    'GET',
+    '/api/v1/public/stories?limit=24&offset=0&age_group=6-7',
+    pagination([publicStories[1]], 1)
+  );
+  add(
+    'GET',
+    '/api/v1/public/stories?limit=24&offset=0&language=es&age_group=6-7',
+    pagination([publicStories[1]], 1)
+  );
+  add(
+    'GET',
+    '/api/v1/public/stories?limit=24&offset=0&language=es&age_group=6-7&reading_time_min=6&reading_time_max=10',
+    pagination([publicStories[1]], 1)
+  );
+  for (const story of publicStories) {
+    add('GET', `/api/v1/public/stories/${story.publishedSlug}`, {
+      status: 'success',
+      story,
+    });
+  }
+
+  add('GET', '/api/v1/me/series', { status: 'success', series: [] });
+  add('GET', '/api/v1/me/map-tiles', { status: 'success', tiles: [] });
+  add('GET', '/api/v1/me/artifacts?locale=en', { status: 'success', artifacts: [] });
+  add('GET', `/api/v1/me/artifacts?childProfileId=${testChild.id}&locale=en`, {
+    status: 'success',
+    artifacts: [],
+  });
+  add('GET', '/api/v1/me/privacy-requests', { status: 'success', data: [] });
+
+  for (const storyId of Object.keys(privateStoryManifests)) {
+    const manifest =
+      storyId === 'private-story-magic-audio'
+        ? magicStoryManifest
+        : privateStoryManifests[storyId as keyof typeof privateStoryManifests];
+    add('GET', `/api/v1/me/stories/${storyId}`, { status: 'success', manifest });
+    add('GET', `/api/v1/stories/${storyId}/manifest`, { status: 'success', manifest });
+    add('GET', `/api/v1/stories/${storyId}/generation-status`, {
+      status: 'success',
+      generationStatus: {
+        storyId,
+        imageGenerationComplete: manifest.imageGenerationComplete,
+        sceneIdsWithImages: manifest.sceneIdsWithImages,
+        failedScenes: manifest.failedScenes,
+      },
+    });
+    add('GET', `/api/v1/stories/${storyId}/schedule`, { status: 'success', data: null });
+    add('GET', `/api/v1/stories/${storyId}/series`, { status: 'success', data: null });
+    add('GET', `/api/v1/me/map-tiles/story/${storyId}`, {
+      status: 'success',
+      generated: null,
+      collected: null,
+    });
+    add('GET', `/api/v1/me/map-tiles/story/${storyId}?child_profile_id=${testChild.id}`, {
+      status: 'success',
+      generated: null,
+      collected: null,
+    });
+  }
+
+  add('GET', '/api/v1/stories/private-story-magic-audio/audio', {
+    status: 'success',
+    data: {
+      audioUrl: '/api/v1/assets/e2e/story-audio.mp3',
+      duration: 32,
+      voice: null,
+      metadata: null,
+    },
+  });
+  add('POST', '/api/v1/stories/private-story-magic-audio/alignment', {
+    status: 'success',
+    message: 'Alignment already available',
+    alignment: { wordCount: 0, averageConfidence: 1, provider: 'e2e' },
+  });
+  add('GET', '/api/v1/voices?language=en', {
+    status: 'success',
+    data: [],
+    meta: { userPlan: 'free', hasPremiumAccess: false },
+  });
+
+  add('GET', '/api/v1/plans?locale=en&currency=EUR', plansResponse(billingPlans, 'EUR', 'EUR'));
+  add('GET', '/api/v1/plans?locale=en&currency=USD', plansResponse(usdBillingPlans, 'USD', 'USD'));
+  add('GET', '/api/v1/plans/with-features?locale=en', plansResponse(billingPlans, 'EUR', 'EUR'));
+  add(
+    'GET',
+    '/api/v1/plans/with-features?locale=en&currency=EUR',
+    plansResponse(billingPlans, 'EUR', 'EUR')
+  );
+  add(
+    'GET',
+    '/api/v1/plans/with-features?locale=en&currency=USD',
+    plansResponse(usdBillingPlans, 'USD', 'USD')
+  );
+  add('PUT', '/api/v1/plans/billing-currency', {
+    status: 'success',
+    preferredBillingCurrency: 'USD',
+  });
+  add('GET', '/api/v1/bundles?currency=EUR', { status: 'success', bundles: [] });
+  add('GET', '/api/v1/bundles?currency=USD', { status: 'success', bundles: [] });
+  add('POST', '/api/v1/billing/checkout-session', {
+    status: 'success',
+    sessionId: 'checkout-session-e2e-1',
+    url: '/billing/success?session_id=checkout-session-e2e-1',
+  });
+  add('POST', '/api/v1/billing/portal-session', {
+    status: 'success',
+    url: '/profile?portal=returned',
+  });
+
+  add('POST', '/api/v1/upload/photo', {
+    status: 'success',
+    photo: {
+      url: '/api/v1/assets/e2e-uploaded-photo.png',
+      storagePath: 'e2e/uploaded-photo.png',
+      uploadedAt: '2026-07-10T10:00:00.000Z',
+    },
+  });
+  add('POST', '/api/v1/feedback', {
+    status: 'success',
+    feedback: {
+      id: 'feedback-e2e-1',
+      contentReview: { reviewQueued: true, reason: 'e2e_mock' },
+    },
+  });
+
+  for (const target of [
+    '/api/v1/stories/instant',
+    '/api/v1/stories',
+    '/api/v1/stories/child-mode',
+    '/api/v1/graphic-novels',
+    '/api/v1/mixed-stories',
+  ]) {
+    add('POST', target, { status: 'success', request: { id: 'request-e2e-1' } });
+  }
+  add('GET', '/api/v1/stories/requests/request-e2e-1/status', {
+    status: 'success',
+    request: {
+      id: 'request-e2e-1',
+      status: 'completed',
+      progress: 100,
+      storyId: 'private-story-magic-audio',
+    },
+  });
+
+  add('PATCH', '/api/v1/stories/private-story-child-review/parent-review', {
+    status: 'success',
+    story: { id: 'private-story-child-review', parentReviewStatus: 'approved' },
+  });
+  add('PATCH', '/api/v1/stories/private-story-child-review', {
+    status: 'success',
+    slug: 'private-story-child-review-published',
+    shareUrl: 'https://app.wondertales.com/stories/private-story-child-review-published',
+    publishedStoriesCount: 1,
+  });
+
+  return definitions;
+}
+
+function scenarioDefinitions(scenario: ApiMockScenario): MockDefinition[] {
+  if (scenario === 'onboarding') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/me',
+        responses: [
+          response({ status: 'success', user: { ...testUser, onboardingCompleted: false } }),
+        ],
+      },
+      {
+        method: 'PATCH',
+        target: '/api/v1/me',
+        responses: [
+          response({
+            status: 'success',
+            user: { ...testUser, mode: 'artisan', onboardingCompleted: true },
+          }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'character-create') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/characters',
+        responses: [
+          response({ status: 'success', characters: [testCharacter] }),
+          response({ status: 'success', characters: [testCharacter, createdCharacter] }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'character-edit-delete') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/characters',
+        responses: [
+          response({ status: 'success', characters: [testCharacter] }),
+          response({ status: 'success', characters: [updatedCharacter] }),
+          response({ status: 'success', characters: [] }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'child-controls-update') {
+    const settings = [
+      { ...defaultChildModeSettings, publicStoriesEnabled: false },
+      {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+        freeTextPromptsEnabled: false,
+      },
+      {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+        freeTextPromptsEnabled: false,
+        parentReviewRequired: true,
+      },
+      {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+        freeTextPromptsEnabled: false,
+        parentReviewRequired: true,
+        allowedLanguageCodes: ['es'],
+      },
+      {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+        freeTextPromptsEnabled: false,
+        parentReviewRequired: true,
+        allowedLanguageCodes: ['es'],
+        allowedThemeSlugs: ['kindness'],
+      },
+      {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+        freeTextPromptsEnabled: false,
+        parentReviewRequired: true,
+        allowedLanguageCodes: ['es'],
+        allowedThemeSlugs: ['kindness'],
+        allowedCharacterIds: [testCharacter.id],
+      },
+    ];
+    return [
+      {
+        method: 'PATCH',
+        target: `/api/v1/children/${testChild.id}/child-mode`,
+        responses: settings.map((item) =>
+          response({ status: 'success', childMode: childModeControls(item) })
+        ),
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/children',
+        responses: [
+          response(childrenResponse()),
+          response(childrenResponse()),
+          ...settings.map((item) => response(childrenResponse(item))),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'story-review-publish') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/me/stories/private-story-child-review',
+        responses: [
+          response({ status: 'success', manifest: approvedChildStoryManifest }),
+          response({ status: 'success', manifest: publishedChildStoryManifest }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/stories/private-story-child-review/manifest',
+        responses: [
+          response({
+            status: 'success',
+            manifest: privateStoryManifests['private-story-child-review'],
+          }),
+          response({ status: 'success', manifest: approvedChildStoryManifest }),
+          response({ status: 'success', manifest: publishedChildStoryManifest }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'story-continuation-retry') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/voices?language=en',
+        responses: [
+          response({
+            status: 'success',
+            data: [],
+            meta: { userPlan: 'golden', hasPremiumAccess: true },
+          }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/voices?language=es',
+        responses: [
+          response({
+            status: 'success',
+            data: [],
+            meta: { userPlan: 'golden', hasPremiumAccess: true },
+          }),
+        ],
+      },
+      {
+        method: 'POST',
+        target: '/api/v1/stories/private-story-magic-audio/continue',
+        responses: [
+          response({
+            status: 'success',
+            request: {
+              id: 'continuation-e2e-failed',
+              status: 'pending',
+              progress: 0,
+              createdAt: '2026-07-17T10:00:00.000Z',
+            },
+          }),
+          response({
+            status: 'success',
+            request: {
+              id: 'continuation-e2e-retry',
+              status: 'pending',
+              progress: 0,
+              createdAt: '2026-07-17T10:01:00.000Z',
+            },
+          }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/stories/requests/continuation-e2e-failed/status',
+        responses: [
+          response({
+            status: 'success',
+            request: {
+              id: 'continuation-e2e-failed',
+              status: 'failed',
+              progress: 35,
+              errorMessage: 'A retryable generation failure occurred.',
+            },
+          }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/stories/requests/continuation-e2e-retry/status',
+        responses: [
+          response({
+            status: 'success',
+            request: {
+              id: 'continuation-e2e-retry',
+              status: 'processing',
+              progress: 58,
+              progressData: {
+                overallProgress: 58,
+                activeTasks: [{ task: 'generating_text' }],
+                completedTasks: [],
+                plannedTasks: [],
+              },
+            },
+          }),
+          response({
+            status: 'success',
+            request: {
+              id: 'continuation-e2e-retry',
+              status: 'completed',
+              progress: 100,
+              storyId: 'private-story-space',
+            },
+          }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'child-series-allowed') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/children/child-mode/current',
+        responses: [
+          response({
+            status: 'success',
+            childMode: {
+              childModeEnabled: true,
+              childModeSettings: {
+                ...defaultChildModeSettings,
+                publicStoriesEnabled: false,
+                allowSharedFamilyStories: true,
+              },
+            },
+          }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'child-series-denied') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/children/child-mode/current',
+        responses: [
+          response({
+            status: 'success',
+            childMode: {
+              childModeEnabled: true,
+              childModeSettings: {
+                ...defaultChildModeSettings,
+                allowSharedFamilyStories: false,
+              },
+            },
+          }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'child-wizard-restricted') {
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/children/child-mode/current',
+        responses: [
+          response({
+            status: 'success',
+            childMode: {
+              childModeEnabled: true,
+              childModeSettings: {
+                ...defaultChildModeSettings,
+                allowedLanguageCodes: ['es'],
+                allowedThemeSlugs: ['kindness'],
+                allowedCharacterIds: [testCharacter.id],
+              },
+            },
+          }),
+        ],
+      },
+    ];
+  }
+
+  if (scenario === 'parent-mode-switch-instant') {
+    const artisanUser = { ...testUser, mode: 'artisan' };
+    const instantUser = { ...testUser, mode: 'instant' };
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/me',
+        responses: [
+          response({ status: 'success', user: artisanUser }),
+          response({ status: 'success', user: instantUser }),
+        ],
+      },
+      {
+        method: 'PATCH',
+        target: '/api/v1/me',
+        responses: [response({ status: 'success', user: instantUser })],
+      },
+    ];
+  }
+
+  if (scenario === 'child-mode-switch-instant') {
+    const instantChild = childProfile(defaultChildModeSettings, 'instant');
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/children',
+        responses: [
+          response(childrenResponse(defaultChildModeSettings, 'artisan')),
+          response(childrenResponse(defaultChildModeSettings, 'instant')),
+        ],
+      },
+      {
+        method: 'PATCH',
+        target: `/api/v1/children/${testChild.id}`,
+        responses: [response({ status: 'success', child: instantChild })],
+      },
+      {
+        method: 'POST',
+        target: `/api/v1/children/${testChild.id}/child-mode/sessions`,
+        responses: [
+          response({
+            status: 'success',
+            token: 'e2e-child-token-after-mode-switch',
+            expiresAt: Date.parse('2026-07-20T18:00:00.000Z'),
+            child: instantChild,
+            session: {
+              id: 'child-session-e2e-mode-switch',
+              mode: 'child',
+              parentUserId: testUser.id,
+              childProfileId: testChild.id,
+              scopes: ['child_mode'],
+              expiresAt: '2026-07-20T18:00:00.000Z',
+            },
+            childMode: childModeControls(),
+          }),
+        ],
+      },
+    ];
+  }
+
+  const childSettingsByScenario: Partial<Record<ApiMockScenario, typeof defaultChildModeSettings>> =
+    {
+      'child-story-generation-disabled': {
+        ...defaultChildModeSettings,
+        storyGenerationEnabled: false,
+      },
+      'child-continuation-disabled': {
+        ...defaultChildModeSettings,
+        storyContinuationEnabled: false,
+      },
+      'child-public-stories-allowed': {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: true,
+      },
+      'child-public-stories-denied': {
+        ...defaultChildModeSettings,
+        publicStoriesEnabled: false,
+      },
+      'child-free-text-disabled': {
+        ...defaultChildModeSettings,
+        freeTextPromptsEnabled: false,
+      },
+      'child-audio-disabled': {
+        ...defaultChildModeSettings,
+        audioGenerationEnabled: false,
+      },
+      'child-quiz-disabled': {
+        ...defaultChildModeSettings,
+        quizGenerationEnabled: false,
+      },
+      'child-siblings-allowed': {
+        ...defaultChildModeSettings,
+        allowSiblingCharacters: true,
+      },
+      'child-siblings-denied': {
+        ...defaultChildModeSettings,
+        allowSiblingCharacters: false,
+      },
+      'child-parent-review-required': {
+        ...defaultChildModeSettings,
+        parentReviewRequired: true,
+      },
+    };
+  const childSettings = childSettingsByScenario[scenario];
+  if (childSettings) {
+    const definitions = [currentChildModeDefinition(childSettings)];
+    if (scenario === 'child-siblings-allowed' || scenario === 'child-siblings-denied') {
+      definitions.push({
+        method: 'GET',
+        target: '/api/v1/characters',
+        responses: [response({ status: 'success', characters: [testCharacter, siblingCharacter] })],
+      });
+    }
+    return definitions;
+  }
+
+  if (scenario === 'billing-usd' || scenario === 'default') return [];
+  return [];
+}
+
+async function fulfillJson(route: Route, mockResponse: MockResponse) {
+  await route.fulfill({
+    status: mockResponse.status ?? 200,
+    contentType: 'application/json',
+    body: JSON.stringify(clone(mockResponse.body)),
+  });
+}
+
+async function fulfillPng(route: Route) {
   await route.fulfill({
     status: 200,
     contentType: 'image/png',
@@ -104,94 +924,17 @@ async function png(route: Route) {
   });
 }
 
-function paginate<T>(items: T[], url: URL) {
-  const limit = Number(url.searchParams.get('limit') ?? 24);
-  const offset = Number(url.searchParams.get('offset') ?? 0);
-  return {
-    items: items.slice(offset, offset + limit),
-    pagination: { limit, offset, total: items.length },
-  };
-}
+export async function installApiMocks(
+  page: Page,
+  scenario: ApiMockScenario = 'default'
+): Promise<ApiMockController> {
+  const definitions = new Map<string, MockResponse[]>();
+  for (const definition of [...staticDefinitions(), ...scenarioDefinitions(scenario)]) {
+    definitions.set(key(definition.method, definition.target), definition.responses);
+  }
 
-function filterPrivateStoriesFrom<
-  T extends { hasAudio?: boolean; scenarioCardId?: string; language?: string },
->(sourceStories: T[], url: URL) {
-  let stories = [...sourceStories];
-  if (url.searchParams.get('has_audio') === 'true') {
-    stories = stories.filter((story) => story.hasAudio);
-  }
-  const scenarioCardId = url.searchParams.get('scenario_card_id');
-  if (scenarioCardId) {
-    stories = stories.filter((story) => story.scenarioCardId === scenarioCardId);
-  }
-  const language = url.searchParams.get('language');
-  if (language) {
-    stories = stories.filter((story) => story.language === language);
-  }
-  return paginate(stories, url);
-}
-
-function filterPublicStories(url: URL) {
-  let stories = [...publicStories];
-  if (url.searchParams.get('has_audio') === 'true') {
-    stories = stories.filter((story) => story.hasAudio);
-  }
-  const scenarioCardId = url.searchParams.get('scenario_card_id');
-  if (scenarioCardId) {
-    stories = stories.filter((story) => story.scenarioCardId === scenarioCardId);
-  }
-  const language = url.searchParams.get('language');
-  if (language) {
-    stories = stories.filter((story) => story.language === language);
-  }
-  const ageGroup = url.searchParams.get('age_group');
-  if (ageGroup) {
-    stories = stories.filter((story) => story.ageGroup === ageGroup);
-  }
-  const readingTimeMin = Number(url.searchParams.get('reading_time_min') ?? Number.NaN);
-  if (Number.isFinite(readingTimeMin)) {
-    stories = stories.filter((story) => story.readingTimeMinutes >= readingTimeMin);
-  }
-  const readingTimeMax = Number(url.searchParams.get('reading_time_max') ?? Number.NaN);
-  if (Number.isFinite(readingTimeMax)) {
-    stories = stories.filter((story) => story.readingTimeMinutes <= readingTimeMax);
-  }
-  return paginate(stories, url);
-}
-
-export async function installApiMocks(page: Page) {
-  const storyManifestsById = new Map(
-    Object.entries(privateStoryManifests).map(([id, manifest]) => [id, clone(manifest)])
-  );
-  const charactersById = new Map([[testCharacter.id, clone(testCharacter)]]);
-  let nextCharacterIndex = 1;
-  let preferredBillingCurrency = 'EUR';
-  const childModeControlsById = new Map([
-    [
-      testChild.id,
-      {
-        childModeEnabled: true,
-        childModeSettings: clone(defaultChildModeSettings),
-        childModePasscodeConfigured: true,
-        activeSessionCount: 0,
-      },
-    ],
-  ]);
-  const childProfileForResponse = () => {
-    const controls = childModeControlsById.get(testChild.id)!;
-    return {
-      ...testChildProfile,
-      childModeEnabled: controls.childModeEnabled,
-      childModeSettings: clone(controls.childModeSettings),
-      childModePasscodeConfigured: controls.childModePasscodeConfigured,
-      childModeActiveSessionCount: controls.activeSessionCount,
-      childMode: {
-        childModeEnabled: controls.childModeEnabled,
-        childModeSettings: clone(controls.childModeSettings),
-        activeSessionCount: controls.activeSessionCount,
-      },
-    };
-  };
+  const callCounts = new Map<string, number>();
+  const unexpectedRequests: string[] = [];
 
   await page.route('**/*', async (route) => {
     const request = route.request();
@@ -199,7 +942,7 @@ export async function installApiMocks(page: Page) {
     const { pathname } = url;
 
     if (pathname.startsWith('/api/v1/assets/') || pathname.includes('/landing/topics/')) {
-      await png(route);
+      await fulfillPng(route);
       return;
     }
 
@@ -208,539 +951,29 @@ export async function installApiMocks(page: Page) {
       return;
     }
 
-    if (pathname === '/api/v1/me' && request.method() === 'PATCH') {
-      const data = requestJson(request);
-      await json(route, {
-        status: 'success',
-        user: {
-          ...testUser,
-          mode: typeof data.mode === 'string' ? data.mode : testUser.mode,
-          onboardingCompleted:
-            typeof data.onboarding_completed === 'boolean'
-              ? data.onboarding_completed
-              : testUser.onboardingCompleted,
-        },
-      });
+    const requestKey = key(request.method(), `${pathname}${url.search}`);
+    const responses = definitions.get(requestKey);
+    if (!responses) {
+      unexpectedRequests.push(requestKey);
+      await fulfillJson(
+        route,
+        response({ status: 'error', message: `Unexpected E2E API request: ${requestKey}` }, 500)
+      );
       return;
     }
 
-    if (pathname === '/api/v1/me/child-mode-exit-passcode' && request.method() === 'PATCH') {
-      await json(route, {
-        status: 'success',
-        user: {
-          ...testUser,
-          childModeExitPasscodeConfigured: true,
-        },
-        childModeExitPasscode: {
-          configured: true,
-          setAt: '2026-07-10T10:00:00.000Z',
-        },
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/me') {
-      await json(route, { status: 'success', user: testUser });
-      return;
-    }
-
-    if (pathname === '/api/v1/auth/parent-gate' && request.method() === 'POST') {
-      const data = requestJson(request);
-      if (data.password === 'wrong-passcode') {
-        await json(route, { status: 'error', message: 'Invalid password' }, 401);
-        return;
-      }
-      await json(route, {
-        status: 'success',
-        token: 'e2e-parent-token-from-gate',
-        sessionMode: 'parent',
-        user: testUser,
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/auth/child-mode/recovery' && request.method() === 'POST') {
-      await json(route, { status: 'success', message: 'Recovery email sent' });
-      return;
-    }
-
-    if (pathname === '/api/v1/dictionaries/story-themes') {
-      await json(route, { status: 'success', data: storyThemes });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/subscription-usage') {
-      await json(route, { status: 'success', data: subscriptionUsage });
-      return;
-    }
-
-    if (pathname === '/api/v1/children/child-mode/switcher') {
-      await json(route, { status: 'success', children: [childProfileForResponse()] });
-      return;
-    }
-
-    const childModeControlsMatch = pathname.match(/^\/api\/v1\/children\/([^/]+)\/child-mode$/);
-    if (childModeControlsMatch && request.method() === 'GET') {
-      const childId = decodeURIComponent(childModeControlsMatch[1]);
-      const controls = childModeControlsById.get(childId);
-      if (!controls) {
-        await json(route, { status: 'error', message: 'Child not found' }, 404);
-        return;
-      }
-      await json(route, { status: 'success', childMode: clone(controls) });
-      return;
-    }
-
-    if (childModeControlsMatch && request.method() === 'PATCH') {
-      const childId = decodeURIComponent(childModeControlsMatch[1]);
-      const controls = childModeControlsById.get(childId);
-      const data = requestJson(request);
-      if (!controls) {
-        await json(route, { status: 'error', message: 'Child not found' }, 404);
-        return;
-      }
-      if (typeof data.child_mode_enabled === 'boolean') {
-        controls.childModeEnabled = data.child_mode_enabled;
-      }
-      if (data.child_mode_settings && typeof data.child_mode_settings === 'object') {
-        controls.childModeSettings = {
-          ...controls.childModeSettings,
-          ...childModeSettingsFromSnakeCase(data.child_mode_settings as Record<string, unknown>),
-        };
-      }
-      childModeControlsById.set(childId, controls);
-      await json(route, { status: 'success', childMode: clone(controls) });
-      return;
-    }
-
-    const childModeSessionsMatch = pathname.match(
-      /^\/api\/v1\/children\/([^/]+)\/child-mode\/sessions$/
-    );
-    if (childModeSessionsMatch && request.method() === 'POST') {
-      const childId = decodeURIComponent(childModeSessionsMatch[1]);
-      const controls = childModeControlsById.get(childId);
-      if (!controls) {
-        await json(route, { status: 'error', message: 'Child not found' }, 404);
-        return;
-      }
-      controls.activeSessionCount += 1;
-      childModeControlsById.set(childId, controls);
-      await json(route, {
-        status: 'success',
-        token: 'e2e-child-token-from-parent',
-        expiresAt: Date.parse('2026-07-10T18:00:00.000Z'),
-        child: childProfileForResponse(),
-        session: {
-          id: 'child-session-e2e-1',
-          mode: 'child',
-          parentUserId: testUser.id,
-          childProfileId: childId,
-          scopes: ['child_mode'],
-          expiresAt: '2026-07-10T18:00:00.000Z',
-        },
-        childMode: clone(controls),
-      });
-      return;
-    }
-
-    if (childModeSessionsMatch && request.method() === 'DELETE') {
-      const childId = decodeURIComponent(childModeSessionsMatch[1]);
-      const controls = childModeControlsById.get(childId);
-      if (controls) {
-        controls.activeSessionCount = 0;
-        childModeControlsById.set(childId, controls);
-      }
-      await json(route, { status: 'success', revokedCount: 1 });
-      return;
-    }
-
-    if (pathname === '/api/v1/children' && request.method() === 'POST') {
-      const data = requestJson(request);
-      await json(route, {
-        status: 'success',
-        child: {
-          ...testChild,
-          id: 'child-e2e-onboarded',
-          name: String(data.name ?? 'Nina'),
-          birthDate: data.birthDate ?? '2020-01-01',
-          storyCreationMode: data.storyCreationMode ?? 'instant',
-          childMode: {
-            childModeEnabled: false,
-            childModeSettings: defaultChildModeSettings,
-            activeSessionCount: 0,
-          },
-        },
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/children') {
-      await json(route, {
-        status: 'success',
-        children: [childProfileForResponse()],
-        limit: 5,
-        canCreateMore: true,
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/characters' && request.method() === 'GET') {
-      await json(route, {
-        status: 'success',
-        characters: Array.from(charactersById.values()).map((character) => clone(character)),
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/characters' && request.method() === 'POST') {
-      const data = requestJson(request);
-      const character = {
-        id: `character-e2e-created-${nextCharacterIndex++}`,
-        name: String(data.name ?? 'New character'),
-        type:
-          data.type === 'person' || data.type === 'imaginary' || data.type === 'animal'
-            ? data.type
-            : 'animal',
-        subtype: typeof data.subtype === 'string' ? data.subtype : null,
-        description: typeof data.description === 'string' ? data.description : '',
-        descriptionLanguage:
-          typeof data.descriptionLanguage === 'string' ? data.descriptionLanguage : 'en',
-        childProfileId: typeof data.childProfileId === 'string' ? data.childProfileId : null,
-        referencePhotos: Array.isArray(data.referencePhotos) ? data.referencePhotos : [],
-        turnaroundSheet: null,
-        appearanceTraits:
-          data.appearanceTraits && typeof data.appearanceTraits === 'object'
-            ? data.appearanceTraits
-            : null,
-        personality:
-          data.personality && typeof data.personality === 'object' ? data.personality : null,
-      };
-      charactersById.set(character.id, character);
-      await json(route, { status: 'success', character: clone(character) });
-      return;
-    }
-
-    const characterMatch = pathname.match(/^\/api\/v1\/characters\/([^/]+)$/);
-    if (characterMatch && request.method() === 'PATCH') {
-      const characterId = decodeURIComponent(characterMatch[1]);
-      const existing = charactersById.get(characterId);
-      if (!existing) {
-        await json(route, { status: 'error', message: 'Character not found' }, 404);
-        return;
-      }
-      const data = requestJson(request);
-      const updated = {
-        ...existing,
-        ...data,
-        id: characterId,
-        subtype: typeof data.subtype === 'string' ? data.subtype : (data.subtype ?? null),
-      };
-      charactersById.set(characterId, updated);
-      await json(route, { status: 'success', character: clone(updated) });
-      return;
-    }
-
-    if (characterMatch && request.method() === 'DELETE') {
-      const characterId = decodeURIComponent(characterMatch[1]);
-      charactersById.delete(characterId);
-      await json(route, { status: 'success' });
-      return;
-    }
-
-    if (pathname === '/api/v1/entitlements') {
-      await json(route, {
-        status: 'success',
-        features: {
-          characters_per_month: { used: 1, limit: 10, remaining: 9 },
-        },
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/stories/quiz-candidate') {
-      await json(route, { status: 'success', candidate: null });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/stories/languages') {
-      await json(route, { status: 'success', languages: ['en', 'es'] });
-      return;
-    }
-
-    const storyQuizMatch = pathname.match(/^\/api\/v1\/me\/stories\/([^/]+)\/quiz$/);
-    if (storyQuizMatch && request.method() === 'GET') {
-      await json(route, { status: 'error', code: 'QUIZ_NOT_GENERATED' }, 404);
-      return;
-    }
-
-    const privateStoryDetailMatch = pathname.match(/^\/api\/v1\/me\/stories\/([^/]+)$/);
-    if (privateStoryDetailMatch && request.method() === 'GET') {
-      const storyId = decodeURIComponent(privateStoryDetailMatch[1]);
-      const manifest = storyManifestsById.get(storyId);
-      if (!manifest) {
-        await json(route, { status: 'error', message: 'Story not found' }, 404);
-        return;
-      }
-      await json(route, { status: 'success', manifest: clone(manifest) });
-      return;
-    }
-
-    const privateStoryManifestMatch = pathname.match(/^\/api\/v1\/stories\/([^/]+)\/manifest$/);
-    if (privateStoryManifestMatch && request.method() === 'GET') {
-      const storyId = decodeURIComponent(privateStoryManifestMatch[1]);
-      const manifest = storyManifestsById.get(storyId);
-      if (!manifest) {
-        await json(route, { status: 'error', message: 'Story not found' }, 404);
-        return;
-      }
-      await json(route, { status: 'success', manifest: clone(manifest) });
-      return;
-    }
-
-    const storyGenerationStatusMatch = pathname.match(
-      /^\/api\/v1\/stories\/([^/]+)\/generation-status$/
-    );
-    if (storyGenerationStatusMatch && request.method() === 'GET') {
-      const storyId = decodeURIComponent(storyGenerationStatusMatch[1]);
-      const manifest = storyManifestsById.get(storyId);
-      await json(route, {
-        status: 'success',
-        generationStatus: {
-          storyId,
-          imageGenerationComplete: manifest?.imageGenerationComplete ?? true,
-          sceneIdsWithImages: manifest?.sceneIdsWithImages ?? [],
-          failedScenes: manifest?.failedScenes ?? [],
-        },
-      });
-      return;
-    }
-
-    const storyAudioMatch = pathname.match(/^\/api\/v1\/stories\/([^/]+)\/audio$/);
-    if (storyAudioMatch && request.method() === 'GET') {
-      await json(route, {
-        status: 'success',
-        data: {
-          audioUrl: '/api/v1/assets/e2e/story-audio.mp3',
-          duration: 32,
-          voice: null,
-          metadata: null,
-        },
-      });
-      return;
-    }
-
-    const storyAudioStatusMatch = pathname.match(/^\/api\/v1\/stories\/([^/]+)\/audio-status$/);
-    if (storyAudioStatusMatch && request.method() === 'GET') {
-      await json(route, {
-        status: 'success',
-        audioMetadata: null,
-        audioUrl: null,
-        duration: null,
-        jobStatus: null,
-        queuePosition: null,
-        estimatedWaitMs: null,
-        processingStartedAt: null,
-        estimatedProcessingMs: null,
-        activeJobsCount: 0,
-        maxConcurrency: 0,
-      });
-      return;
-    }
-
-    const parentReviewMatch = pathname.match(/^\/api\/v1\/stories\/([^/]+)\/parent-review$/);
-    if (parentReviewMatch && request.method() === 'PATCH') {
-      const storyId = decodeURIComponent(parentReviewMatch[1]);
-      const manifest = storyManifestsById.get(storyId);
-      const data = requestJson(request);
-      const status = data.status === 'rejected' ? 'rejected' : 'approved';
-      if (!manifest) {
-        await json(route, { status: 'error', message: 'Story not found' }, 404);
-        return;
-      }
-      manifest.parentReviewStatus = status;
-      storyManifestsById.set(storyId, manifest);
-      await json(route, {
-        status: 'success',
-        story: { id: storyId, parentReviewStatus: status },
-      });
-      return;
-    }
-
-    const publishStoryMatch = pathname.match(/^\/api\/v1\/stories\/([^/]+)$/);
-    if (publishStoryMatch && request.method() === 'PATCH') {
-      const storyId = decodeURIComponent(publishStoryMatch[1]);
-      const manifest = storyManifestsById.get(storyId);
-      const data = requestJson(request);
-      const isPublished = data.is_published !== false;
-      const visibility = data.visibility === 'public' ? 'public' : 'unlisted';
-      if (!manifest) {
-        await json(route, { status: 'error', message: 'Story not found' }, 404);
-        return;
-      }
-
-      manifest.isPublished = isPublished;
-      manifest.visibility = isPublished ? visibility : null;
-      manifest.publishedSlug =
-        isPublished && visibility === 'public' ? `${storyId}-published` : null;
-      manifest.shareUrl = isPublished
-        ? visibility === 'public'
-          ? `https://app.wondertales.com/stories/${storyId}-published`
-          : `https://app.wondertales.com/u/share-${storyId}`
-        : null;
-      manifest.coverAssetId =
-        typeof data.cover_asset_id === 'string' ? data.cover_asset_id : manifest.coverAssetId;
-      storyManifestsById.set(storyId, manifest);
-
-      await json(route, {
-        status: 'success',
-        slug: manifest.publishedSlug,
-        shareToken: visibility === 'unlisted' ? `share-${storyId}` : undefined,
-        shareUrl: manifest.shareUrl,
-        publishedStoriesCount: 1,
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/stories') {
-      const summaries = privateStories.map((story) => {
-        const manifest = storyManifestsById.get(story.id);
-        return manifest ? { ...story, parentReviewStatus: manifest.parentReviewStatus } : story;
-      });
-      const { items, pagination } = filterPrivateStoriesFrom(summaries, url);
-      await json(route, { status: 'success', stories: items, pagination });
-      return;
-    }
-
-    if (pathname === '/api/v1/public/stories') {
-      const { items, pagination } = filterPublicStories(url);
-      await json(route, { status: 'success', stories: items, pagination });
-      return;
-    }
-
-    if (pathname.startsWith('/api/v1/public/stories/')) {
-      const slug = pathname.split('/').pop();
-      const story = publicStories.find((item) => item.publishedSlug === slug) ?? publicStories[0];
-      await json(route, { status: 'success', story });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/series') {
-      await json(route, { status: 'success', series: [] });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/map-tiles') {
-      await json(route, { status: 'success', tiles: [] });
-      return;
-    }
-
-    if (pathname === '/api/v1/me/artifacts') {
-      await json(route, { status: 'success', artifacts: [] });
-      return;
-    }
-
-    if (pathname === '/api/v1/plans' || pathname === '/api/v1/plans/with-features') {
-      const requestedCurrency = url.searchParams.get('currency') ?? preferredBillingCurrency;
-      const plans = billingPlans.map((plan) => ({
-        ...plan,
-        pricingCurrency: requestedCurrency,
-        priceMonthly:
-          requestedCurrency === 'USD' && plan.priceMonthly > 0
-            ? Math.round(plan.priceMonthly * 1.1)
-            : plan.priceMonthly,
-      }));
-      await json(route, {
-        status: 'success',
-        plans,
-        enableRealPayments: true,
-        billingCurrency: requestedCurrency,
-        preferredBillingCurrency,
-        supportedBillingCurrencies: ['EUR', 'USD'],
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/plans/billing-currency' && request.method() === 'PUT') {
-      const data = requestJson(request);
-      preferredBillingCurrency = data.currency === 'USD' ? 'USD' : 'EUR';
-      await json(route, { status: 'success', preferredBillingCurrency });
-      return;
-    }
-
-    if (pathname === '/api/v1/billing/checkout-session' && request.method() === 'POST') {
-      await json(route, {
-        status: 'success',
-        sessionId: 'checkout-session-e2e-1',
-        url: `${url.origin}/billing/success?session_id=checkout-session-e2e-1`,
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/billing/portal-session' && request.method() === 'POST') {
-      await json(route, {
-        status: 'success',
-        url: `${url.origin}/profile?portal=returned`,
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/bundles') {
-      await json(route, { status: 'success', bundles: [] });
-      return;
-    }
-
-    if (pathname === '/api/v1/upload/photo' && request.method() === 'POST') {
-      await json(route, {
-        status: 'success',
-        photo: {
-          url: '/api/v1/assets/e2e-uploaded-photo.png',
-          storagePath: 'e2e/uploaded-photo.png',
-          uploadedAt: new Date('2026-07-10T10:00:00.000Z').toISOString(),
-        },
-      });
-      return;
-    }
-
-    if (pathname === '/api/v1/feedback' && request.method() === 'POST') {
-      await json(route, {
-        status: 'success',
-        feedback: {
-          id: 'feedback-e2e-1',
-          contentReview: {
-            reviewQueued: true,
-            reason: 'e2e_mock',
-          },
-        },
-      });
-      return;
-    }
-
-    if (
-      [
-        '/api/v1/stories/instant',
-        '/api/v1/stories',
-        '/api/v1/stories/child-mode',
-        '/api/v1/graphic-novels',
-        '/api/v1/mixed-stories',
-      ].includes(pathname)
-    ) {
-      await json(route, { status: 'success', request: { id: 'request-e2e-1' } });
-      return;
-    }
-
-    if (pathname === '/api/v1/stories/requests/request-e2e-1/status') {
-      await json(route, {
-        status: 'success',
-        request: {
-          id: 'request-e2e-1',
-          status: 'completed',
-          progress: 100,
-          storyId: 'private-story-magic-audio',
-        },
-      });
-      return;
-    }
-
-    await json(route, { status: 'success' });
+    const callIndex = callCounts.get(requestKey) ?? 0;
+    callCounts.set(requestKey, callIndex + 1);
+    await fulfillJson(route, responses[Math.min(callIndex, responses.length - 1)]);
   });
+
+  return {
+    assertNoUnexpectedRequests() {
+      if (unexpectedRequests.length > 0) {
+        throw new Error(
+          `Unexpected E2E API request(s):\n${Array.from(new Set(unexpectedRequests)).join('\n')}`
+        );
+      }
+    },
+  };
 }

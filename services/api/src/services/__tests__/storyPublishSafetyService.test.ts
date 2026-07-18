@@ -90,6 +90,55 @@ void (async function main() {
   assert.deepStrictEqual(
     evaluateStoryPublishSafety({
       ...baseInput,
+      story: {
+        ...baseInput.story,
+        metadata: { storyFormat: 'graphic_novel', graphicNovelGenerationComplete: false },
+      },
+    }),
+    {
+      allowed: false,
+      code: 'STORY_INCOMPLETE',
+      message: 'Comic pages are not ready to publish',
+    },
+    'graphic novels cannot publish before all pages are ready'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
+      story: {
+        ...baseInput.story,
+        metadata: {
+          storyFormat: 'graphic_novel',
+          graphicNovelGenerationComplete: true,
+          failedGraphicNovelPages: [{ pageNumber: 2, errorMessage: 'generation failed' }],
+        },
+      },
+    }),
+    {
+      allowed: false,
+      code: 'STORY_INCOMPLETE',
+      message: 'Failed comic pages must be regenerated before publishing',
+      details: { failedPageCount: 1 },
+    },
+    'graphic novels with failed pages cannot publish'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
+      story: {
+        ...baseInput.story,
+        metadata: { storyFormat: 'mixed_story', graphicNovelGenerationComplete: true },
+      },
+    }),
+    { allowed: true },
+    'completed mixed stories can publish after text and image validation'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
       story: { ...baseInput.story, policyChecks: { textValidated: false } },
     }),
     {

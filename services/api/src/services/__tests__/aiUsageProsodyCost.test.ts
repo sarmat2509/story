@@ -82,6 +82,34 @@ function testHistoricalUnpricedOperationsArePriced() {
     },
     {
       provider: 'gemini',
+      operation: 'graphic_novel_bubble_vision_panel_image',
+      model: 'gemini-3.1-flash-lite',
+      inputUnits: 3_502,
+      outputUnits: 226,
+    },
+    {
+      provider: 'gemini',
+      operation: 'graphic_novel_page_repair',
+      model: 'gemini-3-flash-preview',
+      inputUnits: 4_836,
+      outputUnits: 1_447,
+    },
+    {
+      provider: 'openai',
+      operation: 'mixed_story_script',
+      model: 'gpt-5.2',
+      inputUnits: 15_000,
+      outputUnits: 5_000,
+    },
+    {
+      provider: 'gemini',
+      operation: 'mixed_story_script_retry',
+      model: 'gemini-3-flash-preview',
+      inputUnits: 15_000,
+      outputUnits: 5_000,
+    },
+    {
+      provider: 'gemini',
       operation: USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT,
       model: 'gemini-3.1-flash-image',
       inputUnits: 83_335,
@@ -146,7 +174,10 @@ function testHistoricalUnpricedOperationsArePriced() {
 
   for (const sample of cases) {
     const cost = estimateStoredUsageCostUsd(sample);
-    assert.ok(cost != null && cost > 0, `expected positive cost for ${sample.operation}, got ${cost}`);
+    assert.ok(
+      cost != null && cost > 0,
+      `expected positive cost for ${sample.operation}, got ${cost}`
+    );
   }
 }
 

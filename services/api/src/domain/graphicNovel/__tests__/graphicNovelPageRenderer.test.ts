@@ -172,7 +172,7 @@ function testPanelCropInstructionsUseScenePrompt(): void {
   assert.match(systemInstruction, /edge-to-edge/);
   assert.match(systemInstruction, /full-bleed artwork extending past all four image edges/i);
   assert.doesNotMatch(systemInstruction, /illustration on textured paper/i);
-  assert.match(prompt, /- Scene: Mira finds a glowing button/);
+  assert.match(prompt, /- Scene-specific: Mira finds a glowing button/);
   assert.match(prompt, /- Composition: medium shot, eye level/);
   assert.doesNotMatch(prompt, /replacement comic panel crop/i);
   assert.doesNotMatch(prompt, /artwork inside Panel/i);

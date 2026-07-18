@@ -11,6 +11,7 @@ export const testUser = {
 
 export const defaultChildModeSettings = {
   storyGenerationEnabled: true,
+  storyContinuationEnabled: true,
   publicStoriesEnabled: true,
   dailyGenerationLimit: null,
   monthlyGenerationLimit: null,

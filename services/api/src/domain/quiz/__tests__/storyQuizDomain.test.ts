@@ -1,10 +1,7 @@
 import assert from 'node:assert';
 import type { StoryQuizPayloadApi } from '@wondertales/shared';
-import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type {
-  GenerateStructuredRequest,
-  GenerateTextRequest,
-} from '../../../providers/base/JsonSchema';
+import type { GenerateStructuredRequest } from '../../../providers/base/JsonSchema';
+import { MockTextProvider } from '../../../testing/ai';
 import {
   StoryQuizDomainService,
   buildStoryQuizSourceFingerprint,
@@ -18,18 +15,14 @@ import {
   validateStoryQuizPayload,
 } from '../schemas';
 
-class StructuredStubTextProvider implements ITextProvider {
-  public lastRequest: GenerateStructuredRequest | null = null;
-
-  constructor(private readonly response: StoryQuizPayloadApi) {}
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.lastRequest = request;
-    return this.response as T;
+class StructuredStubTextProvider extends MockTextProvider {
+  constructor(response: StoryQuizPayloadApi) {
+    super([{ kind: 'structured', operation: 'text_quiz_generate', response }]);
   }
 
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText must not be called for quiz generation');
+  get lastRequest(): GenerateStructuredRequest | null {
+    const call = this.requests.at(-1);
+    return call?.kind === 'structured' ? call.request : null;
   }
 }
 

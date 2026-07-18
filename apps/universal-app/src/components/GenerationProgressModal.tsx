@@ -167,7 +167,7 @@ export function GenerationProgressModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.modal}>
+        <View style={styles.modal} testID="generation-progress-modal">
           {allowManualClose && onClose && status === 'completed' && (
             <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
               <Text style={styles.closeIconText}>✕</Text>
@@ -186,7 +186,10 @@ export function GenerationProgressModal({
 
           {status === 'failed' && <Text style={styles.errorIcon}>❌</Text>}
 
-          <Text style={[styles.statusText, status === 'failed' && styles.errorText]}>
+          <Text
+            style={[styles.statusText, status === 'failed' && styles.errorText]}
+            testID="generation-progress-status"
+          >
             {getStatusText()}
           </Text>
 
@@ -195,7 +198,10 @@ export function GenerationProgressModal({
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
               </View>
-              <Text style={[styles.progressText, progressHint && styles.progressTextWithHint]}>
+              <Text
+                style={[styles.progressText, progressHint && styles.progressTextWithHint]}
+                testID="generation-progress-percentage"
+              >
                 {Math.round(progressPercentage)}%
               </Text>
               {progressHint && <Text style={styles.progressHint}>{progressHint}</Text>}
@@ -205,7 +211,12 @@ export function GenerationProgressModal({
           {status === 'failed' && (
             <View style={styles.failedActions}>
               {onRetry && (
-                <AppButton label={t('wizard.retry')} onPress={onRetry} style={styles.failedAction} />
+                <AppButton
+                  label={t('wizard.retry')}
+                  onPress={onRetry}
+                  style={styles.failedAction}
+                  testID="generation-progress-retry"
+                />
               )}
               {onReport && (
                 <AppButton
@@ -223,6 +234,7 @@ export function GenerationProgressModal({
               label="Переглянути історію"
               onPress={onClose}
               style={styles.completedAction}
+              testID="generation-progress-view-story"
             />
           )}
         </View>

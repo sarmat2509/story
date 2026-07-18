@@ -2,80 +2,68 @@ import { test, expect } from './support/fixtures';
 import { loginAsChild } from './support/auth';
 
 test.describe('characters', () => {
-  test('creates a character in child mode and refreshes the grid', async ({
-    page,
-    authenticatedChild,
-  }) => {
-    void authenticatedChild;
-    await page.setViewportSize({ width: 1280, height: 900 });
+  test.describe('declarative create responses', () => {
+    test.use({ apiScenario: 'character-create' });
 
-    await page.goto('/characters');
-    await expect(page.getByTestId('characters-screen')).toBeVisible();
-    await expect(page.getByTestId('character-card-character-e2e-1')).toContainText('Luna');
+    test('creates a character in child mode and refreshes the grid', async ({
+      page,
+      authenticatedChild,
+    }) => {
+      void authenticatedChild;
+      await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.getByTestId('characters-add').click();
-    await expect(page.getByTestId('character-form-modal')).toBeVisible();
+      await page.goto('/characters');
+      await expect(page.getByTestId('characters-screen')).toBeVisible();
+      await expect(page.getByTestId('character-card-character-e2e-1')).toContainText('Luna');
 
-    await page.getByTestId('character-form-name').fill('Nimbus');
-    await page.getByTestId('character-form-type-animal').click();
-    await page.getByTestId('character-form-description').fill('A silver fox who maps the wind.');
+      await page.getByTestId('characters-add').click();
+      await expect(page.getByTestId('character-form-modal')).toBeVisible();
 
-    await expect(page.getByTestId('character-form-save')).toBeEnabled();
-    const createRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/characters'
-    );
-    await page.getByTestId('character-form-save').click();
+      await page.getByTestId('character-form-name').fill('Nimbus');
+      await page.getByTestId('character-form-type-animal').click();
+      await page.getByTestId('character-form-description').fill('A silver fox who maps the wind.');
 
-    expect((await createRequest).postDataJSON()).toMatchObject({
-      name: 'Nimbus',
-      type: 'animal',
-      description: 'A silver fox who maps the wind.',
+      await expect(page.getByTestId('character-form-save')).toBeEnabled();
+      await page.getByTestId('character-form-save').click();
+
+      await expect(page.getByTestId('character-card-character-e2e-created-1')).toContainText(
+        'Nimbus'
+      );
     });
-    await expect(page.getByTestId('character-card-character-e2e-created-1')).toContainText(
-      'Nimbus'
-    );
   });
 
-  test('edits and deletes an existing parent character', async ({ page, authenticatedParent }) => {
-    void authenticatedParent;
-    await page.setViewportSize({ width: 1280, height: 900 });
+  test.describe('declarative edit and delete responses', () => {
+    test.use({ apiScenario: 'character-edit-delete' });
 
-    await page.goto('/characters');
-    await expect(page.getByTestId('characters-screen')).toBeVisible();
+    test('edits and deletes an existing parent character', async ({
+      page,
+      authenticatedParent,
+    }) => {
+      void authenticatedParent;
+      await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.getByTestId('character-card-button-character-e2e-1').click();
-    await expect(page.getByTestId('character-form-modal')).toBeVisible();
-    await expect(page.getByTestId('character-form-name')).toHaveValue('Luna');
+      await page.goto('/characters');
+      await expect(page.getByTestId('characters-screen')).toBeVisible();
 
-    await page.getByTestId('character-form-name').fill('Luna Updated');
-    await expect(page.getByTestId('character-form-save')).toBeEnabled();
-    const updateRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === '/api/v1/characters/character-e2e-1'
-    );
-    await page.getByTestId('character-form-save').click();
+      await page.getByTestId('character-card-button-character-e2e-1').click();
+      await expect(page.getByTestId('character-form-modal')).toBeVisible();
+      await expect(page.getByTestId('character-form-name')).toHaveValue('Luna');
 
-    expect((await updateRequest).postDataJSON()).toMatchObject({
-      name: 'Luna Updated',
-      type: 'person',
-      description: 'A brave friend with a blue scarf.',
+      await page.getByTestId('character-form-name').fill('Luna Updated');
+      await expect(page.getByTestId('character-form-save')).toBeEnabled();
+      await page.getByTestId('character-form-save').click();
+
+      await expect(page.getByTestId('character-card-character-e2e-1')).toContainText(
+        'Luna Updated'
+      );
+
+      await page.getByTestId('character-card-delete-character-e2e-1').click();
+      await expect(page.getByTestId('confirm-dialog')).toBeVisible();
+
+      await page.getByTestId('confirm-dialog-confirm').click();
+
+      await expect(page.getByTestId('character-card-character-e2e-1')).toHaveCount(0);
     });
-    await expect(page.getByTestId('character-card-character-e2e-1')).toContainText('Luna Updated');
-
-    await page.getByTestId('character-card-delete-character-e2e-1').click();
-    await expect(page.getByTestId('confirm-dialog')).toBeVisible();
-
-    const deleteRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'DELETE' &&
-        new URL(request.url()).pathname === '/api/v1/characters/character-e2e-1'
-    );
-    await page.getByTestId('confirm-dialog-confirm').click();
-    await deleteRequest;
-
-    await expect(page.getByTestId('character-card-character-e2e-1')).toHaveCount(0);
   });
 
   test('opens an existing character editor in child artisan mode', async ({

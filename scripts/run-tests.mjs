@@ -22,6 +22,7 @@ const IGNORED_DIRS = new Set([
   'coverage',
   'DerivedData',
   'dist',
+  'e2e',
   'node_modules',
   'Pods',
   'uploads',
@@ -209,7 +210,22 @@ function runCommand(test, commandSpec, logPath, options) {
     const logStream = createWriteStream(logPath, { flags: 'w' });
     const child = spawn(commandSpec.command, commandSpec.args, {
       cwd: commandSpec.cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        WT_TEST_RUNNER: '1',
+        WT_SKIP_PROCESS_SIGNAL_HANDLERS: '1',
+        GEMINI_API_KEY: '',
+        GOOGLE_API_KEY: '',
+        OPENAI_API_KEY: '',
+        ELEVENLABS_API_KEY: '',
+        GROK_API_KEY: '',
+        XAI_API_KEY: '',
+        SEEDREAM_API_KEY: '',
+        GOOGLE_APPLICATION_CREDENTIALS: '',
+        GOOGLE_CLOUD_CREDENTIALS: '',
+        GOOGLE_CLOUD_PROJECT: '',
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

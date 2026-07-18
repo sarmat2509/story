@@ -1,81 +1,113 @@
 import { test, expect } from './support/fixtures';
+import { loginAsChild } from './support/auth';
 
 const childId = 'child-e2e-1';
 
 test.describe('child profile access controls', () => {
-  test('updates child-mode access controls from the child detail screen', async ({
+  test('renders each parent-managed permission and unset child limit', async ({
     page,
     authenticatedParent,
   }) => {
     void authenticatedParent;
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.goto('/children');
-    await expect(page.getByTestId('children-screen')).toBeVisible();
-    await page.getByTestId(`child-card-open-${childId}`).click();
-    await expect(page).toHaveURL(new RegExp(`/children/${childId}`));
-
+    await page.goto(`/children/${childId}`);
     await page.getByTestId('child-detail-tab-access').click();
-    await expect(page.getByTestId(`child-mode-enable-${childId}`)).toBeVisible();
 
-    const publicStoriesRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-setting-${childId}-public-stories`).click();
-    expect((await publicStoriesRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { public_stories_enabled: false },
-    });
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-story-generation`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-story-continuation`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-public-stories`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-free-text`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-audio`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-quizzes`).locator('input')
+    ).toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-parent-review`).locator('input')
+    ).not.toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-siblings`).locator('input')
+    ).not.toBeChecked();
+    await expect(
+      page.getByTestId(`child-mode-setting-${childId}-family-stories`).locator('input')
+    ).toBeChecked();
 
-    const freeTextRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-setting-${childId}-free-text`).click();
-    expect((await freeTextRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { free_text_prompts_enabled: false },
-    });
+    await expect(page.getByText('Stories per child per day', { exact: true })).toBeVisible();
+    await expect(page.getByText('Stories per child per month', { exact: true })).toBeVisible();
+    await expect(page.getByText('Audio stories per child per day', { exact: true })).toBeVisible();
+    await expect(page.locator('[role="checkbox"]')).toHaveCount(3);
+    await expect(page.getByRole('checkbox', { checked: false })).toHaveCount(3);
+  });
 
-    const parentReviewRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-setting-${childId}-parent-review`).click();
-    expect((await parentReviewRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { parent_review_required: true },
-    });
+  test.describe('declarative control update responses', () => {
+    test.use({ apiScenario: 'child-controls-update' });
 
-    const languageRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-languages-${childId}-option-es`).click();
-    expect((await languageRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { allowed_language_codes: ['es'] },
-    });
+    test('updates child-mode access controls from the child detail screen', async ({
+      page,
+      authenticatedParent,
+    }) => {
+      void authenticatedParent;
+      await page.setViewportSize({ width: 1280, height: 900 });
 
-    const themeRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-themes-${childId}-option-kindness`).click();
-    expect((await themeRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { allowed_theme_slugs: ['kindness'] },
-    });
+      await page.goto('/children');
+      await expect(page.getByTestId('children-screen')).toBeVisible();
+      await page.getByTestId(`child-card-open-${childId}`).click();
+      await expect(page).toHaveURL(new RegExp(`/children/${childId}`));
 
-    const characterRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode`
-    );
-    await page.getByTestId(`child-mode-characters-${childId}-option-character-e2e-1`).click();
-    expect((await characterRequest).postDataJSON()).toMatchObject({
-      child_mode_settings: { allowed_character_ids: ['character-e2e-1'] },
+      await page.getByTestId('child-detail-tab-access').click();
+      await expect(page.getByTestId(`child-mode-enable-${childId}`)).toBeVisible();
+
+      const publicStories = page.getByTestId(`child-mode-setting-${childId}-public-stories`);
+      await expect(publicStories.locator('input')).toBeChecked();
+      await publicStories.click();
+      await expect(publicStories.locator('input')).not.toBeChecked();
+
+      const freeText = page.getByTestId(`child-mode-setting-${childId}-free-text`);
+      await expect(freeText.locator('input')).toBeChecked();
+      await freeText.click();
+      await expect(freeText.locator('input')).not.toBeChecked();
+
+      const parentReview = page.getByTestId(`child-mode-setting-${childId}-parent-review`);
+      await expect(parentReview.locator('input')).not.toBeChecked();
+      await parentReview.click();
+      await expect(parentReview.locator('input')).toBeChecked();
+
+      const language = page.getByTestId(`child-mode-languages-${childId}-option-es`);
+      const languageBackground = await language.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      );
+      await language.click();
+      await expect
+        .poll(() => language.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .not.toBe(languageBackground);
+
+      const theme = page.getByTestId(`child-mode-themes-${childId}-option-kindness`);
+      const themeBackground = await theme.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      );
+      await theme.click();
+      await expect
+        .poll(() => theme.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .not.toBe(themeBackground);
+
+      const character = page.getByTestId(`child-mode-characters-${childId}-option-character-e2e-1`);
+      const characterBackground = await character.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      );
+      await character.click();
+      await expect
+        .poll(() => character.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .not.toBe(characterBackground);
     });
   });
 
@@ -86,13 +118,7 @@ test.describe('child profile access controls', () => {
     await page.goto(`/children/${childId}`);
     await expect(page.getByText('Mira')).toBeVisible();
 
-    const sessionRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname === `/api/v1/children/${childId}/child-mode/sessions`
-    );
     await page.getByTestId('child-detail-start-child-mode').click();
-    expect((await sessionRequest).postData()).toBeNull();
     await page.waitForFunction(() => {
       const rawAuthState = window.localStorage.getItem('auth-storage');
       if (!rawAuthState) return false;
@@ -106,20 +132,30 @@ test.describe('child profile access controls', () => {
     await expect(page.getByTestId('nav-tab-Dashboard')).toBeVisible();
   });
 
-  test('blocks parent-only direct routes in child mode', async ({ page, authenticatedChild }) => {
-    void authenticatedChild;
-    await page.setViewportSize({ width: 390, height: 844 });
+  test.describe('shared family stories denied', () => {
+    test.use({ apiScenario: 'child-series-denied' });
 
-    for (const parentOnlyPath of [
-      '/children',
-      `/children/${childId}`,
-      '/billing/plans',
-      '/profile',
-      '/me/series',
-    ]) {
-      await page.goto(parentOnlyPath);
-      await expect(page.getByText('404')).toBeVisible();
-      await expect(page.getByTestId('children-screen')).toHaveCount(0);
-    }
+    test('hides Series and blocks direct access when shared family stories are denied', async ({
+      page,
+    }) => {
+      await loginAsChild(page, { allowSharedFamilyStories: false });
+      await page.setViewportSize({ width: 390, height: 844 });
+
+      await page.goto('/dashboard');
+      await page.getByTestId('nav-tab-more').click();
+      await expect(page.getByTestId('nav-more-Series')).toHaveCount(0);
+
+      for (const parentOnlyPath of [
+        '/children',
+        `/children/${childId}`,
+        '/billing/plans',
+        '/profile',
+        '/me/series',
+      ]) {
+        await page.goto(parentOnlyPath);
+        await expect(page.getByText('404')).toBeVisible();
+        await expect(page.getByTestId('children-screen')).toHaveCount(0);
+      }
+    });
   });
 });

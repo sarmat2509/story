@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import type { StorySpec } from '../../../ai/types';
+import { MockTextProvider } from '../../../testing/ai';
 import {
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
   graphicNovelPanelCountRange,
@@ -160,20 +161,15 @@ function ukrainianScript(): MixedStoryScript {
   return raw;
 }
 
-class FakeTextProvider {
-  requests: any[] = [];
-
-  constructor(private readonly responses: MixedStoryScript[]) {}
-
-  async generateStructured<T>(request: any): Promise<T> {
-    this.requests.push(request);
-    const response = this.responses.shift();
-    if (!response) throw new Error('No fake response available');
-    return response as T;
-  }
-
-  async generateText(): Promise<string> {
-    return '';
+class FakeTextProvider extends MockTextProvider {
+  constructor(responses: MixedStoryScript[]) {
+    super(
+      responses.map((response, index) => ({
+        kind: 'structured' as const,
+        operation: index === 0 ? 'mixed_story_script' : 'mixed_story_script_retry',
+        response,
+      }))
+    );
   }
 }
 
@@ -475,18 +471,20 @@ async function testMixedWriterRetriesInvalidScript() {
 
   assert.strictEqual(result.script.readingBlocks.length, 8);
   assert.strictEqual(provider.requests.length, 2);
-  assert.strictEqual(provider.requests[0].operation, 'mixed_story_script');
-  assert.strictEqual(provider.requests[1].operation, 'mixed_story_script_retry');
-  assert.match(provider.requests[1].prompt, /PREVIOUS ATTEMPT FAILED VALIDATION/);
-  assert.match(provider.requests[1].prompt, /Comic block contains prose text/);
-  assert.strictEqual(provider.requests[0].schema.properties.readingBlocks.minItems, 8);
-  assert.strictEqual(provider.requests[0].schema.properties.readingBlocks.maxItems, 8);
+  const firstRequest = provider.requests[0].request as any;
+  const retryRequest = provider.requests[1].request as any;
+  assert.strictEqual(firstRequest.operation, 'mixed_story_script');
+  assert.strictEqual(retryRequest.operation, 'mixed_story_script_retry');
+  assert.match(retryRequest.prompt, /PREVIOUS ATTEMPT FAILED VALIDATION/);
+  assert.match(retryRequest.prompt, /Comic block contains prose text/);
+  assert.strictEqual(firstRequest.schema.properties.readingBlocks.minItems, 8);
+  assert.strictEqual(firstRequest.schema.properties.readingBlocks.maxItems, 8);
   assert.strictEqual(
-    provider.requests[0].schema.properties.readingBlocks.items.properties.panels.minItems,
+    firstRequest.schema.properties.readingBlocks.items.properties.panels.minItems,
     graphicNovelPanelCountRange(STATIC_SPEC.ageGroup).min
   );
   assert.strictEqual(
-    provider.requests[0].schema.properties.readingBlocks.items.properties.panels.maxItems,
+    firstRequest.schema.properties.readingBlocks.items.properties.panels.maxItems,
     graphicNovelPanelCountRange(STATIC_SPEC.ageGroup).max
   );
 }

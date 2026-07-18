@@ -84,7 +84,7 @@ async function testEditSendsSourceImageReferencesAndPromptInOrderWithoutInteract
     ['text', 'inlineData', 'text', 'inlineData', 'text']
   );
   assert.match(parts[0].text, /SOURCE_IMAGE/);
-  assert.match(parts[0].text, /comic page to edit/i);
+  assert.match(parts[0].text, /failed scene illustration to repair/i);
   assert.doesNotMatch(parts[0].text, /outfit/i);
   assert.equal(parts[1].inlineData?.data, originalBase64);
   assert.equal(

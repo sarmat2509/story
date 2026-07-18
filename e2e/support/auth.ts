@@ -49,10 +49,16 @@ type ChildLoginOptions = {
   storyCreationMode?: 'instant' | 'artisan';
   publicStoriesEnabled?: boolean;
   storyGenerationEnabled?: boolean;
+  storyContinuationEnabled?: boolean;
   allowedLanguageCodes?: string[];
   allowedThemeSlugs?: string[];
   allowedCharacterIds?: string[];
   freeTextPromptsEnabled?: boolean;
+  audioGenerationEnabled?: boolean;
+  quizGenerationEnabled?: boolean;
+  parentReviewRequired?: boolean;
+  allowSiblingCharacters?: boolean;
+  allowSharedFamilyStories?: boolean;
 };
 
 export async function loginAsChild(page: Page, options: ChildLoginOptions = {}) {
@@ -62,6 +68,8 @@ export async function loginAsChild(page: Page, options: ChildLoginOptions = {}) 
       options.publicStoriesEnabled ?? defaultChildModeSettings.publicStoriesEnabled,
     storyGenerationEnabled:
       options.storyGenerationEnabled ?? defaultChildModeSettings.storyGenerationEnabled,
+    storyContinuationEnabled:
+      options.storyContinuationEnabled ?? defaultChildModeSettings.storyContinuationEnabled,
     allowedLanguageCodes:
       options.allowedLanguageCodes ?? defaultChildModeSettings.allowedLanguageCodes,
     allowedThemeSlugs: options.allowedThemeSlugs ?? defaultChildModeSettings.allowedThemeSlugs,
@@ -69,6 +77,16 @@ export async function loginAsChild(page: Page, options: ChildLoginOptions = {}) 
       options.allowedCharacterIds ?? defaultChildModeSettings.allowedCharacterIds,
     freeTextPromptsEnabled:
       options.freeTextPromptsEnabled ?? defaultChildModeSettings.freeTextPromptsEnabled,
+    audioGenerationEnabled:
+      options.audioGenerationEnabled ?? defaultChildModeSettings.audioGenerationEnabled,
+    quizGenerationEnabled:
+      options.quizGenerationEnabled ?? defaultChildModeSettings.quizGenerationEnabled,
+    parentReviewRequired:
+      options.parentReviewRequired ?? defaultChildModeSettings.parentReviewRequired,
+    allowSiblingCharacters:
+      options.allowSiblingCharacters ?? defaultChildModeSettings.allowSiblingCharacters,
+    allowSharedFamilyStories:
+      options.allowSharedFamilyStories ?? defaultChildModeSettings.allowSharedFamilyStories,
   };
   const activeChild = {
     ...testChild,

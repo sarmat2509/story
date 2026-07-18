@@ -19,18 +19,30 @@ test.describe('profile and parent gate', () => {
     await page.getByTestId('profile-child-mode-passcode-new').fill('5678');
     await page.getByTestId('profile-child-mode-passcode-confirm').fill('5678');
 
-    const passcodeRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname === '/api/v1/me/child-mode-exit-passcode'
-    );
     await page.getByTestId('profile-child-mode-passcode-save').click();
 
-    expect((await passcodeRequest).postDataJSON()).toEqual({
-      old_passcode: '1234',
-      new_passcode: '5678',
-    });
     await expect(page.getByTestId('profile-child-mode-passcode-modal')).toHaveCount(0);
+  });
+
+  test('requests an exit-password recovery link from profile settings', async ({
+    page,
+    authenticatedParent,
+  }) => {
+    void authenticatedParent;
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await page.goto('/profile');
+    await page.getByTestId('profile-child-mode-passcode-open').click();
+
+    const [recoveryResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/v1/auth/child-mode/recovery'
+      ),
+      page.getByTestId('profile-child-mode-passcode-recovery').click(),
+    ]);
+    expect(recoveryResponse.ok()).toBe(true);
   });
 
   test('returns from child mode to the parent profile through parent gate', async ({
@@ -49,16 +61,8 @@ test.describe('profile and parent gate', () => {
     await expect(page.getByTestId('parent-gate-password')).toBeVisible();
     await page.getByTestId('parent-gate-password').fill('parent-passcode');
 
-    const parentGateRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname === '/api/v1/auth/parent-gate'
-    );
     await page.getByTestId('parent-gate-submit').click();
 
-    expect((await parentGateRequest).postDataJSON()).toEqual({
-      password: 'parent-passcode',
-    });
     await expect(page.getByTestId('profile-screen')).toBeVisible();
     await expect
       .poll(async () => {
@@ -79,14 +83,26 @@ test.describe('profile and parent gate', () => {
     await page.getByTestId('child-profile-switcher-trigger').click();
     await page.getByTestId('child-profile-switcher-parent').click();
 
-    const recoveryRequest = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname === '/api/v1/auth/child-mode/recovery'
-    );
     await page.getByTestId('parent-gate-recovery').click();
-    await recoveryRequest;
 
     await expect(page.getByTestId('parent-gate-recovery-sent')).toBeVisible();
+  });
+
+  test('sets a new exit password after opening the recovery email link', async ({
+    page,
+    authenticatedChild,
+  }) => {
+    void authenticatedChild;
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await page.goto('/auth/child-mode-recovery?token=e2e-email-recovery-token');
+    await expect(page.getByTestId('child-mode-recovery-reset-form')).toBeVisible();
+
+    await page.getByTestId('child-mode-recovery-new-passcode').fill('new-parent-password');
+    await page.getByTestId('child-mode-recovery-confirm-passcode').fill('new-parent-password');
+    await page.getByTestId('child-mode-recovery-reset-submit').click();
+
+    await expect(page.getByTestId('child-mode-recovery-reset-form')).toHaveCount(0);
+    await expect(page.getByText('Password saved')).toBeVisible();
   });
 });

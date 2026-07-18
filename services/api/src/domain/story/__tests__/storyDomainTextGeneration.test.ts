@@ -3,11 +3,8 @@
  */
 import assert from 'node:assert';
 import type { StorySpec } from '../../../ai/types';
-import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type {
-  GenerateStructuredRequest,
-  GenerateTextRequest,
-} from '../../../providers/base/JsonSchema';
+import type { GenerateTextRequest } from '../../../providers/base/JsonSchema';
+import { MockTextProvider } from '../../../testing/ai';
 import { StoryDomainService } from '../StoryDomainService';
 
 const STATIC_POLICY = {
@@ -46,24 +43,13 @@ description: A short bedtime tale about a glowworm who shares her glow.
 ---
 [thoughtful] She wondered if anyone else felt lonely in the dark.`;
 
-/** Stub: only plain generateText is used */
-class PlainOnlyStubTextProvider implements ITextProvider {
-  public lastGenerateTextRequest: GenerateTextRequest | null = null;
-
-  constructor(private readonly fixture = PLAIN_LLM_FIXTURE) {}
-
-  async generateText(request: GenerateTextRequest): Promise<string> {
-    this.lastGenerateTextRequest = request;
-    return this.fixture;
-  }
-
-  async generateStructured<T>(_request: GenerateStructuredRequest<T>): Promise<T> {
-    throw new Error('generateStructured must not be called for generateTextPlain');
-  }
+function lastTextRequest(provider: MockTextProvider): GenerateTextRequest | null {
+  const call = provider.requests.at(-1);
+  return call?.kind === 'text' ? call.request : null;
 }
 
 async function testGenerateTextPlainUsesDomainAndParsesScenes() {
-  const stub = new PlainOnlyStubTextProvider();
+  const stub = new MockTextProvider().queueText('text_plain', PLAIN_LLM_FIXTURE);
   const domain = new StoryDomainService(stub);
 
   const result = await domain.generateTextPlain(STATIC_STORY_SPEC);
@@ -82,36 +68,41 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
   assert.ok(result.fullText.includes(result.scenes[0].text), 'fullText joins scene bodies');
   assert.ok(result.wordCount >= 10, 'wordCount computed server-side');
 
-  assert.ok(stub.lastGenerateTextRequest, 'provider received a request');
+  const request = lastTextRequest(stub);
+  assert.ok(request, 'provider received a request');
   assert.ok(
-    (stub.lastGenerateTextRequest!.prompt?.length ?? 0) > 500,
+    (request!.prompt?.length ?? 0) > 500,
     'prompt is built (child profile, rules, plain output contract)'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes(
+    request!.prompt.includes(
       'Role boundary: you are the Story Writer, not the Visual Director.'
     ),
     'Writer prompt keeps visual metadata in the Director step'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes(
+    request!.prompt.includes(
       'WORLD RULE DRAMATURGY (author-only constraint):'
     ),
     'world rules are treated as hidden dramaturgy, not exposition'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('Introduce this rule in Scene'),
+    !request!.prompt.includes('Introduce this rule in Scene'),
     'prompt must not ask Writer to explicitly introduce a world rule'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('OUTPUT FORMAT (JSON)'),
+    !request!.prompt.includes('OUTPUT FORMAT (JSON)'),
     'plain Writer prompt must not include the old structured JSON contract'
   );
-  assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
+  assert.strictEqual(request!.operation, 'text_plain');
+  stub.assertExhausted();
 }
 
 async function testGenerateTextPlainRejectsEmptyWriterOutput() {
-  const stub = new PlainOnlyStubTextProvider('title: Untitled\n\ndescription:');
+  const stub = new MockTextProvider().queueText(
+    'text_plain',
+    ''
+  );
   const domain = new StoryDomainService(stub);
 
   await assert.rejects(
@@ -122,7 +113,7 @@ async function testGenerateTextPlainRejectsEmptyWriterOutput() {
 }
 
 async function testWriterPromptDoesNotExposeCharacterIds() {
-  const stub = new PlainOnlyStubTextProvider();
+  const stub = new MockTextProvider().queueText('text_plain', PLAIN_LLM_FIXTURE);
   const domain = new StoryDomainService(stub);
 
   await domain.generateTextPlain({
@@ -137,25 +128,26 @@ async function testWriterPromptDoesNotExposeCharacterIds() {
     ],
   });
 
-  assert.ok(stub.lastGenerateTextRequest, 'provider received a request');
+  const request = lastTextRequest(stub);
+  assert.ok(request, 'provider received a request');
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes('1. Емілія'),
+    request!.prompt.includes('1. Емілія'),
     'Writer prompt lists the localized story name'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes(
+    request!.prompt.includes(
       'Do not translate, rename, or append bracket metadata'
     ),
     'Writer prompt instructs prose names to stay clean'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('[ID:'),
+    !request!.prompt.includes('[ID:'),
     'Writer prompt must not expose technical character IDs'
   );
 }
 
 async function testContinuationWriterPromptDoesNotExposeIds() {
-  const stub = new PlainOnlyStubTextProvider();
+  const stub = new MockTextProvider().queueText('text_continuation', PLAIN_LLM_FIXTURE);
   const domain = new StoryDomainService(stub);
 
   await domain.generateTextPlain(STATIC_STORY_SPEC, {
@@ -195,44 +187,36 @@ async function testContinuationWriterPromptDoesNotExposeIds() {
     },
   });
 
-  assert.ok(stub.lastGenerateTextRequest, 'provider received a continuation request');
+  const request = lastTextRequest(stub);
+  assert.ok(request, 'provider received a continuation request');
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes('Snow Spirit (imaginary)'),
+    request!.prompt.includes('Snow Spirit (imaginary)'),
     'character name is clean'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('Friends help each other.'),
+    !request!.prompt.includes('Friends help each other.'),
     'previous moral must not be carried into continuation prompt'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('[ID:'),
+    !request!.prompt.includes('[ID:'),
     'continuation prompt must not expose IDs'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('env_forest_001'),
+    !request!.prompt.includes('env_forest_001'),
     'environment IDs stay out of Writer prompt'
   );
   assert.ok(
-    !stub.lastGenerateTextRequest!.prompt.includes('outfit_snow_001'),
+    !request!.prompt.includes('outfit_snow_001'),
     'outfit IDs stay out of Writer prompt'
   );
 }
 
-class BlockedValidationStubTextProvider implements ITextProvider {
-  public lastGenerateStructuredRequest: GenerateStructuredRequest<unknown> | null = null;
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText must not be called for validation');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.lastGenerateStructuredRequest = request;
-    throw new Error('Content blocked by Gemini: PROHIBITED_CONTENT');
-  }
-}
-
 async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
-  const stub = new BlockedValidationStubTextProvider();
+  const stub = new MockTextProvider().queueError(
+    'structured',
+    'validateScene',
+    'Content blocked by Gemini: PROHIBITED_CONTENT'
+  );
   const domain = new StoryDomainService(stub, stub, stub);
 
   const result = await domain.validateScene(
@@ -248,11 +232,15 @@ async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
   assert.strictEqual(result.violations.length, 1);
   assert.strictEqual(result.violations[0].category, 'content_policy');
   assert.strictEqual(result.violations[0].severity, 'critical');
-  assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'validateScene');
+  assert.strictEqual(stub.requests[0].request.operation, 'validateScene');
 }
 
 async function testValidateSceneAllowsCustomUsageOperation() {
-  const stub = new BlockedValidationStubTextProvider();
+  const stub = new MockTextProvider().queueError(
+    'structured',
+    'writer_text_validation',
+    'Content blocked by Gemini: PROHIBITED_CONTENT'
+  );
   const domain = new StoryDomainService(stub, stub, stub);
 
   const result = await domain.validateScene(
@@ -266,13 +254,17 @@ async function testValidateSceneAllowsCustomUsageOperation() {
     { operation: 'writer_text_validation' }
   );
 
-  assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'writer_text_validation');
+  assert.strictEqual(stub.requests[0].request.operation, 'writer_text_validation');
   assert.strictEqual(result.requestManifest?.operation, 'writer_text_validation');
   assert.strictEqual(result.validationScore, 0);
 }
 
 async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() {
-  const stub = new BlockedValidationStubTextProvider();
+  const stub = new MockTextProvider().queueError(
+    'structured',
+    'validateScene',
+    'Content blocked by Gemini: PROHIBITED_CONTENT'
+  );
   const domain = new StoryDomainService(stub, stub, stub);
 
   const result = await domain.validateScenesBatch(
@@ -294,6 +286,36 @@ async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() 
   );
 }
 
+async function testValidateScenesBatchEnforcesOpenLedgerRows(): Promise<void> {
+  const stub = new MockTextProvider().queueStructured('validateScene', {
+    audit: ['1|return the borrowed book|0|'],
+    open: [
+      {
+        s: 1,
+        k: 'promise',
+        a: 'return the borrowed book',
+        r: 2,
+      },
+    ],
+    failedScenes: [],
+  });
+  const domain = new StoryDomainService(stub, stub, stub);
+
+  const result = await domain.validateScenesBatch(
+    [
+      { sceneId: 1, text: 'They promised to return the borrowed book.' } as any,
+      { sceneId: 2, text: 'They went home without mentioning it again.' } as any,
+    ],
+    STATIC_POLICY
+  );
+
+  assert.strictEqual(result.failedScenes.length, 1);
+  assert.strictEqual(result.failedScenes[0].sceneId, 2);
+  assert.strictEqual(result.failedScenes[0].violations[0].category, 'setup_payoff_gap');
+  assert.match(result.failedScenes[0].violations[0].message, /borrowed book/);
+  stub.assertExhausted();
+}
+
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
   await testGenerateTextPlainRejectsEmptyWriterOutput();
@@ -302,6 +324,7 @@ void (async () => {
   await testValidateSceneFailsClosedWhenProviderBlocksValidation();
   await testValidateSceneAllowsCustomUsageOperation();
   await testValidateScenesBatchFailsClosedWhenProviderBlocksValidation();
+  await testValidateScenesBatchEnforcesOpenLedgerRows();
   console.log('storyDomainTextGeneration tests OK');
 })().catch((err) => {
   console.error(err);

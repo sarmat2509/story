@@ -1,9 +1,5 @@
 import assert from 'node:assert/strict';
-import type { ITextProvider } from '../../providers/base/ITextProvider';
-import type {
-  GenerateStructuredRequest,
-  GenerateTextRequest,
-} from '../../providers/base/JsonSchema';
+import { MOCK_CHILD_PHOTO_VALIDATION, MockTextProvider } from '../../testing/ai';
 import {
   CHILD_PHOTO_REQUIRES_HUMAN_CODE,
   ChildPhotoValidationError,
@@ -15,32 +11,11 @@ const TINY_JPEG = Buffer.from(
   'base64'
 );
 
-class MockTextProvider implements ITextProvider {
-  calls: Array<GenerateStructuredRequest<unknown>> = [];
-
-  constructor(private readonly responses: unknown[]) {}
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.calls.push(request as GenerateStructuredRequest<unknown>);
-    const next = this.responses.shift();
-    return next as T;
-  }
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText not used');
-  }
-}
-
 async function testAcceptsClearHumanSubject() {
-  const provider = new MockTextProvider([
-    {
-      hasHumanSubject: true,
-      humanSubjectCount: 1,
-      primarySubject: 'human',
-      confidence: 0.94,
-      reason: 'A clear person is the main subject.',
-    },
-  ]);
+  const provider = new MockTextProvider().queueStructured(
+    'image_validation_child_photo',
+    MOCK_CHILD_PHOTO_VALIDATION
+  );
   const service = new ChildPhotoValidationService(provider, 'vision-test');
 
   const result = await service.assertBufferContainsHuman({
@@ -51,22 +26,21 @@ async function testAcceptsClearHumanSubject() {
   });
 
   assert.equal(result.hasHumanSubject, true);
-  assert.equal(provider.calls.length, 1);
-  assert.equal(provider.calls[0].model, 'vision-test');
-  assert.equal(provider.calls[0].operation, 'image_validation_child_photo');
-  assert.equal(provider.calls[0].imageData?.[0]?.mimeType, 'image/jpeg');
+  assert.equal(provider.structuredRequests.length, 1);
+  assert.equal(provider.structuredRequests[0].model, 'vision-test');
+  assert.equal(provider.structuredRequests[0].operation, 'image_validation_child_photo');
+  assert.equal(provider.structuredRequests[0].imageData?.[0]?.mimeType, 'image/jpeg');
+  provider.assertExhausted();
 }
 
 async function testRejectsAnimalOnlyPhoto() {
-  const provider = new MockTextProvider([
-    {
-      hasHumanSubject: false,
-      humanSubjectCount: 0,
-      primarySubject: 'animal',
-      confidence: 0.98,
-      reason: 'The image shows a dog and no clear human subject.',
-    },
-  ]);
+  const provider = new MockTextProvider().queueStructured('image_validation_child_photo', {
+    hasHumanSubject: false,
+    humanSubjectCount: 0,
+    primarySubject: 'animal',
+    confidence: 0.98,
+    reason: 'The image shows a dog and no clear human subject.',
+  });
   const service = new ChildPhotoValidationService(provider, 'vision-test');
 
   await assert.rejects(
@@ -87,6 +61,7 @@ async function testRejectsAnimalOnlyPhoto() {
       return true;
     }
   );
+  provider.assertExhausted();
 }
 
 async function run() {

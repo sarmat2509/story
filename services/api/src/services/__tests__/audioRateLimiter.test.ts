@@ -62,15 +62,26 @@ describe('AudioRateLimiter', () => {
   let rateLimiter: AudioRateLimiter;
   let mockProvider: MockQuotaProvider;
 
-  beforeEach(() => {
+  async function rebuildRateLimiter(): Promise<void> {
+    rateLimiter?.stop();
+    rateLimiter = new AudioRateLimiter(mockProvider);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+
+  beforeEach(async () => {
     resetAudioRateLimiter();
     mockProvider = new MockQuotaProvider();
-    rateLimiter = new AudioRateLimiter(mockProvider);
+    await rebuildRateLimiter();
+  });
+
+  afterEach(() => {
+    rateLimiter.stop();
   });
 
   describe('Concurrency Control', () => {
     it('should respect concurrency limit', async () => {
       mockProvider.setConcurrency(2);
+      await rebuildRateLimiter();
       
       let concurrent = 0;
       let maxConcurrent = 0;
@@ -95,6 +106,7 @@ describe('AudioRateLimiter', () => {
 
     it('should queue tasks when concurrency limit reached', async () => {
       mockProvider.setConcurrency(1);
+      await rebuildRateLimiter();
       
       const results: string[] = [];
       const task = async (id: number) => {
@@ -121,7 +133,7 @@ describe('AudioRateLimiter', () => {
   describe('Character Quota Control', () => {
     it('should reject when character quota exceeded', async () => {
       mockProvider.setCharacterQuota(9900, 10000);
-      
+      await rebuildRateLimiter();
       const task = async () => {
         return 'done';
       };
@@ -134,6 +146,7 @@ describe('AudioRateLimiter', () => {
 
     it('should allow tasks within character quota', async () => {
       mockProvider.setCharacterQuota(5000, 10000);
+      await rebuildRateLimiter();
       
       const task = async () => {
         return 'success';
@@ -145,6 +158,7 @@ describe('AudioRateLimiter', () => {
 
     it('should track character usage across requests', async () => {
       mockProvider.setCharacterQuota(0, 10000);
+      await rebuildRateLimiter();
       
       const task = async () => 'done';
 
@@ -160,6 +174,7 @@ describe('AudioRateLimiter', () => {
   describe('Error Handling', () => {
     it('should rollback character usage on error', async () => {
       mockProvider.setCharacterQuota(0, 10000);
+      await rebuildRateLimiter();
       
       const task = async () => {
         throw new Error('Task failed');
@@ -177,6 +192,7 @@ describe('AudioRateLimiter', () => {
 
     it('should handle 429 errors with adaptive reduction', async () => {
       mockProvider.setConcurrency(5);
+      await rebuildRateLimiter();
       
       const task = async () => {
         throw new Error('Rate limit exceeded (429)');
@@ -188,15 +204,15 @@ describe('AudioRateLimiter', () => {
         // Expected
       }
 
-      // Concurrency should be reduced
-      const stats = rateLimiter.getStats();
-      expect(stats.maxConcurrency).toBeLessThan(5);
+      // Production delegates the adaptive RPM reduction to the quota provider.
+      expect(mockProvider.getCachedLimit()).toBeLessThan(5);
     });
   });
 
   describe('Queue Management', () => {
     it('should process queue when slots become available', async () => {
       mockProvider.setConcurrency(1);
+      await rebuildRateLimiter();
       
       const executionOrder: number[] = [];
       
@@ -229,6 +245,7 @@ describe('AudioRateLimiter', () => {
     it('should return correct statistics', async () => {
       mockProvider.setConcurrency(3);
       mockProvider.setCharacterQuota(1000, 10000);
+      await rebuildRateLimiter();
       
       const task = async () => {
         await new Promise(resolve => setTimeout(resolve, 10));

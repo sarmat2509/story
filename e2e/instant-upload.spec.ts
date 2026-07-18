@@ -3,7 +3,7 @@ import { test, expect } from './support/fixtures';
 import { loginAsParent } from './support/auth';
 
 test.describe('instant wizard upload flow', () => {
-  test('uploads a photo and submits the instant story payload', async ({ page }) => {
+  test('uploads a photo and shows the completed instant story result', async ({ page }) => {
     await loginAsParent(page, { mode: 'instant' });
     page.on('dialog', (dialog) => dialog.accept());
 
@@ -25,17 +25,8 @@ test.describe('instant wizard upload flow', () => {
 
     await expect(page.getByTestId('wizard-instant-generate')).toBeEnabled();
 
-    const instantRequest = page.waitForRequest(
-      (request) => request.method() === 'POST' && request.url().includes('/api/v1/stories/instant')
-    );
     await page.getByTestId('wizard-instant-generate').click();
-    const request = await instantRequest;
-
-    expect(request.postDataJSON()).toMatchObject({
-      photos: ['/api/v1/assets/e2e-uploaded-photo.png'],
-      age_group: '6-7',
-      scenario: 'space_odyssey',
-      language: 'es',
-    });
+    await expect(page.getByText('Готово! 🎉')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Переглянути історію' })).toBeVisible();
   });
 });

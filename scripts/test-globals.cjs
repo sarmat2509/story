@@ -58,9 +58,12 @@ async function runTestNode(node, ancestors = []) {
     for (const hook of node.beforeEach) {
       await hook();
     }
-    await node.fn();
-    for (const hook of node.afterEach) {
-      await hook();
+    try {
+      await node.fn();
+    } finally {
+      for (const hook of node.afterEach) {
+        await hook();
+      }
     }
     return;
   }
@@ -139,7 +142,12 @@ global.afterEach = (fn) => {
 global.expect = makeExpect;
 
 process.once('beforeExit', async () => {
-  for (const suite of rootSuites) {
-    await runTestNode(suite);
+  try {
+    for (const suite of rootSuites) {
+      await runTestNode(suite);
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack || error.message : error);
+    process.exitCode = 1;
   }
 });

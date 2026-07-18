@@ -1,8 +1,9 @@
 import { test as base, expect } from '@playwright/test';
-import { installApiMocks } from './apiMocks';
+import { installApiMocks, type ApiMockScenario } from './apiMocks';
 import { loginAsChild, loginAsParent } from './auth';
 
 type WonderTalesFixtures = {
+  apiScenario: ApiMockScenario;
   browserDefaults: void;
   mockApi: void;
   authenticatedParent: void;
@@ -10,6 +11,7 @@ type WonderTalesFixtures = {
 };
 
 export const test = base.extend<WonderTalesFixtures>({
+  apiScenario: ['default', { option: true }],
   browserDefaults: [
     async ({ page }, use) => {
       await page.addInitScript(() => {
@@ -21,9 +23,10 @@ export const test = base.extend<WonderTalesFixtures>({
     { auto: true },
   ],
   mockApi: [
-    async ({ page }, use) => {
-      await installApiMocks(page);
+    async ({ page, apiScenario }, use) => {
+      const controller = await installApiMocks(page, apiScenario);
       await use();
+      controller.assertNoUnexpectedRequests();
     },
     { auto: true },
   ],

@@ -4,10 +4,37 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   quality_gate:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wondertales_test
+          POSTGRES_PASSWORD: wondertales_test
+          POSTGRES_DB: wondertales_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wondertales_test -d wondertales_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout code
@@ -30,8 +57,31 @@ jobs:
       - name: Run launch gate
         run: pnpm launch:gate
 
+      - name: Run API HTTP contracts
+        run: pnpm test:api-contracts
+
+      - name: Run mocked AI contracts
+        run: pnpm test:ai-mocked
+
+      - name: Run Postgres and Redis integration contract
+        env:
+          RUN_INFRA_INTEGRATION: '1'
+          TEST_DATABASE_URL: postgresql://wondertales_test:wondertales_test@127.0.0.1:5432/wondertales_test
+          TEST_REDIS_URL: redis://127.0.0.1:6379
+        run: pnpm test:infra-integration
+
+      - name: Run component tests
+        run: pnpm test:components
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: pnpm test:e2e
+
   deploy:
     needs: quality_gate
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     
     steps:

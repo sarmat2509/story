@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { GraphicNovelDomainService } from '../GraphicNovelDomainService';
 import type { StorySpec } from '../../../ai/types';
-import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type {
-  GenerateStructuredRequest,
-  GenerateTextRequest,
-} from '../../../providers/base/JsonSchema';
+import { MockTextProvider } from '../../../testing/ai/MockTextProvider';
 
 const SPEC: StorySpec = {
   language: 'uk',
@@ -439,7 +435,8 @@ const STORM_REPAIRED_PAGE = {
           setting: 'The door is closed; the storm is safely watched through the window.',
           cameraComposition: {
             shot: 'medium shot',
-            characters: STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
+            characters:
+              STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
           },
         },
       },
@@ -455,7 +452,8 @@ const STORM_REPAIRED_PAGE = {
           setting: 'Emilia and Flash sit on the rug away from the window.',
           cameraComposition: {
             shot: 'wide shot',
-            characters: STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
+            characters:
+              STORM_SCRIPT.pages[0].panels[0].visual.sceneVisual.cameraComposition.characters,
           },
         },
       },
@@ -463,119 +461,53 @@ const STORM_REPAIRED_PAGE = {
   ],
 } as any;
 
-class BlockThenSucceedProvider implements ITextProvider {
-  public requests: GenerateStructuredRequest[] = [];
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText should not be called');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.requests.push(request);
-    if (this.requests.length === 1) {
-      throw new Error(
-        'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT. Details: none'
-      );
-    }
-    return SCRIPT_FIXTURE as T;
-  }
-}
-
-class BadNameThenSucceedProvider implements ITextProvider {
-  public requests: GenerateStructuredRequest[] = [];
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText should not be called');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.requests.push(request);
-    if (request.operation === 'graphic_novel_page_repair') {
-      return { page: MOKHOVYK_SAFE_SCRIPT.pages[0] } as T;
-    }
-    return MOKHOVYK_CONFLICT_SCRIPT as T;
-  }
-}
-
-class OvercrowdedPanelThenSucceedProvider implements ITextProvider {
-  public requests: GenerateStructuredRequest[] = [];
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText should not be called');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.requests.push(request);
-    return (this.requests.length === 1 ? OVERCROWDED_PANEL_SCRIPT : SCRIPT_FIXTURE) as T;
-  }
-}
-
-class StormPageRepairProvider implements ITextProvider {
-  public requests: GenerateStructuredRequest[] = [];
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText should not be called');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.requests.push(request);
-    if (request.operation === 'graphic_novel_page_repair') {
-      return { page: STORM_REPAIRED_PAGE } as T;
-    }
-    return STORM_SCRIPT as T;
-  }
-}
-
-class ScriptTextValidationProvider implements ITextProvider {
-  public requests: GenerateStructuredRequest[] = [];
-
-  constructor(
-    private results: Array<{ isValid: boolean; violations?: unknown[] }> = [{ isValid: true }]
-  ) {}
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText should not be called');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.requests.push(request);
-    const result = this.results[Math.min(this.requests.length - 1, this.results.length - 1)];
-    return {
-      sceneId: this.requests.length,
-      isValid: result.isValid,
-      violations: result.violations ?? [],
-    } as T;
-  }
-}
-
 async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
-  const provider = new BlockThenSucceedProvider();
-  const validationProvider = new ScriptTextValidationProvider();
+  const provider = new MockTextProvider()
+    .queueError(
+      'structured',
+      'graphic_novel_script',
+      'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT. Details: none'
+    )
+    .queueStructured('graphic_novel_script_safety_fallback', SCRIPT_FIXTURE);
+  const validationProvider = new MockTextProvider().queueStructured('validateScene', {
+    sceneId: 1,
+    isValid: true,
+    violations: [],
+  });
   const service = new GraphicNovelDomainService(provider, validationProvider);
 
   const script = await service.generateScript({ spec: SPEC, pageCount: 8 });
 
   assert.equal(script.title, 'Світла стрічка');
   assert.equal(script.pages.length, 8, 'normalization still fills the requested page count');
-  assert.equal(provider.requests.length, 2);
-  assert.equal(validationProvider.requests.length, 1);
-  assert.equal(validationProvider.requests[0].operation, 'validateScene');
-  assert.match(validationProvider.requests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
-  assert.match(validationProvider.requests[0].prompt, /RESERVED CHARACTER IDENTITY VALIDATION/);
-  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
-  assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
-  assert.match(provider.requests[0].prompt, /Емілія \(person, role: hero, visual reference: yes\)/);
-  assert.doesNotMatch(provider.requests[0].prompt, /\(child[,)]/);
-  assert.doesNotMatch(provider.requests[0].prompt, /face\/mouth\/head/);
-  assert.doesNotMatch(provider.requests[0].prompt, /anchor/);
-  assert.doesNotMatch(provider.requests[0].prompt, /speechTarget/);
-  assert.match(provider.requests[1].prompt, /SAFETY AND TONE/);
-  assert.match(provider.requests[1].prompt, /Емілія \(person, role: hero\)/);
-  assert.doesNotMatch(provider.requests[1].prompt, /\(child[,)]/);
-  assert.doesNotMatch(provider.requests[1].prompt, /anchor/);
-  assert.doesNotMatch(provider.requests[1].prompt, /speechTarget/);
-  assert.doesNotMatch(provider.requests[1].prompt, /Bad for a referenced child/);
-  assert.ok(script.outfits?.length, 'graphic novel script keeps outfit rows for dressed turnarounds');
+  assert.equal(provider.structuredRequests.length, 2);
+  assert.equal(validationProvider.structuredRequests.length, 1);
+  assert.equal(validationProvider.structuredRequests[0].operation, 'validateScene');
+  assert.match(validationProvider.structuredRequests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
+  assert.match(
+    validationProvider.structuredRequests[0].prompt,
+    /RESERVED CHARACTER IDENTITY VALIDATION/
+  );
+  assert.equal(provider.structuredRequests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.structuredRequests[1].operation, 'graphic_novel_script_safety_fallback');
+  assert.match(
+    provider.structuredRequests[0].prompt,
+    /Емілія \(person, role: hero, visual reference: yes\)/
+  );
+  assert.doesNotMatch(provider.structuredRequests[0].prompt, /\(child[,)]/);
+  assert.doesNotMatch(provider.structuredRequests[0].prompt, /face\/mouth\/head/);
+  assert.doesNotMatch(provider.structuredRequests[0].prompt, /anchor/);
+  assert.doesNotMatch(provider.structuredRequests[0].prompt, /speechTarget/);
+  assert.match(provider.structuredRequests[1].prompt, /SAFETY AND TONE/);
+  assert.match(provider.structuredRequests[1].prompt, /Емілія \(person, role: hero\)/);
+  assert.doesNotMatch(provider.structuredRequests[1].prompt, /\(child[,)]/);
+  assert.doesNotMatch(provider.structuredRequests[1].prompt, /anchor/);
+  assert.doesNotMatch(provider.structuredRequests[1].prompt, /speechTarget/);
+  assert.doesNotMatch(provider.structuredRequests[1].prompt, /Bad for a referenced child/);
+  assert.ok(
+    script.outfits?.length,
+    'graphic novel script keeps outfit rows for dressed turnarounds'
+  );
 
   const panelTwoCharacters = script.pages[0].panels[1].visual.sceneVisual.cameraComposition;
   assert.notEqual(typeof panelTwoCharacters, 'string');
@@ -606,12 +538,17 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
       'normalization fallback pages keep the child anchor visible'
     );
   }
+  provider.assertExhausted();
+  validationProvider.assertExhausted();
 }
 
 async function testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReused() {
-  const provider = new BadNameThenSucceedProvider();
-  const validationProvider = new ScriptTextValidationProvider([
-    {
+  const provider = new MockTextProvider()
+    .queueStructured('graphic_novel_script', MOKHOVYK_CONFLICT_SCRIPT)
+    .queueStructured('graphic_novel_page_repair', { page: MOKHOVYK_SAFE_SCRIPT.pages[0] });
+  const validationProvider = new MockTextProvider()
+    .queueStructured('validateScene', {
+      sceneId: 1,
       isValid: false,
       violations: [
         {
@@ -622,78 +559,98 @@ async function testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReuse
           suggestion: 'Rename the giant tortoise or keep Моховик as the small moss creature.',
         },
       ],
-    },
-    { isValid: true },
-  ]);
+    })
+    .queueStructured('validateScene', { sceneId: 2, isValid: true, violations: [] });
   const service = new GraphicNovelDomainService(provider, validationProvider);
 
   const script = await service.generateScript({ spec: MOKHOVYK_SPEC, pageCount: 2 });
 
-  assert.equal(provider.requests.length, 2);
-  assert.equal(validationProvider.requests.length, 2);
-  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
-  assert.equal(provider.requests[1].operation, 'graphic_novel_page_repair');
-  assert.match(provider.requests[1].prompt, /reserved moss-creature character/);
-  assert.equal(validationProvider.requests[0].operation, 'validateScene');
-  assert.match(validationProvider.requests[0].prompt, /RESERVED CHARACTER IDENTITY VALIDATION/);
-  assert.match(validationProvider.requests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
-  assert.match(validationProvider.requests[0].prompt, /reserved_character_identity_conflict/);
-  assert.match(validationProvider.requests[0].prompt, /MOKHOVYK|Моховик/i);
+  assert.equal(provider.structuredRequests.length, 2);
+  assert.equal(validationProvider.structuredRequests.length, 2);
+  assert.equal(provider.structuredRequests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.structuredRequests[1].operation, 'graphic_novel_page_repair');
+  assert.match(provider.structuredRequests[1].prompt, /reserved moss-creature character/);
+  assert.equal(validationProvider.structuredRequests[0].operation, 'validateScene');
+  assert.match(
+    validationProvider.structuredRequests[0].prompt,
+    /RESERVED CHARACTER IDENTITY VALIDATION/
+  );
+  assert.match(validationProvider.structuredRequests[0].prompt, /GRAPHIC_NOVEL_PAGE_SCRIPT_JSON/);
+  assert.match(
+    validationProvider.structuredRequests[0].prompt,
+    /reserved_character_identity_conflict/
+  );
+  assert.match(validationProvider.structuredRequests[0].prompt, /MOKHOVYK|Моховик/i);
 
-  const firstCharacter =
-    script.pages[0].panels[0].visual.sceneVisual.cameraComposition;
+  const firstCharacter = script.pages[0].panels[0].visual.sceneVisual.cameraComposition;
   assert.notEqual(typeof firstCharacter, 'string');
   if (typeof firstCharacter !== 'string') {
     const mokhovyk = firstCharacter.characters.find((character) => character.name === 'Моховик');
     assert.match(mokhovyk?.description ?? '', /standing on the moss path/);
   }
+  provider.assertExhausted();
+  validationProvider.assertExhausted();
 }
 
 async function testGraphicNovelScriptRetriesWhenPanelCastExceedsLimit() {
-  const provider = new OvercrowdedPanelThenSucceedProvider();
-  const validationProvider = new ScriptTextValidationProvider();
+  const provider = new MockTextProvider()
+    .queueStructured('graphic_novel_script', OVERCROWDED_PANEL_SCRIPT)
+    .queueStructured('graphic_novel_script_safety_fallback', SCRIPT_FIXTURE);
+  const validationProvider = new MockTextProvider().queueStructured('validateScene', {
+    sceneId: 1,
+    isValid: true,
+    violations: [],
+  });
   const service = new GraphicNovelDomainService(provider, validationProvider);
 
   const script = await service.generateScript({ spec: SPEC, pageCount: 8 });
 
-  assert.equal(provider.requests.length, 2);
-  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
-  assert.equal(provider.requests[1].operation, 'graphic_novel_script_safety_fallback');
+  assert.equal(provider.structuredRequests.length, 2);
+  assert.equal(provider.structuredRequests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.structuredRequests[1].operation, 'graphic_novel_script_safety_fallback');
   assert.equal(
-    validationProvider.requests.length,
+    validationProvider.structuredRequests.length,
     1,
     'overcrowded panel primary script is rejected before LLM text validation'
   );
   assert.equal(script.title, 'Світла стрічка');
+  provider.assertExhausted();
+  validationProvider.assertExhausted();
 }
 
 async function testGraphicNovelScriptRepairsFailedPageBeforeWholeFallback() {
-  const provider = new StormPageRepairProvider();
-  const validationProvider = new ScriptTextValidationProvider([
-    {
+  const provider = new MockTextProvider()
+    .queueStructured('graphic_novel_script', STORM_SCRIPT)
+    .queueStructured('graphic_novel_page_repair', { page: STORM_REPAIRED_PAGE });
+  const validationProvider = new MockTextProvider()
+    .queueStructured('validateScene', {
+      sceneId: 1,
       isValid: false,
       violations: [
         {
           category: 'content_policy',
           severity: 'medium',
-          message:
-            'A strong storm is approaching, and the child decides to run outside alone.',
+          message: 'A strong storm is approaching, and the child decides to run outside alone.',
           suggestion: 'Keep the child sheltered and ask for help.',
         },
       ],
-    },
-    { isValid: true },
-  ]);
+    })
+    .queueStructured('validateScene', { sceneId: 2, isValid: true, violations: [] });
   const service = new GraphicNovelDomainService(provider, validationProvider);
 
   const script = await service.generateScript({ spec: SPEC, pageCount: 1 });
 
-  assert.equal(provider.requests.length, 2);
-  assert.equal(provider.requests[0].operation, 'graphic_novel_script');
-  assert.equal(provider.requests[1].operation, 'graphic_novel_page_repair');
-  assert.match(provider.requests[1].prompt, /A strong storm is approaching/);
-  assert.equal(validationProvider.requests.length, 2);
-  assert.equal(script.pages[0].panels[0].dialogue[0].text, 'Шторм сильний, тож ми залишимося біля вікна.');
+  assert.equal(provider.structuredRequests.length, 2);
+  assert.equal(provider.structuredRequests[0].operation, 'graphic_novel_script');
+  assert.equal(provider.structuredRequests[1].operation, 'graphic_novel_page_repair');
+  assert.match(provider.structuredRequests[1].prompt, /A strong storm is approaching/);
+  assert.equal(validationProvider.structuredRequests.length, 2);
+  assert.equal(
+    script.pages[0].panels[0].dialogue[0].text,
+    'Шторм сильний, тож ми залишимося біля вікна.'
+  );
+  provider.assertExhausted();
+  validationProvider.assertExhausted();
 }
 
 async function run() {

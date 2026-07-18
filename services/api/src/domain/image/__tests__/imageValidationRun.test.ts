@@ -6,11 +6,7 @@
 
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../../ai/types';
-import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type {
-  GenerateStructuredRequest,
-  GenerateTextRequest,
-} from '../../../providers/base/JsonSchema';
+import { MockTextProvider } from '../../../testing/ai/MockTextProvider';
 import {
   runGraphicNovelPanelImageValidation,
   runProductImageValidation,
@@ -22,31 +18,6 @@ const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
   'base64'
 );
-
-class MockTextProvider implements ITextProvider {
-  calls: Array<GenerateStructuredRequest<unknown>> = [];
-
-  constructor(
-    private readonly responses: Array<
-      unknown | Error | ((request: GenerateStructuredRequest<unknown>) => unknown | Error)
-    >
-  ) {}
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.calls.push(request as GenerateStructuredRequest<unknown>);
-    const response = this.responses.shift();
-    const next =
-      typeof response === 'function'
-        ? response(request as GenerateStructuredRequest<unknown>)
-        : response;
-    if (next instanceof Error) throw next;
-    return next as T;
-  }
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText not used');
-  }
-}
 
 function validResult(): ImageValidationResult {
   return {
@@ -204,18 +175,6 @@ function segmentedCharacterResult(
   };
 }
 
-function segmentedCharacterResultByPrompt(
-  characters: Record<string, ImageValidationResult['characters'][number]>
-): (request: GenerateStructuredRequest<unknown>) => Record<string, unknown> {
-  return (request) => {
-    const name = Object.keys(characters).find((candidate) =>
-      request.prompt.includes(`EXPECTED CHARACTER: "${candidate}"`)
-    );
-    assert.ok(name, `No mock segmented character result for prompt: ${request.prompt}`);
-    return segmentedCharacterResult(characters[name]);
-  };
-}
-
 function validGraphicNovelPanelResult(): GraphicNovelPanelImageValidationResult {
   return {
     pageNumber: 1,
@@ -302,11 +261,18 @@ const validationInput = {
 };
 
 async function testFallbackAfterPrimaryBlocked() {
-  const primary = new MockTextProvider([
-    new Error('Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'),
-    new Error('Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'),
-  ]);
-  const fallback = new MockTextProvider([validResult()]);
+  const primary = new MockTextProvider()
+    .queueError(
+      'structured',
+      'image_validation',
+      'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'
+    )
+    .queueError(
+      'structured',
+      'image_validation',
+      'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'
+    );
+  const fallback = new MockTextProvider().queueStructured('image_validation', validResult());
 
   const result = await runProductImageValidation(primary, validationInput, {
     visionModel: 'gemini-test',
@@ -317,19 +283,31 @@ async function testFallbackAfterPrimaryBlocked() {
   assert.strictEqual(result.validationStatus, 'completed');
   assert.strictEqual(result.validationAttemptKind, 'fallback_compact');
   assert.strictEqual(result.validationModelUsed, 'openai-test');
-  assert.strictEqual(primary.calls.length, 2);
-  assert.strictEqual(fallback.calls.length, 1);
-  assert.match(fallback.calls[0].systemInstruction ?? '', /image quality assurance inspector/);
-  assert.doesNotMatch(fallback.calls[0].prompt, /chest lid is closed/i);
-  assert.doesNotMatch(fallback.calls[0].prompt, /chest or forehead/i);
+  assert.strictEqual(primary.structuredRequests.length, 2);
+  assert.strictEqual(fallback.structuredRequests.length, 1);
+  assert.match(
+    fallback.structuredRequests[0].systemInstruction ?? '',
+    /image quality assurance inspector/
+  );
+  assert.doesNotMatch(fallback.structuredRequests[0].prompt, /chest lid is closed/i);
+  assert.doesNotMatch(fallback.structuredRequests[0].prompt, /chest or forehead/i);
   assert.ok(result.requestManifest);
+  primary.assertExhausted();
+  fallback.assertExhausted();
 }
 
 async function testAllBlockedReturnsProviderBlocked() {
-  const primary = new MockTextProvider([
-    new Error('Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'),
-    new Error('Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'),
-  ]);
+  const primary = new MockTextProvider()
+    .queueError(
+      'structured',
+      'image_validation',
+      'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'
+    )
+    .queueError(
+      'structured',
+      'image_validation',
+      'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT'
+    );
 
   const result = await runProductImageValidation(primary, validationInput, {
     visionModel: 'gemini-test',
@@ -338,7 +316,7 @@ async function testAllBlockedReturnsProviderBlocked() {
   assert.strictEqual(result.validationStatus, 'provider_blocked');
   assert.strictEqual(result.validationAttemptKind, 'primary_reduced');
   assert.strictEqual(result.validationModelUsed, 'gemini-test');
-  assert.strictEqual(primary.calls.length, 2);
+  assert.strictEqual(primary.structuredRequests.length, 2);
   assert.ok(result.characters.every((c) => c.found));
   assert.ok(result.characters.every((c) => c.matchesOutfit));
   assert.match(result.overallFeedback, /provider-blocked/);
@@ -347,10 +325,11 @@ async function testAllBlockedReturnsProviderBlocked() {
     manifest.attempts.map((a) => a.outcome),
     ['provider_blocked', 'provider_blocked']
   );
+  primary.assertExhausted();
 }
 
 async function testLayoutChecksSchemaAndPromptAreFlagged() {
-  const primary = new MockTextProvider([validLayoutResult()]);
+  const primary = new MockTextProvider().queueStructured('image_validation', validLayoutResult());
 
   const result = await runProductImageValidation(
     primary,
@@ -367,17 +346,26 @@ async function testLayoutChecksSchemaAndPromptAreFlagged() {
   assert.strictEqual(result.hasArtworkOverSpeechBubbles, false);
   assert.strictEqual(result.hasExtraPanelStructure, false);
   assert.strictEqual(result.layoutFeedback, 'ok');
-  assert.strictEqual(primary.calls.length, 1);
-  assert.match(primary.calls[0].prompt, /GRAPHIC NOVEL LAYOUT CHECKS/);
-  assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOutsidePanelBounds'));
-  assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOverSpeechBubbles'));
-  assert.ok((primary.calls[0].schema.required || []).includes('hasExtraPanelStructure'));
-  assert.ok(!(primary.calls[0].schema.required || []).includes('hasTemplateColorResidue'));
-  assert.ok((primary.calls[0].schema.required || []).includes('layoutFeedback'));
+  assert.strictEqual(primary.structuredRequests.length, 1);
+  assert.match(primary.structuredRequests[0].prompt, /GRAPHIC NOVEL LAYOUT CHECKS/);
+  assert.ok(
+    (primary.structuredRequests[0].schema.required || []).includes('hasArtworkOutsidePanelBounds')
+  );
+  assert.ok(
+    (primary.structuredRequests[0].schema.required || []).includes('hasArtworkOverSpeechBubbles')
+  );
+  assert.ok(
+    (primary.structuredRequests[0].schema.required || []).includes('hasExtraPanelStructure')
+  );
+  assert.ok(
+    !(primary.structuredRequests[0].schema.required || []).includes('hasTemplateColorResidue')
+  );
+  assert.ok((primary.structuredRequests[0].schema.required || []).includes('layoutFeedback'));
+  primary.assertExhausted();
 }
 
 async function testLayoutTemplateReferenceIsIgnoredForValidation() {
-  const primary = new MockTextProvider([validLayoutResult()]);
+  const primary = new MockTextProvider().queueStructured('image_validation', validLayoutResult());
 
   const result = await runProductImageValidation(
     primary,
@@ -401,12 +389,17 @@ async function testLayoutTemplateReferenceIsIgnoredForValidation() {
   );
 
   assert.strictEqual(result.validationStatus, 'completed');
-  assert.strictEqual(primary.calls.length, 1);
-  assert.doesNotMatch(primary.calls[0].prompt, /LAYOUT TEMPLATE REFERENCES/);
-  assert.doesNotMatch(primary.calls[0].prompt, /layout template/i);
-  assert.match(primary.calls[0].prompt, /"Lera" -> Image 2 \[HUMAN; IDENTITY\]/);
-  assert.ok(!primary.calls[0].prompt.includes('"Graphic novel page 3 layout template" ->'));
-  assert.doesNotMatch(primary.calls[0].imageData?.[1]?.instructionText ?? '', /LAYOUT TEMPLATE/i);
+  assert.strictEqual(primary.structuredRequests.length, 1);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /LAYOUT TEMPLATE REFERENCES/);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /layout template/i);
+  assert.match(primary.structuredRequests[0].prompt, /"Lera" -> Image 2 \[HUMAN; IDENTITY\]/);
+  assert.ok(
+    !primary.structuredRequests[0].prompt.includes('"Graphic novel page 3 layout template" ->')
+  );
+  assert.doesNotMatch(
+    primary.structuredRequests[0].imageData?.[1]?.instructionText ?? '',
+    /LAYOUT TEMPLATE/i
+  );
   const manifest = result.requestManifest as {
     imageOrder: string[];
     references: Array<{ referenceKind: string; imageIndex: number }>;
@@ -418,10 +411,11 @@ async function testLayoutTemplateReferenceIsIgnoredForValidation() {
   ]);
   assert.strictEqual(manifest.references[0].referenceKind, 'identity');
   assert.strictEqual(manifest.references[0].imageIndex, 2);
+  primary.assertExhausted();
 }
 
 async function testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields() {
-  const primary = new MockTextProvider([validResult()]);
+  const primary = new MockTextProvider().queueStructured('image_validation', validResult());
 
   const result = await runProductImageValidation(
     primary,
@@ -440,15 +434,18 @@ async function testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields
     }
   );
 
-  assert.strictEqual(primary.calls.length, 1);
+  assert.strictEqual(primary.structuredRequests.length, 1);
   assert.match(
-    primary.calls[0].prompt,
+    primary.structuredRequests[0].prompt,
     /"Lera" \| KIND=HUMAN \| Young girl beside the starry chest\./
   );
-  assert.doesNotMatch(primary.calls[0].prompt, /"Lera" -> Image \d/);
-  assert.match(primary.calls[0].prompt, /"Druzhok" -> Image 2 \[IMAGINARY_CREATURE; IDENTITY\]/);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /"Lera" -> Image \d/);
+  assert.match(
+    primary.structuredRequests[0].prompt,
+    /"Druzhok" -> Image 2 \[IMAGINARY_CREATURE; IDENTITY\]/
+  );
   assert.doesNotMatch(
-    primary.calls[0].prompt,
+    primary.structuredRequests[0].prompt,
     /"Druzhok" \| KIND=IMAGINARY_CREATURE \| Small robo-dog/
   );
 
@@ -466,10 +463,11 @@ async function testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields
   assert.ok(druzhok, 'Druzhok validation row should be present');
   assert.strictEqual(druzhok.proportionsMatchReference, true);
   assert.strictEqual(druzhok.sameOverallDesignRead, true);
+  primary.assertExhausted();
 }
 
 async function testTurnaroundReferenceIsTracedInPromptAndManifest() {
-  const primary = new MockTextProvider([validResult()]);
+  const primary = new MockTextProvider().queueStructured('image_validation', validResult());
 
   const result = await runProductImageValidation(
     primary,
@@ -490,10 +488,13 @@ async function testTurnaroundReferenceIsTracedInPromptAndManifest() {
     }
   );
 
-  assert.strictEqual(primary.calls.length, 1);
-  assert.match(primary.calls[0].prompt, /"Lera" -> Image 2 \[HUMAN; IDENTITY_TURNAROUND\]/);
+  assert.strictEqual(primary.structuredRequests.length, 1);
   assert.match(
-    primary.calls[0].imageData?.[1]?.instructionText ?? '',
+    primary.structuredRequests[0].prompt,
+    /"Lera" -> Image 2 \[HUMAN; IDENTITY_TURNAROUND\]/
+  );
+  assert.match(
+    primary.structuredRequests[0].imageData?.[1]?.instructionText ?? '',
     /IDENTITY TURNAROUND reference/
   );
 
@@ -508,51 +509,48 @@ async function testTurnaroundReferenceIsTracedInPromptAndManifest() {
   assert.strictEqual(manifest.references[0].referenceKind, 'identity');
   assert.strictEqual(manifest.references[0].identitySource, 'turnaround');
   assert.strictEqual(manifest.references[0].imageIndex, 2);
+  primary.assertExhausted();
 }
 
 async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
-  const characterResponse = segmentedCharacterResultByPrompt({
-    Lera: {
-      name: 'Lera',
-      characterKind: 'human',
-      found: false,
-      duplicated: false,
-      recognizableScore: 0.3,
-      faceMatchesReference: false,
-      hairMatchesReference: false,
-      ageReadMatchesReference: true,
-      proportionsMatchReference: true,
-      matchesColors: false,
-      matchesOutfit: false,
-      sameOverallDesignRead: false,
-      silhouetteDriftSeverity: 'severe',
-      identityComparisonSummary:
-        'Matches: child age read. Differs: wrong face and hair. First-glance design drifted.',
-      issue: 'different child design',
-    },
-    Druzhok: {
-      name: 'Druzhok',
-      characterKind: 'imaginary',
-      found: true,
-      duplicated: false,
-      recognizableScore: 1,
-      faceMatchesReference: null,
-      hairMatchesReference: null,
-      ageReadMatchesReference: null,
-      proportionsMatchReference: true,
-      matchesColors: true,
-      matchesOutfit: true,
-      sameOverallDesignRead: true,
-      silhouetteDriftSeverity: 'none',
-      identityComparisonSummary: 'Matches the reference creature.',
-      issue: null as unknown as string | undefined,
-    },
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: false,
+    duplicated: false,
+    recognizableScore: 0.3,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: false,
+    matchesOutfit: false,
+    sameOverallDesignRead: false,
+    silhouetteDriftSeverity: 'severe',
+    identityComparisonSummary: 'The expected character design is not recognizable in the crop.',
+    issue: 'different character design',
   });
-  const primary = new MockTextProvider([
-    segmentedLayoutResult(),
-    characterResponse,
-    characterResponse,
-  ]);
+  const druzhokResponse = segmentedCharacterResult({
+    name: 'Druzhok',
+    characterKind: 'imaginary',
+    found: false,
+    duplicated: false,
+    recognizableScore: 0.3,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: false,
+    matchesOutfit: false,
+    sameOverallDesignRead: false,
+    silhouetteDriftSeverity: 'severe',
+    identityComparisonSummary: 'The expected character design is not recognizable in the crop.',
+    issue: 'different character design',
+  });
+  const primary = new MockTextProvider()
+    .queueStructured('image_validation_segmented_scene_qa', segmentedLayoutResult())
+    .queueStructured('image_validation_segmented_character_identity', leraResponse)
+    .queueStructured('image_validation_segmented_character_identity', druzhokResponse);
 
   const result = await runSegmentedProductImageValidation(
     primary,
@@ -588,13 +586,13 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
 
   assert.strictEqual(result.validationAttemptKind, 'segmented_parallel');
   assert.strictEqual(result.validationModelUsed, 'gemini-test');
-  assert.strictEqual(result.characterCount, 1);
+  assert.strictEqual(result.characterCount, 0);
   assert.strictEqual(result.expectedCharacterCount, 2);
-  assert.deepStrictEqual(result.missingExpectedCharacters, ['Lera']);
+  assert.deepStrictEqual(result.missingExpectedCharacters, ['Lera', 'Druzhok']);
   assert.strictEqual(result.hasExtraPanelStructure, true);
   assert.match(result.layoutFeedback ?? '', /visually split/);
   assert.strictEqual(result.characters.find((c) => c.name === 'Lera')?.found, false);
-  assert.strictEqual(result.characters.find((c) => c.name === 'Druzhok')?.found, true);
+  assert.strictEqual(result.characters.find((c) => c.name === 'Druzhok')?.found, false);
   assert.deepStrictEqual(result.characters.find((c) => c.name === 'Lera')?.characterBoundingBox, {
     found: true,
     xMin: 0,
@@ -615,12 +613,14 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
     height: 1,
   });
 
-  assert.strictEqual(primary.calls.length, 3);
-  const layoutCall = primary.calls.find((call) =>
+  assert.strictEqual(primary.structuredRequests.length, 3);
+  const layoutCall = primary.structuredRequests.find((call) =>
     call.prompt.includes('validate expected cast and global image quality')
   );
-  const leraCall = primary.calls.find((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"'));
-  const druzhokCall = primary.calls.find((call) =>
+  const leraCall = primary.structuredRequests.find((call) =>
+    call.prompt.includes('EXPECTED CHARACTER: "Lera"')
+  );
+  const druzhokCall = primary.structuredRequests.find((call) =>
     call.prompt.includes('EXPECTED CHARACTER: "Druzhok"')
   );
   assert.ok(layoutCall, 'layout pass should run');
@@ -653,10 +653,7 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.match(leraCall.prompt, /Human hair rule/);
   assert.match(leraCall.prompt, /Scene prop handling/);
   assert.strictEqual(leraCall.imageData?.length, 2);
-  assert.match(
-    druzhokCall.prompt,
-    /validate exactly ONE expected IMAGINARY CREATURE character/
-  );
+  assert.match(druzhokCall.prompt, /validate exactly ONE expected IMAGINARY CREATURE character/);
   assert.match(druzhokCall.prompt, /species\/subtype read/);
   assert.match(
     druzhokCall.prompt,
@@ -699,50 +696,51 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
     'character_identity',
     'scene_qa',
   ]);
+  primary.assertExhausted();
 }
 
 async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
-  const characterResponse = segmentedCharacterResultByPrompt({
-    Lera: {
-      name: 'Lera',
-      characterKind: 'human',
-      found: true,
-      duplicated: false,
-      recognizableScore: 1,
-      faceMatchesReference: true,
-      hairMatchesReference: true,
-      ageReadMatchesReference: true,
-      proportionsMatchReference: true,
-      matchesColors: true,
-      matchesOutfit: true,
-      sameOverallDesignRead: true,
-      silhouetteDriftSeverity: 'none',
-      identityComparisonSummary: 'Matches the reference child.',
-      issue: null as unknown as string | undefined,
-    },
-    Druzhok: {
-      name: 'Druzhok',
-      characterKind: 'imaginary',
-      found: true,
-      duplicated: false,
-      recognizableScore: 1,
-      faceMatchesReference: null,
-      hairMatchesReference: null,
-      ageReadMatchesReference: null,
-      proportionsMatchReference: true,
-      matchesColors: true,
-      matchesOutfit: true,
-      sameOverallDesignRead: true,
-      silhouetteDriftSeverity: 'none',
-      identityComparisonSummary: 'The cropped creature matches the reference.',
-      issue: null as unknown as string | undefined,
-    },
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: true,
+    hairMatchesReference: true,
+    ageReadMatchesReference: true,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'Matches the reference child.',
+    issue: null as unknown as string | undefined,
   });
-  const primary = new MockTextProvider([
-    segmentedLayoutResultWithDruzhokDuplicate(),
-    characterResponse,
-    characterResponse,
-  ]);
+  const druzhokResponse = segmentedCharacterResult({
+    name: 'Druzhok',
+    characterKind: 'imaginary',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'The cropped creature matches the reference.',
+    issue: null as unknown as string | undefined,
+  });
+  const primary = new MockTextProvider()
+    .queueStructured(
+      'image_validation_segmented_scene_qa',
+      segmentedLayoutResultWithDruzhokDuplicate()
+    )
+    .queueStructured('image_validation_segmented_character_identity', leraResponse)
+    .queueStructured('image_validation_segmented_character_identity', druzhokResponse);
 
   const result = await runSegmentedProductImageValidation(
     primary,
@@ -754,7 +752,7 @@ async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
     { visionModel: 'gemini-test' }
   );
 
-  assert.match(primary.calls[0].prompt, /duplicateCount/);
+  assert.match(primary.structuredRequests[0].prompt, /duplicateCount/);
   assert.strictEqual(result.characterCount, 3);
   assert.strictEqual(result.expectedCharacterCount, 2);
   const druzhok = result.characters.find((character) => character.name === 'Druzhok');
@@ -768,32 +766,33 @@ async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
   const druzhokBox = manifest.characterBoundingBoxes.find((box) => box.name === 'Druzhok');
   assert.strictEqual(druzhokBox?.duplicated, true);
   assert.strictEqual(druzhokBox?.duplicateCount, 2);
+  primary.assertExhausted();
 }
 
 async function testSceneQaMissingCharacterSkipsCropValidation() {
-  const characterResponse = segmentedCharacterResultByPrompt({
-    Lera: {
-      name: 'Lera',
-      characterKind: 'human',
-      found: true,
-      duplicated: false,
-      recognizableScore: 1,
-      faceMatchesReference: true,
-      hairMatchesReference: true,
-      ageReadMatchesReference: true,
-      proportionsMatchReference: true,
-      matchesColors: true,
-      matchesOutfit: true,
-      sameOverallDesignRead: true,
-      silhouetteDriftSeverity: 'none',
-      identityComparisonSummary: 'Matches the reference child.',
-      issue: null as unknown as string | undefined,
-    },
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: true,
+    hairMatchesReference: true,
+    ageReadMatchesReference: true,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'Matches the reference child.',
+    issue: null as unknown as string | undefined,
   });
-  const primary = new MockTextProvider([
-    segmentedLayoutResultWithDruzhokNotVisible(),
-    characterResponse,
-  ]);
+  const primary = new MockTextProvider()
+    .queueStructured(
+      'image_validation_segmented_scene_qa',
+      segmentedLayoutResultWithDruzhokNotVisible()
+    )
+    .queueStructured('image_validation_segmented_character_identity', leraResponse);
 
   const result = await runSegmentedProductImageValidation(
     primary,
@@ -805,13 +804,15 @@ async function testSceneQaMissingCharacterSkipsCropValidation() {
     { visionModel: 'gemini-test' }
   );
 
-  assert.strictEqual(primary.calls.length, 2);
+  assert.strictEqual(primary.structuredRequests.length, 2);
   assert.ok(
-    primary.calls.some((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"')),
+    primary.structuredRequests.some((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"')),
     'visible character crop should be validated'
   );
   assert.ok(
-    !primary.calls.some((call) => call.prompt.includes('EXPECTED CHARACTER: "Druzhok"')),
+    !primary.structuredRequests.some((call) =>
+      call.prompt.includes('EXPECTED CHARACTER: "Druzhok"')
+    ),
     'not-visible character should not run a crop validator'
   );
   const druzhok = result.characters.find((character) => character.name === 'Druzhok');
@@ -872,29 +873,30 @@ async function testSceneQaMissingCharacterSkipsCropValidation() {
       notes: 'No visible Druzhok candidate exists in the image.',
     },
   });
+  primary.assertExhausted();
 }
 
 async function testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth() {
-  const primary = new MockTextProvider([
-    segmentedLayoutResult(),
-    segmentedCharacterResult({
-      name: 'Lera',
-      characterKind: 'human',
-      found: true,
-      duplicated: false,
-      recognizableScore: 1,
-      faceMatchesReference: true,
-      hairMatchesReference: true,
-      ageReadMatchesReference: true,
-      proportionsMatchReference: true,
-      matchesColors: true,
-      matchesOutfit: true,
-      sameOverallDesignRead: true,
-      silhouetteDriftSeverity: 'none',
-      identityComparisonSummary: 'Matches the dressed character reference.',
-      issue: null as unknown as string | undefined,
-    }),
-  ]);
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: true,
+    hairMatchesReference: true,
+    ageReadMatchesReference: true,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'Matches the dressed character reference.',
+    issue: null as unknown as string | undefined,
+  });
+  const primary = new MockTextProvider()
+    .queueStructured('image_validation_segmented_scene_qa', segmentedLayoutResult())
+    .queueStructured('image_validation_segmented_character_identity', leraResponse);
 
   const result = await runSegmentedProductImageValidation(
     primary,
@@ -916,8 +918,10 @@ async function testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth(
     { visionModel: 'gemini-test' }
   );
 
-  assert.strictEqual(primary.calls.length, 2);
-  const leraCall = primary.calls.find((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"'));
+  assert.strictEqual(primary.structuredRequests.length, 2);
+  const leraCall = primary.structuredRequests.find((call) =>
+    call.prompt.includes('EXPECTED CHARACTER: "Lera"')
+  );
   assert.ok(leraCall, 'Lera character pass should run');
   assert.strictEqual(leraCall.imageData?.length, 2);
   assert.match(leraCall.prompt, /Image 2 is this character dressed turnaround reference/);
@@ -971,48 +975,50 @@ async function testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth(
     ['text', 'image', 'text', 'image', 'text']
   );
   assert.strictEqual(result.characters[0].matchesOutfit, true);
+  primary.assertExhausted();
 }
 
 async function testSegmentedCharacterWithoutReferenceKeepsDescriptionFallback() {
-  const primary = new MockTextProvider([
-    segmentedLayoutResult(),
-    segmentedCharacterResult({
-      name: 'Lera',
-      characterKind: 'human',
-      found: false,
-      duplicated: false,
-      recognizableScore: 0.1,
-      faceMatchesReference: null,
-      hairMatchesReference: null,
-      ageReadMatchesReference: null,
-      proportionsMatchReference: null,
-      matchesColors: false,
-      matchesOutfit: true,
-      sameOverallDesignRead: null,
-      silhouetteDriftSeverity: null,
-      actualVisibleDescription: null,
-      identityComparisonSummary: 'No matching child candidate is visible.',
-      issue: 'missing',
-    }),
-    segmentedCharacterResult({
-      name: 'Druzhok',
-      characterKind: 'imaginary',
-      found: false,
-      duplicated: false,
-      recognizableScore: 0.1,
-      faceMatchesReference: null,
-      hairMatchesReference: null,
-      ageReadMatchesReference: null,
-      proportionsMatchReference: null,
-      matchesColors: false,
-      matchesOutfit: true,
-      sameOverallDesignRead: null,
-      silhouetteDriftSeverity: null,
-      actualVisibleDescription: null,
-      identityComparisonSummary: 'No matching creature candidate is visible.',
-      issue: 'missing',
-    }),
-  ]);
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: false,
+    duplicated: false,
+    recognizableScore: 0.1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: null,
+    matchesColors: false,
+    matchesOutfit: true,
+    sameOverallDesignRead: null,
+    silhouetteDriftSeverity: null,
+    actualVisibleDescription: null,
+    identityComparisonSummary: 'No matching child candidate is visible.',
+    issue: 'missing',
+  });
+  const druzhokResponse = segmentedCharacterResult({
+    name: 'Druzhok',
+    characterKind: 'imaginary',
+    found: false,
+    duplicated: false,
+    recognizableScore: 0.1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: null,
+    matchesColors: false,
+    matchesOutfit: true,
+    sameOverallDesignRead: null,
+    silhouetteDriftSeverity: null,
+    actualVisibleDescription: null,
+    identityComparisonSummary: 'No matching creature candidate is visible.',
+    issue: 'missing',
+  });
+  const primary = new MockTextProvider()
+    .queueStructured('image_validation_segmented_scene_qa', segmentedLayoutResult())
+    .queueStructured('image_validation_segmented_character_identity', leraResponse)
+    .queueStructured('image_validation_segmented_character_identity', druzhokResponse);
 
   await runSegmentedProductImageValidation(
     primary,
@@ -1025,8 +1031,10 @@ async function testSegmentedCharacterWithoutReferenceKeepsDescriptionFallback() 
     { visionModel: 'gemini-test' }
   );
 
-  const leraCall = primary.calls.find((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"'));
-  const druzhokCall = primary.calls.find((call) =>
+  const leraCall = primary.structuredRequests.find((call) =>
+    call.prompt.includes('EXPECTED CHARACTER: "Lera"')
+  );
+  const druzhokCall = primary.structuredRequests.find((call) =>
     call.prompt.includes('EXPECTED CHARACTER: "Druzhok"')
   );
   assert.ok(leraCall, 'Lera character pass should run without reference');
@@ -1042,50 +1050,52 @@ async function testSegmentedCharacterWithoutReferenceKeepsDescriptionFallback() 
   );
   assert.doesNotMatch(druzhokCall.prompt, /Human face visibility rule/);
   assert.strictEqual(leraCall.imageData?.length, 1);
+  primary.assertExhausted();
 }
 
 async function testGraphicNovelSinglePanelValidationUsesSegmentedSceneValidator() {
-  const primary = new MockTextProvider([
-    {
-      missingExpectedCharacters: [],
-      characterBoundingBoxes: [
-        {
-          name: 'Lera',
-          found: true,
-          xMin: 0,
-          yMin: 0,
-          xMax: 1000,
-          yMax: 1000,
-          confidence: 100,
-          visibility: 'full_body',
-          notes: 'Lera occupies the tiny mock panel.',
-        },
-      ],
-      hasUnexpectedCharacters: false,
-      unexpectedCharacterNotes: null,
-      hasTextOrLetters: false,
-      hasRenderingArtifacts: false,
-      overallFeedback: 'Single panel scene QA passed.',
-    },
-    segmentedCharacterResult({
-      name: 'Lera',
-      characterKind: 'human',
-      found: false,
-      duplicated: false,
-      recognizableScore: 0.1,
-      faceMatchesReference: false,
-      hairMatchesReference: false,
-      ageReadMatchesReference: false,
-      proportionsMatchReference: false,
-      matchesColors: false,
-      matchesOutfit: true,
-      sameOverallDesignRead: false,
-      silhouetteDriftSeverity: 'severe',
-      actualVisibleDescription: 'different child in the panel',
-      identityComparisonSummary: 'The expected child is not visible in this panel.',
-      issue: 'character missing from panel',
-    }),
-  ]);
+  const sceneQaResponse = {
+    missingExpectedCharacters: [],
+    characterBoundingBoxes: [
+      {
+        name: 'Lera',
+        found: true,
+        xMin: 0,
+        yMin: 0,
+        xMax: 1000,
+        yMax: 1000,
+        confidence: 100,
+        visibility: 'full_body',
+        notes: 'Lera occupies the tiny mock panel.',
+      },
+    ],
+    hasUnexpectedCharacters: false,
+    unexpectedCharacterNotes: null,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    overallFeedback: 'Single panel scene QA passed.',
+  };
+  const leraResponse = segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: false,
+    duplicated: false,
+    recognizableScore: 0.1,
+    faceMatchesReference: false,
+    hairMatchesReference: false,
+    ageReadMatchesReference: false,
+    proportionsMatchReference: false,
+    matchesColors: false,
+    matchesOutfit: true,
+    sameOverallDesignRead: false,
+    silhouetteDriftSeverity: 'severe',
+    actualVisibleDescription: 'different child in the panel',
+    identityComparisonSummary: 'The expected child is not visible in this panel.',
+    issue: 'character missing from panel',
+  });
+  const primary = new MockTextProvider()
+    .queueStructured('test_graphic_novel_panel_validation_scene_qa', sceneQaResponse)
+    .queueStructured('test_graphic_novel_panel_validation_character_identity', leraResponse);
 
   const result = await runGraphicNovelPanelImageValidation(
     primary,
@@ -1131,11 +1141,11 @@ async function testGraphicNovelSinglePanelValidationUsesSegmentedSceneValidator(
   assert.strictEqual(result.panels[0].characters[0].found, false);
   assert.match(result.panels[0].panelIssue ?? '', /character missing from panel/);
 
-  assert.strictEqual(primary.calls.length, 2);
-  const sceneQaCall = primary.calls.find((call) =>
+  assert.strictEqual(primary.structuredRequests.length, 2);
+  const sceneQaCall = primary.structuredRequests.find((call) =>
     call.prompt.includes('validate expected cast and global image quality')
   );
-  const characterCall = primary.calls.find((call) =>
+  const characterCall = primary.structuredRequests.find((call) =>
     call.prompt.includes('EXPECTED CHARACTER: "Lera"')
   );
   assert.ok(sceneQaCall, 'scene QA pass should run');
@@ -1204,10 +1214,12 @@ async function testGraphicNovelSinglePanelValidationUsesSegmentedSceneValidator(
     panelNumber: 1,
     panelId: 'p1-1',
   });
+  primary.assertExhausted();
 }
 
 async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescription() {
-  const primary = new MockTextProvider([
+  const primary = new MockTextProvider().queueStructured(
+    'test_graphic_novel_panel_validation_comic_panels',
     {
       pageNumber: 1,
       expectedPanelCount: 2,
@@ -1229,8 +1241,8 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
         },
       ],
       overallFeedback: 'Panel validation completed.',
-    },
-  ]);
+    }
+  );
 
   const result = await runGraphicNovelPanelImageValidation(
     primary,
@@ -1272,13 +1284,16 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
     }
   );
 
-  assert.strictEqual(primary.calls.length, 1);
-  assert.match(primary.calls[0].prompt, /Image 2: turnaround identity reference for "Lera"/);
-  assert.match(primary.calls[0].prompt, /- Lera \(human; reference=Image 2\)/);
-  assert.doesNotMatch(primary.calls[0].prompt, /Lera \(human; description=/);
-  assert.doesNotMatch(primary.calls[0].prompt, /Young girl beside the starry chest/);
+  assert.strictEqual(primary.structuredRequests.length, 1);
   assert.match(
-    primary.calls[0].prompt,
+    primary.structuredRequests[0].prompt,
+    /Image 2: turnaround identity reference for "Lera"/
+  );
+  assert.match(primary.structuredRequests[0].prompt, /- Lera \(human; reference=Image 2\)/);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /Lera \(human; description=/);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /Young girl beside the starry chest/);
+  assert.match(
+    primary.structuredRequests[0].prompt,
     /Druzhok \(imaginary; description=Small robo-dog with a light on the chest or forehead area\./
   );
 
@@ -1286,6 +1301,7 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
   assert.strictEqual(manifest.mode, 'single_request_panel_array');
   assert.doesNotMatch(manifest.prompt, /Young girl beside the starry chest/);
   assert.match(manifest.prompt, /Lera \(human; reference=Image 2/);
+  primary.assertExhausted();
 }
 
 async function main() {

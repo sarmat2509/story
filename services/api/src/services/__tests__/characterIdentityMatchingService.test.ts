@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { MOCK_CHARACTER_IDENTITY_MATCH } from '../../testing/ai';
 import {
   scoreIdentityValidation,
   type CharacterIdentitySignal,
@@ -9,14 +10,9 @@ import {
 
 function validation(overrides: Partial<CharacterIdentityValidation> = {}): CharacterIdentityValidation {
   return {
-    sameCharacter: true,
-    confidence: 0.92,
-    colorMatch: 'strong',
-    shapeMatch: 'strong',
-    recognizability: 'strong',
-    stableFeatureMatches: ['same head shape', 'same markings'],
-    differences: [],
-    reason: 'Clear recurring character match.',
+    ...MOCK_CHARACTER_IDENTITY_MATCH,
+    stableFeatureMatches: [...MOCK_CHARACTER_IDENTITY_MATCH.stableFeatureMatches],
+    differences: [...MOCK_CHARACTER_IDENTITY_MATCH.differences],
     ...overrides,
   };
 }

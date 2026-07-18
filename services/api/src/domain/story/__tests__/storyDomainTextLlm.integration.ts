@@ -1,10 +1,10 @@
 /**
  * Real LLM: StoryDomainService.generateTextPlain → writes services/api/story-llm-generated-sample.txt
  *
- * Skips unless RUN_STORY_TEXT_LLM=1 and GEMINI_API_KEY or GOOGLE_API_KEY is set (no LLM in CI by default).
+ * Skips unless RUN_STORY_TEXT_LLM=1, ALLOW_PAID_AI_TESTS=1, and an API key are set.
  *
  * Run from services/api:
- *   RUN_STORY_TEXT_LLM=1 pnpm test:story-domain-text-llm
+ *   RUN_STORY_TEXT_LLM=1 ALLOW_PAID_AI_TESTS=1 pnpm test:story-domain-text-llm
  *
  * Optional:
  *   STORY_TEXT_LLM_OUT=/abs/or/rel/path.txt
@@ -44,6 +44,13 @@ async function runLlmIntegration(): Promise<void> {
   if (process.env.RUN_STORY_TEXT_LLM !== '1') {
     logger.info('Skipping story LLM integration (set RUN_STORY_TEXT_LLM=1 to run).');
     return;
+  }
+
+  if (process.env.ALLOW_PAID_AI_TESTS !== '1') {
+    logger.error(
+      'Live AI tests are cost-bearing and disabled. Set ALLOW_PAID_AI_TESTS=1 explicitly.'
+    );
+    process.exit(1);
   }
 
   if (!hasGeminiKey()) {
