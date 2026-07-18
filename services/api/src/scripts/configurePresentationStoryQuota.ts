@@ -14,6 +14,7 @@
 
 import './loadEnvForScripts';
 
+import { isDeepStrictEqual } from 'node:util';
 import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { closeDatabaseConnection, db } from '../db';
 import {
@@ -200,8 +201,7 @@ async function main(): Promise<void> {
     periodStart,
     periodEnd,
   });
-  const changed =
-    JSON.stringify(existingExtensions) !== JSON.stringify(configuredExtensions);
+  const changed = !isDeepStrictEqual(existingExtensions, configuredExtensions);
 
   console.log(
     JSON.stringify(
