@@ -15,7 +15,7 @@
 import './loadEnvForScripts';
 
 import { CreateStoryRequestSchema } from '@wondertales/shared';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { closeDatabaseConnection, db } from '../db';
 import {
   characters,
@@ -281,7 +281,8 @@ async function findExistingRequest(entry: ResolvedManifestEntry) {
         eq(storyRequests.userId, userId!),
         eq(storyRequests.childProfileId, entry.childProfileId),
         eq(storyRequests.storyLanguage, entry.definition.language),
-        eq(storyRequests.userNotes, entry.definition.userNotes)
+        eq(storyRequests.userNotes, entry.definition.userNotes),
+        ne(storyRequests.status, 'failed')
       )
     )
     .orderBy(desc(storyRequests.createdAt));
