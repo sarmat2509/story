@@ -1051,12 +1051,53 @@ Production-runner `configure:presentation-story-quota` допускает изм
 
 До публикации остаются ручная визуальная проверка консистентности детей/персонажей, проверка bubble text и reading order в публичном reader, затем перевод выбранных stories из draft в опубликованное состояние.
 
+### 11.5. Фактическая генерация аудио в production
+
+Аудио создано 19.07.2026 для всех 21 презентационных материалов через штатный пользовательский flow: `POST /api/v1/stories/:id/audio`, durable queue, polling `GET /api/v1/stories/:id/audio-status`, финальные записи `audio_assets` и production storage. Для разнообразия форматов закреплены три активных непремиальных Google-голоса, каждый из которых поддерживает все семь языков: Hydra (обычные истории, female), Centaurus (комиксы, male) и Lyra (mixed, female).
+
+| Формат | Язык | Название | Голос | Длительность, сек. | Audio asset ID |
+|---|---|---|---|---:|---|
+| История | uk | Місяць загубив позіхання | Hydra | 166.87 | `0c3a57da-2e65-485a-9366-5598542e8998` |
+| История | ru | Тропинка светлячков | Hydra | 542.45 | `e53cc42a-38c3-46c3-bda5-4da3eb2020e3` |
+| История | en | Momo's Quiet Morning | Hydra | 202.34 | `440e40cd-d332-4812-8543-266085cc9975` |
+| История | es | Las dos canciones de Maya | Hydra | 200.90 | `d0f8c6c1-2cd0-4461-aaca-41e127495053` |
+| История | de | Lina und der mutige kleine Schritt | Hydra | 191.50 | `027831b2-4974-40b1-93dc-62203ec22cc1` |
+| История | fr | La lanterne de Mamie | Hydra | 235.94 | `edc4b649-74ab-4e34-bff9-cb0798f32c48` |
+| История | pl | Ravi i kompas dżungli | Hydra | 651.41 | `5d45bdcd-79b5-4178-834c-0502dadc2566` |
+| Комикс | uk | Естафета чесних кроків | Centaurus | 253.94 | `14711ee1-c1a6-4546-be19-90e283a794ba` |
+| Комикс | ru | Город, который отвечал завтра | Centaurus | 221.90 | `9c878b09-b2b7-4f33-8d7b-fafa8fdde9d1` |
+| Комикс | en | The Power of Listening | Centaurus | 339.46 | `0318a267-34ca-43dc-8bf2-1bc688510403` |
+| Комикс | es | El mapa de la marea | Centaurus | 224.81 | `ea6219e9-20f6-43db-b4e0-8392565e59ce` |
+| Комикс | de | Die Werkstatt der fliegenden Räder | Centaurus | 98.83 | `73f2f668-bd7f-4c0b-aa8a-f147e32e37b2` |
+| Комикс | fr | Luma et la forêt des géants | Centaurus | 276.55 | `e40c24cd-5606-4e51-bb65-04043ee5a841` |
+| Комикс | pl | Stacja po drugiej stronie Słońca | Centaurus | 164.62 | `5d1c7766-a4ed-467e-89f1-332f0f1b8f2c` |
+| Mixed | uk | Таємниця годинника на горищі | Lyra | 317.14 | `9fd42c8c-cb55-4217-8443-a15e65b4333e` |
+| Mixed | ru | Шорохи доброго чердака | Lyra | 300.48 | `5e68cbc1-6851-4654-9c85-b41d80e628b1` |
+| Mixed | en | Why the Moon Follows Us | Lyra | 327.02 | `26ccb9b4-e02c-4317-8382-7ba08e945ad4` |
+| Mixed | es | La estación bajo el hielo | Lyra | 409.15 | `1846c594-1544-47b4-89a1-7e0c47f3630a` |
+| Mixed | de | Die Brücke aus Mondlicht | Lyra | 291.36 | `ebd9b517-a466-43f8-8813-0912b83f1a5d` |
+| Mixed | fr | L’école des sorts oubliés | Lyra | 372.38 | `d8587ad7-2ac0-428b-890d-dcbbb5414dc8` |
+| Mixed | pl | Dwa domy, jedna opowieść | Lyra | 204.67 | `6223337c-c4de-46bd-bf93-6383f4948a22` |
+
+Перед запуском исправлен общий audio worker: если у комикса отсутствуют нормализованные `scenes`, narration text теперь берётся из упорядоченного встроенного manifest `stories.scenes`, затем из `fullText`; пустой текст считается ошибкой. Исправление и production-runner развёрнуты deploy `20260719T112430Z-34402`.
+
+Базовый лимит Golden равен 10 аудио за период. Guarded idempotent grant добавил этому демонстрационному аккаунту ровно 11 аудио и 0 историй только на период `2026-07-18T22:27:41.620Z` — `2026-08-18T22:27:41.620Z`; Stripe checkout не создавался. После первых 20 запросов штатный hourly limiter вернул 429 для 21-го. После сброса fixed window повторный runner обнаружил 20 готовых asset без повторной генерации и отправил только оставшийся польский mixed.
+
+Финальная техническая проверка production:
+
+- 21 final completed `audio_assets` на 21 разных story; у всех duration больше нуля, заполнен storage path и parent `assets.status=completed`;
+- все 21 физических MP3 существуют в production storage и имеют ненулевой размер; размер одного файла — от 395328 до 2605868 байт, суммарно 23979428 байт;
+- на каждом из языков uk, ru, en, es, de, fr и pl присутствуют Hydra, Centaurus и Lyra — по одному результату каждого формата;
+- создано 21 alignment; текущий расход `audio_synthesized` равен 21, grant ровно один (`extraAudio=11`, `extraStories=0`);
+- активных и failed audio jobs для аккаунта нет; итоговый dry-run вернул `existingFinalAudio=21`.
+
 ## 12. Текущий статус
 
 - Профили детей и turnaround: завершено.
 - Постоянные персонажи и turnaround: завершено.
 - Публичные контракты и reader трёх форматов: реализовано.
 - Генерация 21 персонализированного материала со всеми изображениями: завершено.
+- Генерация и production-проверка аудио для всех 21 материалов на семи языках: завершено.
 - Ручной визуальный аудит 98 assets: завершён; точный список сцен и comic/mixed-панелей находится в `docs/presentation-stories-visual-consistency-audit.md`.
 - Panel-level детектирование и repair status для comic/mixed развёрнуты на production коммитом `d5f6bb69`.
 - Визуальные исправления из аудита и публикация: не выполнены.
