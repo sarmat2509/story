@@ -126,6 +126,7 @@ import {
   isTemporaryCharacterRef,
   normalizeCharacterRef,
   reconcileGeneratedCharacterIdentity,
+  relationshipBaseCharacterNameKey,
   resolveCharacterRefByName,
   resolveRelationshipCharacterRefByName,
 } from '../utils/characterIdentity';
@@ -2378,7 +2379,7 @@ function characterManifestMatchesPage(
   allCharacters: GraphicNovelCharacterManifest = [character]
 ): boolean {
   const characterRef = normalizeCharacterRef(character.characterRef || character.id);
-  if (characterRef && pageRefs?.has(characterRef)) return true;
+  if (pageRefs?.size) return !!characterRef && pageRefs.has(characterRef);
   const names = [
     character.name,
     character.canonicalName,
@@ -2676,10 +2677,10 @@ function characterManifestForPageName(
     ? characterManifestForRef(characters, relationshipRef)
     : undefined;
   if (
-    exact?.source === 'llm_generated' &&
+    exact?.source !== 'user_provided' &&
     relationshipCharacter &&
-    relationshipCharacter.id !== exact.id &&
-    relationshipCharacter.source !== 'llm_generated'
+    normalizeCharacterRef(relationshipCharacter.characterRef || relationshipCharacter.id) !==
+      normalizeCharacterRef(exact?.characterRef || exact?.id)
   ) {
     return relationshipCharacter;
   }
@@ -2710,12 +2711,18 @@ function bindLegacyPlannedPageCharacterIdentity(
   characters: GraphicNovelCharacterManifest
 ): PlannedGraphicNovelPage {
   const resolve = (characterRef: unknown, displayName: unknown) => {
-    return (
-      characterManifestForRef(characters, characterRef) ||
-      (typeof displayName === 'string'
-        ? characterManifestForPageName(characters, displayName)
-        : undefined)
-    );
+    const byRef = characterManifestForRef(characters, characterRef);
+    if (typeof displayName !== 'string') return byRef;
+    const byName = characterManifestForPageName(characters, displayName);
+    if (
+      relationshipBaseCharacterNameKey(displayName) &&
+      byName &&
+      normalizeCharacterRef(byName.characterRef || byName.id) !==
+        normalizeCharacterRef(byRef?.characterRef || byRef?.id)
+    ) {
+      return byName;
+    }
+    return byRef || byName;
   };
 
   for (const outfit of page.outfits || []) {

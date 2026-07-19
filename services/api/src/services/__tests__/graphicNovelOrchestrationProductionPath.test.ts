@@ -680,7 +680,6 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       id: 'tato-theo-llm-uuid',
       characterRef: 'tato-theo-llm-uuid',
       name: 'Тато Тео',
-      source: 'llm_generated',
     },
   ] as any;
 
@@ -721,20 +720,39 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
   const page = {
     pageNumber: 7,
     outfits: [
-      { id: 'theo-outfit', characterName: 'Тато Тео', description: 'blue jacket' },
+      {
+        id: 'theo-outfit',
+        characterRef: 'tato-theo-llm-uuid',
+        characterName: 'Тато Тео',
+        description: 'blue jacket',
+      },
     ],
     panels: [
       {
         script: {
-          dialogue: [{ speaker: 'Тато Тео', text: 'Уперед!' }],
+          dialogue: [
+            {
+              characterRef: 'tato-theo-llm-uuid',
+              speaker: 'Тато Тео',
+              text: 'Уперед!',
+            },
+          ],
           thoughts: [],
           visual: {
             sceneVisual: {
               cameraComposition: {
                 shot: 'medium',
                 characters: [
-                  { name: 'Тато Тео', description: 'clapping on the right' },
-                  { name: 'Тео', description: 'standing on the right' },
+                  {
+                    characterRef: 'tato-theo-llm-uuid',
+                    name: 'Тато Тео',
+                    description: 'clapping on the right',
+                  },
+                  {
+                    characterRef: 'theo-uuid',
+                    name: 'Тео',
+                    description: 'standing on the right',
+                  },
                 ],
               },
             },
@@ -763,6 +781,16 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       dressedTurnaroundValidationNames: new Set(),
     }).map((character: any) => character.name),
     ['Тато Тео']
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(
+      charactersWithPersistedAliasDuplicate[2],
+      new Set(['тато тео']),
+      new Set(['theo-uuid']),
+      charactersWithPersistedAliasDuplicate
+    ),
+    false,
+    'stable page refs prevent the discarded legacy manifest duplicate from re-entering references'
   );
 }
 
