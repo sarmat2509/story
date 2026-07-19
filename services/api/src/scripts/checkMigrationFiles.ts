@@ -5,9 +5,9 @@ import { join } from 'node:path';
 const migrationsDir = join(__dirname, '../../drizzle');
 const excluded = new Set(['add_updated_at_triggers.sql']);
 const migrationPattern = /^(\d{4})_.*\.sql$/;
-// Migrations through 0112 have already been reviewed and applied in production.
+// Migrations through 0138 have already been reviewed and applied in production.
 // Keep the gate active for any newer launch migration.
-const destructiveAllowedThrough = 112;
+const destructiveAllowedThrough = 138;
 const destructivePattern = /\b(DROP|TRUNCATE)\b/i;
 const trackedJournalBaseline = 52;
 

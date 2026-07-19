@@ -699,6 +699,58 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   primary.assertExhausted();
 }
 
+async function testSegmentedValidationIgnoresLegacyNonStringStagingDescription() {
+  const [lera, druzhok] = validResult().characters;
+  const primary = new MockTextProvider()
+    .queueStructured('image_validation_segmented_scene_qa', segmentedLayoutResult())
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      segmentedCharacterResult(lera)
+    )
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      segmentedCharacterResult(druzhok)
+    );
+
+  const legacyCameraComposition = {
+    ...validationInput.sceneVisual.cameraComposition,
+    characters: [
+      { name: 'Lera', description: { pose: 'leaning over the chest' } },
+      { name: 'Druzhok', description: ['standing alert'] },
+    ],
+  };
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      expectedCharacters: validationInput.expectedCharacters.map((character, index) => ({
+        ...character,
+        description: (index === 0
+          ? { appearance: 'legacy object description' }
+          : ['legacy array description']) as never,
+        speciesSubtype: (index === 0
+          ? { kind: 'legacy object subtype' }
+          : ['legacy array subtype']) as never,
+      })),
+      sceneVisual: {
+        ...validationInput.sceneVisual,
+        cameraComposition: legacyCameraComposition as never,
+      },
+      includeLayoutChecks: false,
+      includeBubbleChecks: false,
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  assert.strictEqual(result.validationStatus, 'completed');
+  assert.strictEqual(primary.structuredRequests.length, 3);
+  assert.doesNotMatch(primary.structuredRequests[0].prompt, /leaning over the chest/);
+  assert.doesNotMatch(primary.structuredRequests[1].prompt, /SCENE-SPECIFIC POSE\/PROP CONTEXT/);
+  assert.doesNotMatch(primary.structuredRequests[2].prompt, /SCENE-SPECIFIC POSE\/PROP CONTEXT/);
+  primary.assertExhausted();
+}
+
 async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
   const leraResponse = segmentedCharacterResult({
     name: 'Lera',
@@ -1312,6 +1364,7 @@ async function main() {
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
   await testSegmentedValidationRunsLayoutAndPerCharacterPasses();
+  await testSegmentedValidationIgnoresLegacyNonStringStagingDescription();
   await testSceneQaDuplicateEvidenceOverridesSingleCropResult();
   await testSceneQaMissingCharacterSkipsCropValidation();
   await testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth();

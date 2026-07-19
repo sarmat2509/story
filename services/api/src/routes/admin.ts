@@ -50,6 +50,10 @@ import {
   type AdminDiscountCodeInput,
 } from '../services/discountService';
 import { listAdminOutfits, searchAdminOutfits } from '../services/adminOutfitService';
+import {
+  GRAPHIC_NOVEL_PANEL_REPAIR_ISSUE_KINDS,
+  type GraphicNovelPanelRepairTarget,
+} from '../services/graphicNovelPanelRepairTypes';
 
 const router = Router();
 
@@ -207,6 +211,77 @@ const AdminRegenerateSceneImageBodySchema = z.object({
 const AdminRegenerateGraphicNovelPageImageBodySchema = z.object({
   style: z.string().trim().min(1).max(400).optional(),
 }).strict();
+
+const PANEL_REPAIR_SUBJECT_ISSUE_KINDS = new Set([
+  'presence',
+  'duplicate',
+  'head',
+  'face',
+  'hair',
+  'age',
+  'body',
+  'design',
+  'silhouette',
+  'colors',
+  'outfit',
+]);
+
+const AdminRepairGraphicNovelPanelsBodySchema = z
+  .object({
+    panels: z
+      .array(
+        z
+          .object({
+            panelNumber: z.coerce.number().int().min(1).max(20),
+            panelId: z.string().trim().min(1).max(200).optional(),
+            mode: z.enum(['edit', 'regenerate']).default('edit'),
+            issues: z
+              .array(
+                z
+                  .object({
+                    kind: z.enum(GRAPHIC_NOVEL_PANEL_REPAIR_ISSUE_KINDS),
+                    comment: z.string().trim().min(3).max(1200),
+                    characterId: z.string().uuid().optional(),
+                    characterName: z.string().trim().min(1).max(200).optional(),
+                  })
+                  .strict()
+                  .superRefine((issue, context) => {
+                    if (
+                      PANEL_REPAIR_SUBJECT_ISSUE_KINDS.has(issue.kind) &&
+                      !issue.characterId &&
+                      !issue.characterName
+                    ) {
+                      context.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: 'Character issue requires characterId or characterName',
+                      });
+                    }
+                  })
+              )
+              .min(1)
+              .max(8),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(12),
+    refreshTurnaroundCharacterIds: z.array(z.string().uuid()).max(12).optional(),
+    style: z.string().trim().min(1).max(400).optional(),
+  })
+  .strict()
+  .superRefine((body, context) => {
+    const seen = new Set<number>();
+    body.panels.forEach((panel, index) => {
+      if (seen.has(panel.panelNumber)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['panels', index, 'panelNumber'],
+          message: 'Each panelNumber may appear only once',
+        });
+      }
+      seen.add(panel.panelNumber);
+    });
+  });
 
 const AdminResetStoryAudioBodySchema = z
   .object({
@@ -1819,6 +1894,149 @@ router.post('/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image'
     });
   }
 });
+
+router.post(
+  '/stories/:storyId/graphic-novel-pages/:pageNumber/repair-panels',
+  async (req: Request, res: Response) => {
+    try {
+      const parsedParams = StoryGraphicNovelPageParamsSchema.safeParse(req.params);
+      if (!parsedParams.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid params',
+          details: parsedParams.error.flatten(),
+        });
+      }
+
+      const parsedBody = AdminRepairGraphicNovelPanelsBodySchema.safeParse(req.body ?? {});
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid body',
+          details: parsedBody.error.flatten(),
+        });
+      }
+
+      const story = await getStoryRepository().findById(parsedParams.data.storyId);
+      if (!story) {
+        return res.status(404).json({ status: 'error', message: 'Story not found' });
+      }
+
+      const metadata = (story.metadata as Record<string, unknown> | null) || {};
+      if (metadata.storyFormat !== 'graphic_novel' && metadata.storyFormat !== 'mixed_story') {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Story is not a graphic novel or mixed story',
+        });
+      }
+
+      const project = await getGraphicNovelRepository().findProjectByStoryId(
+        parsedParams.data.storyId
+      );
+      if (!project) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Graphic novel project not found',
+        });
+      }
+
+      const page = await getGraphicNovelRepository().findPageByProjectAndNumber(
+        project.id,
+        parsedParams.data.pageNumber
+      );
+      if (!page) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Graphic novel page not found',
+        });
+      }
+
+      if (page.status !== 'completed') {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Graphic novel page must be completed before repairing panels',
+        });
+      }
+
+      const plannedPage = page.layoutJson as {
+        panels?: Array<{ script?: { panelId?: string } }>;
+      } | null;
+      const pageGenerationParams = (page.generationParams as Record<string, unknown> | null) || {};
+      if (
+        typeof pageGenerationParams.artOnlyImageStoragePath !== 'string' ||
+        !pageGenerationParams.artOnlyImageStoragePath.trim()
+      ) {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Graphic novel page has no reusable art-only image',
+        });
+      }
+
+      for (const target of parsedBody.data.panels) {
+        const plannedPanel = plannedPage?.panels?.[target.panelNumber - 1];
+        if (!plannedPanel) {
+          return res.status(404).json({
+            status: 'error',
+            message: `Graphic novel panel ${target.panelNumber} not found`,
+          });
+        }
+        if (target.panelId && plannedPanel.script?.panelId !== target.panelId) {
+          return res.status(409).json({
+            status: 'error',
+            message: `Graphic novel panel ${target.panelNumber} id does not match saved layout`,
+          });
+        }
+      }
+
+      const jobId = await storyJobQueue.addJob({
+        type: 'repair_graphic_novel_panels',
+        storyId: parsedParams.data.storyId,
+        pageNumber: parsedParams.data.pageNumber,
+        panels: parsedBody.data.panels as GraphicNovelPanelRepairTarget[],
+        ...(parsedBody.data.refreshTurnaroundCharacterIds
+          ? { refreshTurnaroundCharacterIds: parsedBody.data.refreshTurnaroundCharacterIds }
+          : {}),
+        ...(parsedBody.data.style ? { style: parsedBody.data.style } : {}),
+      });
+
+      logger.info(
+        {
+          adminUserId: req.user?.id,
+          storyId: parsedParams.data.storyId,
+          pageNumber: parsedParams.data.pageNumber,
+          panelNumbers: parsedBody.data.panels.map((panel) => panel.panelNumber),
+          jobId,
+        },
+        'Admin graphic novel panel repair started'
+      );
+
+      return res.json({
+        status: 'success',
+        data: {
+          jobId,
+          storyId: parsedParams.data.storyId,
+          pageNumber: parsedParams.data.pageNumber,
+          panelNumbers: parsedBody.data.panels.map((panel) => panel.panelNumber),
+        },
+        message: 'Graphic novel panel repair started',
+      });
+    } catch (error) {
+      logger.error(
+        {
+          err: error,
+          adminUserId: req.user?.id,
+          storyId: req.params.storyId,
+          pageNumber: req.params.pageNumber,
+        },
+        'Admin graphic novel panel repair failed'
+      );
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to start graphic novel panel repair',
+      });
+    }
+  }
+);
 
 router.get('/content-config/:resource', async (req: Request, res: Response) => {
   try {

@@ -84,6 +84,7 @@ import { DIRECTOR_SCHEMA, MAP_TILE_BRIEF_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
 import { countNarrationWords } from '../../utils/audioTags';
 import { evaluateDirectorSelectedCharacterCoverage } from './directorCharacterCoverage';
+import { reconcileGeneratedCharacterIdentity } from '../../utils/characterIdentity';
 
 /** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
 const PLAIN_WRITER_MAX_OUTPUT_TOKENS = 16384;
@@ -300,12 +301,19 @@ export class StoryDomainService {
       }>;
       imagesPerStory: number;
       spec: StorySpec;
-      /** User characters with IDs — same format as main flow */
-      userCharacters: Array<{ id?: string; name: string }>;
+      /** Existing identities; characterRef is authoritative and name is display-only. */
+      userCharacters: Array<{
+        id?: string;
+        characterRef?: string;
+        name: string;
+        canonicalName?: string;
+        nameAliases?: string[];
+      }>;
     },
     options?: StoryDomainOptions
   ): Promise<{
     characters: Array<{
+      characterRef: string;
       name: string;
       type: string;
       description: string;
@@ -313,7 +321,12 @@ export class StoryDomainService {
       personality?: string;
     }>;
     environments: Array<{ id: string; name: string; description: string }>;
-    outfits: Array<{ id: string; characterName: string; description: string }>;
+    outfits: Array<{
+      id: string;
+      characterRef: string;
+      characterName: string;
+      description: string;
+    }>;
     mapTile: {
       description: string;
       requiredFeatures: string[];
@@ -325,7 +338,12 @@ export class StoryDomainService {
         setting: string;
         cameraComposition: {
           shot: string;
-          characters: Array<{ name: string; description: string; outfitId: string }>;
+          characters: Array<{
+            characterRef: string;
+            name: string;
+            description: string;
+            outfitId: string;
+          }>;
         };
         lighting: string;
       };
@@ -350,8 +368,8 @@ export class StoryDomainService {
 
     try {
       const parentOnUsage = options?.onUsage;
-      const generateDirectorResult = (attemptPrompt: string) =>
-        this.directorTextProvider.generateStructured<{
+      const generateDirectorResult = async (attemptPrompt: string) => {
+        const result = await this.directorTextProvider.generateStructured<{
           characters: any[];
           environments: any[];
           outfits: any[];
@@ -389,6 +407,30 @@ export class StoryDomainService {
           operation: 'director',
           onRawResponse: options?.onRawResponse,
         });
+        reconcileGeneratedCharacterIdentity({
+          document: result,
+          existingCharacters: params.userCharacters,
+        });
+
+        const outfitsById = new Map(
+          (Array.isArray(result.outfits) ? result.outfits : []).map((outfit: any) => [
+            String(outfit?.id || '').trim(),
+            String(outfit?.characterRef || '').trim(),
+          ])
+        );
+        for (const [illustrationIndex, illustration] of (result.illustrations || []).entries()) {
+          const rows = illustration?.sceneVisual?.cameraComposition?.characters;
+          for (const [rowIndex, row] of (Array.isArray(rows) ? rows : []).entries()) {
+            const outfitRef = outfitsById.get(String(row?.outfitId || '').trim());
+            if (!outfitRef || outfitRef !== String(row?.characterRef || '').trim()) {
+              throw new Error(
+                `Director outfit binding mismatch at illustrations[${illustrationIndex}].cameraComposition.characters[${rowIndex}]`
+              );
+            }
+          }
+        }
+        return result;
+      };
 
       let result = await generateDirectorResult(prompt);
       let coverage = evaluateDirectorSelectedCharacterCoverage({
@@ -468,7 +510,13 @@ export class StoryDomainService {
       }>;
       imagesPerStory: number;
       spec: StorySpec;
-      userCharacters: Array<{ id?: string; name: string }>;
+      userCharacters: Array<{
+        id?: string;
+        characterRef?: string;
+        name: string;
+        canonicalName?: string;
+        nameAliases?: string[];
+      }>;
     },
     options?: StoryDomainOptions
   ): Promise<{

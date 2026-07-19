@@ -32,6 +32,7 @@ import { planGraphicNovelLayouts } from './layoutPlanner';
 import { logger } from '../../utils/logger';
 import config, { getValidationTextModelOverride } from '../../config';
 import { VALIDATION_SCHEMA } from '../story/schemas';
+import { reconcileGeneratedCharacterIdentity } from '../../utils/characterIdentity';
 
 const GRAPHIC_NOVEL_MAX_OUTPUT_TOKENS = 48000;
 const GRAPHIC_NOVEL_PAGE_REPAIR_MAX_ATTEMPTS = 2;
@@ -108,9 +109,10 @@ function normalizeOutfits(script: GraphicNovelScript): Map<string, StoryOutfitRo
   for (const outfit of Array.isArray(script.outfits) ? script.outfits : []) {
     const id = String(outfit?.id || '').trim();
     const characterName = String(outfit?.characterName || '').trim();
+    const characterRef = String(outfit?.characterRef || '').trim();
     const description = String(outfit?.description || '').trim();
     if (!id || !characterName || !description || outfits.has(id)) continue;
-    outfits.set(id, { id, characterName, description });
+    outfits.set(id, { id, ...(characterRef ? { characterRef } : {}), characterName, description });
   }
   return outfits;
 }
@@ -125,27 +127,20 @@ function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string 
 function ensureOutfit(
   outfits: Map<string, StoryOutfitRow>,
   params: {
+    characterRef?: string;
     characterName: string;
   }
 ): string {
-  const id = outfitKeyForCharacter(params.characterName, 'natural');
+  const id = outfitKeyForCharacter(params.characterRef || params.characterName, 'natural');
   if (!outfits.has(id)) {
     outfits.set(id, {
       id,
+      ...(params.characterRef ? { characterRef: params.characterRef } : {}),
       characterName: params.characterName,
       description: 'natural appearance',
     });
   }
   return id;
-}
-
-function panelSpeakers(panel: GraphicNovelPanelScript): string[] {
-  const names = new Set<string>();
-  for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
-    const speaker = String(line?.speaker || '').trim();
-    if (speaker) names.add(speaker);
-  }
-  return [...names];
 }
 
 function normalizeCastName(value: unknown): string {
@@ -158,10 +153,12 @@ function displayCastName(value: unknown): string {
   return stripCharacterIdFromName(value).trim();
 }
 
-function addCastName(names: Map<string, string>, value: unknown): void {
-  const key = normalizeCastName(value);
+function addCastName(names: Map<string, string>, value: unknown, characterRef?: unknown): void {
+  const structuralRef =
+    typeof characterRef === 'string' && characterRef.trim() ? characterRef.trim() : '';
+  const key = structuralRef ? `ref:${structuralRef}` : `name:${normalizeCastName(value)}`;
   const display = displayCastName(value);
-  if (!key || !display || names.has(key)) return;
+  if (key === 'name:' || !display || names.has(key)) return;
   names.set(key, display);
 }
 
@@ -189,7 +186,7 @@ function panelCastForValidation(panel: GraphicNovelPanelScript): {
   const visual = new Map<string, string>();
 
   for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
-    addCastName(all, line?.speaker);
+    addCastName(all, line?.speaker, line?.characterRef);
   }
 
   const composition = panel.visual?.sceneVisual?.cameraComposition;
@@ -198,8 +195,8 @@ function panelCastForValidation(panel: GraphicNovelPanelScript): {
   }
 
   for (const character of composition.characters) {
-    addCastName(all, character?.name);
-    addCastName(visual, character?.name);
+    addCastName(all, character?.name, character?.characterRef);
+    addCastName(visual, character?.name, character?.characterRef);
   }
 
   return { all, visual };
@@ -208,7 +205,7 @@ function panelCastForValidation(panel: GraphicNovelPanelScript): {
 function selectedCharacterNamesForValidation(spec: StorySpec): Map<string, string> {
   const selected = new Map<string, string>();
   for (const character of spec.characters || []) {
-    addCastName(selected, character.name);
+    addCastName(selected, character.name, character.characterRef || character.id);
   }
   return selected;
 }
@@ -217,7 +214,7 @@ function childAnchorNamesForValidation(spec: StorySpec): Map<string, string> {
   const anchors = new Map<string, string>();
   for (const character of spec.characters || []) {
     if (String(character.type || '').toLowerCase() === 'child') {
-      addCastName(anchors, character.name);
+      addCastName(anchors, character.name, character.characterRef || character.id);
     }
   }
   return anchors;
@@ -296,24 +293,35 @@ function withRequiredPanelCharacters(
   panel: GraphicNovelPanelScript,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  const byName = new Map<string, { character: CameraCharacterComposition; order: number }>();
-  const speakers = panelSpeakers(panel);
-  const speakerKeys = new Set(speakers.map(normalizeCastName).filter(Boolean));
+  const byIdentity = new Map<string, { character: CameraCharacterComposition; order: number }>();
+  const speakerLines = [...(panel.dialogue || []), ...(panel.thoughts || [])].filter(
+    (line, index, all) =>
+      all.findIndex(
+        (candidate) =>
+          (candidate.characterRef || normalizeCastName(candidate.speaker)) ===
+          (line.characterRef || normalizeCastName(line.speaker))
+      ) === index
+  );
+  const speakerKeys = new Set(
+    speakerLines.map((line) => line.characterRef || normalizeCastName(line.speaker)).filter(Boolean)
+  );
 
   for (const [order, character] of characters.entries()) {
     const name = String(character.name || '').trim();
-    const key = normalizeCastName(name);
-    if (!name || !key || byName.has(key)) continue;
-    byName.set(key, { character, order });
+    const key = character.characterRef || normalizeCastName(name);
+    if (!name || !key || byIdentity.has(key)) continue;
+    byIdentity.set(key, { character, order });
   }
 
-  for (const [speakerIndex, speaker] of speakers.entries()) {
-    const key = normalizeCastName(speaker);
-    if (!key || byName.has(key)) continue;
-    const index = byName.size;
-    byName.set(key, {
+  for (const [speakerIndex, line] of speakerLines.entries()) {
+    const speaker = line.speaker;
+    const key = line.characterRef || normalizeCastName(speaker);
+    if (!key || byIdentity.has(key)) continue;
+    const index = byIdentity.size;
+    byIdentity.set(key, {
       order: characters.length + speakerIndex,
       character: {
+        characterRef: line.characterRef,
         name: speaker,
         position: index % 2 === 0 ? 'left_foreground' : 'right_foreground',
         description:
@@ -324,10 +332,18 @@ function withRequiredPanelCharacters(
     });
   }
 
-  return [...byName.values()]
+  return [...byIdentity.values()]
     .sort((a, b) => {
-      const aIsSpeaker = speakerKeys.has(normalizeCastName(a.character.name)) ? 0 : 1;
-      const bIsSpeaker = speakerKeys.has(normalizeCastName(b.character.name)) ? 0 : 1;
+      const aIsSpeaker = speakerKeys.has(
+        a.character.characterRef || normalizeCastName(a.character.name)
+      )
+        ? 0
+        : 1;
+      const bIsSpeaker = speakerKeys.has(
+        b.character.characterRef || normalizeCastName(b.character.name)
+      )
+        ? 0
+        : 1;
       return aIsSpeaker - bIsSpeaker || a.order - b.order;
     })
     .slice(0, GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS)
@@ -341,12 +357,18 @@ function withOutfitIds(
   return characters.map((character) => {
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
-    if (existingOutfit) {
+    if (
+      existingOutfit &&
+      (!character.characterRef || existingOutfit.characterRef === character.characterRef)
+    ) {
       return character;
     }
     return {
       ...character,
-      outfitId: ensureOutfit(outfits, { characterName: character.name }),
+      outfitId: ensureOutfit(outfits, {
+        characterRef: character.characterRef,
+        characterName: character.name,
+      }),
     };
   });
 }
@@ -370,6 +392,7 @@ function legacyCharacters(panel: GraphicNovelPanelScript): CameraCharacterCompos
     Array.isArray(sceneCharacters.characters)
   ) {
     return sceneCharacters.characters.map((character) => ({
+      characterRef: character.characterRef,
       name: character.name,
       description:
         character.description || 'visible in the panel with readable expression and pose',
@@ -459,12 +482,12 @@ function fallbackPanel(
   panelIndex: number,
   spec: StorySpec
 ): GraphicNovelPanelScript {
-  const heroName =
+  const hero =
     (spec.characters || []).find(
       (character) => String(character.type || '').toLowerCase() === 'child'
-    )?.name ||
-    spec.characters?.[0]?.name ||
-    'Hero';
+    ) || spec.characters?.[0];
+  const heroName = hero?.name || 'Hero';
+  const heroRef = hero?.characterRef || hero?.id;
   const visualAction =
     panelIndex === 1
       ? 'The characters notice something new with clear curious expressions.'
@@ -476,8 +499,8 @@ function fallbackPanel(
     beatType: panelIndex === 1 ? 'setup' : 'response',
     dialogue:
       panelIndex === 1
-        ? [{ speaker: heroName, text: 'Look!' }]
-        : [{ speaker: heroName, text: 'I can try.' }],
+        ? [{ ...(heroRef ? { characterRef: heroRef } : {}), speaker: heroName, text: 'Look!' }]
+        : [{ ...(heroRef ? { characterRef: heroRef } : {}), speaker: heroName, text: 'I can try.' }],
     thoughts: [],
     visual: {
       environmentId: FALLBACK_ENVIRONMENT_ID,
@@ -819,6 +842,10 @@ export class GraphicNovelDomainService {
       }
 
       script = { ...script, pages: nextPages };
+      reconcileGeneratedCharacterIdentity({
+        document: script as unknown as Record<string, any>,
+        existingCharacters: params.spec.characters,
+      });
       validateGraphicNovelPageCast(script, params.spec);
 
       failures = repairedPageNumbers.length
@@ -878,6 +905,10 @@ export class GraphicNovelDomainService {
           model: attempt.model,
           onUsage: params.onUsage,
           operation: attempt.operation,
+        });
+        reconcileGeneratedCharacterIdentity({
+          document: raw as unknown as Record<string, any>,
+          existingCharacters: params.spec.characters,
         });
         validateGraphicNovelPageCast(raw, params.spec);
         raw = await this.repairScriptPagesWithValidationFeedback({

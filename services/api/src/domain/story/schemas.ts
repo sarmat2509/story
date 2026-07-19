@@ -34,11 +34,17 @@ const BATCH_TEXT_VALIDATION_CATEGORIES = [
 export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
+    characterRef: {
+      type: 'string',
+      minLength: 1,
+      description:
+        'Structural character identity. Use the exact existing UUID from CHARACTER IDENTITY REGISTRY, or NEW_CH_n for a newly invented character.',
+    },
     name: {
       type: 'string',
       minLength: 1,
       description:
-        'EXACT character name from the story character list (and characters[]), including "Name [ID: uuid]" if used.',
+        'Localized display name. Titles and family forms may change this display name but never characterRef.',
     },
     description: {
       type: 'string',
@@ -53,7 +59,7 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
         'EXACT outfits[].id for this character in this scene — same kind of reference as environmentId → environments[].id. Detailed wardrobe rows are only for child/person/human characters; non-human rows use natural appearance.',
     },
   },
-  required: ['name', 'description', 'outfitId'],
+  required: ['characterRef', 'name', 'description', 'outfitId'],
 };
 
 /**

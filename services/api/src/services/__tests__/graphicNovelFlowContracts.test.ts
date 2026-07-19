@@ -263,18 +263,22 @@ function testGraphicNovelStoryCharacterLinksMatchStorybookFlow(): void {
 
 function testComicScriptExtractsLlmRobotCharacter(): void {
   const llmCharacters = extractLlmCharactersFromComicScript({
-    initialCharacters: [{ name: 'Emilia', type: 'child' } as any],
+    initialCharacters: [
+      { id: 'emilia-id', characterRef: 'emilia-id', name: 'Emilia', type: 'child' } as any,
+    ],
     script: {
       title: 'Robot Helper',
       description: 'A comic page',
       language: 'en',
       characters: [
         {
+          characterRef: 'NEW_CH_1',
           name: 'Copper Bot',
           type: 'object',
           description: 'A small friendly copper robot with round glowing eyes and jointed arms.',
         },
         {
+          characterRef: 'emilia-id',
           name: 'Emilia',
           type: 'human',
           description: 'Preselected child, should not be persisted as an LLM character.',
@@ -288,7 +292,9 @@ function testComicScriptExtractsLlmRobotCharacter(): void {
           panels: [
             {
               panelId: 'p1-1',
-              dialogue: [{ speaker: 'Copper Bot', text: 'I can light the way!' }],
+              dialogue: [
+                { characterRef: 'NEW_CH_1', speaker: 'Copper Bot', text: 'I can light the way!' },
+              ],
               thoughts: [],
               visual: {
                 environmentId: 'env',
@@ -300,8 +306,13 @@ function testComicScriptExtractsLlmRobotCharacter(): void {
                   cameraComposition: {
                     shot: 'medium shot',
                     characters: [
-                      { name: 'Emilia', description: 'watching the helper' },
                       {
+                        characterRef: 'emilia-id',
+                        name: 'Emilia',
+                        description: 'watching the helper',
+                      },
+                      {
+                        characterRef: 'NEW_CH_1',
                         name: 'Copper Bot',
                         description:
                           'small round copper robot, glowing blue eyes, tiny wheels, hinged arms',
@@ -319,6 +330,7 @@ function testComicScriptExtractsLlmRobotCharacter(): void {
 
   assert.equal(llmCharacters.length, 1);
   assert.equal(llmCharacters[0].name, 'Copper Bot');
+  assert.equal(llmCharacters[0].characterRef, 'NEW_CH_1');
   assert.equal(llmCharacters[0].type, 'object');
   assert.match(llmCharacters[0].description, /copper robot/i);
   assert.doesNotMatch(llmCharacters[0].description, /REF_CH_/);

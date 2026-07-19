@@ -85,6 +85,8 @@ export interface ChildModeSettings {
  */
 export interface CharacterData {
   id?: string;
+  /** Stable structural identity used inside generated story JSON. Existing characters use their DB UUID. */
+  characterRef?: string;
   name: string;
   canonicalName?: string;
   nameAliases?: string[];

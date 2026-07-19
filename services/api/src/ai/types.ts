@@ -235,6 +235,7 @@ export interface EpisodeOutline {
 /** Canonical wardrobe row from Director output. */
 export interface StoryOutfitRow {
   id: string;
+  characterRef?: string;
   characterName: string;
   description: string;
 }
@@ -263,6 +264,7 @@ export interface EpisodeText {
     environmentId?: string; // Reference to environment where this scene takes place
     /** After normalization: maps character name → outfit id from outfits[] (from camera composition or legacy outfitBindings). */
     characterOutfitIds?: Record<string, string>;
+    characterOutfitRefs?: Record<string, string>;
     characters?: string[]; // Character names appearing in this scene (optional for backward compatibility)
   }>;
   fullText: string; // Concatenated full story for reading

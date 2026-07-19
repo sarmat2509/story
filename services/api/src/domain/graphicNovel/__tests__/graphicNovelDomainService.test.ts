@@ -49,6 +49,80 @@ const SPEC: StorySpec = {
   },
 };
 
+function withStructuralIdentity(raw: any, spec: StorySpec): any {
+  const script = structuredClone(raw);
+  const refByName = new Map<string, string>();
+  const declarations: any[] = [];
+  let nextRef = 1;
+  const declare = (name: string, source?: any): string => {
+    const existing = refByName.get(name);
+    if (existing) return existing;
+    const selected = spec.characters.find((character) => character.name === name);
+    const characterRef = selected?.characterRef || selected?.id || `NEW_CH_${nextRef++}`;
+    refByName.set(name, characterRef);
+    declarations.push({
+      characterRef,
+      name,
+      type: source?.type || selected?.type || 'human',
+      description: source?.description || selected?.description || `${name} story character.`,
+      ...(source?.role ? { role: source.role } : {}),
+      ...(source?.personality ? { personality: source.personality } : {}),
+    });
+    return characterRef;
+  };
+  for (const character of spec.characters) declare(character.name, character);
+  for (const character of script.characters || []) declare(character.name, character);
+  for (const page of script.pages || []) {
+    for (const panel of page.panels || []) {
+      for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
+        line.characterRef = declare(line.speaker);
+      }
+      const composition = panel.visual?.sceneVisual?.cameraComposition;
+      if (!composition || typeof composition === 'string') continue;
+      for (const character of composition.characters || []) {
+        character.characterRef = declare(character.name);
+      }
+    }
+  }
+  script.characters = declarations;
+  for (const outfit of script.outfits || []) {
+    outfit.characterRef = declare(outfit.characterName);
+  }
+  script.outfits ||= [];
+  const outfitIds = new Set(script.outfits.map((outfit: any) => outfit.id));
+  for (const page of script.pages || []) {
+    for (const panel of page.panels || []) {
+      const composition = panel.visual?.sceneVisual?.cameraComposition;
+      if (!composition || typeof composition === 'string') continue;
+      for (const character of composition.characters || []) {
+        if (!character.outfitId || outfitIds.has(character.outfitId)) continue;
+        outfitIds.add(character.outfitId);
+        script.outfits.push({
+          id: character.outfitId,
+          characterRef: character.characterRef,
+          characterName: character.name,
+          description: 'natural appearance',
+        });
+      }
+    }
+  }
+  return script;
+}
+
+function repairedPageWithStructuralIdentity(raw: any, spec: StorySpec): any {
+  return withStructuralIdentity(
+    {
+      title: 'repair',
+      description: 'repair',
+      language: spec.language,
+      environments: [],
+      outfits: [],
+      pages: [raw],
+    },
+    spec
+  ).pages[0];
+}
+
 const SCRIPT_FIXTURE = {
   title: 'Світла стрічка',
   description: 'A warm dialogue-led illustrated story.',
@@ -468,7 +542,10 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
       'graphic_novel_script',
       'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT. Details: none'
     )
-    .queueStructured('graphic_novel_script_safety_fallback', SCRIPT_FIXTURE);
+    .queueStructured(
+      'graphic_novel_script_safety_fallback',
+      withStructuralIdentity(SCRIPT_FIXTURE, SPEC)
+    );
   const validationProvider = new MockTextProvider().queueStructured('validateScene', {
     sceneId: 1,
     isValid: true,
@@ -492,14 +569,17 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
   assert.equal(provider.structuredRequests[1].operation, 'graphic_novel_script_safety_fallback');
   assert.match(
     provider.structuredRequests[0].prompt,
-    /Емілія \(person, role: hero, visual reference: yes\)/
+    /Емілія \[characterRef: child-1\] \(person, role: hero, visual reference: yes\)/
   );
   assert.doesNotMatch(provider.structuredRequests[0].prompt, /\(child[,)]/);
   assert.doesNotMatch(provider.structuredRequests[0].prompt, /face\/mouth\/head/);
   assert.doesNotMatch(provider.structuredRequests[0].prompt, /anchor/);
   assert.doesNotMatch(provider.structuredRequests[0].prompt, /speechTarget/);
   assert.match(provider.structuredRequests[1].prompt, /SAFETY AND TONE/);
-  assert.match(provider.structuredRequests[1].prompt, /Емілія \(person, role: hero\)/);
+  assert.match(
+    provider.structuredRequests[1].prompt,
+    /Емілія \(person, role: hero\)/
+  );
   assert.doesNotMatch(provider.structuredRequests[1].prompt, /\(child[,)]/);
   assert.doesNotMatch(provider.structuredRequests[1].prompt, /anchor/);
   assert.doesNotMatch(provider.structuredRequests[1].prompt, /speechTarget/);
@@ -544,8 +624,13 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
 
 async function testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReused() {
   const provider = new MockTextProvider()
-    .queueStructured('graphic_novel_script', MOKHOVYK_CONFLICT_SCRIPT)
-    .queueStructured('graphic_novel_page_repair', { page: MOKHOVYK_SAFE_SCRIPT.pages[0] });
+    .queueStructured(
+      'graphic_novel_script',
+      withStructuralIdentity(MOKHOVYK_CONFLICT_SCRIPT, MOKHOVYK_SPEC)
+    )
+    .queueStructured('graphic_novel_page_repair', {
+      page: repairedPageWithStructuralIdentity(MOKHOVYK_SAFE_SCRIPT.pages[0], MOKHOVYK_SPEC),
+    });
   const validationProvider = new MockTextProvider()
     .queueStructured('validateScene', {
       sceneId: 1,
@@ -594,8 +679,11 @@ async function testGraphicNovelScriptRepairsPageWhenReservedCharacterNameIsReuse
 
 async function testGraphicNovelScriptRetriesWhenPanelCastExceedsLimit() {
   const provider = new MockTextProvider()
-    .queueStructured('graphic_novel_script', OVERCROWDED_PANEL_SCRIPT)
-    .queueStructured('graphic_novel_script_safety_fallback', SCRIPT_FIXTURE);
+    .queueStructured('graphic_novel_script', withStructuralIdentity(OVERCROWDED_PANEL_SCRIPT, SPEC))
+    .queueStructured(
+      'graphic_novel_script_safety_fallback',
+      withStructuralIdentity(SCRIPT_FIXTURE, SPEC)
+    );
   const validationProvider = new MockTextProvider().queueStructured('validateScene', {
     sceneId: 1,
     isValid: true,
@@ -620,8 +708,10 @@ async function testGraphicNovelScriptRetriesWhenPanelCastExceedsLimit() {
 
 async function testGraphicNovelScriptRepairsFailedPageBeforeWholeFallback() {
   const provider = new MockTextProvider()
-    .queueStructured('graphic_novel_script', STORM_SCRIPT)
-    .queueStructured('graphic_novel_page_repair', { page: STORM_REPAIRED_PAGE });
+    .queueStructured('graphic_novel_script', withStructuralIdentity(STORM_SCRIPT, SPEC))
+    .queueStructured('graphic_novel_page_repair', {
+      page: repairedPageWithStructuralIdentity(STORM_REPAIRED_PAGE, SPEC),
+    });
   const validationProvider = new MockTextProvider()
     .queueStructured('validateScene', {
       sceneId: 1,

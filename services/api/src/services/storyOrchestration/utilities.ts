@@ -5,6 +5,7 @@
 import { getStoryRepository, getSceneRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import {
+  cameraCompositionOutfitRefsToRecord,
   cameraCompositionOutfitsToRecord,
   outfitBindingsToRecord,
 } from '../../utils/characterOutfits';
@@ -16,30 +17,25 @@ import {
   limitSceneVisualCharacters,
   MAX_SCENE_IMAGE_CHARACTERS,
 } from '../../domain/story/sceneCharacterLimits';
-
-/**
- * Extract character ID from name string like "Mokhovyk [ID: uuid]"
- */
-function extractCharacterId(name: string): { name: string; id: string | null } {
-  const idMatch = name.match(/^(.+?)\s*\[ID:\s*([a-f0-9-]+)\]\s*$/i);
-  if (idMatch) {
-    return {
-      name: idMatch[1].trim(),
-      id: idMatch[2].trim(),
-    };
-  }
-  return { name, id: null };
-}
+import {
+  isPersistedCharacterRef,
+  isTemporaryCharacterRef,
+  normalizeCharacterRef,
+  replaceTemporaryCharacterRefs,
+} from '../../utils/characterIdentity';
 
 /**
  * Extract LLM-generated characters from text
  */
 export function extractLlmCharactersFromText(text: any): any[] {
   return (text.characters || []).map((char: any) => {
-    const { name, id } = extractCharacterId(char.name);
+    const characterRef = normalizeCharacterRef(char.characterRef);
     return {
-      name,
-      originalCharacterId: id, // Extracted ID for matching
+      characterRef,
+      name: stripCharacterIds(char.name),
+      ...(isPersistedCharacterRef(characterRef)
+        ? { originalCharacterId: characterRef }
+        : {}),
       type: char.type,
       description: char.description,
       role: char.role,
@@ -47,6 +43,41 @@ export function extractLlmCharactersFromText(text: any): any[] {
       appearance: char.description,
     };
   });
+}
+
+/**
+ * Attach persisted IDs to generated characters and rewrite every NEW_CH_n occurrence in the
+ * structured result. Name lookup is retained only for legacy checkpoints without characterRef.
+ */
+export function bindPersistedCharacterRefs(params: {
+  text: any;
+  mergedCharacters: any[];
+  persistenceResults: ReadonlyMap<
+    string,
+    { characterId: string; isNew: boolean; hasTurnaround: boolean }
+  >;
+}): Map<string, string> {
+  const replacements = new Map<string, string>();
+  for (const character of params.mergedCharacters) {
+    if (character.source !== 'llm_generated' || character.id) continue;
+    const structuralRef = normalizeCharacterRef(character.characterRef);
+    const lookupKey = structuralRef || normalizeCharacterName(character.name);
+    const result = params.persistenceResults.get(lookupKey);
+    if (!result) {
+      throw new Error(
+        `No persisted character result for ${structuralRef || `legacy name "${character.name}"`}`
+      );
+    }
+    character.id = result.characterId;
+    character.characterRef = result.characterId;
+    character._llmIsNew = result.isNew;
+    character._llmHasTurnaround = result.hasTurnaround;
+    if (isTemporaryCharacterRef(structuralRef)) {
+      replacements.set(structuralRef, result.characterId);
+    }
+  }
+  replaceTemporaryCharacterRefs(params.text, replacements);
+  return replacements;
 }
 
 /**
@@ -63,13 +94,7 @@ export async function createSceneRecords(
   await Promise.all(
     text.scenes.map((scene) => {
       const sceneVisual = limitSceneVisualCharacters(scene.sceneVisual);
-      // Strip [ID: uuid] from cameraComposition character names before normalization
       const cam = sceneVisual?.cameraComposition;
-      if (cam && typeof cam !== 'string' && Array.isArray(cam.characters)) {
-        for (const ch of cam.characters) {
-          if (ch.name) ch.name = stripCharacterIds(ch.name);
-        }
-      }
 
       const charNames =
         cam && typeof cam !== 'string'
@@ -88,8 +113,15 @@ export async function createSceneRecords(
       };
 
       if (options?.includeWordCount) {
+        const characterRefs =
+          cam && typeof cam !== 'string' && Array.isArray(cam.characters)
+            ? cam.characters
+                .map((character: any) => normalizeCharacterRef(character?.characterRef))
+                .filter(Boolean)
+            : [];
         sceneData.generationParams = {
           wordCount: cleanText.split(/\s+/).length,
+          ...(characterRefs.length > 0 ? { characterRefsPresent: characterRefs } : {}),
         };
       }
 
@@ -212,6 +244,7 @@ export function mergeDirectorIntoText(
       /** @deprecated LLM legacy; prefer sceneVisual.cameraComposition.characters[].outfitId */
       outfitBindings?: Array<{ characterName?: string; outfitId?: string }>;
       characterOutfitIds?: Record<string, string>;
+      characterOutfitRefs?: Record<string, string>;
       sceneVisual: any;
     }>;
   },
@@ -251,12 +284,20 @@ export function mergeDirectorIntoText(
       (ill?.characterOutfitIds && Object.keys(ill.characterOutfitIds).length > 0
         ? { ...ill.characterOutfitIds }
         : undefined);
+    const outfitRefRecord =
+      cameraCompositionOutfitRefsToRecord(sceneVisual?.cameraComposition) ??
+      (ill?.characterOutfitRefs && Object.keys(ill.characterOutfitRefs).length > 0
+        ? { ...ill.characterOutfitRefs }
+        : undefined);
     for (let sid = anchor; sid <= sceneEnd; sid++) {
       const sc = sceneMap.get(sid);
       if (!sc || !ill) continue;
       (sc as any).environmentId = ill.environmentId;
       if (outfitRecord && Object.keys(outfitRecord).length > 0) {
         (sc as any).characterOutfitIds = { ...outfitRecord };
+      }
+      if (outfitRefRecord && Object.keys(outfitRefRecord).length > 0) {
+        (sc as any).characterOutfitRefs = { ...outfitRefRecord };
       }
       if (sid === anchor) {
         if (ill.primaryRead) {

@@ -150,10 +150,15 @@ export function isNaturalAppearanceOutfit(
 }
 
 /** Canonical wardrobe row from story JSON (`outfits` array). */
-export type StoryOutfitDefinition = { id: string; characterName: string; description: string };
+export type StoryOutfitDefinition = {
+  id: string;
+  characterRef?: string;
+  characterName: string;
+  description: string;
+};
 
 /** LLM output: explicit binding (like environmentId → environments[].id). */
-export type OutfitBinding = { characterName: string; outfitId: string };
+export type OutfitBinding = { characterRef?: string; characterName: string; outfitId: string };
 
 /**
  * Convert structured outfitBindings[] to Record<characterName, outfitId> for resolveCharacterOutfits / merge.
@@ -192,6 +197,24 @@ export function cameraCompositionOutfitsToRecord(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Build structural characterRef → outfitId bindings from camera rows. */
+export function cameraCompositionOutfitRefsToRecord(
+  cameraComposition: unknown,
+): Record<string, string> | undefined {
+  if (!cameraComposition || typeof cameraComposition !== 'object') return undefined;
+  const cam = cameraComposition as { characters?: unknown };
+  if (!Array.isArray(cam.characters) || cam.characters.length === 0) return undefined;
+  const out: Record<string, string> = {};
+  for (const character of cam.characters) {
+    if (!character || typeof character !== 'object') continue;
+    const row = character as { characterRef?: string; outfitId?: string };
+    const characterRef = typeof row.characterRef === 'string' ? row.characterRef.trim() : '';
+    const outfitId = typeof row.outfitId === 'string' ? row.outfitId.trim() : '';
+    if (characterRef && outfitId) out[characterRef] = outfitId;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * After structured text generation: cameraComposition.characters[].outfitId → characterOutfitIds.
  * Drops legacy outfitBindings if present. Prefers camera rows over legacy bindings.
@@ -206,6 +229,8 @@ export function normalizeOutfitBindingsOnEpisodeText(text: { scenes?: Array<Reco
     );
     const rec = fromCam ?? fromBindings;
     if (rec) s.characterOutfitIds = rec;
+    const refRecord = cameraCompositionOutfitRefsToRecord(sv?.cameraComposition);
+    if (refRecord) s.characterOutfitRefs = refRecord;
     delete s.outfitBindings;
   }
 }

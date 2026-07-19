@@ -415,6 +415,291 @@ async function testPanelQualityDecisionUsesHardPanelSignals(): Promise<void> {
   );
 }
 
+async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaround(): Promise<void> {
+  const [
+    { graphicNovelOrchestrationTestSeams },
+    { installRepositoryTestOverrides, clearRepositoryTestOverrides },
+    { buildImageEditPrompt },
+  ] = await Promise.all([
+    import('../graphicNovelOrchestrationService'),
+    import('../../repositories'),
+    import('../../prompts/image/ImageEditPrompt'),
+  ]);
+  const page = {
+    pageNumber: 3,
+    panels: [
+      {
+        script: {
+          panelId: 'p3-1',
+          visual: {
+            primaryRead: 'Luma runs through the moonlit garden.',
+            sceneVisual: {
+              cameraComposition: {
+                shot: 'medium shot',
+                characters: [
+                  {
+                    name: 'Luma',
+                    position: 'center',
+                    description: 'girl with one thick side braid near the garden gate',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ],
+  } as any;
+  const characters = [
+    {
+      id: 'character-luma',
+      name: 'Luma',
+      type: 'child',
+      referenceBindingId: 'REF_CH_LUMA_123',
+      references: [
+        {
+          storagePath: 'turnarounds/luma-stale.png',
+          source: 'child_reference',
+          type: 'child_reference',
+          isTurnaround: true,
+          referenceBindingId: 'REF_CH_LUMA_123',
+        },
+      ],
+    },
+  ] as any;
+
+  installRepositoryTestOverrides({
+    character: {
+      findById: async (characterId: string, userId: string) => {
+        assert.equal(characterId, 'character-luma');
+        assert.equal(userId, 'user-1');
+        return {
+          id: characterId,
+          name: 'Luma',
+          type: 'child',
+          turnaroundSheet: { url: '/api/v1/assets/turnarounds/luma-current.png' },
+          referencePhotos: [],
+        } as any;
+      },
+    } as any,
+  });
+
+  try {
+    const refreshed =
+      await graphicNovelOrchestrationTestSeams.refreshGraphicNovelManifestTurnarounds({
+        characters,
+        characterIds: ['character-luma'],
+        page,
+        userId: 'user-1',
+      });
+    assert.equal(characters[0].references[0].storagePath, 'turnarounds/luma-stale.png');
+    assert.deepEqual(refreshed[0].references, [
+      {
+        storagePath: 'turnarounds/luma-current.png',
+        source: 'child_reference',
+        type: 'child_reference',
+        isTurnaround: true,
+        referenceBindingId: 'REF_CH_LUMA_123',
+      },
+    ]);
+
+    const target = {
+      panelNumber: 1,
+      mode: 'edit' as const,
+      issues: [
+        {
+          kind: 'hair' as const,
+          comment: '  Restore   the exact two-braid hairstyle. ',
+          characterId: 'character-luma',
+        },
+        {
+          kind: 'outfit' as const,
+          comment: 'Use the yellow raincoat shown in the turnaround.',
+          characterId: 'character-luma',
+        },
+      ],
+    };
+    const repairManifest = graphicNovelOrchestrationTestSeams.buildManualPanelRepairManifest({
+      target,
+      panel: page.panels[0],
+      characters: refreshed,
+    });
+    assert.deepEqual(repairManifest, {
+      referenceMode: 'identity_and_outfit',
+      issues: [
+        {
+          kind: 'hair',
+          note: 'Replace the selected mismatched subject with the matching visual reference.',
+        },
+        {
+          kind: 'outfit',
+          note: 'Replace the selected mismatched subject with the matching visual reference.',
+        },
+      ],
+      subjectReplacements: [
+        {
+          characterName: 'Luma',
+          referenceId: 'REF_CH_LUMA_123',
+          sceneSlotDescription: 'girl with one thick side braid near the garden gate',
+          found: true,
+          repairKinds: ['hair', 'outfit'],
+        },
+      ],
+    });
+    const editPrompt = buildImageEditPrompt({
+      validationResult: { overallFeedback: 'unused' } as any,
+      targetedRepairManifest: repairManifest,
+    });
+    assert.match(editPrompt, /full character from REF_CH_LUMA_123/);
+    assert.doesNotMatch(editPrompt, /Restore the exact two-braid hairstyle/);
+    assert.doesNotMatch(editPrompt, /yellow raincoat/);
+
+    const currentValidation = {
+      panelNumber: 1,
+      panelId: 'p3-1',
+      cropRect: { left: 0, top: 0, width: 512, height: 512 },
+      normalizedRect: { x: 0, y: 0, width: 1, height: 1 },
+      expectedCharacters: [
+        {
+          name: 'Luma',
+          characterKind: 'human',
+          validateOutfit: true,
+        },
+      ],
+      validation: {
+        characterCount: 1,
+        expectedCharacterCount: 1,
+        characters: [
+          {
+            name: 'Luma',
+            characterKind: 'human',
+            found: true,
+            duplicated: false,
+            recognizableScore: 0.41,
+            faceMatchesReference: false,
+            hairMatchesReference: false,
+            ageReadMatchesReference: true,
+            proportionsMatchReference: true,
+            matchesColors: false,
+            matchesOutfit: false,
+            actualVisibleDescription: 'girl with loose brown hair and a green coat',
+            identityComparisonSummary:
+              'The visible face, loose hair, colors, and coat do not match Luma.',
+            issue: 'Luma is replaced by a visually different child.',
+          },
+        ],
+        hasUnexpectedCharacters: false,
+        hasTextOrLetters: false,
+        hasRenderingArtifacts: false,
+        overallFeedback: 'Character identity needs repair.',
+      },
+      score: 20,
+      imageData: Buffer.alloc(0),
+      mimeType: 'image/png',
+      attempt: 1,
+      repairMode: 'original',
+    } as any;
+    const validatorRepairPlan = graphicNovelOrchestrationTestSeams.buildManualPanelEditRepairPlan({
+      target,
+      page,
+      panel: page.panels[0],
+      characters: refreshed,
+      referenceImages: [
+        {
+          characterName: 'Luma',
+          referenceBindingId: 'REF_CH_LUMA_123',
+          referenceKind: 'character',
+          source: 'character_outfit_turnaround',
+          type: 'dressed_turnaround_reference',
+          mimeType: 'image/png',
+          base64Data: 'aW1hZ2U=',
+        },
+      ] as any,
+      currentValidation,
+    });
+    assert.equal(validatorRepairPlan.source, 'validator');
+    assert.equal(
+      validatorRepairPlan.manifest.subjectReplacements?.[0]?.actualVisibleDescription,
+      'girl with loose brown hair and a green coat'
+    );
+    const validatorEditPrompt = buildImageEditPrompt({
+      validationResult: currentValidation.validation,
+      targetedRepairManifest: validatorRepairPlan.manifest,
+    });
+    assert.match(
+      validatorEditPrompt,
+      /Completely replace the visible subject described as "girl with loose brown hair and a green coat" with the full character from REF_CH_LUMA_123/
+    );
+    assert.doesNotMatch(validatorEditPrompt, /Restore the exact two-braid hairstyle/);
+    assert.doesNotMatch(validatorEditPrompt, /yellow raincoat/);
+    assert.doesNotMatch(validatorEditPrompt, /visually different child/);
+
+    assert.deepEqual(
+      graphicNovelOrchestrationTestSeams.panelRepairFailedPanelsAfterRun({
+        previousPanelRepair: {
+          failedPanels: [
+            { panelNumber: 1, failureReasons: ['old_failure'] },
+            { panelNumber: 2, failureReasons: ['untouched_failure'] },
+          ],
+        },
+        requestedPanelNumbers: new Set([1, 3]),
+        failedPanels: [{ panelNumber: 3, failureReasons: ['new_failure'] }],
+      }),
+      [
+        { panelNumber: 2, failureReasons: ['untouched_failure'] },
+        { panelNumber: 3, failureReasons: ['new_failure'] },
+      ]
+    );
+  } finally {
+    clearRepositoryTestOverrides();
+  }
+}
+
+async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Promise<void> {
+  const { graphicNovelOrchestrationTestSeams } =
+    await import('../graphicNovelOrchestrationService');
+  const characters = [
+    {
+      id: 'theo-uuid',
+      characterRef: 'theo-uuid',
+      name: 'Theo',
+      canonicalName: 'Тео',
+      nameAliases: ['Teo'],
+    },
+    {
+      id: 'other-theo-uuid',
+      characterRef: 'other-theo-uuid',
+      name: 'Theodore',
+    },
+  ] as any;
+
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.characterManifestForPageName(
+      characters,
+      'Тато Тео'
+    )?.id,
+    'theo-uuid'
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(
+      characters[0],
+      new Set(['тато тео']),
+      new Set(),
+      characters
+    ),
+    true
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(
+      characters[1],
+      new Set(['тато тео']),
+      new Set(),
+      characters
+    ),
+    false
+  );
+}
+
 async function testProductionBubbleVisionFallback(): Promise<void> {
   const [
     { graphicNovelOrchestrationTestSeams },
@@ -502,6 +787,8 @@ async function main(): Promise<void> {
   await testProductionRendererConcurrencyRepairAndPersistence();
   await testProductionBubbleVisionFallback();
   await testPanelQualityDecisionUsesHardPanelSignals();
+  await testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaround();
+  await testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity();
   console.log('graphic novel production orchestration tests passed');
 }
 

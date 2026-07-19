@@ -26,6 +26,7 @@ import type {
   MixedStoryScript,
   MixedStoryScriptValidationIssue,
 } from './types';
+import { reconcileGeneratedCharacterIdentity } from '../../utils/characterIdentity';
 
 const MIXED_STORY_MAX_OUTPUT_TOKENS = 48000;
 const MIXED_STORY_SCRIPT_ATTEMPTS = 2;
@@ -105,9 +106,10 @@ function normalizeOutfits(script: MixedStoryScript): Map<string, StoryOutfitRow>
   for (const outfit of Array.isArray(script.outfits) ? script.outfits : []) {
     const id = String(outfit?.id || '').trim();
     const characterName = String(outfit?.characterName || '').trim();
+    const characterRef = String(outfit?.characterRef || '').trim();
     const description = String(outfit?.description || '').trim();
     if (!id || !characterName || !description || outfits.has(id)) continue;
-    outfits.set(id, { id, characterName, description });
+    outfits.set(id, { id, ...(characterRef ? { characterRef } : {}), characterName, description });
   }
   return outfits;
 }
@@ -121,12 +123,13 @@ function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string 
 
 function ensureOutfit(
   outfits: Map<string, StoryOutfitRow>,
-  params: { characterName: string }
+  params: { characterRef?: string; characterName: string }
 ): string {
-  const id = outfitKeyForCharacter(params.characterName, 'natural');
+  const id = outfitKeyForCharacter(params.characterRef || params.characterName, 'natural');
   if (!outfits.has(id)) {
     outfits.set(id, {
       id,
+      ...(params.characterRef ? { characterRef: params.characterRef } : {}),
       characterName: params.characterName,
       description: 'natural appearance',
     });
@@ -134,19 +137,11 @@ function ensureOutfit(
   return id;
 }
 
-function panelSpeakers(panel: GraphicNovelPanelScript): string[] {
-  const names = new Set<string>();
-  for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
-    const speaker = String(line?.speaker || '').trim();
-    if (speaker) names.add(speaker);
-  }
-  return [...names];
-}
-
 function legacyCharacters(panel: GraphicNovelPanelScript): CameraCharacterComposition[] {
   const composition = panel.visual?.sceneVisual?.cameraComposition;
   if (composition && typeof composition !== 'string' && Array.isArray(composition.characters)) {
     return composition.characters.map((character) => ({
+      characterRef: character.characterRef,
       name: character.name,
       description:
         character.description || 'visible in the panel with readable expression and pose',
@@ -170,17 +165,21 @@ function withRequiredPanelCharacters(
   panel: GraphicNovelPanelScript,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  const byName = new Map<string, CameraCharacterComposition>();
+  const byIdentity = new Map<string, CameraCharacterComposition>();
   for (const character of characters) {
     const name = String(character.name || '').trim();
-    if (!name || byName.has(name)) continue;
-    byName.set(name, character);
+    const key = character.characterRef || name;
+    if (!name || byIdentity.has(key)) continue;
+    byIdentity.set(key, character);
   }
 
-  for (const speaker of panelSpeakers(panel)) {
-    if (byName.has(speaker)) continue;
-    const index = byName.size;
-    byName.set(speaker, {
+  for (const line of [...(panel.dialogue || []), ...(panel.thoughts || [])]) {
+    const speaker = String(line.speaker || '').trim();
+    const key = line.characterRef || speaker;
+    if (!speaker || byIdentity.has(key)) continue;
+    const index = byIdentity.size;
+    byIdentity.set(key, {
+      characterRef: line.characterRef,
       name: speaker,
       position: index % 2 === 0 ? 'left_foreground' : 'right_foreground',
       description:
@@ -190,7 +189,7 @@ function withRequiredPanelCharacters(
     });
   }
 
-  return [...byName.values()];
+  return [...byIdentity.values()];
 }
 
 function withOutfitIds(
@@ -201,12 +200,18 @@ function withOutfitIds(
     const characterName = character.name || 'Character';
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
-    if (existingOutfit) {
+    if (
+      existingOutfit &&
+      (!character.characterRef || existingOutfit.characterRef === character.characterRef)
+    ) {
       return character;
     }
     return {
       ...character,
-      outfitId: ensureOutfit(outfits, { characterName }),
+      outfitId: ensureOutfit(outfits, {
+        characterRef: character.characterRef,
+        characterName,
+      }),
     };
   });
 }
@@ -404,6 +409,7 @@ function repairLine(
     });
   }
   return {
+    ...(line?.characterRef ? { characterRef: line.characterRef } : {}),
     speaker,
     text,
     emotion: typeof line?.emotion === 'string' ? line.emotion : undefined,
@@ -984,6 +990,10 @@ export class MixedStoryDomainService {
       });
 
       try {
+        reconcileGeneratedCharacterIdentity({
+          document: raw as unknown as Record<string, any>,
+          existingCharacters: params.spec.characters,
+        });
         const normalized = normalizeMixedStoryScript({ raw, ...params });
         logger.info(
           {

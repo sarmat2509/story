@@ -23,6 +23,7 @@ export type GraphicNovelBeatType =
   | 'resolution';
 
 export interface GraphicNovelLine {
+  characterRef?: string;
   speaker: string;
   text: string;
   emotion?: string;
@@ -62,6 +63,7 @@ export interface GraphicNovelScript {
   description: string;
   language: string;
   characters?: Array<{
+    characterRef: string;
     name: string;
     type: string;
     description: string;

@@ -180,7 +180,9 @@ async function testContinuationWriterPromptDoesNotExposeIds() {
       ],
       requiredCharacters: [
         {
-          name: 'Snow Spirit [ID: snow-spirit-1]',
+          id: 'snow-spirit-1',
+          characterRef: 'snow-spirit-1',
+          name: 'Snow Spirit',
           type: 'imaginary',
           description: 'A gentle snowy helper.',
           role: 'friend',
@@ -198,7 +200,8 @@ async function testContinuationWriterPromptDoesNotExposeIds() {
       previousOutfits: [
         {
           id: 'outfit_snow_001',
-          characterName: 'Snow Spirit [ID: snow-spirit-1]',
+          characterRef: 'snow-spirit-1',
+          characterName: 'Snow Spirit',
           description: 'natural snowy glow',
         },
       ],

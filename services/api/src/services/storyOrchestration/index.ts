@@ -14,6 +14,7 @@ export { generateStoryText, generateStoryImages } from './coreGeneration';
 // Export utilities
 export {
   extractLlmCharactersFromText,
+  bindPersistedCharacterRefs,
   createSceneRecords,
   handleRequestError,
   buildInitialContext,

@@ -116,13 +116,33 @@ import {
   stripForAudio,
 } from '../utils/audioTags';
 import { getPlanFeatures } from './planService';
-import { getIllustrationBlockStartSceneIds } from './storyOrchestration/utilities';
+import {
+  bindPersistedCharacterRefs,
+  getIllustrationBlockStartSceneIds,
+} from './storyOrchestration/utilities';
+import {
+  buildCharacterIdentityRegistry,
+  characterRefForCharacter,
+  isTemporaryCharacterRef,
+  normalizeCharacterRef,
+  reconcileGeneratedCharacterIdentity,
+  resolveCharacterRefByName,
+} from '../utils/characterIdentity';
 import { normalizeStoryArtifactImagePath } from './storyArtifactImageService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { logger } from '../utils/logger';
-import { buildImageEditSystemInstruction } from '../prompts/image';
+import {
+  buildImageEditSystemInstruction,
+  type ImageEditRepairManifest,
+  type ImageEditRepairIssueKind,
+} from '../prompts/image';
 import { crossScriptIdentityKey, toPhoneticKey } from '../utils/characterNormalization';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
+import type {
+  GraphicNovelPanelRepairIssue,
+  GraphicNovelPanelRepairRequest,
+  GraphicNovelPanelRepairTarget,
+} from './graphicNovelPanelRepairTypes';
 
 export const GRAPHIC_NOVEL_KIND = 'graphic_novel';
 export const MIXED_STORY_KIND = 'mixed_story';
@@ -289,6 +309,7 @@ function applyGraphicNovelPageCountLimit(requestedCount: number): number {
 }
 
 type ComicLlmCharacter = {
+  characterRef?: string;
   name: string;
   type: string;
   description: string;
@@ -361,6 +382,7 @@ function cleanComicLlmCharacterDescription(name: string, description: string): s
 function mergeComicLlmCharacterCandidate(
   candidates: Map<string, ComicLlmCharacter>,
   raw: {
+    characterRef?: unknown;
     name?: unknown;
     type?: unknown;
     description?: unknown;
@@ -370,14 +392,17 @@ function mergeComicLlmCharacterCandidate(
 ): void {
   const name = stripCharacterIdFromName(String(raw.name || '')).trim();
   if (isIgnorableComicCharacterName(name)) return;
+  const characterRef = normalizeCharacterRef(raw.characterRef);
   const normalized = normalizeCharacterName(name);
-  const existing = candidates.get(normalized);
+  const candidateKey = characterRef ? `ref:${characterRef}` : `legacy-name:${normalized}`;
+  const existing = candidates.get(candidateKey);
   const description = cleanComicLlmCharacterDescription(name, String(raw.description || ''));
   const type = String(raw.type || '').trim();
   const role = String(raw.role || '').trim();
   const personality = String(raw.personality || '').trim();
   const fallbackDescription = `${name} is a named child-friendly comic character.`;
   const next: ComicLlmCharacter = {
+    ...(characterRef ? { characterRef } : {}),
     name: existing?.name || name,
     type: existing?.type || type || inferComicLlmCharacterType(name, description),
     description:
@@ -389,7 +414,7 @@ function mergeComicLlmCharacterCandidate(
       : {}),
   };
   next.appearance = next.description;
-  candidates.set(normalized, next);
+  candidates.set(candidateKey, next);
 }
 
 function scriptComicPages(script: ComicScriptWithCharacters): GraphicNovelScript['pages'] {
@@ -428,8 +453,35 @@ export function extractLlmCharactersFromComicScript(params: {
   initialCharacters: CharacterData[];
 }): ComicLlmCharacter[] {
   const candidates = new Map<string, ComicLlmCharacter>();
+  const declarations = Array.isArray(params.script.characters) ? params.script.characters : [];
+  const declarationsWithRefs = declarations.filter((character) =>
+    normalizeCharacterRef(character?.characterRef)
+  );
 
-  for (const character of params.script.characters || []) {
+  if (declarationsWithRefs.length > 0) {
+    if (declarationsWithRefs.length !== declarations.length) {
+      throw new Error(
+        'Comic script mixes structural characterRef declarations with legacy name-only declarations'
+      );
+    }
+    const initialRefs = new Set(params.initialCharacters.map(characterRefForCharacter).filter(Boolean));
+    for (const character of declarations) {
+      mergeComicLlmCharacterCandidate(candidates, character);
+    }
+    return [...candidates.values()].filter((character) => {
+      const characterRef = normalizeCharacterRef(character.characterRef);
+      if (initialRefs.has(characterRef)) return false;
+      if (!isTemporaryCharacterRef(characterRef)) {
+        throw new Error(
+          `Comic script character "${character.name}" has unknown characterRef "${characterRef}"`
+        );
+      }
+      return true;
+    });
+  }
+
+  // Legacy saved scripts only: recover candidates by display name when no structural refs exist.
+  for (const character of declarations) {
     mergeComicLlmCharacterCandidate(candidates, character);
   }
 
@@ -574,6 +626,7 @@ async function ensureGraphicNovelLlmCharacterTurnarounds(params: {
           errorMessage: error instanceof Error ? error.message : String(error),
         },
       });
+      throw error;
     }
   }
 }
@@ -590,6 +643,16 @@ async function prepareGraphicNovelCharactersForScript(params: {
   const initialCharacters = Array.isArray(params.spec.characters)
     ? (params.spec.characters as CharacterData[])
     : [];
+  if (
+    (params.script.characters || []).some((character) =>
+      normalizeCharacterRef(character?.characterRef)
+    )
+  ) {
+    reconcileGeneratedCharacterIdentity({
+      document: params.script as unknown as Record<string, any>,
+      existingCharacters: initialCharacters,
+    });
+  }
   const llmCharacters = extractLlmCharactersFromComicScript({
     script: params.script,
     initialCharacters,
@@ -602,13 +665,14 @@ async function prepareGraphicNovelCharactersForScript(params: {
     params.spec.language
   );
 
-  for (const character of characters) {
-    if ((character as any).source !== 'llm_generated' || character.id) continue;
-    const result = llmCharacterResults.get(normalizeCharacterName(character.name));
-    if (!result) continue;
-    character.id = result.characterId;
-    (character as any)._llmIsNew = result.isNew;
-    (character as any)._llmHasTurnaround = result.hasTurnaround;
+  const replacements = bindPersistedCharacterRefs({
+    text: params.script,
+    mergedCharacters: characters,
+    persistenceResults: llmCharacterResults,
+  });
+  for (const character of llmCharacters) {
+    const replacement = replacements.get(normalizeCharacterRef(character.characterRef));
+    if (replacement) character.characterRef = replacement;
   }
 
   await ensureGraphicNovelLlmCharacterTurnarounds({
@@ -644,8 +708,10 @@ function characterDataFromGraphicNovelManifest(
       const photoRefs = character.references?.filter((ref) => !ref.isTurnaround) || [];
       return {
         id: character.id,
+        characterRef: character.characterRef || character.id,
         name: character.name,
         canonicalName: character.canonicalName,
+        nameAliases: character.nameAliases,
         type: character.type,
         source: character.source,
         description: character.description,
@@ -679,11 +745,21 @@ function mergeStoredLlmCharacters(
       if (!character || typeof character !== 'object') continue;
       const name = String((character as any).name || '').trim();
       if (!name) continue;
-      merged.set(normalizeCharacterName(name), character as ComicLlmCharacter);
+      const characterRef = normalizeCharacterRef((character as any).characterRef);
+      merged.set(
+        characterRef ? `ref:${characterRef}` : `legacy-name:${normalizeCharacterName(name)}`,
+        character as ComicLlmCharacter
+      );
     }
   }
   for (const character of next) {
-    merged.set(normalizeCharacterName(character.name), character);
+    const characterRef = normalizeCharacterRef(character.characterRef);
+    merged.set(
+      characterRef
+        ? `ref:${characterRef}`
+        : `legacy-name:${normalizeCharacterName(character.name)}`,
+      character
+    );
   }
   return [...merged.values()];
 }
@@ -707,6 +783,13 @@ async function ensureGraphicNovelProjectManifestCharacters(params: {
   const currentCharacters = Array.isArray(currentLayoutManifest.characters)
     ? (currentLayoutManifest.characters as GraphicNovelCharacterManifest)
     : [];
+  const manifestNeedsRepair = currentCharacters.some(
+    (character) =>
+      !character.id ||
+      !character.characterRef ||
+      (character.source === 'llm_generated' &&
+        !character.references?.some((reference) => reference.isTurnaround))
+  );
   const storyMetadata = (params.story?.metadata as Record<string, unknown> | null) || {};
   const currentArtifactReference = storyArtifactReferenceFromManifest(
     currentLayoutManifest,
@@ -722,13 +805,63 @@ async function ensureGraphicNovelProjectManifestCharacters(params: {
     currentArtifactReference &&
     (currentLayoutManifest.closingArtifactReference as Record<string, unknown> | undefined)
       ?.referenceBindingId !== currentArtifactReference.referenceBindingId;
-  const initialCharacters = characterDataFromGraphicNovelManifest(currentCharacters);
+  let initialCharacters = characterDataFromGraphicNovelManifest(currentCharacters);
+  const manifestRefs = new Set(
+    initialCharacters.map(characterRefForCharacter).filter(Boolean)
+  );
+  const missingPersistedRefs = [
+    ...new Set(
+      (params.script.characters || [])
+        .map((character) => normalizeCharacterRef(character?.characterRef))
+        .filter(
+          (characterRef) =>
+            characterRef &&
+            !isTemporaryCharacterRef(characterRef) &&
+            !manifestRefs.has(characterRef)
+        )
+    ),
+  ];
+  if (missingPersistedRefs.length > 0) {
+    const recoveredRows = await getCharacterRepository().findByIds(
+      params.userId,
+      missingPersistedRefs
+    );
+    const recoveredById = new Map(recoveredRows.map((row) => [row.id, row]));
+    const unresolvedRefs = missingPersistedRefs.filter((id) => !recoveredById.has(id));
+    if (unresolvedRefs.length > 0) {
+      throw new Error(
+        `Comic script references persisted characters unavailable to this user: ${unresolvedRefs.join(', ')}`
+      );
+    }
+    initialCharacters = [
+      ...initialCharacters,
+      ...missingPersistedRefs.map((id) => {
+        const row = recoveredById.get(id)! as any;
+        return {
+          id: row.id,
+          characterRef: row.id,
+          name: row.name,
+          canonicalName: row.name,
+          type: row.type || 'imaginary',
+          source: row.isHidden ? 'llm_generated' : 'user_provided',
+          description: row.description || row.aiGeneratedDescription || undefined,
+          appearance: row.aiGeneratedDescription || row.description || undefined,
+          referencePhotos: row.referencePhotos || undefined,
+          turnaroundSheet: row.turnaroundSheet || undefined,
+        } as CharacterData;
+      }),
+    ];
+  }
   const missingLlmCharacters = extractLlmCharactersFromComicScript({
     script: params.script,
     initialCharacters,
   });
 
-  if (missingLlmCharacters.length === 0) {
+  if (
+    missingLlmCharacters.length === 0 &&
+    missingPersistedRefs.length === 0 &&
+    !manifestNeedsRepair
+  ) {
     if (shouldPersistArtifactReference) {
       await getGraphicNovelRepository().updateProject(params.project.id, {
         layoutManifest: layoutManifestWithArtifact,
@@ -825,6 +958,7 @@ export interface MixedStoryTextManifest {
 
 type GraphicNovelCharacterManifest = Array<{
   id?: string;
+  characterRef?: string;
   name: string;
   canonicalName?: string;
   nameAliases?: string[];
@@ -1431,7 +1565,11 @@ async function saveGraphicNovelPanelAttemptAsset(params: {
   panelId?: string | null;
   attempt: number;
   operation: string;
-  source: 'template_panel_generate' | 'panel_validation_original' | 'panel_validation_repair';
+  source:
+    | 'template_panel_generate'
+    | 'panel_validation_original'
+    | 'panel_validation_repair'
+    | 'manual_panel_repair';
   imageData: Buffer;
   mimeType: string;
   cropRect?: PixelCropRect | null;
@@ -1487,6 +1625,14 @@ function panelCharacterNames(panel: GraphicNovelPanelScript): string[] {
   const composition = panel.visual.sceneVisual.cameraComposition;
   if (typeof composition === 'string') return [];
   return composition.characters.map((character) => character.name).filter(Boolean);
+}
+
+function panelCharacterRefs(panel: GraphicNovelPanelScript): string[] {
+  const composition = panel.visual.sceneVisual.cameraComposition;
+  if (typeof composition === 'string') return [];
+  return composition.characters
+    .map((character) => normalizeCharacterRef(character.characterRef))
+    .filter(Boolean);
 }
 
 function normalizeCharacterName(value: string): string {
@@ -1704,17 +1850,27 @@ async function buildGraphicNovelCharacterManifest(
   }
 
   return characters.map((character) => {
+    if (!character.id) {
+      throw new Error(`Cannot build comic character manifest without persisted id: ${character.name}`);
+    }
     const aliases: string[] = [];
     pushUniqueName(aliases, character.name);
     pushUniqueName(aliases, (character as any).canonicalName);
+    for (const alias of character.nameAliases || []) pushUniqueName(aliases, alias);
     for (const translatedName of translationsById.get(character.id) || []) {
       pushUniqueName(aliases, translatedName);
     }
 
     const referenceBindingId = plannedCharacterReferenceIdForCharacter(character) ?? undefined;
 
+    const references = buildGraphicNovelCharacterReferences(character, referenceBindingId);
+    if (character.source === 'llm_generated' && !references.some((reference) => reference.isTurnaround)) {
+      throw new Error(`Generated comic character ${character.name} has no turnaround reference`);
+    }
+
     return {
       id: character.id,
+      characterRef: character.id,
       name: character.name,
       canonicalName: (character as any).canonicalName,
       nameAliases: aliases,
@@ -1726,7 +1882,7 @@ async function buildGraphicNovelCharacterManifest(
         ? character.defaultOutfitEmbedding
         : undefined,
       referenceBindingId,
-      references: buildGraphicNovelCharacterReferences(character, referenceBindingId),
+      references,
     };
   });
 }
@@ -1825,6 +1981,30 @@ function graphicNovelOutfitIdByCharacterName(
   return map;
 }
 
+function graphicNovelOutfitIdByCharacterRef(
+  pages: PlannedGraphicNovelPage[],
+  outfits: StoryOutfitRow[] = []
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const outfit of outfits) {
+    const characterRef = normalizeCharacterRef(outfit.characterRef);
+    if (characterRef && outfit.id && !map.has(characterRef)) map.set(characterRef, outfit.id);
+  }
+  for (const page of pages) {
+    for (const panel of page.panels) {
+      const composition = panel.script.visual.sceneVisual.cameraComposition;
+      if (typeof composition === 'string') continue;
+      for (const character of composition.characters || []) {
+        const characterRef = normalizeCharacterRef(character.characterRef);
+        if (characterRef && character.outfitId && !map.has(characterRef)) {
+          map.set(characterRef, character.outfitId);
+        }
+      }
+    }
+  }
+  return map;
+}
+
 export function augmentGraphicNovelPagesWithMentionedCharacters(params: {
   pages: PlannedGraphicNovelPage[];
   characters: GraphicNovelCharacterManifest;
@@ -1832,6 +2012,7 @@ export function augmentGraphicNovelPagesWithMentionedCharacters(params: {
   outfits?: StoryOutfitRow[];
 }): PlannedGraphicNovelPage[] {
   const outfitIdByName = graphicNovelOutfitIdByCharacterName(params.pages, params.outfits);
+  const outfitIdByRef = graphicNovelOutfitIdByCharacterRef(params.pages, params.outfits);
 
   return params.pages.map((page) => ({
     ...page,
@@ -1869,9 +2050,12 @@ export function augmentGraphicNovelPagesWithMentionedCharacters(params: {
 
         present.add(characterKey);
         additions.push({
+          characterRef: character.characterRef || character.id,
           name: character.name,
           position: 'center_midground',
-          outfitId: outfitIdByName.get(characterKey),
+          outfitId:
+            outfitIdByRef.get(normalizeCharacterRef(character.characterRef || character.id)) ||
+            outfitIdByName.get(characterKey),
           description:
             'visible as the named story subject of this panel action, with pose and gaze supporting the primary read',
         });
@@ -1907,11 +2091,17 @@ function buildGraphicNovelExpectedCharactersForPanel(params: {
   const seen = new Set<string>();
   const expected: GraphicNovelExpectedValidationCharacter[] = [];
 
-  for (const name of panelCharacterNames(params.panel.script)) {
+  const composition = params.panel.script.visual.sceneVisual.cameraComposition;
+  const panelCharacters =
+    composition && typeof composition !== 'string' ? composition.characters || [] : [];
+  for (const panelCharacter of panelCharacters) {
+    const name = panelCharacter.name;
     const normalized = normalizeCharacterName(name);
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
-    const manifest = characterManifestForPageName(params.characters, name);
+    const manifest =
+      characterManifestForRef(params.characters, panelCharacter.characterRef) ||
+      characterManifestForPageName(params.characters, name);
     expected.push({
       name,
       characterKind: graphicNovelCharacterKind(manifest?.type),
@@ -2168,17 +2358,42 @@ function pageCharacterNameKeys(page: PlannedGraphicNovelPage): Set<string> {
   return keys;
 }
 
+function pageCharacterRefKeys(page: PlannedGraphicNovelPage): Set<string> {
+  const refs = new Set<string>();
+  for (const panel of page.panels) {
+    for (const characterRef of panelCharacterRefs(panel.script)) refs.add(characterRef);
+  }
+  return refs;
+}
+
 function characterManifestMatchesPage(
   character: GraphicNovelCharacterManifest[number],
-  pageNames: Set<string>
+  pageNames: Set<string>,
+  pageRefs?: Set<string>,
+  allCharacters: GraphicNovelCharacterManifest = [character]
 ): boolean {
+  const characterRef = normalizeCharacterRef(character.characterRef || character.id);
+  if (characterRef && pageRefs?.has(characterRef)) return true;
   const names = [
     character.name,
     character.canonicalName,
     character.referenceBindingId,
     ...(character.nameAliases || []),
   ].filter((value): value is string => !!value);
-  return names.some((name) => pageNames.has(normalizeCharacterName(name)));
+  if (names.some((name) => pageNames.has(normalizeCharacterName(name)))) return true;
+
+  if (!characterRef) return false;
+  const registry = buildCharacterIdentityRegistry(
+    allCharacters.flatMap((candidate) => {
+      const id = normalizeCharacterRef(candidate.id || candidate.characterRef);
+      return id
+        ? [{ ...candidate, id, characterRef: candidate.characterRef || id }]
+        : [];
+    })
+  );
+  return [...pageNames].some(
+    (pageName) => resolveCharacterRefByName(pageName, registry).characterRef === characterRef
+  );
 }
 
 async function loadGraphicNovelReferenceImage(params: {
@@ -2237,14 +2452,15 @@ async function buildPageCharacterReferenceImages(params: {
   imageDomain: ReturnType<typeof getComplexImageDomainService>;
 }): Promise<GraphicNovelReferenceImage[]> {
   const pageNames = pageCharacterNameKeys(params.page);
-  if (pageNames.size === 0) return [];
+  const pageRefs = pageCharacterRefKeys(params.page);
+  if (pageNames.size === 0 && pageRefs.size === 0) return [];
 
   const assetStorage = getAssetStorageService();
   const references: GraphicNovelReferenceImage[] = [];
   const seenStoragePaths = new Set<string>();
 
   for (const character of params.characters) {
-    if (!characterManifestMatchesPage(character, pageNames)) continue;
+    if (!characterManifestMatchesPage(character, pageNames, pageRefs, params.characters)) continue;
     const firstReference = character.references?.find(
       (ref) => !seenStoragePaths.has(ref.storagePath)
     );
@@ -2275,7 +2491,10 @@ function buildGraphicNovelCharacterDataMap(
     ].filter((value): value is string => !!value);
     const data = {
       id: character.id,
+      characterRef: character.characterRef || character.id,
       name: character.name,
+      canonicalName: character.canonicalName,
+      nameAliases: character.nameAliases,
       type: character.type,
       source: character.source,
       description: character.description,
@@ -2305,6 +2524,21 @@ function pageCharacterOutfitIds(page: PlannedGraphicNovelPage): Record<string, s
   return Object.keys(ids).length > 0 ? ids : undefined;
 }
 
+function pageCharacterOutfitRefs(page: PlannedGraphicNovelPage): Record<string, string> | undefined {
+  const ids: Record<string, string> = {};
+  for (const panel of page.panels) {
+    const composition = panel.script.visual.sceneVisual.cameraComposition;
+    if (!composition || typeof composition === 'string') continue;
+    for (const character of composition.characters || []) {
+      const characterRef = normalizeCharacterRef(character.characterRef);
+      const outfitId = typeof character.outfitId === 'string' ? character.outfitId.trim() : '';
+      if (!characterRef || !outfitId || ids[characterRef]) continue;
+      ids[characterRef] = outfitId;
+    }
+  }
+  return Object.keys(ids).length > 0 ? ids : undefined;
+}
+
 function graphicNovelReferenceToSceneReferenceData(
   ref: GraphicNovelReferenceImage
 ): SceneCharacterReferenceData {
@@ -2313,6 +2547,7 @@ function graphicNovelReferenceToSceneReferenceData(
     mimeType: ref.mimeType || 'image/png',
     fileUri: ref.fileUri,
     source: ref.source,
+    characterId: ref.characterId,
     type: ref.type,
     characterName: ref.characterName,
     url: ref.storagePath,
@@ -2359,7 +2594,8 @@ async function buildPageDressedTurnaroundReferenceImages(params: {
   if (!currentEnvironment) return [];
   const currentEnvironmentId = currentEnvironment.id;
   const characterOutfitIds = pageCharacterOutfitIds(params.page);
-  if (!characterOutfitIds || !params.page.outfits?.length) return [];
+  const characterOutfitRefs = pageCharacterOutfitRefs(params.page);
+  if ((!characterOutfitIds && !characterOutfitRefs) || !params.page.outfits?.length) return [];
 
   const dressedRefs = await prepareSceneDressedTurnaroundReferences({
     storyId: params.storyId,
@@ -2383,6 +2619,7 @@ async function buildPageDressedTurnaroundReferenceImages(params: {
         },
       },
       characterOutfitIds,
+      characterOutfitRefs,
     },
     currentEnvironmentId,
     currentEnvironment,
@@ -2409,7 +2646,7 @@ function characterManifestForPageName(
   pageName: string
 ): GraphicNovelCharacterManifest[number] | undefined {
   const pageNameKey = normalizeCharacterName(pageName);
-  return characters.find((character) => {
+  const exact = characters.find((character) => {
     const names = [
       character.name,
       character.canonicalName,
@@ -2418,6 +2655,29 @@ function characterManifestForPageName(
     ].filter((value): value is string => !!value);
     return names.some((name) => normalizeCharacterName(name) === pageNameKey);
   });
+  if (exact) return exact;
+
+  const registry = buildCharacterIdentityRegistry(
+    characters.flatMap((character) => {
+      const id = normalizeCharacterRef(character.id || character.characterRef);
+      return id
+        ? [{ ...character, id, characterRef: character.characterRef || id }]
+        : [];
+    })
+  );
+  const resolvedRef = resolveCharacterRefByName(pageName, registry).characterRef;
+  return resolvedRef ? characterManifestForRef(characters, resolvedRef) : undefined;
+}
+
+function characterManifestForRef(
+  characters: GraphicNovelCharacterManifest,
+  characterRef: unknown
+): GraphicNovelCharacterManifest[number] | undefined {
+  const ref = normalizeCharacterRef(characterRef);
+  if (!ref) return undefined;
+  return characters.find(
+    (character) => normalizeCharacterRef(character.characterRef || character.id) === ref
+  );
 }
 
 function characterReferenceBindingIdForPageName(
@@ -5713,6 +5973,1131 @@ export async function regenerateGraphicNovelPageImage(params: {
   }
 }
 
+const MANUAL_PANEL_SUBJECT_REPLACEMENT_KINDS = new Set<ImageEditRepairIssueKind>([
+  'presence',
+  'head',
+  'face',
+  'hair',
+  'age',
+  'body',
+  'design',
+  'silhouette',
+  'colors',
+  'outfit',
+]);
+
+const MANUAL_PANEL_EDIT_MAX_ATTEMPTS = 2;
+
+function compactManualPanelRepairComment(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function manualPanelRepairInstructionForKind(kind: ImageEditRepairIssueKind): string {
+  switch (kind) {
+    case 'presence':
+      return 'Add only the missing expected subject from the selected visual reference.';
+    case 'duplicate':
+      return 'Remove only the duplicate copy of the expected subject.';
+    case 'head':
+    case 'face':
+    case 'hair':
+    case 'age':
+    case 'body':
+    case 'design':
+    case 'silhouette':
+    case 'colors':
+    case 'outfit':
+      return 'Replace the selected mismatched subject with the matching visual reference.';
+    case 'unexpected':
+      return 'Remove only the unexpected extra subject.';
+    case 'text':
+      return 'Remove only visible text or lettering.';
+    case 'generic':
+    default:
+      return 'Correct only the selected visual mismatch.';
+  }
+}
+
+function resolveManualPanelRepairCharacter(params: {
+  issue: GraphicNovelPanelRepairIssue;
+  characters: GraphicNovelCharacterManifest;
+  panel: PlannedGraphicNovelPage['panels'][number];
+}): GraphicNovelCharacterManifest[number] | null {
+  const character = params.issue.characterId
+    ? params.characters.find((candidate) => candidate.id === params.issue.characterId)
+    : params.issue.characterName
+      ? characterManifestForPageName(params.characters, params.issue.characterName)
+      : undefined;
+  if (!character) {
+    if (params.issue.characterId || params.issue.characterName) {
+      throw new Error(
+        `Panel repair character ${params.issue.characterId || params.issue.characterName} is not in the graphic novel manifest`
+      );
+    }
+    return null;
+  }
+
+  const expectedNames = new Set(
+    panelCharacterNames(params.panel.script).map(normalizeCharacterName)
+  );
+  const expectedRefs = new Set(panelCharacterRefs(params.panel.script));
+  if (!characterManifestMatchesPage(character, expectedNames, expectedRefs, params.characters)) {
+    throw new Error(
+      `Panel repair character ${character.id || character.name} is not expected in the selected panel`
+    );
+  }
+  return character;
+}
+
+function manualPanelRepairReferenceMode(
+  issues: GraphicNovelPanelRepairIssue[]
+): ImageEditRepairManifest['referenceMode'] {
+  const hasOutfit = issues.some((issue) => issue.kind === 'outfit');
+  const hasIdentity = issues.some(
+    (issue) => MANUAL_PANEL_SUBJECT_REPLACEMENT_KINDS.has(issue.kind) && issue.kind !== 'outfit'
+  );
+  if (hasIdentity && hasOutfit) return 'identity_and_outfit';
+  if (hasIdentity) return 'identity';
+  if (hasOutfit) return 'outfit';
+  return 'none';
+}
+
+function buildManualPanelRepairManifest(params: {
+  target: GraphicNovelPanelRepairTarget;
+  panel: PlannedGraphicNovelPage['panels'][number];
+  characters: GraphicNovelCharacterManifest;
+}): ImageEditRepairManifest {
+  const replacements = new Map<
+    string,
+    NonNullable<ImageEditRepairManifest['subjectReplacements']>[number]
+  >();
+
+  for (const issue of params.target.issues) {
+    if (!MANUAL_PANEL_SUBJECT_REPLACEMENT_KINDS.has(issue.kind)) continue;
+    const character = resolveManualPanelRepairCharacter({
+      issue,
+      characters: params.characters,
+      panel: params.panel,
+    });
+    if (!character) continue;
+    const key = character.id || normalizeCharacterName(character.name);
+    const current = replacements.get(key);
+    replacements.set(key, {
+      characterName: character.name,
+      referenceId: character.referenceBindingId,
+      sceneSlotDescription: manualPanelCharacterSceneSlotDescription(params.panel, character.name),
+      found: issue.kind !== 'presence',
+      repairKinds: [
+        ...new Set([...(current?.repairKinds ?? []), issue.kind] as ImageEditRepairIssueKind[]),
+      ],
+    });
+  }
+
+  return {
+    referenceMode: manualPanelRepairReferenceMode(params.target.issues),
+    issues: params.target.issues.map((issue) => ({
+      kind: issue.kind,
+      note: manualPanelRepairInstructionForKind(issue.kind),
+    })),
+    subjectReplacements: [...replacements.values()],
+  };
+}
+
+function manualPanelCharacterSceneSlotDescription(
+  panel: PlannedGraphicNovelPage['panels'][number],
+  characterName: string
+): string {
+  const composition = panel.script.visual.sceneVisual.cameraComposition;
+  if (composition && typeof composition !== 'string') {
+    const targetName = normalizeCharacterName(characterName);
+    const character = composition.characters.find(
+      (candidate) => normalizeCharacterName(candidate.name) === targetName
+    );
+    const description = character?.description?.replace(/\s+/g, ' ').trim();
+    if (description) return description;
+  }
+  return panel.script.visual.primaryRead;
+}
+
+function buildManualPanelEditRepairPlan(params: {
+  target: GraphicNovelPanelRepairTarget;
+  page: PlannedGraphicNovelPage;
+  panel: PlannedGraphicNovelPage['panels'][number];
+  characters: GraphicNovelCharacterManifest;
+  referenceImages: GraphicNovelReferenceImage[];
+  currentValidation?: GraphicNovelPanelRenderedValidation | null;
+}): {
+  source: 'validator' | 'admin_fallback';
+  references: ReturnType<typeof editableGraphicNovelReferences> | undefined;
+  manifest: ImageEditRepairManifest;
+} {
+  if (
+    params.currentValidation &&
+    !graphicNovelPanelQualityDecision(params.currentValidation).accepted
+  ) {
+    const panelNumber = params.currentValidation.panelNumber;
+    const sceneVisual = buildGraphicNovelPanelValidationSceneVisual({
+      pageNumber: params.page.pageNumber,
+      panelNumber,
+      panel: params.panel,
+    });
+    const scene = graphicNovelPanelSceneData({
+      page: params.page,
+      panelNumber,
+      panel: params.panel,
+      sceneVisual,
+    });
+    const validatorPlan = buildTargetedEditRepairPlan(
+      editableGraphicNovelReferences(params.referenceImages),
+      params.currentValidation.validation,
+      scene
+    );
+    if (validatorPlan.manifest.issues.length > 0) {
+      return {
+        source: 'validator',
+        references: validatorPlan.references,
+        manifest: validatorPlan.manifest,
+      };
+    }
+  }
+
+  return {
+    source: 'admin_fallback',
+    references: editableGraphicNovelReferences(params.referenceImages),
+    manifest: buildManualPanelRepairManifest({
+      target: params.target,
+      panel: params.panel,
+      characters: params.characters,
+    }),
+  };
+}
+
+async function refreshGraphicNovelManifestTurnarounds(params: {
+  characters: GraphicNovelCharacterManifest;
+  characterIds: string[];
+  page: PlannedGraphicNovelPage;
+  userId: string;
+}): Promise<GraphicNovelCharacterManifest> {
+  if (params.characterIds.length === 0) return params.characters;
+  const pageNames = pageCharacterNameKeys(params.page);
+  const pageRefs = pageCharacterRefKeys(params.page);
+  const refreshed = params.characters.map((character) => ({
+    ...character,
+    references: character.references?.map((reference) => ({ ...reference })),
+  }));
+
+  for (const characterId of [...new Set(params.characterIds)]) {
+    const manifestCharacter = refreshed.find((character) => character.id === characterId);
+    if (!manifestCharacter) {
+      throw new Error(`Turnaround refresh character ${characterId} is not in the story manifest`);
+    }
+    if (!characterManifestMatchesPage(manifestCharacter, pageNames, pageRefs, refreshed)) {
+      throw new Error(`Turnaround refresh character ${characterId} is not used on this page`);
+    }
+    const currentCharacter = await getCharacterRepository().findById(characterId, params.userId);
+    if (!currentCharacter) {
+      throw new Error(`Turnaround refresh character ${characterId} was not found`);
+    }
+    const references = buildGraphicNovelCharacterReferences(
+      currentCharacter,
+      manifestCharacter.referenceBindingId
+    );
+    if (!references.some((reference) => reference.isTurnaround)) {
+      throw new Error(`Turnaround refresh character ${characterId} has no current turnaround`);
+    }
+    manifestCharacter.references = references;
+  }
+
+  return refreshed;
+}
+
+async function cropGraphicNovelPagePanels(params: {
+  imageData: Buffer;
+  page: PlannedGraphicNovelPage;
+}): Promise<GraphicNovelBubbleVisionPanelImage[]> {
+  const pageSize = pageSizeForGraphicNovelPage(params.page);
+  return Promise.all(
+    params.page.panels.map(async (panel, index) => {
+      const cropRect = pixelCropRectFromNormalizedRect(
+        panel.templatePanel.rect,
+        pageSize.width,
+        pageSize.height
+      );
+      return {
+        panelIndex: index + 1,
+        panelId: panel.script.panelId,
+        imageData: await sharp(params.imageData).extract(cropRect).png().toBuffer(),
+        mimeType: 'image/png' as const,
+      };
+    })
+  );
+}
+
+function graphicNovelPanelValidationReferenceContext(
+  referenceImages: GraphicNovelReferenceImage[]
+) {
+  const validationReferenceImages = referenceImages
+    .filter(
+      (ref) =>
+        ref.characterName && (ref.base64Data || ref.fileUri) && ref.referenceKind === 'character'
+    )
+    .map((ref) => ({
+      characterName: ref.characterName!,
+      imageData: ref.base64Data,
+      fileUri: ref.fileUri,
+      mimeType: ref.mimeType || 'image/png',
+      referenceKind: 'identity' as const,
+      identitySource:
+        ref.source === 'character_outfit_turnaround' || ref.type === 'dressed_turnaround_reference'
+          ? ('dressed_turnaround' as const)
+          : ref.isTurnaround
+            ? ('turnaround' as const)
+            : ('reference_photo' as const),
+    }));
+  return {
+    validationReferenceImages,
+    dressedTurnaroundValidationNames: new Set(
+      validationReferenceImages
+        .filter((ref) => ref.identitySource === 'dressed_turnaround')
+        .map((ref) => normalizeCharacterName(ref.characterName))
+        .filter(Boolean)
+    ),
+    validationRefNamesNormalized: new Set(
+      validationReferenceImages.map((ref) =>
+        stripCharacterIdFromName(ref.characterName).trim().toLowerCase()
+      )
+    ),
+  };
+}
+
+function panelRepairFailedPanelsAfterRun(params: {
+  previousPanelRepair: Record<string, unknown> | null;
+  requestedPanelNumbers: Set<number>;
+  failedPanels: Array<Record<string, unknown>>;
+}): Array<Record<string, unknown>> {
+  const previousFailedPanels = Array.isArray(params.previousPanelRepair?.failedPanels)
+    ? params.previousPanelRepair.failedPanels
+    : [];
+  return [
+    ...previousFailedPanels.filter(
+      (failedPanel): failedPanel is Record<string, unknown> =>
+        !!failedPanel &&
+        typeof failedPanel === 'object' &&
+        !params.requestedPanelNumbers.has(
+          Number((failedPanel as Record<string, unknown>).panelNumber)
+        )
+    ),
+    ...params.failedPanels,
+  ];
+}
+
+export async function repairGraphicNovelPagePanels(
+  params: GraphicNovelPanelRepairRequest
+): Promise<{
+  outcome: 'completed' | 'partial' | 'no_change';
+  pageAssetId: string | null;
+  panelResults: Array<{
+    panelNumber: number;
+    panelId: string;
+    requestedMode: GraphicNovelPanelRepairTarget['mode'];
+    appliedMode: GraphicNovelPanelRepairTarget['mode'] | null;
+    accepted: boolean;
+    score: number | null;
+    failureReasons: string[];
+  }>;
+}> {
+  const repairStartedAt = new Date();
+  if (!params.panels.length) throw new Error('At least one panel repair target is required');
+  const requestedPanelNumbers = new Set(params.panels.map((target) => target.panelNumber));
+  if (requestedPanelNumbers.size !== params.panels.length) {
+    throw new Error('Panel repair targets must use unique panel numbers');
+  }
+
+  const story = await getStoryRepository().findById(params.storyId);
+  if (!story) throw new Error(`Story ${params.storyId} not found`);
+  const storyMetadata = (story.metadata as Record<string, unknown> | null) || {};
+  if (
+    storyMetadata.storyFormat !== GRAPHIC_NOVEL_KIND &&
+    storyMetadata.storyFormat !== MIXED_STORY_KIND
+  ) {
+    throw new Error(`Story ${params.storyId} is not a graphic novel or mixed story`);
+  }
+
+  const project = await getGraphicNovelRepository().findProjectByStoryId(params.storyId);
+  if (!project) throw new Error(`Graphic novel project for story ${params.storyId} not found`);
+  const pageRow = await getGraphicNovelRepository().findPageByProjectAndNumber(
+    project.id,
+    params.pageNumber
+  );
+  if (!pageRow) {
+    throw new Error(
+      `Graphic novel page ${params.pageNumber} for story ${params.storyId} not found`
+    );
+  }
+  if (pageRow.status !== 'completed') {
+    throw new Error(
+      `Graphic novel page ${params.pageNumber} must be completed before panel repair`
+    );
+  }
+  const page = pageRow.layoutJson as PlannedGraphicNovelPage;
+  if (!page?.panels?.length) {
+    throw new Error(`Graphic novel page ${params.pageNumber} has no saved panel layout`);
+  }
+  for (const target of params.panels) {
+    const panel = page.panels[target.panelNumber - 1];
+    if (!panel) throw new Error(`Graphic novel panel ${target.panelNumber} not found`);
+    if (target.panelId && target.panelId !== panel.script.panelId) {
+      throw new Error(`Graphic novel panel ${target.panelNumber} id does not match saved layout`);
+    }
+    if (!target.issues.length) {
+      throw new Error(`Graphic novel panel ${target.panelNumber} has no repair issues`);
+    }
+    for (const issue of target.issues) {
+      if (!compactManualPanelRepairComment(issue.comment)) {
+        throw new Error(`Graphic novel panel ${target.panelNumber} has an empty repair comment`);
+      }
+    }
+  }
+
+  const pageGenerationParams = (pageRow.generationParams as Record<string, unknown> | null) || {};
+  const sourceArtOnlyStoragePath = pageGenerationParams.artOnlyImageStoragePath;
+  if (typeof sourceArtOnlyStoragePath !== 'string' || !sourceArtOnlyStoragePath.trim()) {
+    throw new Error(`Graphic novel page ${params.pageNumber} has no reusable art-only image`);
+  }
+  const assetStorage = getAssetStorageService();
+  const sourceArtOnly = await normalizeGraphicNovelPageImageForCanvas(
+    await assetStorage.getAssetByPath(sourceArtOnlyStoragePath),
+    page
+  );
+  const sourcePanelImages = await cropGraphicNovelPagePanels({ imageData: sourceArtOnly, page });
+
+  const generationKind =
+    storyMetadata.storyFormat === MIXED_STORY_KIND ? MIXED_STORY_KIND : GRAPHIC_NOVEL_KIND;
+  const script = project.scriptJson as ComicScriptWithCharacters;
+  const manifestState = await ensureGraphicNovelProjectManifestCharacters({
+    project,
+    story,
+    userId: story.userId,
+    generationKind,
+    script,
+    imageStyle: params.style || (storyMetadata.imageStyle as string | undefined),
+  });
+  const currentLayoutManifest = manifestState.layoutManifest as Record<string, any>;
+  const characters = await refreshGraphicNovelManifestTurnarounds({
+    characters: manifestState.characters,
+    characterIds: params.refreshTurnaroundCharacterIds ?? [],
+    page,
+    userId: story.userId,
+  });
+
+  const complexImageDomain = getComplexImageDomainService();
+  const ageGroup = project.ageGroup || story.ageGroup || '6-8';
+  const style =
+    params.style || (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor';
+  const environmentsById = environmentMapForPage(page, script.environments || []);
+  const environmentReferenceImages = await buildPageEnvironmentReferenceImages({
+    storyId: params.storyId,
+    storyRequestId: project.storyRequestId || undefined,
+    userId: story.userId,
+    page,
+    environments: script.environments || [],
+    generationKind,
+  });
+  const characterReferenceImages = await buildPageCharacterReferenceImages({
+    page,
+    characters,
+    imageDomain: complexImageDomain,
+  });
+  const dressedTurnaroundReferenceImages = await buildPageDressedTurnaroundReferenceImages({
+    storyId: params.storyId,
+    storyRequestId: project.storyRequestId || undefined,
+    userId: story.userId,
+    generationKind,
+    page,
+    characters,
+    environmentsById,
+    characterReferences: characterReferenceImages,
+    imageDomain: complexImageDomain,
+    style,
+    ageGroup,
+    scenarioCardId: storyMetadata.scenarioCardId as string | undefined,
+  });
+  const characterReferencesForImage = [
+    ...applySceneDressedTurnaroundOverrides(
+      characterReferenceImages,
+      dressedTurnaroundReferenceImages
+    ),
+    ...dressedTurnaroundReferenceImages,
+  ];
+  const storyArtifactReference = storyArtifactReferenceFromManifest(
+    currentLayoutManifest,
+    storyMetadata
+  );
+  const storyArtifactReferenceImage =
+    await buildStoryArtifactReferenceImage(storyArtifactReference);
+  const objectReferenceImages = storyArtifactReferenceImage ? [storyArtifactReferenceImage] : [];
+  const allReferenceImages = prepareGraphicNovelPageReferences({
+    storyId: params.storyId,
+    pageNumber: params.pageNumber,
+    environmentReferences: environmentReferenceImages,
+    characterReferences: characterReferencesForImage,
+    objectReferences: objectReferenceImages,
+  });
+  const validationContext = graphicNovelPanelValidationReferenceContext([
+    ...environmentReferenceImages,
+    ...characterReferencesForImage,
+    ...objectReferenceImages,
+  ]);
+  const pageSize = pageSizeForGraphicNovelPage(page);
+  const manualRepairHistory = Array.isArray(pageGenerationParams.manualPanelRepairs)
+    ? pageGenerationParams.manualPanelRepairs
+    : [];
+  const repairAttempt = manualRepairHistory.length + 1;
+  const requestId = project.storyRequestId || `admin-panel-repair-${params.storyId}`;
+
+  const panelResults = await Promise.all(
+    params.panels.map(async (target) => {
+      const panel = page.panels[target.panelNumber - 1];
+      const attempts: Array<Record<string, unknown>> = [];
+      try {
+        const cropRect = pixelCropRectFromNormalizedRect(
+          panel.templatePanel.rect,
+          pageSize.width,
+          pageSize.height
+        );
+        const detectedPanel: GraphicNovelDetectedPanelBounds = {
+          panelNumber: target.panelNumber,
+          panelId: panel.script.panelId,
+          cropRect,
+          normalizedRect: panel.templatePanel.rect,
+          matchConfidence: 1,
+          matchReason: 'admin_manual_panel_repair_saved_template_rect',
+        };
+        const expectedCharacters = buildGraphicNovelExpectedCharactersForPanel({
+          panel,
+          characters,
+          dressedTurnaroundValidationNames: validationContext.dressedTurnaroundValidationNames,
+        });
+        for (const issue of target.issues) {
+          resolveManualPanelRepairCharacter({ issue, characters, panel });
+        }
+        const panelReferenceImages = selectGraphicNovelPanelReferenceImagesForGeneration({
+          storyId: params.storyId,
+          pageNumber: params.pageNumber,
+          environmentReferences: environmentReferenceImages,
+          characterReferences: characterReferencesForImage,
+          objectReferences: objectReferenceImages,
+          expectedCharacters,
+          panel,
+          storyArtifactReference,
+          characters,
+        });
+        const sourcePanelImage = sourcePanelImages[target.panelNumber - 1];
+        if (!sourcePanelImage) throw new Error(`Source panel ${target.panelNumber} is unavailable`);
+        const validationAttemptBase = repairAttempt * 100 + target.panelNumber * 10;
+        const sourceOperation = 'graphic_novel_panel_manual_prevalidate';
+        const sourceAsset = await saveGraphicNovelPanelAttemptAsset({
+          storyId: params.storyId,
+          userId: story.userId,
+          requestId,
+          pageNumber: params.pageNumber,
+          panelIndex: target.panelNumber,
+          panelId: panel.script.panelId,
+          attempt: validationAttemptBase,
+          operation: sourceOperation,
+          source: 'manual_panel_repair',
+          imageData: sourcePanelImage.imageData,
+          mimeType: sourcePanelImage.mimeType,
+          cropRect,
+          repairMode: 'original',
+        });
+        const sourceRequestManifest = {
+          operation: sourceOperation,
+          requestedRepairMode: target.mode,
+          adminRepairIssueKinds: target.issues.map((issue) => issue.kind),
+          sourceArtOnlyStoragePath,
+          panelImageAssetId: sourceAsset.assetId,
+          panelImageStoragePath: sourceAsset.storagePath,
+        };
+        let currentValidation = await validateGraphicNovelPanelCrop({
+          imageDomain: complexImageDomain,
+          panelImage: sourcePanelImage.imageData,
+          page,
+          detectedPanel,
+          panel,
+          characters,
+          validationReferenceImages: validationContext.validationReferenceImages,
+          validationRefNamesNormalized: validationContext.validationRefNamesNormalized,
+          dressedTurnaroundValidationNames: validationContext.dressedTurnaroundValidationNames,
+          userId: story.userId,
+          storyId: params.storyId,
+          attempt: validationAttemptBase,
+          repairMode: 'original',
+          requestManifest: sourceRequestManifest,
+        });
+        await persistGraphicNovelPanelValidationResults({
+          storyId: params.storyId,
+          pageNumber: params.pageNumber,
+          attempt: validationAttemptBase,
+          imageStoragePath: sourceAsset.storagePath,
+          panelValidations: [currentValidation],
+        });
+        attempts.push({
+          sequence: 0,
+          operation: sourceOperation,
+          repairMode: 'original',
+          score: currentValidation.score,
+          accepted: graphicNovelPanelQualityDecision(currentValidation).accepted,
+          requestManifest: sourceRequestManifest,
+        });
+
+        const validateCandidate = async (candidateParams: {
+          generated: Awaited<ReturnType<typeof generateGraphicNovelPanelCrop>>;
+          appliedMode: GraphicNovelPanelRepairTarget['mode'];
+          sequence: number;
+          repairPlanSource?: 'validator' | 'admin_fallback';
+          repairManifest?: ImageEditRepairManifest;
+        }) => {
+          const operation =
+            typeof candidateParams.generated.requestManifest?.operation === 'string'
+              ? candidateParams.generated.requestManifest.operation
+              : candidateParams.appliedMode === 'edit'
+                ? 'graphic_novel_panel_manual_edit'
+                : 'graphic_novel_panel_manual_regenerate';
+          const validationAttempt = validationAttemptBase + candidateParams.sequence;
+          const candidateAsset = await saveGraphicNovelPanelAttemptAsset({
+            storyId: params.storyId,
+            userId: story.userId,
+            requestId,
+            pageNumber: params.pageNumber,
+            panelIndex: target.panelNumber,
+            panelId: panel.script.panelId,
+            attempt: validationAttempt,
+            operation,
+            source: 'manual_panel_repair',
+            imageData: candidateParams.generated.imageData,
+            mimeType: candidateParams.generated.mimeType,
+            cropRect,
+            repairMode: candidateParams.appliedMode,
+          });
+          const requestManifest = {
+            ...(candidateParams.generated.requestManifest ?? {}),
+            operation,
+            requestedRepairMode: target.mode,
+            appliedRepairMode: candidateParams.appliedMode,
+            repairPlanSource: candidateParams.repairPlanSource,
+            adminRepairIssueKinds: target.issues.map((issue) => issue.kind),
+            ...(candidateParams.repairManifest
+              ? { repairManifest: candidateParams.repairManifest }
+              : {}),
+            sourceArtOnlyStoragePath,
+            panelImageAssetId: candidateAsset.assetId,
+            panelImageStoragePath: candidateAsset.storagePath,
+            panelImageUrl:
+              candidateAsset.storageUrl ?? `/api/v1/assets/${candidateAsset.storagePath}`,
+            panelImageMimeType: candidateAsset.mimeType,
+            panelImageFileSizeBytes: candidateAsset.fileSizeBytes,
+          };
+          const validation = await validateGraphicNovelPanelCrop({
+            imageDomain: complexImageDomain,
+            panelImage: candidateParams.generated.imageData,
+            page,
+            detectedPanel,
+            panel,
+            characters,
+            validationReferenceImages: validationContext.validationReferenceImages,
+            validationRefNamesNormalized: validationContext.validationRefNamesNormalized,
+            dressedTurnaroundValidationNames: validationContext.dressedTurnaroundValidationNames,
+            userId: story.userId,
+            storyId: params.storyId,
+            attempt: validationAttempt,
+            repairMode: candidateParams.appliedMode === 'regenerate' ? 'generate' : 'edit',
+            requestManifest,
+          });
+          await persistGraphicNovelPanelValidationResults({
+            storyId: params.storyId,
+            pageNumber: params.pageNumber,
+            attempt: validationAttempt,
+            imageStoragePath: candidateAsset.storagePath,
+            panelValidations: [validation],
+          });
+          const decision = graphicNovelPanelQualityDecision(validation);
+          attempts.push({
+            sequence: candidateParams.sequence,
+            operation,
+            repairMode: candidateParams.appliedMode,
+            repairPlanSource: candidateParams.repairPlanSource,
+            score: validation.score,
+            accepted: decision.accepted,
+            failureReasons: decision.failureReasons,
+            requestManifest,
+          });
+          return { validation, decision, requestManifest };
+        };
+
+        if (target.mode === 'edit') {
+          let currentImage = sourcePanelImage.imageData;
+          for (
+            let editAttempt = 1;
+            editAttempt <= MANUAL_PANEL_EDIT_MAX_ATTEMPTS;
+            editAttempt += 1
+          ) {
+            const repairPlan = buildManualPanelEditRepairPlan({
+              target,
+              page,
+              panel,
+              characters,
+              referenceImages: panelReferenceImages,
+              currentValidation,
+            });
+            let edited: Awaited<ReturnType<typeof complexImageDomain.editSceneImage>>;
+            try {
+              edited = await complexImageDomain.editSceneImage({
+                originalImage: currentImage,
+                originalMimeType: 'image/png',
+                validationResult: currentValidation.validation,
+                sceneDescription: panel.script.visual.primaryRead,
+                imageSize: '1K',
+                referenceImages: repairPlan.references,
+                targetedRepairManifest: repairPlan.manifest,
+                systemInstruction: buildImageEditSystemInstruction(),
+                personGeneration: 'allow_all',
+                onUsage: (usage) =>
+                  recordUsage(usage, { userId: story.userId, storyId: params.storyId }),
+                operation: 'graphic_novel_panel_manual_edit',
+              });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              attempts.push({
+                sequence: editAttempt,
+                operation: 'graphic_novel_panel_manual_edit',
+                repairMode: 'edit',
+                repairPlanSource: repairPlan.source,
+                accepted: false,
+                failureReasons: ['edit_provider_error'],
+                errorMessage: message,
+              });
+              logger.warn(
+                {
+                  err: error,
+                  storyId: params.storyId,
+                  pageNumber: params.pageNumber,
+                  panelNumber: target.panelNumber,
+                  editAttempt,
+                },
+                'Manual graphic novel panel edit attempt failed'
+              );
+              continue;
+            }
+            const generated = {
+              ...edited,
+              imageData: await normalizePanelCropForPaste(Buffer.from(edited.imageData), cropRect),
+              mimeType: 'image/png',
+              requestManifest: {
+                ...(edited.requestManifest ?? {}),
+                operation: 'graphic_novel_panel_manual_edit',
+                repairManifest: repairPlan.manifest,
+                repairPlanSource: repairPlan.source,
+                requestedRepairMode: target.mode,
+                editAttempt,
+              },
+            };
+            const candidate = await validateCandidate({
+              generated,
+              appliedMode: 'edit',
+              sequence: editAttempt,
+              repairPlanSource: repairPlan.source,
+              repairManifest: repairPlan.manifest,
+            });
+            if (candidate.decision.accepted) {
+              return {
+                accepted: true as const,
+                target,
+                panel,
+                validation: candidate.validation,
+                requestManifest: candidate.requestManifest,
+                appliedMode: 'edit' as const,
+                attempts,
+                failureReasons: [] as string[],
+              };
+            }
+            currentImage = generated.imageData;
+            currentValidation = candidate.validation;
+          }
+
+          const decision = graphicNovelPanelQualityDecision(currentValidation);
+          return {
+            accepted: false as const,
+            target,
+            panel,
+            validation: currentValidation,
+            requestManifest: currentValidation.requestManifest ?? null,
+            appliedMode: null,
+            attempts,
+            failureReasons:
+              decision.failureReasons.length > 0
+                ? decision.failureReasons
+                : ['edit_provider_error'],
+          };
+        }
+
+        const generated = await generateGraphicNovelPanelCrop({
+          imageDomain: complexImageDomain,
+          page,
+          panelIndex: target.panelNumber - 1,
+          cropRect,
+          style,
+          ageGroup,
+          scenarioCardId: storyMetadata.scenarioCardId as string | undefined,
+          environmentsById,
+          referenceImages: panelReferenceImages,
+          storyArtifactReference,
+          userId: story.userId,
+          storyId: params.storyId,
+          operation: 'graphic_novel_panel_manual_regenerate',
+          imageSize: '1K',
+        });
+        const candidate = await validateCandidate({
+          generated,
+          appliedMode: 'regenerate',
+          sequence: 1,
+        });
+        if (candidate.decision.accepted) {
+          return {
+            accepted: true as const,
+            target,
+            panel,
+            validation: candidate.validation,
+            requestManifest: candidate.requestManifest,
+            appliedMode: 'regenerate' as const,
+            attempts,
+            failureReasons: [] as string[],
+          };
+        }
+        return {
+          accepted: false as const,
+          target,
+          panel,
+          validation: candidate.validation,
+          requestManifest: candidate.requestManifest,
+          appliedMode: null,
+          attempts,
+          failureReasons: candidate.decision.failureReasons,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(
+          {
+            err: error,
+            storyId: params.storyId,
+            pageNumber: params.pageNumber,
+            panelNumber: target.panelNumber,
+          },
+          'Manual graphic novel panel repair target failed independently'
+        );
+        return {
+          accepted: false as const,
+          target,
+          panel,
+          validation: null,
+          requestManifest: null,
+          appliedMode: null,
+          attempts,
+          failureReasons: ['repair_execution_error'],
+          errorMessage: message,
+        };
+      }
+    })
+  );
+
+  const acceptedPanelResults = panelResults.filter(
+    (result): result is Extract<(typeof panelResults)[number], { accepted: true }> =>
+      result.accepted
+  );
+  const failedPanelResults = panelResults.filter((result) => !result.accepted);
+  const acceptedPanelNumbers = new Set(
+    acceptedPanelResults.map((result) => result.target.panelNumber)
+  );
+  const repairedAt = new Date().toISOString();
+  const previousPanelRepair =
+    pageGenerationParams.panelRepair && typeof pageGenerationParams.panelRepair === 'object'
+      ? (pageGenerationParams.panelRepair as Record<string, unknown>)
+      : null;
+  const currentFailedPanels = failedPanelResults.map((result) => ({
+    panelNumber: result.target.panelNumber,
+    panelId: result.panel.script.panelId,
+    score: result.validation?.score ?? null,
+    failureReasons: result.failureReasons,
+  }));
+  const remainingFailedPanels = panelRepairFailedPanelsAfterRun({
+    previousPanelRepair,
+    requestedPanelNumbers,
+    failedPanels: currentFailedPanels,
+  });
+  const manualRepairRecord = {
+    attempt: repairAttempt,
+    repairedAt,
+    sourceArtOnlyStoragePath,
+    panelNumbers: [...requestedPanelNumbers],
+    acceptedPanelNumbers: [...acceptedPanelNumbers],
+    failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+    refreshedTurnaroundCharacterIds: params.refreshTurnaroundCharacterIds ?? [],
+    panels: panelResults.map((result) => ({
+      panelNumber: result.target.panelNumber,
+      panelId: result.panel.script.panelId,
+      requestedMode: result.target.mode,
+      appliedMode: result.appliedMode,
+      accepted: result.accepted,
+      score: result.validation?.score ?? null,
+      failureReasons: result.failureReasons,
+      ...('errorMessage' in result ? { errorMessage: result.errorMessage } : {}),
+      issues: result.target.issues,
+      requestManifest: result.requestManifest,
+      attempts: result.attempts,
+    })),
+  };
+  const baseNextGenerationParams: Record<string, unknown> = {
+    ...pageGenerationParams,
+    completedAt: repairedAt,
+    panelRepair: {
+      ...(previousPanelRepair || {}),
+      failedPanelCount: remainingFailedPanels.length,
+      failedPanels: remainingFailedPanels,
+      lastManualRepairAttempt: repairAttempt,
+      lastManualRequestedPanelNumbers: [...requestedPanelNumbers],
+      lastManualRepairedPanelNumbers: [...acceptedPanelNumbers],
+      lastManualFailedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+    },
+    manualPanelRepairs: [...manualRepairHistory, manualRepairRecord],
+  };
+
+  if ((params.refreshTurnaroundCharacterIds ?? []).length > 0) {
+    await getGraphicNovelRepository().updateProject(project.id, {
+      layoutManifest: { ...currentLayoutManifest, characters },
+    });
+  }
+
+  const panelResultSummary = panelResults.map((result) => ({
+    panelNumber: result.target.panelNumber,
+    panelId: result.panel.script.panelId,
+    requestedMode: result.target.mode,
+    appliedMode: result.appliedMode,
+    accepted: result.accepted,
+    score: result.validation?.score ?? null,
+    failureReasons: result.failureReasons,
+  }));
+  const outcome =
+    failedPanelResults.length === 0
+      ? ('completed' as const)
+      : acceptedPanelResults.length > 0
+        ? ('partial' as const)
+        : ('no_change' as const);
+
+  if (acceptedPanelResults.length === 0) {
+    await getGraphicNovelRepository().updatePage(pageRow.id, {
+      status: 'completed',
+      errorMessage: null,
+      generationParams: baseNextGenerationParams,
+    });
+    await recordStageTiming({
+      storyId: params.storyId,
+      storyRequestId: project.storyRequestId || undefined,
+      userId: story.userId,
+      generationKind,
+      pipelinePhase: 'asset_generation',
+      operation: 'comic_panel_manual_repair',
+      targetType: 'comic_page',
+      targetKey: String(params.pageNumber),
+      pageNumber: params.pageNumber,
+      assetId: pageRow.imageAssetId,
+      startedAt: repairStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        outcome,
+        requestedPanelNumbers: [...requestedPanelNumbers],
+        acceptedPanelNumbers: [],
+        failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+        refreshedTurnaroundCharacterIds: params.refreshTurnaroundCharacterIds ?? [],
+      },
+    });
+    logger.warn(
+      {
+        storyId: params.storyId,
+        pageNumber: params.pageNumber,
+        requestedPanelNumbers: [...requestedPanelNumbers],
+        failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+      },
+      'No manual graphic novel panel repair candidates passed validation; page kept unchanged'
+    );
+    return {
+      outcome,
+      pageAssetId: pageRow.imageAssetId,
+      panelResults: panelResultSummary,
+    };
+  }
+
+  const recomposed = await composeGraphicNovelPanelCropRepairs({
+    page,
+    imageData: sourceArtOnly,
+    panelValidations: acceptedPanelResults.map((result) => result.validation),
+  });
+  const finalPanelImages = await cropGraphicNovelPagePanels({
+    imageData: recomposed.imageData,
+    page,
+  });
+  const bubbleVision = await applyVisionBubblePlacementForRenderedPage({
+    page,
+    userId: story.userId,
+    storyId: params.storyId,
+    panelImages: finalPanelImages,
+  });
+  const finalPage = bubbleVision.page;
+  const artOnlyUpload = await assetStorage.uploadAsset({
+    data: recomposed.imageData,
+    mimeType: 'image/png',
+    userId: story.userId,
+    storyId: params.storyId,
+    assetType: 'image',
+  });
+  const finalImage = await overlayGraphicNovelBubblesOnly(recomposed.imageData, finalPage);
+  const finalUpload = await assetStorage.uploadAsset({
+    data: finalImage,
+    mimeType: 'image/png',
+    userId: story.userId,
+    storyId: params.storyId,
+    assetType: 'image',
+  });
+  const nextGenerationParams: Record<string, unknown> = {
+    ...baseNextGenerationParams,
+    artOnlyImageStoragePath: artOnlyUpload.storagePath,
+    artOnlyImageMimeType: 'image/png',
+    artOnlyImageFileSizeBytes: artOnlyUpload.fileSizeBytes,
+    bubblePlacement: bubbleVision.placementSummary,
+    bubbleVisionAnalysis: bubbleVision.analysis,
+  };
+  const pageAsset = await getAssetRepository().create({
+    storyId: params.storyId,
+    sceneId: null,
+    assetType: 'image',
+    storagePath: finalUpload.storagePath,
+    storageUrl: finalUpload.storageUrl,
+    signedUrl: finalUpload.signedUrl,
+    signedUrlExpiresAt: finalUpload.signedUrlExpiresAt,
+    mimeType: 'image/png',
+    fileSizeBytes: finalUpload.fileSizeBytes,
+    generationParams: {
+      ...nextGenerationParams,
+      kind: 'graphic_novel_page',
+      pageNumber: params.pageNumber,
+      requestId,
+      storyFormat: generationKind,
+      source: 'admin_selected_panel_repair',
+    },
+    generationTimeMs: Date.now() - repairStartedAt.getTime(),
+    status: 'completed',
+  });
+  await saveThumbnail(pageAsset.id, finalUpload.storagePath, finalImage);
+  await getGraphicNovelRepository().updatePage(pageRow.id, {
+    imageAssetId: pageAsset.id,
+    imageUrl: finalUpload.storageUrl,
+    layoutJson: finalPage,
+    bubbleLayoutJson: buildGraphicNovelBubbleLayoutJson(
+      finalPage,
+      typeof bubbleVision.placementSummary.mode === 'string' &&
+        bubbleVision.placementSummary.mode.startsWith('post_art_vision')
+        ? 'post_art_vision'
+        : 'script_fallback'
+    ),
+    status: 'completed',
+    errorMessage: null,
+    generationParams: {
+      ...nextGenerationParams,
+      assetId: pageAsset.id,
+      storagePath: finalUpload.storagePath,
+    },
+  });
+
+  const pagePanels = await getGraphicNovelRepository().findPanelsByPageId(pageRow.id);
+  await Promise.all(
+    pagePanels.map((panelRow) => {
+      const plannedPanel = finalPage.panels[panelRow.panelIndex - 1];
+      return plannedPanel
+        ? getGraphicNovelRepository().updatePanel(panelRow.id, {
+            bubbleGeometry: plannedPanel.bubbles,
+          })
+        : Promise.resolve();
+    })
+  );
+
+  if (
+    !story.coverAssetId ||
+    Number(storyMetadata.graphicNovelCoverPageNumber) === params.pageNumber
+  ) {
+    const coverAsset = await createGraphicNovelCoverPanelAsset({
+      storyId: params.storyId,
+      userId: story.userId,
+      requestId,
+      page: finalPage,
+      pageAssetId: pageAsset.id,
+      panelImages: finalPanelImages,
+    });
+    if (coverAsset) {
+      await getStoryRepository().updateStory(params.storyId, {
+        coverAssetId: coverAsset.assetId,
+        metadata: {
+          ...storyMetadata,
+          graphicNovelCoverSource: coverAsset.source,
+          graphicNovelCoverPageNumber: params.pageNumber,
+          graphicNovelCoverPanelAssetId: coverAsset.assetId,
+          graphicNovelCoverPending: false,
+        },
+      });
+    }
+  }
+
+  await recordStageTiming({
+    storyId: params.storyId,
+    storyRequestId: project.storyRequestId || undefined,
+    userId: story.userId,
+    generationKind,
+    pipelinePhase: 'asset_generation',
+    operation: 'comic_panel_manual_repair',
+    targetType: 'comic_page',
+    targetKey: String(params.pageNumber),
+    pageNumber: params.pageNumber,
+    assetId: pageAsset.id,
+    startedAt: repairStartedAt,
+    completedAt: new Date(),
+    metadata: {
+      outcome,
+      requestedPanelNumbers: [...requestedPanelNumbers],
+      acceptedPanelNumbers: [...acceptedPanelNumbers],
+      failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+      panelCount: requestedPanelNumbers.size,
+      refreshedTurnaroundCharacterIds: params.refreshTurnaroundCharacterIds ?? [],
+    },
+  });
+
+  logger.info(
+    {
+      storyId: params.storyId,
+      pageNumber: params.pageNumber,
+      outcome,
+      requestedPanelNumbers: [...requestedPanelNumbers],
+      acceptedPanelNumbers: [...acceptedPanelNumbers],
+      failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+      pageAssetId: pageAsset.id,
+    },
+    'Accepted graphic novel panel repairs saved and page recomposed'
+  );
+
+  return {
+    outcome,
+    pageAssetId: pageAsset.id,
+    panelResults: panelResultSummary,
+  };
+}
+
 export async function processGraphicNovelPages(
   requestId: string,
   options: { stopAfterFirstPage?: boolean } = {}
@@ -6081,4 +7466,10 @@ export const graphicNovelOrchestrationTestSeams = {
   renderAndStorePage,
   applyVisionBubblePlacementForRenderedPage,
   graphicNovelPanelQualityDecision,
+  buildManualPanelRepairManifest,
+  buildManualPanelEditRepairPlan,
+  panelRepairFailedPanelsAfterRun,
+  refreshGraphicNovelManifestTurnarounds,
+  characterManifestForPageName,
+  characterManifestMatchesPage,
 };

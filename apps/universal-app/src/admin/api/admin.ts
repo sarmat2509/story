@@ -1217,6 +1217,70 @@ export function useAdminRegenerateGraphicNovelPageImage() {
   });
 }
 
+export type AdminGraphicNovelPanelRepairIssueKind =
+  | 'presence'
+  | 'duplicate'
+  | 'head'
+  | 'face'
+  | 'hair'
+  | 'age'
+  | 'body'
+  | 'design'
+  | 'silhouette'
+  | 'colors'
+  | 'outfit'
+  | 'unexpected'
+  | 'text'
+  | 'generic';
+
+export function useAdminRepairGraphicNovelPanels() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      storyId: string;
+      pageNumber: number;
+      panels: Array<{
+        panelNumber: number;
+        panelId?: string;
+        mode?: 'edit' | 'regenerate';
+        issues: Array<{
+          kind: AdminGraphicNovelPanelRepairIssueKind;
+          comment: string;
+          characterId?: string;
+          characterName?: string;
+        }>;
+      }>;
+      refreshTurnaroundCharacterIds?: string[];
+      style?: string;
+    }) => {
+      const response = await apiClient.post<{
+        status: string;
+        message: string;
+        data: {
+          jobId: string;
+          storyId: string;
+          pageNumber: number;
+          panelNumbers: number[];
+        };
+      }>(
+        `/api/v1/admin/stories/${params.storyId}/graphic-novel-pages/${params.pageNumber}/repair-panels`,
+        {
+          panels: params.panels,
+          refreshTurnaroundCharacterIds: params.refreshTurnaroundCharacterIds,
+          style: params.style,
+        }
+      );
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validations'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validation'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'director-scenes', variables.storyId] });
+    },
+  });
+}
+
 export type AdminStoryAudioTimingPayload = {
   audioGenerationTimeMs: number | null;
   prosodyTaggingTimeMs: number | null;

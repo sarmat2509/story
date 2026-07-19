@@ -310,7 +310,7 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['GET', '/api/v1/image-validations'],
   ]),
 
-  ...ownedRoutes('admin', [200, 201, 204, 400, 404, 403], `${routeTests}/adminFunctionalHttpContract.test.ts`, [
+  ...ownedRoutes('admin', [200, 201, 204, 400, 404, 409, 403], `${routeTests}/adminFunctionalHttpContract.test.ts`, [
     ['GET', '/api/v1/admin/dashboard'],
     ['GET', '/api/v1/admin/ops/runtime'],
     ['PATCH', '/api/v1/admin/ops/runtime'],
@@ -342,6 +342,7 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['GET', '/api/v1/admin/stories/:storyId/director-scenes'],
     ['POST', '/api/v1/admin/stories/:storyId/scenes/:sceneId/regenerate-image'],
     ['POST', '/api/v1/admin/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image'],
+    ['POST', '/api/v1/admin/stories/:storyId/graphic-novel-pages/:pageNumber/repair-panels'],
     ['GET', '/api/v1/admin/content-config/:resource'],
     ['POST', '/api/v1/admin/content-config/:resource'],
     ['PATCH', '/api/v1/admin/content-config/:resource/:id'],

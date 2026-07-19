@@ -180,8 +180,10 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
       ? expectedCharacters
           .map((c, i) => {
             const kind = promptKindLabel(c.characterKind);
-            const subtype = c.speciesSubtype?.trim() ? ` | SUBTYPE=${c.speciesSubtype.trim()}` : '';
-            const desc = c.description ? ` | ${c.description}` : '';
+            const subtypeText = typeof c.speciesSubtype === 'string' ? c.speciesSubtype.trim() : '';
+            const descriptionText = typeof c.description === 'string' ? c.description.trim() : '';
+            const subtype = subtypeText ? ` | SUBTYPE=${subtypeText}` : '';
+            const desc = descriptionText ? ` | ${descriptionText}` : '';
             const wardrobeCheck =
               c.validateOutfit === true
                 ? ' | WARDROBE_CHECK=enabled'

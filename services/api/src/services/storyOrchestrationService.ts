@@ -132,6 +132,7 @@ import type { TextValidationSummary } from './storyOrchestration/types';
 import { validateStoryTextScenes } from './storyOrchestration/validation';
 import {
   mergeDirectorIntoText,
+  bindPersistedCharacterRefs,
   extractLlmCharactersFromText,
   getIllustrationBlockStartSceneIds,
   composeScenesIntoBlocks,
@@ -902,7 +903,13 @@ export async function processStoryRequest(requestId: string): Promise<{
       const imagesPerStory = userPlan.imagesPerStory || 0;
       if (imagesPerStory > 0) {
         const blocks = composeScenesIntoBlocks(validatedPlainText.scenes, imagesPerStory);
-        const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
+        const userCharacters = selectedCharacters.map((c: any) => ({
+          id: c.id,
+          characterRef: c.characterRef || c.id,
+          name: c.name,
+          canonicalName: c.canonicalName,
+          nameAliases: c.nameAliases,
+        }));
         await startTask(requestId, STORY_TASKS.PRODUCING_VISUALS, {
           estimatedMs: estimateProducerMs(blocks.length),
         });
@@ -1045,7 +1052,7 @@ export async function processStoryRequest(requestId: string): Promise<{
         );
       }
 
-      // Extract LLM-generated characters (same as main flow — includes originalCharacterId from [ID: uuid])
+      // Extract all Director characters with structural characterRef identity.
       const llmCharacters = extractLlmCharactersFromText(text);
 
       logger.info(
@@ -1067,18 +1074,7 @@ export async function processStoryRequest(requestId: string): Promise<{
         spec.language
       );
 
-      // Enrich mergedCharacters with DB IDs for LLM characters
-      for (const char of mergedCharacters) {
-        if (char.source === 'llm_generated' && !char.id) {
-          const normalized = normalizeCharacterName(char.name);
-          const result = llmCharacterResults.get(normalized);
-          if (result) {
-            char.id = result.characterId;
-            (char as any)._llmIsNew = result.isNew;
-            (char as any)._llmHasTurnaround = result.hasTurnaround;
-          }
-        }
-      }
+      bindPersistedCharacterRefs({ text, mergedCharacters, persistenceResults: llmCharacterResults });
 
       logger.info(
         {
@@ -1311,18 +1307,20 @@ function fillCharacterOutfitsFromScenes(text: any, requestId: string): void {
     | Array<{
         environmentId?: string;
         sceneVisual?: {
-          cameraComposition?: { characters?: Array<{ name: string; description?: string }> };
+          cameraComposition?: {
+            characters?: Array<{ characterRef?: string; name: string; description?: string }>;
+          };
         };
       }>
     | undefined;
-  const characters = (text as any).characters as Array<{ name: string; type?: string }> | undefined;
+  const characters = (text as any).characters as
+    | Array<{ characterRef?: string; name: string; type?: string }>
+    | undefined;
   const charTypeMap = new Map<string, string>();
   if (characters) {
     for (const c of characters) {
       charTypeMap.set(c.name, c.type || 'human');
-      if (c.name.includes(' [ID:')) {
-        charTypeMap.set(c.name.split(' [ID:')[0].trim(), c.type || 'human');
-      }
+      if (c.characterRef) charTypeMap.set(c.characterRef, c.type || 'human');
     }
   }
   if (!environments || !scenes) return;
@@ -1336,8 +1334,8 @@ function fillCharacterOutfitsFromScenes(text: any, requestId: string): void {
       for (const ch of chars) {
         if (!ch.name || outfits[ch.name]) continue;
         const charType =
+          (ch.characterRef ? charTypeMap.get(ch.characterRef) : undefined) ??
           charTypeMap.get(ch.name) ??
-          charTypeMap.get(ch.name.split(' [ID:')[0]?.trim() ?? '') ??
           'human';
         outfits[ch.name] = extractOutfitFromDescription(ch.description || '', charType);
       }
@@ -1446,25 +1444,14 @@ function buildEnvironmentMapFromText(
   return environmentMap;
 }
 
-function extractCharacterIdMarkerFromName(name: string): { name: string; id?: string } {
-  const match = name.match(/^(.+?)\s*\[ID:\s*([a-f0-9-]{36})\]\s*$/i);
-  if (!match) return { name };
-  return {
-    name: match[1].trim(),
-    id: match[2].trim(),
-  };
-}
-
 function normalizeStoredLlmCharactersForImageFlow(rawCharacters: any[]): any[] {
   return rawCharacters
     .filter((char) => char && typeof char.name === 'string' && char.name.trim())
     .map((char) => {
-      const extracted = extractCharacterIdMarkerFromName(char.name);
       const description = char.description || char.appearance || char.aiGeneratedDescription;
       return {
         ...char,
-        name: extracted.name,
-        originalCharacterId: char.originalCharacterId || extracted.id,
+        name: stripCharacterIdFromName(char.name).trim() || char.name,
         appearance: char.appearance || description,
         description,
         source: char.source || 'llm_generated',
@@ -1776,10 +1763,67 @@ function sameCharacterIdentity(left: string | undefined, right: string | undefin
   return !!leftPhonetic && leftPhonetic === toPhoneticKey(right);
 }
 
+function resolveSceneCharacterKeys(params: {
+  sceneVisual?: SceneVisual;
+  sceneCharacterNames: string[];
+  characters: CharacterData[];
+  characterRegistry: ReturnType<typeof buildCharacterRegistry>;
+  characterDescriptionMap: Map<string, CharacterData>;
+}): string[] {
+  const keys = new Set(matchCharacterNames(params.sceneCharacterNames, params.characterRegistry));
+  const composition = params.sceneVisual?.cameraComposition;
+  if (composition && typeof composition !== 'string') {
+    for (const row of composition.characters || []) {
+      const characterRef = row.characterRef?.trim();
+      if (!characterRef) continue;
+      const character = params.characters.find(
+        (candidate) => candidate.characterRef === characterRef || candidate.id === characterRef
+      );
+      if (!character) {
+        throw new Error(`Scene camera row references unknown characterRef "${characterRef}"`);
+      }
+      const canonicalKey = normalizeCharacterName(character.name);
+      keys.add(canonicalKey);
+      params.characterDescriptionMap.set(canonicalKey, character);
+      const displayKey = normalizeCharacterName(row.name || '');
+      if (displayKey) params.characterDescriptionMap.set(displayKey, character);
+    }
+  }
+  const seenIdentities = new Set<string>();
+  return [...keys].filter((key) => {
+    const character = params.characterDescriptionMap.get(key);
+    if (!character) return false;
+    const identity = character.characterRef || character.id || `legacy:${key}`;
+    if (seenIdentities.has(identity)) return false;
+    seenIdentities.add(identity);
+    return true;
+  });
+}
+
+function applySceneDisplayNamesToCharacterReferences<T extends {
+  characterId?: string;
+  characterName?: string;
+}>(references: T[], sceneVisual: SceneVisual | undefined): T[] {
+  const composition = sceneVisual?.cameraComposition;
+  if (!composition || typeof composition === 'string') return references;
+  const displayNameByRef = new Map(
+    (composition.characters || [])
+      .filter((row) => row.characterRef && row.name)
+      .map((row) => [row.characterRef!, row.name] as const)
+  );
+  return references.map((reference) => {
+    const displayName = reference.characterId
+      ? displayNameByRef.get(reference.characterId)
+      : undefined;
+    return displayName ? { ...reference, characterName: displayName } : reference;
+  });
+}
+
 function assertSceneTurnaroundReferencesDelivered(
   normalizedCharacters: string[],
   characterDescriptionMap: Map<string, CharacterData>,
   references: Array<{
+    characterId?: string;
     source?: string;
     type?: string;
     characterName?: string;
@@ -1795,7 +1839,8 @@ function assertSceneTurnaroundReferencesDelivered(
       (reference) =>
         reference.source !== 'environment' &&
         reference.isTurnaround === true &&
-        sameCharacterIdentity(reference.characterName, characterName)
+        ((character?.id && reference.characterId === character.id) ||
+          sameCharacterIdentity(reference.characterName, characterName))
     );
     if (!delivered) missing.push(characterName);
   }
@@ -1813,6 +1858,7 @@ async function buildCharacterReferenceDataArray(
   pathMetadataMap: Map<
     string,
     {
+      characterId?: string;
       characterName: string;
       isTurnaround: boolean;
       source: string;
@@ -1828,6 +1874,7 @@ async function buildCharacterReferenceDataArray(
     mimeType: string;
     fileUri?: string;
     source: string;
+    characterId?: string;
     characterName: string;
     type: string;
     isTurnaround: boolean;
@@ -1840,6 +1887,7 @@ async function buildCharacterReferenceDataArray(
       const pathMeta = pathMetadataMap.get(url);
       const isTurnaround = !!pathMeta?.isTurnaround;
       const charName = pathMeta?.characterName || 'unknown';
+      const characterId = pathMeta?.characterId;
       const source = pathMeta?.source || 'character_reference';
       const type = pathMeta?.type || 'character_reference';
 
@@ -1854,6 +1902,7 @@ async function buildCharacterReferenceDataArray(
           mimeType: uploaded.mimeType,
           fileUri: uploaded.uri,
           source,
+          ...(characterId ? { characterId } : {}),
           characterName: charName,
           type,
           isTurnaround,
@@ -1870,6 +1919,7 @@ async function buildCharacterReferenceDataArray(
       return {
         ...data,
         source,
+        ...(characterId ? { characterId } : {}),
         characterName: charName,
         type,
         isTurnaround,
@@ -2002,6 +2052,7 @@ function buildCharacterReferencePathMetadataMap(
 ): Map<
   string,
   {
+    characterId?: string;
     characterName: string;
     isTurnaround: boolean;
     source: string;
@@ -2011,6 +2062,7 @@ function buildCharacterReferencePathMetadataMap(
   const byPath = new Map<
     string,
     {
+      characterId?: string;
       characterName: string;
       isTurnaround: boolean;
       source: string;
@@ -2026,6 +2078,7 @@ function buildCharacterReferencePathMetadataMap(
 
     if (turnaround?.url) {
       byPath.set(extractStoragePath(turnaround.url), {
+        characterId: char.id,
         characterName: char.name,
         isTurnaround: true,
         source,
@@ -2374,7 +2427,13 @@ export async function processStoryImages(
             listedSceneCharacterNames,
             mergedCharacters as any[]
           );
-          const matched = matchCharacterNames(sceneCharNames, characterRegistry);
+          const matched = resolveSceneCharacterKeys({
+            sceneVisual: sceneVisualRaw,
+            sceneCharacterNames: sceneCharNames,
+            characters: mergedCharacters,
+            characterRegistry,
+            characterDescriptionMap,
+          });
           for (const normalizedName of matched) {
             characterNamesInIllustratedScenes.add(normalizedName);
           }
@@ -2608,7 +2667,13 @@ export async function processStoryImages(
             listedSceneCharacterNames,
             mergedCharacters as any[]
           );
-          const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
+          const normalizedCharacters = resolveSceneCharacterKeys({
+            sceneVisual: sceneVisualRaw,
+            sceneCharacterNames: sceneCharNames,
+            characters: mergedCharacters,
+            characterRegistry,
+            characterDescriptionMap,
+          });
 
           const currentEnvironmentId = (scene as any).environmentId as string | undefined;
           const currentEnvironment = currentEnvironmentId
@@ -2672,13 +2737,14 @@ export async function processStoryImages(
             );
             const sceneReferencePathMetadataMap =
               buildCharacterReferencePathMetadataMap(characterDescriptionMap);
-            return buildCharacterReferenceDataArray(
+            const references = await buildCharacterReferenceDataArray(
               characterPaths,
               sceneReferencePathMetadataMap,
               uploadedFileMap,
               assetStorage,
               inlineReferenceCache
             );
+            return applySceneDisplayNamesToCharacterReferences(references, sceneVisualRaw);
           })();
 
           const defaultOutfitCharacterKeys = new Set<string>();
@@ -3144,7 +3210,12 @@ export interface ContinuationContext {
     description: string;
     characterOutfits?: string;
   }>;
-  previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
+  previousOutfits?: Array<{
+    id: string;
+    characterRef?: string;
+    characterName: string;
+    description: string;
+  }>;
 }
 
 function characterIdentityKeys(
@@ -3212,6 +3283,7 @@ async function loadSelectedCharactersFromRequestForSpec(
     .filter((c) => c.name)
     .map((c) => ({
       id: c.id,
+      characterRef: c.id,
       name: stripCharacterIdFromName(c.name) || c.name,
       canonicalName: c.name,
       type: c.type,
@@ -3377,6 +3449,7 @@ export async function buildStorySpec(
           .filter((c) => c.name) // Only include characters with valid name
           .map((c) => ({
             id: c.id,
+            characterRef: c.id,
             name: characterNameTranslations.get(c.id) || stripCharacterIdFromName(c.name) || c.name,
             canonicalName: c.name,
             type: c.type,
@@ -6008,6 +6081,7 @@ export function buildExpectedCharactersForValidation(
   referenceImageDataArray?: Array<{ source?: string; characterName?: string }>,
   logContext?: { storyId?: string; sceneId?: number; defaultOutfitCharacterKeys?: Set<string> }
 ): Array<{
+  characterRef?: string;
   name: string;
   characterKind: 'human' | 'animal' | 'imaginary';
   speciesSubtype?: string;
@@ -6027,6 +6101,10 @@ export function buildExpectedCharactersForValidation(
     listedSceneCharacterNames,
     characters as any[]
   );
+  const cameraCharacters =
+    sv?.cameraComposition && typeof sv.cameraComposition !== 'string'
+      ? sv.cameraComposition.characters || []
+      : [];
 
   // refSource index by normalized character name; used only as fallback when charData.type is unknown.
   const refSourceByName = new Map<string, string>();
@@ -6040,10 +6118,20 @@ export function buildExpectedCharactersForValidation(
 
   const roster = sceneCharacterNames.map((name) => {
     const baseLower = stripCharacterIdFromName(name).trim().toLowerCase();
-    const charData = characters.find((c) => {
-      if (!c?.name) return false;
-      return sameCharacterIdentity(c.name, name);
-    });
+    const cameraCharacter = cameraCharacters.find(
+      (candidate) => sameCharacterIdentity(candidate.name, name)
+    );
+    const characterRef = cameraCharacter?.characterRef?.trim();
+    const charData =
+      (characterRef
+        ? characters.find((character) =>
+            [character.characterRef, character.id].filter(Boolean).includes(characterRef)
+          )
+        : undefined) ||
+      characters.find((c) => {
+        if (!c?.name) return false;
+        return sameCharacterIdentity(c.name, name);
+      });
 
     const t = charData?.type;
     const refSource = refSourceByName.get(baseLower);
@@ -6064,6 +6152,7 @@ export function buildExpectedCharactersForValidation(
     const validateOutfit = shouldValidateOutfitForExpectedCharacter(characterKind, charData);
 
     return {
+      ...(characterRef ? { characterRef } : {}),
       name,
       characterKind,
       speciesSubtype,
@@ -6094,8 +6183,15 @@ export function buildExpectedCharactersForValidation(
 
 function findCharacterForValidationName(
   sceneName: string,
-  characters: CharacterData[]
+  characters: CharacterData[],
+  characterRef?: string
 ): CharacterData | undefined {
+  if (characterRef) {
+    const byRef = characters.find(
+      (character) => character.characterRef === characterRef || character.id === characterRef
+    );
+    if (byRef) return byRef;
+  }
   const normalizedSceneName = stripCharacterIdFromName(sceneName).trim().toLowerCase();
   return characters.find((char) => {
     const charName = stripCharacterIdFromName(char.name).trim().toLowerCase();
@@ -6107,11 +6203,12 @@ function findCharacterForValidationName(
 }
 
 async function buildValidationReferenceImages(params: {
-  expectedCharacters: Array<{ name: string }>;
+  expectedCharacters: Array<{ name: string; characterRef?: string }>;
   characters: CharacterData[];
   assetStorage: ReturnType<typeof getAssetStorageService>;
   referenceImageDataArray?: Array<{
     source?: string;
+    characterId?: string;
     characterName?: string;
     base64?: string;
     fileUri?: string;
@@ -6142,12 +6239,17 @@ async function buildValidationReferenceImages(params: {
   const seenIdentity = new Set<string>();
 
   for (const expected of params.expectedCharacters) {
-    const char = findCharacterForValidationName(expected.name, params.characters);
+    const char = findCharacterForValidationName(
+      expected.name,
+      params.characters,
+      expected.characterRef
+    );
     const resolvedName = char?.name || expected.name;
     const normalizedName = stripCharacterIdFromName(resolvedName).trim().toLowerCase();
     if (!normalizedName || seenIdentity.has(normalizedName)) continue;
 
     const generatedIdentityRef = (params.referenceImageDataArray || []).find((ref) => {
+      if (char?.id && ref.characterId === char.id) return true;
       if (!ref.characterName) return false;
       const refName = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
       if (refName !== normalizedName) return false;
@@ -7537,6 +7639,10 @@ export async function regenerateSceneImage(
     ...(sceneFromJson.characterOutfitIds && Object.keys(sceneFromJson.characterOutfitIds).length > 0
       ? { characterOutfitIds: sceneFromJson.characterOutfitIds as Record<string, string> }
       : {}),
+    ...(sceneFromJson.characterOutfitRefs &&
+    Object.keys(sceneFromJson.characterOutfitRefs).length > 0
+      ? { characterOutfitRefs: sceneFromJson.characterOutfitRefs as Record<string, string> }
+      : {}),
   } as SceneData;
 
   const storyOutfitsRegen = (
@@ -7590,7 +7696,13 @@ export async function regenerateSceneImage(
     listedSceneCharacterNames,
     mergedCharacters as any[]
   );
-  const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
+  const normalizedCharacters = resolveSceneCharacterKeys({
+    sceneVisual: sceneVisualForNames,
+    sceneCharacterNames: sceneCharNames,
+    characters: mergedCharacters,
+    characterRegistry,
+    characterDescriptionMap,
+  });
   const characterNamesInIllustratedScenes = new Set(normalizedCharacters);
 
   await hydrateLlmTurnaroundSheetsFromDb(
@@ -7659,13 +7771,14 @@ export async function regenerateSceneImage(
     );
     const sceneReferencePathMetadataMap =
       buildCharacterReferencePathMetadataMap(characterDescriptionMap);
-    return buildCharacterReferenceDataArray(
+    const references = await buildCharacterReferenceDataArray(
       characterPaths,
       sceneReferencePathMetadataMap,
       uploadedFileMap,
       assetStorage,
       inlineReferenceCache
     );
+    return applySceneDisplayNamesToCharacterReferences(references, sceneVisualForNames);
   })();
 
   const outfitPlatePendingRegen: SceneOutfitPlatePending = new Map();

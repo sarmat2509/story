@@ -45,6 +45,7 @@ export type SceneCharacterReferenceData = {
   mimeType: string;
   fileUri?: string;
   source?: string;
+  characterId?: string;
   characterName?: string;
   type?: string;
   isTurnaround?: boolean;
@@ -151,7 +152,12 @@ async function loadExistingOutfitPlateImage(params: {
 function findSceneCharacterReferenceData(
   characterName: string,
   refs: SceneCharacterReferenceData[],
+  characterId?: string,
 ): SceneCharacterReferenceData | undefined {
+  if (characterId) {
+    const byId = refs.find((ref) => ref.characterId === characterId);
+    if (byId) return byId;
+  }
   const target = stripCharacterIdFromName(characterName).trim().toLowerCase();
   return refs.find(
     (ref) =>
@@ -169,6 +175,28 @@ function mergeCharacterOutfitRecords(
   const s = scene && Object.keys(scene).length ? scene : undefined;
   if (!e && !s) return undefined;
   return { ...(e || {}), ...(s || {}) };
+}
+
+function resolveOutfitDescriptionsFromSceneRefs(
+  scene: SceneData,
+  outfits: StoryOutfitEntry[] | undefined,
+): Record<string, string> | undefined {
+  if (!scene.characterOutfitRefs || !outfits?.length) return undefined;
+  const byId = new Map(outfits.map((outfit) => [outfit.id, outfit]));
+  const composition = scene.sceneVisual?.cameraComposition;
+  const rows =
+    composition && typeof composition !== 'string' && Array.isArray(composition.characters)
+      ? composition.characters
+      : [];
+  const result: Record<string, string> = {};
+  for (const [characterRef, outfitId] of Object.entries(scene.characterOutfitRefs)) {
+    const outfit = byId.get(outfitId);
+    if (!outfit?.description?.trim()) continue;
+    const displayName =
+      rows.find((row) => row.characterRef === characterRef)?.name || outfit.characterName;
+    if (displayName?.trim()) result[displayName.trim()] = outfit.description.trim();
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
@@ -199,17 +227,18 @@ export function resolveSceneCharacterOutfits(
   const legacy = mergeCharacterOutfitRecords(fromEnv, fromScene);
 
   const rawIds = scene.characterOutfitIds;
+  const fromRefs = resolveOutfitDescriptionsFromSceneRefs(scene, context.storyOutfits);
   if (context.storyOutfits?.length && rawIds && Object.keys(rawIds).length > 0) {
     const fromIds = resolveOutfitDescriptionsFromSceneIds(
       rawIds,
       context.storyOutfits as StoryOutfitDefinition[],
     );
     if (fromIds && Object.keys(fromIds).length > 0) {
-      return { ...(legacy || {}), ...fromIds };
+      return { ...(legacy || {}), ...fromIds, ...(fromRefs || {}) };
     }
   }
 
-  return legacy;
+  return fromRefs ? { ...(legacy || {}), ...fromRefs } : legacy;
 }
 
 export async function prepareSceneDressedTurnaroundReferences(params: {
@@ -276,10 +305,40 @@ export async function prepareSceneDressedTurnaroundReferences(params: {
     characterReference: SceneCharacterReferenceData;
   }> = [];
 
+  const characterDataByRef = new Map<string, CharacterData>();
+  for (const character of characterDescriptionMap.values()) {
+    const characterRef = character.characterRef || character.id;
+    if (characterRef) characterDataByRef.set(characterRef, character);
+  }
+  const candidateInputs = new Map<
+    string,
+    { displayName: string; charData?: CharacterData }
+  >();
+  const composition = scene.sceneVisual?.cameraComposition;
+  if (composition && typeof composition !== 'string') {
+    for (const row of composition.characters || []) {
+      const characterRef = row.characterRef?.trim();
+      const charData = characterRef ? characterDataByRef.get(characterRef) : undefined;
+      if (!characterRef || !charData) continue;
+      candidateInputs.set(characterRef, {
+        displayName: row.name,
+        charData,
+      });
+    }
+  }
   for (const mapKey of normalizedCharacters) {
-    if (candidates.length >= maxPlates) break;
     const charData = characterDescriptionMap.get(mapKey);
-    const displayName = charData?.name || mapKey;
+    const candidateKey = charData?.characterRef || charData?.id || `legacy:${mapKey}`;
+    if (!candidateInputs.has(candidateKey)) {
+      candidateInputs.set(candidateKey, {
+        displayName: charData?.name || mapKey,
+        charData,
+      });
+    }
+  }
+
+  for (const { displayName, charData } of candidateInputs.values()) {
+    if (candidates.length >= maxPlates) break;
     if (!shouldGenerateOutfitPlateForCharacter(charData)) continue;
     if (!charData?.id) {
       logger.warn(
@@ -288,12 +347,24 @@ export async function prepareSceneDressedTurnaroundReferences(params: {
       );
       continue;
     }
-    if (!sceneCharacterHasVisualReference(displayName, characterReferenceData)) continue;
+    if (
+      !characterReferenceData.some((reference) => reference.characterId === charData.id) &&
+      !sceneCharacterHasVisualReference(displayName, characterReferenceData)
+    ) {
+      continue;
+    }
     const outfitText = lookupOutfitForCharacterName(displayName, outfitsMerged);
     if (!outfitText?.trim()) continue;
-    const outfitId = lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
+    const structuralRef = charData.characterRef || charData.id;
+    const outfitId =
+      (structuralRef ? scene.characterOutfitRefs?.[structuralRef] : undefined) ||
+      lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
     if (isDefaultTurnaroundOutfit(outfitText, outfitId)) continue;
-    const characterReference = findSceneCharacterReferenceData(displayName, characterReferenceData);
+    const characterReference = findSceneCharacterReferenceData(
+      displayName,
+      characterReferenceData,
+      charData.id
+    );
     if (!characterReference) continue;
     const storyPlateKey = buildStoryOutfitPlateCacheKey(displayName, outfitId);
     candidates.push({

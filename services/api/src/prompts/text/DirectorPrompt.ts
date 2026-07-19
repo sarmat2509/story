@@ -13,8 +13,14 @@ export interface DirectorPromptParams {
   blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
   imagesPerStory: number;
   spec: StorySpec;
-  /** User characters with IDs — same format as main flow for reliable matching */
-  userCharacters: Array<{ id?: string; name: string }>;
+  /** Existing identities. Names are localized display values; characterRef is authoritative. */
+  userCharacters: Array<{
+    id?: string;
+    characterRef?: string;
+    name: string;
+    canonicalName?: string;
+    nameAliases?: string[];
+  }>;
 }
 
 /** Stable opt-in rate: retries for the same story keep the same camera-variation decision. */
@@ -45,7 +51,7 @@ export function shouldEnableDirectorDynamicForeshortening(params: DirectorPrompt
   return stableDirectorVariationHash(seed) % 100 < DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v27';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v28_structural_character_refs';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
@@ -73,7 +79,7 @@ Output contract:
 - Return JSON only.
 - Include characters, outfits, environments, mapTile, and illustrations.
 - Each illustration must include environmentId, primaryRead, and sceneVisual.
-- Each cameraComposition.characters row must include name, description, and outfitId.
+- Each cameraComposition.characters row must include characterRef, name, description, and outfitId.
 - Every named character mentioned anywhere in sceneVisual.setting, cameraComposition.shot,
   cameraComposition.characters[].description, or lighting MUST also have exactly one row in
   cameraComposition.characters. If the character limit is already reached, rewrite the visual
@@ -182,13 +188,13 @@ export function buildDirectorPrompt(params: DirectorPromptParams): string {
       ? ''
       : imagesPerStory === 1
         ? `SELECTED CHARACTER IMAGE COVERAGE — HARD REQUIREMENT:
-- The single illustration MUST visibly include EVERY USER-SELECTED CHARACTER listed above, using the exact Name [ID: ...] label in cameraComposition.characters[].name.
+- The single illustration MUST visibly include EVERY USER-SELECTED CHARACTER listed above, using its exact characterRef in cameraComposition.characters[].characterRef.
 - USER-SELECTED CHARACTERS take priority over invented, supporting, and background characters. The camera roster allows at most ${MAX_SCENE_IMAGE_CHARACTERS} characters, so omit or replace non-selected characters before omitting any selected character.
-- Before returning JSON, verify that every selected ID appears in the single cameraComposition.characters roster.`
+- Before returning JSON, verify that every selected characterRef appears in the single cameraComposition.characters roster.`
         : `SELECTED CHARACTER IMAGE COVERAGE — HARD REQUIREMENT:
-- EVERY USER-SELECTED CHARACTER listed above MUST visibly appear in at least one illustration, using the exact Name [ID: ...] label in cameraComposition.characters[].name.
+- EVERY USER-SELECTED CHARACTER listed above MUST visibly appear in at least one illustration, using its exact characterRef in cameraComposition.characters[].characterRef.
 - Distribute selected characters across illustrations when needed; never exceed ${MAX_SCENE_IMAGE_CHARACTERS} visible characters in one illustration.
-- USER-SELECTED CHARACTERS take priority over invented, supporting, and background characters. Before returning JSON, verify that every selected ID appears in at least one cameraComposition.characters roster.`;
+- USER-SELECTED CHARACTERS take priority over invented, supporting, and background characters. Before returning JSON, verify that every selected characterRef appears in at least one cameraComposition.characters roster.`;
 
   if (imagesPerStory === 1) {
     instructionBlock = `Create ONE summary illustration that captures the most important moments of the story. Do not tie it to a single scene — show the essence of the whole story.
@@ -240,9 +246,10 @@ ${visualRules}
 
 ${
   userCharacters.length > 0
-    ? `USER-SELECTED CHARACTERS (must appear in story): ${helpers.formatUserCharactersWithIds(userCharacters)}
+    ? `CHARACTER IDENTITY REGISTRY:
+${helpers.formatCharacterIdentityRegistry(userCharacters)}
 
-IMPORTANT: When referencing these user characters in your output (characters array and cameraComposition.characters), use the exact format with ID: "Name [ID: uuid]". This preserves identity for image generation.
+IMPORTANT: characterRef is structural identity. Copy the exact existing UUID into characters[].characterRef, outfits[].characterRef, and cameraComposition.characters[].characterRef. A title, family form, translation, or display-name change never creates another identity. For a genuinely new character, allocate one NEW_CH_n value in characters[] and reuse that exact value everywhere.
 USER-SELECTED CHARACTERS are reference-grounded identities in the downstream image pipeline. Do NOT invent or overwrite a new canonical face, hair, body, skin-tone, or default-clothing specification for them in characters[].description.
 For these user-selected characters, keep characters[].description minimal and reference-compatible. Use it only for a short neutral anchor when required by the schema. In sceneVisual.cameraComposition.characters[].description, describe only the frozen-moment information: pose, expression, gaze, head turn, hand use, action, placement, and temporary visibility/occlusion. Do NOT restate, paraphrase, or sneak in stable identity traits there such as hairstyle, ponytail/braid details, hair color, eye color, freckles, face shape, skin tone, body build, age markers, or other enduring appearance details. If you catch yourself naming a permanent face/hair feature from the sheet, remove it and replace it with a neutral visible action description. Put wardrobe only in outfits[].description.`
     : ''
@@ -268,7 +275,7 @@ ${instructionBlock}
 OUTPUT JSON — order helps you satisfy dependencies: (1) characters, (2) outfits (define every id you will use), (3) environments (one row per unique environmentId referenced below), (4) mapTile (one story-level reward tile), (5) illustrations (length ${imagesPerStory}).
 mapTile MUST be top-level and singular with exactly two conceptual fields: requiredFeatures[] and description. It must combine key compatible visible landmarks from all planned illustrations, but must not choose geometry, orientation, connector sides, or exact placement.
 Each illustration MUST include: environmentId (string), primaryRead (short English focus phrase), sceneVisual (setting, cameraComposition with shot + characters[], lighting).
-Each cameraComposition.characters[] row MUST include: name, description, outfitId (exact outfits[].id for that character in this shot). Non-empty characters array; outfitId is a technical binding enforced like environmentId. Detailed wardrobe descriptions are only for child/person/human characters; animals, creatures, objects, vehicles, and environmental beings use "natural appearance".
+Each cameraComposition.characters[] row MUST include: characterRef, name, description, outfitId (exact outfits[].id for that character in this shot). Each outfits[] row must carry the same characterRef as its character. Non-empty characters array; outfitId is a technical binding enforced like environmentId. Detailed wardrobe descriptions are only for child/person/human characters; animals, creatures, objects, vehicles, and environmental beings use "natural appearance".
 Wardrobe descriptions must match weather, season, and indoor/outdoor context of the anchor moment.
 All descriptions must be IN ENGLISH.
 
@@ -292,7 +299,7 @@ ${params.originalPrompt}
 CORRECTION REQUIRED — SELECTED CHARACTERS WERE OMITTED FROM THE IMAGE PLAN:
 The previous result omitted these required selected identities: ${params.missingCharacters.join(', ')}.
 Regenerate the entire JSON result. ${placementRule}
-Use each exact Name [ID: ...] label in cameraComposition.characters[].name. Keep at most ${MAX_SCENE_IMAGE_CHARACTERS} visible characters per illustration. Remove invented or supporting characters when necessary; never remove a user-selected character to make room.
+Use each exact missing structural ref in cameraComposition.characters[].characterRef. Keep the localized display name separately in name. Keep at most ${MAX_SCENE_IMAGE_CHARACTERS} visible characters per illustration. Remove invented or supporting characters when necessary; never remove a user-selected character to make room.
 Do not return the previous invalid roster.
 `;
 }

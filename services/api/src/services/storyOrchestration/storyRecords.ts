@@ -13,6 +13,11 @@ import type { CreateStoryParams, CreateStoryStubParams } from './types';
 import type { CharacterData } from '../types';
 import { buildStoryCreationAttribution } from '../storyCreationAttributionService';
 import type { Locale } from '@wondertales/shared';
+import {
+  characterRefForCharacter,
+  isTemporaryCharacterRef,
+  normalizeCharacterRef,
+} from '../../utils/characterIdentity';
 
 function resolveClosingKeepsakeLabel(params: CreateStoryParams): string | null {
   return extractClosingKeepsakeFromEpisodeText({
@@ -395,9 +400,12 @@ export function mergeCharacters(
   }
   
   // Filter out invalid initial characters
-  const validInitialCharacters = initialCharacters.filter(c => 
-    c && typeof c === 'object' && c.name && typeof c.name === 'string'
-  );
+  const validInitialCharacters = initialCharacters
+    .filter(c => c && typeof c === 'object' && c.name && typeof c.name === 'string')
+    .map((character) => {
+      const characterRef = characterRefForCharacter(character);
+      return characterRef ? { ...character, characterRef } : character;
+    });
   
   if (validInitialCharacters.length < initialCharacters.length) {
     logger.warn({ 
@@ -417,15 +425,21 @@ export function mergeCharacters(
     
     let existingChar: CharacterData | undefined;
     
-    // Tier 1: ID match (100% accuracy, language-independent)
-    if (llmChar.originalCharacterId) {
-      existingChar = merged.find(c => c.id === llmChar.originalCharacterId);
+    const structuralRef = normalizeCharacterRef(
+      llmChar.characterRef || llmChar.originalCharacterId
+    );
+
+    // Structural identity is authoritative for all newly generated output.
+    if (structuralRef) {
+      existingChar = merged.find(
+        (character) => characterRefForCharacter(character) === structuralRef
+      );
       if (existingChar) {
         logger.debug({ 
           llmName: llmChar.name, 
           userName: existingChar.name, 
-          id: llmChar.originalCharacterId 
-        }, 'Character matched by ID (tier 1)');
+          characterRef: structuralRef,
+        }, 'Character matched by structural ref');
         
         // Store LLM's translated name for reference
         (existingChar as any).nameInStory = llmChar.name;
@@ -437,9 +451,30 @@ export function mergeCharacters(
         }
         continue;
       }
+
+      if (!isTemporaryCharacterRef(structuralRef)) {
+        throw new Error(
+          `Director returned unknown characterRef "${structuralRef}" for "${llmChar.name}"`
+        );
+      }
+
+      logger.debug(
+        { llmName: llmChar.name, characterRef: structuralRef },
+        'Adding structurally identified LLM character'
+      );
+      merged.push({
+        characterRef: structuralRef,
+        name: llmChar.name,
+        type: mapLlmTypeToCharacterType(llmChar.type || 'unknown'),
+        appearance: llmChar.appearance,
+        personality: llmChar.personality,
+        role: llmChar.role,
+        source: 'llm_generated',
+      } as CharacterData);
+      continue;
     }
-    
-    // Tier 2: Cross-script identity (e.g. Emilia <-> Емілія via ...iya -> ...ia)
+
+    // Legacy data without characterRef: retain the old name fallback for stored checkpoints only.
     const identityKey = crossScriptIdentityKey(llmChar.name);
     existingChar = merged.find(
       c =>
@@ -453,7 +488,7 @@ export function mergeCharacters(
         llmName: llmChar.name,
         userName: existingChar.name,
         identityKey,
-      }, 'Character matched by cross-script identity key (tier 2)');
+      }, 'Legacy character matched by cross-script identity key');
       
       (existingChar as any).nameInStory = llmChar.name;
       
@@ -464,7 +499,6 @@ export function mergeCharacters(
       continue;
     }
     
-    // Tier 3: Normalized match (same language, case-insensitive)
     const normalizedName = normalizeCharacterName(llmChar.name);
     existingChar = merged.find(c =>
       c.name && typeof c.name === 'string' && normalizeCharacterName(c.name) === normalizedName
@@ -475,7 +509,7 @@ export function mergeCharacters(
         llmName: llmChar.name, 
         userName: existingChar.name, 
         normalizedName 
-      }, 'Character matched by normalized name (tier 3)');
+      }, 'Legacy character matched by normalized name');
       
       if (!existingChar.referencePhotos || existingChar.referencePhotos.length === 0) {
         existingChar.appearance = llmChar.appearance;
@@ -487,6 +521,7 @@ export function mergeCharacters(
     // No match found - add as new LLM-generated character
     logger.debug({ llmName: llmChar.name }, 'No match found, adding as new LLM character');
     merged.push({
+      characterRef: llmChar.characterRef,
       name: llmChar.name,
       type: mapLlmTypeToCharacterType(llmChar.type || 'unknown'),
       appearance: llmChar.appearance,
@@ -519,16 +554,44 @@ function buildInitialCharacterExclusionFingerprints(characters: CharacterData[])
  */
 export async function persistLlmCharacters(
   userId: string,
-  llmCharacters: Array<{ name: string; type: string; description: string; role?: string; personality?: any; appearance?: string }>,
+  llmCharacters: Array<{
+    characterRef?: string;
+    name: string;
+    type: string;
+    description: string;
+    role?: string;
+    personality?: any;
+    appearance?: string;
+  }>,
   initialCharacters: CharacterData[],
   sourceLocale?: Locale | string | null,
 ): Promise<Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>> {
   const results = new Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>();
 
   const exclusion = buildInitialCharacterExclusionFingerprints(initialCharacters);
+  const initialRefs = new Set(
+    initialCharacters.map(characterRefForCharacter).filter(Boolean)
+  );
+  const seenTemporaryRefs = new Set<string>();
 
   // Filter to only LLM-only characters (not user-provided / initial cast)
   const purelyLlmChars = llmCharacters.filter(c => {
+    const characterRef = normalizeCharacterRef(c.characterRef);
+    if (characterRef) {
+      if (initialRefs.has(characterRef)) return false;
+      if (!isTemporaryCharacterRef(characterRef)) {
+        throw new Error(
+          `Generated character "${c.name}" has invalid characterRef "${characterRef}"`
+        );
+      }
+      if (seenTemporaryRefs.has(characterRef)) {
+        throw new Error(`Duplicate generated characterRef "${characterRef}"`);
+      }
+      seenTemporaryRefs.add(characterRef);
+      return true;
+    }
+
+    // Backward compatibility for old stored results without structural refs.
     const normalized = normalizeCharacterName(c.name);
     const crossKey = crossScriptIdentityKey(c.name);
     return !exclusion.has(normalized) && !exclusion.has(crossKey);
@@ -545,7 +608,8 @@ export async function persistLlmCharacters(
 
   for (const llmChar of purelyLlmChars) {
     const result = await findOrCreateLlmCharacter(userId, llmChar, existingHiddenChars, { sourceLocale });
-    results.set(normalizeCharacterName(llmChar.name), result);
+    const resultKey = normalizeCharacterRef(llmChar.characterRef) || normalizeCharacterName(llmChar.name);
+    results.set(resultKey, result);
     logger.info({
       llmCharName: llmChar.name,
       characterId: result.characterId,

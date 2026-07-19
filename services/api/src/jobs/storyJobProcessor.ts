@@ -37,6 +37,7 @@ import {
 import { isGrokBlockedForStoryLanguage } from '../providers/audio/grok/supportedLocales';
 import { getIllustrationBlockStartSceneIds } from '../services/storyOrchestration/utilities';
 import { resolveStoryAudioScenes } from '../services/storyAudioTextService';
+import type { GraphicNovelPanelRepairTarget } from '../services/graphicNovelPanelRepairTypes';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -151,7 +152,12 @@ export interface InstantCharacterSetupJob extends BaseJob {
 // Legacy job types (for backwards compatibility during migration)
 interface LegacyBaseJob {
   id: string;
-  type: 'story_generation' | 'regenerate_scene_image' | 'regenerate_graphic_novel_page_image' | 'audio_generation';
+  type:
+    | 'story_generation'
+    | 'regenerate_scene_image'
+    | 'regenerate_graphic_novel_page_image'
+    | 'repair_graphic_novel_panels'
+    | 'audio_generation';
   status: 'queued' | 'processing' | 'completed' | 'failed';
   retries: number;
   createdAt: Date;
@@ -180,6 +186,15 @@ interface RegenerateGraphicNovelPageImageJob extends LegacyBaseJob {
   style?: string;
 }
 
+interface RepairGraphicNovelPanelsJob extends LegacyBaseJob {
+  type: 'repair_graphic_novel_panels';
+  storyId: string;
+  pageNumber: number;
+  panels: GraphicNovelPanelRepairTarget[];
+  refreshTurnaroundCharacterIds?: string[];
+  style?: string;
+}
+
 interface AudioGenerationLegacyJob extends LegacyBaseJob {
   type: 'audio_generation';
   storyId: string;
@@ -195,6 +210,7 @@ type LegacyJob =
   | StoryGenerationLegacyJob
   | RegenerateSceneImageJob
   | RegenerateGraphicNovelPageImageJob
+  | RepairGraphicNovelPanelsJob
   | AudioGenerationLegacyJob;
 
 // Input types for StoryJobQueue.addJob (no BaseJob/LegacyBaseJob fields)
@@ -223,11 +239,21 @@ interface RegenerateGraphicNovelPageImageInput {
   style?: string;
 }
 
+interface RepairGraphicNovelPanelsInput {
+  type: 'repair_graphic_novel_panels';
+  storyId: string;
+  pageNumber: number;
+  panels: GraphicNovelPanelRepairTarget[];
+  refreshTurnaroundCharacterIds?: string[];
+  style?: string;
+}
+
 export type StoryJobQueueInput =
   | string
   | AudioGenerationJobInput
   | RegenerateSceneImageInput
-  | RegenerateGraphicNovelPageImageInput;
+  | RegenerateGraphicNovelPageImageInput
+  | RepairGraphicNovelPanelsInput;
 
 type StoryJobQueueAddJobTestOverride = (input: StoryJobQueueInput) => Promise<string>;
 
@@ -1384,6 +1410,10 @@ const legacyRegenerationQueue = new DurableJobQueue<LegacyJob>({
       await processRegenerateGraphicNovelPageImageLegacy(job as RegenerateGraphicNovelPageImageJob);
       return;
     }
+    if (job.type === 'repair_graphic_novel_panels') {
+      await processRepairGraphicNovelPanelsLegacy(job as RepairGraphicNovelPanelsJob);
+      return;
+    }
     throw new Error(`Unsupported legacy regeneration job type: ${job.type}`);
   },
   pollIntervalMs: 2000,
@@ -1538,6 +1568,44 @@ async function processRegenerateGraphicNovelPageImageLegacy(
   });
 }
 
+async function processRepairGraphicNovelPanelsLegacy(
+  job: RepairGraphicNovelPanelsJob
+): Promise<void> {
+  logger.info(
+    {
+      storyId: job.storyId,
+      pageNumber: job.pageNumber,
+      panelNumbers: job.panels.map((panel) => panel.panelNumber),
+    },
+    'Repairing selected graphic novel panels (legacy)'
+  );
+  const { repairGraphicNovelPagePanels } = await import(
+    '../services/graphicNovelOrchestrationService'
+  );
+  const result = await repairGraphicNovelPagePanels({
+    storyId: job.storyId,
+    pageNumber: job.pageNumber,
+    panels: job.panels,
+    refreshTurnaroundCharacterIds: job.refreshTurnaroundCharacterIds,
+    style: job.style,
+  });
+  logger.info(
+    {
+      storyId: job.storyId,
+      pageNumber: job.pageNumber,
+      outcome: result.outcome,
+      pageAssetId: result.pageAssetId,
+      acceptedPanelNumbers: result.panelResults
+        .filter((panel) => panel.accepted)
+        .map((panel) => panel.panelNumber),
+      failedPanelNumbers: result.panelResults
+        .filter((panel) => !panel.accepted)
+        .map((panel) => panel.panelNumber),
+    },
+    'Selected graphic novel panel repair job completed'
+  );
+}
+
 // ── Exports ──
 
 export const storyJobQueue = new StoryJobQueue();
@@ -1573,7 +1641,6 @@ export async function processImageGenerationForTesting(job: ImageGenerationJob):
   }
   return processImageGeneration(job);
 }
-
 /**
  * Test-only entry into the production audio generation worker.
  */

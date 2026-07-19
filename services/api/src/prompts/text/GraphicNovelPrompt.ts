@@ -5,6 +5,7 @@ import {
   formatContinuationLocationMemory,
   formatContinuationOutfitMemory,
   formatContinuationStoryContext,
+  formatCharacterIdentityRegistry,
   formatContactGeometryWriterRule,
   formatContentPolicySection,
   formatDynamicForeshorteningRules,
@@ -112,7 +113,8 @@ export function characterList(spec: StorySpec): string {
         : ', visual reference: no';
       const personality = character.personality || (character as any).traits || '';
       const personalityText = personality ? ` Story voice/personality: ${personality}` : '';
-      return `- ${character.name} (${characterType}${role}${referenceFlag}): use this exact story name.${personalityText}`;
+      const characterRef = character.characterRef || character.id;
+      return `- ${character.name} [characterRef: ${characterRef}] (${characterType}${role}${referenceFlag}): use this display name and exact structural ref.${personalityText}`;
     })
     .join('\n');
 }
@@ -154,7 +156,8 @@ function formatGraphicContinuationCharacterLine(
       ? ` Continuity note: ${character.description}`
       : '';
 
-  return `- ${cleanName} (${characterType}${roleText}${referenceFlag}): use this exact story name.${personalityText}${continuityText}`;
+  const characterRef = character.characterRef || character.id || source?.characterRef || source?.id;
+  return `- ${cleanName} [characterRef: ${characterRef}] (${characterType}${roleText}${referenceFlag}): use this display name and exact structural ref.${personalityText}${continuityText}`;
 }
 
 export function graphicNovelCharacterList(
@@ -184,6 +187,21 @@ export function graphicNovelCharacterList(
   }
 
   return sections.join('\n');
+}
+
+export function graphicNovelStructuralIdentitySection(
+  spec: StorySpec,
+  declaredCharacters: NonNullable<GraphicNovelScript['characters']> = []
+): string {
+  return `CHARACTER IDENTITY REGISTRY:
+${formatCharacterIdentityRegistry([...spec.characters, ...declaredCharacters])}
+
+STRUCTURAL CHARACTER IDENTITY:
+- characterRef is authoritative everywhere; names and speaker are localized display aliases only.
+- Copy an existing registry UUID into characters[].characterRef, outfits[].characterRef, dialogue[].characterRef, thoughts[].characterRef, and cameraComposition.characters[].characterRef.
+- A title, family form, translation, punctuation, or accent change never creates a new identity. For example, "Тато Тео" keeps Theo's characterRef.
+- For each genuinely new named character allocate one NEW_CH_n in characters[] and reuse it everywhere. Never bind results back by name.
+- Do not embed identifiers inside display names.`;
 }
 
 function visualReferenceCharacterInputs(
@@ -219,7 +237,7 @@ export function graphicNovelVisualReferenceLabelSection(
     'VISUAL CHARACTER REFERENCES:',
     ...lines,
     '- Use these REF_CH_* labels only inside visual fields: visual.primaryRead, visual.sceneVisual.setting, visual.sceneVisual.cameraComposition.shot, visual.sceneVisual.cameraComposition.characters[].description, and visual.sceneVisual.lighting.',
-    '- Keep dialogue[].speaker, thoughts[].speaker, and visual.sceneVisual.cameraComposition.characters[].name as exact story names, not REF_CH_* labels.',
+    '- Keep dialogue[].speaker, thoughts[].speaker, and visual.sceneVisual.cameraComposition.characters[].name as localized display names, not REF_CH_* labels; characterRef carries identity.',
     '- Never use REF_CH_* labels in title, description, prose text, dialogue text, thought text, captions, or speaker names.',
     '- When a listed character is mentioned in visual text, write its REF_CH_* label instead of the natural-language character name.',
     '- If a REF_CH_* label appears anywhere in a panel visual, that same character must appear in that panel cameraComposition.characters[] row.',
@@ -626,7 +644,7 @@ OUTPUT:
 - The final page must resolve positively and clearly for the age.
 - Create environments[] once for persistent locations. Reuse environmentId on panels instead of repeating the whole environment.
 - Create outfits[] once for canonical wardrobe bindings. Reuse outfitId on panels instead of repeating garment text.
-- Create characters[] only for newly invented named story characters/helpers/creatures that are not listed in CHARACTERS.
+- Return every used identity in characters[]. Existing characters keep their registry UUID; genuinely new characters get unique NEW_CH_n refs.
 
 ${formatStructuredStoryInputSection(spec, { includeIllustrationStyle: true })}
 
@@ -680,6 +698,8 @@ ${thoughtBubbleRules(complexityAgeGroup, pageCount)}
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
+${graphicNovelStructuralIdentitySection(spec)}
+
 ${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
 
 CAST COVERAGE AND PAGE FOCUS:
@@ -689,11 +709,11 @@ CHARACTER NAME OWNERSHIP:
 - Names listed in CHARACTERS are reserved identity names for those exact characters only.
 - Never reuse a listed character name for a newly invented creature, elder, helper, narrator, location, vehicle, object, world-animal, or environmental being.
 - If the scenario needs an additional named creature/helper (for example a giant animal carrying a world on its back), create a fresh name that is not similar to any listed character name.
-- Add each newly invented named helper/creature/object character to top-level characters[] with type and a stable visual description for turnaround generation.
+- Add each newly invented named helper/creature/object character to top-level characters[] with one NEW_CH_n, type, and a stable visual description for turnaround generation.
 - If a newly invented named helper/creature/object is the main subject of visual.primaryRead, appears in visual.sceneVisual.setting, is watched/reacted to by others, or performs the panel action, it MUST be included in that panel visual.sceneVisual.cameraComposition.characters[] even when it is not speaking.
 - Do not write a panel where primaryRead/setting says "the small creature/griffin/robot/etc." is doing the action while cameraComposition.characters[] lists only observers. Add the named character row too.
 - characters[].description must be natural-language visual identity text only. Do not use REF_CH_* labels, internal IDs, panel action, or temporary scene state there.
-- Do not include preselected CHARACTERS in top-level characters[].
+- Include every preselected character actually used in top-level characters[] with its exact existing characterRef.
 - Do not reinterpret a reference-grounded character as a different species, scale, place, or vehicle. If a listed character appears, they remain that same character identity.
 - If an environment is on, inside, or carried by a large creature, that creature must have its own new name unless it is explicitly listed in CHARACTERS as that exact creature.
 
@@ -783,6 +803,7 @@ OUTPUT:
 - Each panel must contain final bubble text plus visual instructions only: dialogue/thoughts/caption and visual.
 - Create environments[] once for persistent locations and reuse environmentId on panels.
 - Create outfits[] once for canonical wardrobe bindings and reuse outfitId on panels.
+- Return every used identity in characters[] with one characterRef reused in all nested rows.
 - The final page resolves warmly and clearly.
 
 ${formatStructuredStoryInputSection(spec)}
@@ -818,6 +839,8 @@ ${
     ? graphicNovelCharacterList(spec, continuationContext)
     : safetyFallbackCharacterList(spec)
 }
+
+${graphicNovelStructuralIdentitySection(spec)}
 
 ${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
 
@@ -935,6 +958,9 @@ ${closingArtifactRules(
 CHARACTERS:
 ${graphicNovelCharacterList(spec)}
 
+${graphicNovelStructuralIdentitySection(spec, script.characters || [])}
+- This repair may not create a new identity. Reuse only characterRef values already declared by the script.
+
 ${graphicNovelVisualReferenceLabelSection(spec, undefined, visualReferenceLabels)}
 
 CAST COVERAGE AND PAGE FOCUS:
@@ -973,10 +999,15 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
     characters: {
       type: 'array',
       description:
-        'Only newly invented named story characters/helpers/creatures that are not preselected CHARACTERS. Omit or return [] when there are none.',
+        'Identity declarations for every character used by the story. Existing characters use registry UUIDs; new characters use NEW_CH_n.',
       items: {
         type: 'object',
         properties: {
+          characterRef: {
+            type: 'string',
+            description:
+              'Existing UUID from CHARACTER IDENTITY REGISTRY or unique NEW_CH_n for a genuinely new identity.',
+          },
           name: { type: 'string' },
           type: {
             type: 'string',
@@ -990,7 +1021,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
           role: { type: 'string' },
           personality: { type: 'string' },
         },
-        required: ['name', 'type', 'description'],
+        required: ['characterRef', 'name', 'type', 'description'],
       },
     },
     environments: {
@@ -1047,6 +1078,10 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                         minLength: 1,
                         maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
                       },
+                      characterRef: {
+                        type: 'string',
+                        description: 'Exact characters[].characterRef for this speaker.',
+                      },
                       text: {
                         type: 'string',
                         minLength: 1,
@@ -1054,7 +1089,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                       },
                       emotion: { type: 'string' },
                     },
-                    required: ['speaker', 'text'],
+                    required: ['characterRef', 'speaker', 'text'],
                   },
                 },
                 thoughts: {
@@ -1067,6 +1102,10 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                         minLength: 1,
                         maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
                       },
+                      characterRef: {
+                        type: 'string',
+                        description: 'Exact characters[].characterRef for this thinker.',
+                      },
                       text: {
                         type: 'string',
                         minLength: 1,
@@ -1074,7 +1113,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                       },
                       emotion: { type: 'string' },
                     },
-                    required: ['speaker', 'text'],
+                    required: ['characterRef', 'speaker', 'text'],
                   },
                 },
                 caption: { type: 'string', maxLength: GRAPHIC_NOVEL_CAPTION_MAX_CHARS },
@@ -1110,6 +1149,10 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                               items: {
                                 type: 'object',
                                 properties: {
+                                  characterRef: {
+                                    type: 'string',
+                                    description: 'Exact characters[].characterRef for this visible character.',
+                                  },
                                   name: { type: 'string' },
                                   position: {
                                     type: 'string',
@@ -1123,7 +1166,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                                   },
                                   outfitId: structuredCameraCharacterOutfitIdJsonSchema(),
                                 },
-                                required: ['name', 'position', 'description', 'outfitId'],
+                                required: ['characterRef', 'name', 'position', 'description', 'outfitId'],
                               },
                             },
                           },
@@ -1145,7 +1188,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ['title', 'description', 'language', 'environments', 'outfits', 'pages'],
+  required: ['title', 'description', 'language', 'characters', 'environments', 'outfits', 'pages'],
 };
 
 const GRAPHIC_NOVEL_PAGE_SCHEMA = GRAPHIC_NOVEL_SCRIPT_SCHEMA.properties?.pages?.items;

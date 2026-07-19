@@ -1,35 +1,24 @@
-import { stripCharacterIdFromName } from '@wondertales/shared';
-
-type SelectedCharacter = { id?: string; name: string };
+type SelectedCharacter = { id?: string; characterRef?: string; name: string };
 
 type DirectorIllustrationLike = {
   sceneVisual?: {
     cameraComposition?: {
-      characters?: Array<{ name?: unknown }>;
+      characters?: Array<{ characterRef?: unknown; name?: unknown }>;
     };
   };
 };
 
-const CHARACTER_ID_PATTERN = /\[ID:\s*([^\]]+)\]/i;
-
-function extractCharacterId(name: unknown): string | null {
-  if (typeof name !== 'string') return null;
-  return name.match(CHARACTER_ID_PATTERN)?.[1]?.trim() || null;
+function normalizedCharacterRef(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeCharacterName(name: unknown): string {
-  if (typeof name !== 'string') return '';
-  return stripCharacterIdFromName(name).trim().normalize('NFC').toLocaleLowerCase('en');
-}
-
-function selectedCharacterKey(character: SelectedCharacter): string {
-  return character.id?.trim()
-    ? `id:${character.id.trim()}`
-    : `name:${normalizeCharacterName(character.name)}`;
+function selectedCharacterRef(character: SelectedCharacter): string {
+  return normalizedCharacterRef(character.characterRef || character.id);
 }
 
 function formatSelectedCharacter(character: SelectedCharacter): string {
-  return character.id?.trim() ? `${character.name} [ID: ${character.id.trim()}]` : character.name;
+  const ref = selectedCharacterRef(character);
+  return ref ? `${character.name} (${ref})` : character.name;
 }
 
 /**
@@ -47,8 +36,8 @@ export function evaluateDirectorSelectedCharacterCoverage(params: {
   const selectedCharacters = Array.from(
     new Map(
       params.userCharacters
-        .filter((character) => character.name?.trim() || character.id?.trim())
-        .map((character) => [selectedCharacterKey(character), character] as const)
+        .filter((character) => selectedCharacterRef(character))
+        .map((character) => [selectedCharacterRef(character), character] as const)
     ).values()
   );
   if (selectedCharacters.length === 0) {
@@ -59,23 +48,19 @@ export function evaluateDirectorSelectedCharacterCoverage(params: {
     params.imagesPerStory === 1
       ? (params.illustrations ?? []).slice(0, 1)
       : (params.illustrations ?? []);
-  const cameraCharacterNames = relevantIllustrations.flatMap((illustration) => {
-    const rows = illustration.sceneVisual?.cameraComposition?.characters;
-    return Array.isArray(rows) ? rows.map((row) => row?.name) : [];
-  });
-  const cameraCharacterIds = new Set(
-    cameraCharacterNames.map(extractCharacterId).filter((id): id is string => Boolean(id))
-  );
-  const normalizedCameraNames = new Set(
-    cameraCharacterNames.map(normalizeCharacterName).filter(Boolean)
+  const cameraRefs = new Set(
+    relevantIllustrations
+      .flatMap((illustration) => {
+        const rows = illustration.sceneVisual?.cameraComposition?.characters;
+        return Array.isArray(rows)
+          ? rows.map((row) => normalizedCharacterRef(row?.characterRef))
+          : [];
+      })
+      .filter(Boolean)
   );
 
   const missingCharacters = selectedCharacters
-    .filter((character) => {
-      const id = character.id?.trim();
-      if (id) return !cameraCharacterIds.has(id);
-      return !normalizedCameraNames.has(normalizeCharacterName(character.name));
-    })
+    .filter((character) => !cameraRefs.has(selectedCharacterRef(character)))
     .map(formatSelectedCharacter);
 
   return {

@@ -25,17 +25,18 @@ const STORY_SPEC: StorySpec = {
   },
 };
 
-function directorResult(...characterNames: string[]) {
+function directorResult(...characters: Array<{ characterRef: string; name: string }>) {
   return {
-    characters: characterNames.map((name) => ({
-      name,
+    characters: characters.map((character) => ({
+      ...character,
       type: 'person',
       description: 'Reference-defined character',
     })),
     environments: [{ id: 'room', name: 'Room', description: 'A bright room.' }],
-    outfits: characterNames.map((name, index) => ({
+    outfits: characters.map((character, index) => ({
       id: `outfit-${index}`,
-      characterName: name,
+      characterRef: character.characterRef,
+      characterName: character.name,
       description: 'Simple clothes.',
     })),
     mapTile: { description: 'A bright room and a path.', requiredFeatures: ['path'] },
@@ -47,8 +48,8 @@ function directorResult(...characterNames: string[]) {
           setting: 'A bright room.',
           cameraComposition: {
             shot: 'Medium-wide group shot.',
-            characters: characterNames.map((name, index) => ({
-              name,
+            characters: characters.map((character, index) => ({
+              ...character,
               description: 'Smiling toward the group.',
               outfitId: `outfit-${index}`,
             })),
@@ -96,8 +97,14 @@ const params = {
 
 async function testDirectorRetriesMissingSelectedCharacter() {
   const provider = new DirectorStubProvider([
-    directorResult('Emily [ID: emily-id]', 'Neighbor'),
-    directorResult('Emily [ID: emily-id]', 'Roma [ID: roma-id]'),
+    directorResult(
+      { characterRef: 'emily-id', name: 'Emily' },
+      { characterRef: 'NEW_CH_1', name: 'Neighbor' }
+    ),
+    directorResult(
+      { characterRef: 'emily-id', name: 'Emily' },
+      { characterRef: 'roma-id', name: 'Roma' }
+    ),
   ]);
   const domain = new StoryDomainService(provider, provider, provider);
 
@@ -105,20 +112,26 @@ async function testDirectorRetriesMissingSelectedCharacter() {
 
   assert.equal(provider.prompts.length, 2);
   assert.match(provider.prompts[1], /CORRECTION REQUIRED — SELECTED CHARACTERS WERE OMITTED/);
-  assert.match(provider.prompts[1], /Roma \[ID: roma-id\]/);
+  assert.match(provider.prompts[1], /Roma \(roma-id\)/);
   assert.equal(result.illustrations[0].sceneVisual.cameraComposition.characters.length, 2);
 }
 
 async function testDirectorFailsClosedAfterInvalidRetry() {
   const provider = new DirectorStubProvider([
-    directorResult('Emily [ID: emily-id]', 'Neighbor'),
-    directorResult('Emily [ID: emily-id]', 'Neighbor'),
+    directorResult(
+      { characterRef: 'emily-id', name: 'Emily' },
+      { characterRef: 'NEW_CH_1', name: 'Neighbor' }
+    ),
+    directorResult(
+      { characterRef: 'emily-id', name: 'Emily' },
+      { characterRef: 'NEW_CH_1', name: 'Neighbor' }
+    ),
   ]);
   const domain = new StoryDomainService(provider, provider, provider);
 
   await assert.rejects(
     () => domain.callDirector(params),
-    /Selected characters are missing from the Director image plan: Roma \[ID: roma-id\]/
+    /Selected characters are missing from the Director image plan: Roma \(roma-id\)/
   );
   assert.equal(provider.prompts.length, 2);
 }

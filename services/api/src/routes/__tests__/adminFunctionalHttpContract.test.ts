@@ -3,6 +3,9 @@ import { createServer, type Server } from 'node:http';
 
 const userId = '20111111-1111-4111-8111-111111111111';
 const sessionId = '20222222-2222-4222-8222-222222222222';
+const graphicNovelStoryId = '20333333-3333-4333-8333-333333333333';
+const graphicNovelProjectId = '20444444-4444-4444-8444-444444444444';
+const graphicNovelCharacterId = '20666666-6666-4666-8666-666666666666';
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -33,6 +36,8 @@ async function main(): Promise<void> {
   const { generateToken } = await import('../../services/jwtService');
   const { clearRepositoryTestOverrides, installRepositoryTestOverrides } =
     await import('../../repositories');
+  const { clearStoryJobQueueAddJobTestOverride, installStoryJobQueueAddJobTestOverride } =
+    await import('../../jobs/storyJobProcessor');
 
   const now = new Date();
   const user = {
@@ -63,6 +68,12 @@ async function main(): Promise<void> {
     endsAt: null as Date | null,
     updatedAt: now,
   };
+  let queuedJob: unknown = null;
+
+  installStoryJobQueueAddJobTestOverride(async (input) => {
+    queuedJob = input;
+    return 'repair-panels-job-1';
+  });
 
   installRepositoryTestOverrides({
     session: {
@@ -70,6 +81,33 @@ async function main(): Promise<void> {
       updateLastActive: async () => undefined,
     } as any,
     user: { findById: async () => user } as any,
+    story: {
+      findById: async (id: string) =>
+        id === graphicNovelStoryId
+          ? {
+              id: graphicNovelStoryId,
+              userId,
+              metadata: { storyFormat: 'graphic_novel' },
+            }
+          : null,
+    } as any,
+    graphicNovel: {
+      findProjectByStoryId: async (storyId: string) =>
+        storyId === graphicNovelStoryId ? { id: graphicNovelProjectId, storyId } : null,
+      findPageByProjectAndNumber: async (projectId: string, pageNumber: number) =>
+        projectId === graphicNovelProjectId && pageNumber === 2
+          ? {
+              id: '20555555-5555-4555-8555-555555555555',
+              projectId,
+              pageNumber,
+              status: 'completed',
+              generationParams: { artOnlyImageStoragePath: 'graphic-novels/page-2-art.png' },
+              layoutJson: {
+                panels: [{ script: { panelId: 'page-2-panel-1' } }],
+              },
+            }
+          : null,
+    } as any,
     opsRuntime: {
       getGlobalState: async () => ({ ...opsState }),
       updateGlobalState: async (patch: Record<string, unknown>) => {
@@ -124,6 +162,61 @@ async function main(): Promise<void> {
     assert.equal(releases.status, 200);
     assert.deepEqual(((await releases.json()) as any).data, []);
 
+    const repairPanels = await request(
+      'POST',
+      `/api/v1/admin/stories/${graphicNovelStoryId}/graphic-novel-pages/2/repair-panels`,
+      {
+        panels: [
+          {
+            panelNumber: 1,
+            panelId: 'page-2-panel-1',
+            mode: 'regenerate',
+            issues: [
+              {
+                kind: 'hair',
+                comment: 'Restore the exact hairstyle from the turnaround.',
+                characterId: graphicNovelCharacterId,
+              },
+              { kind: 'text', comment: 'Remove the baked-in caption.' },
+            ],
+          },
+        ],
+        refreshTurnaroundCharacterIds: [graphicNovelCharacterId],
+      }
+    );
+    assert.equal(repairPanels.status, 200);
+    assert.deepEqual((await repairPanels.json()) as any, {
+      status: 'success',
+      data: {
+        jobId: 'repair-panels-job-1',
+        storyId: graphicNovelStoryId,
+        pageNumber: 2,
+        panelNumbers: [1],
+      },
+      message: 'Graphic novel panel repair started',
+    });
+    assert.deepEqual(queuedJob, {
+      type: 'repair_graphic_novel_panels',
+      storyId: graphicNovelStoryId,
+      pageNumber: 2,
+      panels: [
+        {
+          panelNumber: 1,
+          panelId: 'page-2-panel-1',
+          mode: 'regenerate',
+          issues: [
+            {
+              kind: 'hair',
+              comment: 'Restore the exact hairstyle from the turnaround.',
+              characterId: graphicNovelCharacterId,
+            },
+            { kind: 'text', comment: 'Remove the baked-in caption.' },
+          ],
+        },
+      ],
+      refreshTurnaroundCharacterIds: [graphicNovelCharacterId],
+    });
+
     const validationCases: Array<{
       method: string;
       path: string;
@@ -169,6 +262,23 @@ async function main(): Promise<void> {
         path: '/api/v1/admin/stories/not-a-uuid/graphic-novel-pages/0/regenerate-image',
         body: {},
       },
+      {
+        method: 'POST',
+        path: '/api/v1/admin/stories/not-a-uuid/graphic-novel-pages/0/repair-panels',
+        body: {},
+      },
+      {
+        method: 'POST',
+        path: `/api/v1/admin/stories/${graphicNovelStoryId}/graphic-novel-pages/2/repair-panels`,
+        body: {
+          panels: [
+            {
+              panelNumber: 1,
+              issues: [{ kind: 'hair', comment: 'Hair does not match.' }],
+            },
+          ],
+        },
+      },
       { method: 'GET', path: '/api/v1/admin/content-config/not-a-resource' },
       { method: 'POST', path: '/api/v1/admin/content-config/not-a-resource', body: {} },
       { method: 'PATCH', path: '/api/v1/admin/content-config/not-a-resource/id', body: {} },
@@ -194,11 +304,12 @@ async function main(): Promise<void> {
       await response.arrayBuffer();
     }
   } finally {
+    clearStoryJobQueueAddJobTestOverride();
     clearRepositoryTestOverrides();
     await close(server);
   }
 
-  console.log('admin functional HTTP contract passed (42 routes owned)');
+  console.log('admin functional HTTP contract passed (43 routes owned)');
 }
 
 main().catch((error) => {

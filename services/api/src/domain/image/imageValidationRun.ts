@@ -225,6 +225,12 @@ function compactWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function optionalTrimmedString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 function normalizeActualVisibleDescription(value: string | null | undefined): string | null {
   const text = compactWhitespace(String(value ?? ''));
   if (!text) return null;
@@ -940,15 +946,14 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     character: ProductImageValidationInput['expectedCharacters'][number],
     options?: { includeWardrobeCheck?: boolean }
   ): string => {
-    const subtype = character.speciesSubtype?.trim()
-      ? `; subtype=${character.speciesSubtype.trim()}`
-      : '';
+    const characterSubtype = optionalTrimmedString(character.speciesSubtype);
+    const characterDescription = optionalTrimmedString(character.description);
+    const subtype = characterSubtype ? `; subtype=${characterSubtype}` : '';
     const referenceIndex = findIdentityReferenceIndex(character.name, params.referenceImages);
     const reference = referenceIndex ? `; reference=Image ${referenceIndex}` : '';
-    const desc =
-      !referenceIndex && character.description?.trim()
-        ? `; description=${character.description.trim()}`
-        : '';
+    const desc = !referenceIndex && characterDescription
+      ? `; description=${characterDescription}`
+      : '';
     const wardrobeCheck =
       options?.includeWardrobeCheck !== true
         ? ''
@@ -1078,7 +1083,7 @@ function buildSegmentedCharacterSceneBrief(
       : (cameraComposition.characters.find((character) =>
           validationNamesMatch(character.name, characterName)
         ) ?? null);
-  const action = characterSceneRow?.description?.trim();
+  const action = optionalTrimmedString(characterSceneRow?.description);
   if (!action) return null;
 
   const lines = [
@@ -1164,6 +1169,8 @@ function buildSegmentedHumanCharacterPrompt(params: {
   const includeWardrobeChecks = params.includeWardrobeChecks !== false;
   const validateOutfit = includeWardrobeChecks && character.validateOutfit === true;
   const hasIdentityReference = !!params.identityReference;
+  const characterSubtype = optionalTrimmedString(character.speciesSubtype);
+  const characterDescription = optionalTrimmedString(character.description);
   const hasDressedTurnaroundReference =
     includeWardrobeChecks && params.identityReference?.identitySource === 'dressed_turnaround';
   const wardrobeDecisionRule = characterWardrobeDecisionRule({
@@ -1216,11 +1223,11 @@ function buildSegmentedHumanCharacterPrompt(params: {
     '',
     `EXPECTED CHARACTER: "${character.name}"`,
     `KIND: ${character.characterKind}`,
-    !hasIdentityReference && character.speciesSubtype?.trim()
-      ? `SUBTYPE: ${character.speciesSubtype.trim()}`
+    !hasIdentityReference && characterSubtype
+      ? `SUBTYPE: ${characterSubtype}`
       : '',
-    !hasIdentityReference && character.description?.trim()
-      ? `DESCRIPTION: ${character.description.trim()}`
+    !hasIdentityReference && characterDescription
+      ? `DESCRIPTION: ${characterDescription}`
       : '',
     '',
     'Output field rules:',
@@ -1250,6 +1257,8 @@ function buildSegmentedNonHumanCharacterPrompt(params: {
   const includeWardrobeChecks = params.includeWardrobeChecks !== false;
   const validateOutfit = includeWardrobeChecks && character.validateOutfit === true;
   const hasIdentityReference = !!params.identityReference;
+  const characterSubtype = optionalTrimmedString(character.speciesSubtype);
+  const characterDescription = optionalTrimmedString(character.description);
   const targetKindLabel = character.characterKind === 'animal' ? 'ANIMAL' : 'IMAGINARY CREATURE';
   const wardrobeDecisionRule = characterWardrobeDecisionRule({
     includeWardrobeChecks,
@@ -1310,11 +1319,11 @@ function buildSegmentedNonHumanCharacterPrompt(params: {
     '',
     `EXPECTED CHARACTER: "${character.name}"`,
     `KIND: ${character.characterKind}`,
-    !hasIdentityReference && character.speciesSubtype?.trim()
-      ? `SUBTYPE: ${character.speciesSubtype.trim()}`
+    !hasIdentityReference && characterSubtype
+      ? `SUBTYPE: ${characterSubtype}`
       : '',
-    !hasIdentityReference && character.description?.trim()
-      ? `DESCRIPTION: ${character.description.trim()}`
+    !hasIdentityReference && characterDescription
+      ? `DESCRIPTION: ${characterDescription}`
       : '',
     '',
     'Output field rules:',
@@ -1354,14 +1363,13 @@ function buildSegmentedSceneQaPrompt(params: {
               character.name,
               params.referenceImages
             );
-            const subtype = character.speciesSubtype?.trim()
-              ? `; subtype=${character.speciesSubtype.trim()}`
-              : '';
+            const characterSubtype = optionalTrimmedString(character.speciesSubtype);
+            const characterDescription = optionalTrimmedString(character.description);
+            const subtype = characterSubtype ? `; subtype=${characterSubtype}` : '';
             const reference = referenceIndex ? `; identity reference=Image ${referenceIndex}` : '';
-            const desc =
-              !referenceIndex && character.description?.trim()
-                ? `; description=${character.description.trim()}`
-                : '';
+            const desc = !referenceIndex && characterDescription
+              ? `; description=${characterDescription}`
+              : '';
             return `- ${character.name} (${character.characterKind}${subtype}${reference}${desc})`;
           })
           .join('\n')
@@ -1385,8 +1393,9 @@ function buildSegmentedSceneQaPrompt(params: {
             const cameraRow = cameraComposition.characters.find((candidate) =>
               validationNamesMatch(candidate.name, character.name)
             );
-            return cameraRow?.description?.trim()
-              ? `- ${character.name}: ${truncateText(cameraRow.description.trim(), 220)}`
+            const description = optionalTrimmedString(cameraRow?.description);
+            return description
+              ? `- ${character.name}: ${truncateText(description, 220)}`
               : undefined;
           })
           .filter((line): line is string => !!line);

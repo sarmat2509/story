@@ -44,6 +44,8 @@ export interface StoryRequestData {
  * Per-character composition entry inside the structured cameraComposition.
  */
 export interface CameraCharacterComposition {
+  /** Structural character identity. Existing characters use their DB UUID; generated drafts use NEW_CH_n. */
+  characterRef?: string;
   name: string; // Character name (EXACT from the story character list)
   description: string; // Position, posture, action, expression, gaze
   /** Semantic position for comic blocking, e.g. left_foreground, right_midground. */
@@ -112,6 +114,8 @@ export interface SceneData {
   visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
   /** Maps character name → outfit id from story root `outfits[]` (new format). */
   characterOutfitIds?: Record<string, string>;
+  /** Maps structural characterRef → outfit id. Preferred over name-keyed characterOutfitIds. */
+  characterOutfitRefs?: Record<string, string>;
   characterOutfits?: Record<string, string>; // Legacy per-scene outfit override: charName -> description
 }
 
@@ -146,7 +150,12 @@ export interface LLMCharacter {
 }
 
 /** Wardrobe definitions from story JSON (`outfits` array). */
-export type StoryOutfitEntry = { id: string; characterName: string; description: string };
+export type StoryOutfitEntry = {
+  id: string;
+  characterRef?: string;
+  characterName: string;
+  description: string;
+};
 
 export interface ImageGenerationContext {
   childProfile?: ChildProfileData;

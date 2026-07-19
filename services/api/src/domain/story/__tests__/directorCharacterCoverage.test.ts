@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { evaluateDirectorSelectedCharacterCoverage } from '../directorCharacterCoverage';
 
-function illustration(...names: string[]) {
+function illustration(...characters: Array<{ characterRef: string; name: string }>) {
   return {
     sceneVisual: {
       cameraComposition: {
-        characters: names.map((name) => ({ name })),
+        characters,
       },
     },
   };
@@ -19,19 +19,22 @@ const selected = [
 assert.deepEqual(
   evaluateDirectorSelectedCharacterCoverage({
     userCharacters: selected,
-    illustrations: [illustration('Emily [ID: emily-id]', 'Dad', 'Elderly Neighbor')],
+    illustrations: [illustration({ characterRef: 'emily-id', name: 'Emily' })],
     imagesPerStory: 1,
   }),
   {
     ok: false,
-    missingCharacters: ['Рома [ID: roma-id]'],
+    missingCharacters: ['Рома (roma-id)'],
   }
 );
 
 assert.deepEqual(
   evaluateDirectorSelectedCharacterCoverage({
     userCharacters: selected,
-    illustrations: [illustration('Emily [ID: emily-id]'), illustration('Рома [ID: roma-id]')],
+    illustrations: [
+      illustration({ characterRef: 'emily-id', name: 'Emily' }),
+      illustration({ characterRef: 'roma-id', name: 'Рома' }),
+    ],
     imagesPerStory: 3,
   }),
   {
@@ -42,8 +45,8 @@ assert.deepEqual(
 
 assert.deepEqual(
   evaluateDirectorSelectedCharacterCoverage({
-    userCharacters: [{ name: 'Luna' }],
-    illustrations: [illustration('LUNA')],
+    userCharacters: [{ characterRef: 'luna-id', name: 'Luna' }],
+    illustrations: [illustration({ characterRef: 'luna-id', name: 'LUNA' })],
     imagesPerStory: 1,
   }),
   {

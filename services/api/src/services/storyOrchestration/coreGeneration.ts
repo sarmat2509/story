@@ -9,8 +9,11 @@ import { getStoryDomainService } from '../aiService';
 import { recordUsage } from '../aiUsageService';
 import { startTask, completeTask, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
-import { normalizeCharacterName } from '../../utils/characterNormalization';
-import { extractLlmCharactersFromText, handleRequestError } from './utilities';
+import {
+  bindPersistedCharacterRefs,
+  extractLlmCharactersFromText,
+  handleRequestError,
+} from './utilities';
 import {
   mergeCharacters,
   persistLlmCharacters,
@@ -154,18 +157,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       spec.language
     );
 
-    // Enrich mergedCharacters with DB IDs
-    for (const char of mergedCharacters) {
-      if (char.source === 'llm_generated' && !char.id) {
-        const normalized = normalizeCharacterName(char.name);
-        const result = llmCharacterResults.get(normalized);
-        if (result) {
-          char.id = result.characterId;
-          (char as any)._llmIsNew = result.isNew;
-          (char as any)._llmHasTurnaround = result.hasTurnaround;
-        }
-      }
-    }
+    bindPersistedCharacterRefs({ text, mergedCharacters, persistenceResults: llmCharacterResults });
 
     logger.info(
       {

@@ -24,6 +24,7 @@ import {
   ageRules,
   graphicNovelPanelCountRange,
   graphicNovelCharacterList,
+  graphicNovelStructuralIdentitySection,
   graphicNovelVisualReferenceLabelSection,
   panelDensityRules,
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
@@ -121,7 +122,7 @@ OUTPUT:
 - Comic blocks MUST NOT include prose text fields; use panel dialogue, thoughts, or captions for all readable comic text.
 - Prose blocks use kind="prose", sceneIds[] with exactly one non-anchor scene id, and text.
 - Prose blocks MUST NOT include panels[].
-- Create characters[] only for newly invented named story characters/helpers/creatures that are not listed in CHARACTERS.
+- Return every used identity in characters[]. Existing characters keep their registry UUID; genuinely new characters get unique NEW_CH_n refs.
 - Create outfits[] once for comic visual wardrobe bindings. Detailed wardrobe rows are only for child/person/human characters; non-human characters use "natural appearance".
 - Do not merge prose scenes. If two prose scenes fall between comic anchors, return two prose readingBlocks.
 - Every prose block should be one friendly paragraph, not a wall of text.
@@ -162,7 +163,7 @@ ${closingArtifactRules(
 
 COMIC PAGE STRUCTURE:
 - Each comic block is a full comic page like the graphic novel mode, not a horizontal strip.
-- If a comic/prose block introduces a newly invented named helper/creature/object character, add it to top-level characters[] with type and a stable visual description for turnaround generation. Do not include preselected CHARACTERS there.
+- Include every used preselected identity in top-level characters[] with its registry UUID. For a newly invented named helper/creature/object character, add one NEW_CH_n row with type and a stable visual description for turnaround generation.
 - If a newly invented named helper/creature/object is the main subject of visual.primaryRead, appears in visual.sceneVisual.setting, is watched/reacted to by others, or performs the panel action, it MUST be included in that panel visual.sceneVisual.cameraComposition.characters[] even when it is not speaking.
 - Do not write a panel where primaryRead/setting says "the small creature/griffin/robot/etc." is doing the action while cameraComposition.characters[] lists only observers. Add the named character row too.
 - characters[].description must be natural-language visual identity text only. Do not use REF_CH_* labels, internal IDs, panel action, or temporary scene state there.
@@ -206,6 +207,8 @@ PROSE TEXT:
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
+${graphicNovelStructuralIdentitySection(spec)}
+
 ${graphicNovelVisualReferenceLabelSection(spec, isContinuation ? continuationContext : undefined, visualReferenceLabels)}
 
 ${formatStructuredSpeakerNameRules()}
@@ -225,10 +228,15 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
     characters: {
       type: 'array',
       description:
-        'Only newly invented named story characters/helpers/creatures that are not preselected CHARACTERS. Omit or return [] when there are none.',
+        'Identity declarations for every character used by the story. Existing characters use registry UUIDs; new characters use NEW_CH_n.',
       items: {
         type: 'object',
         properties: {
+          characterRef: {
+            type: 'string',
+            description:
+              'Existing UUID from CHARACTER IDENTITY REGISTRY or unique NEW_CH_n for a genuinely new identity.',
+          },
           name: { type: 'string' },
           type: {
             type: 'string',
@@ -242,7 +250,7 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
           role: { type: 'string' },
           personality: { type: 'string' },
         },
-        required: ['name', 'type', 'description'],
+        required: ['characterRef', 'name', 'type', 'description'],
       },
     },
     environments: {
@@ -292,6 +300,10 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                         minLength: 1,
                         maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
                       },
+                      characterRef: {
+                        type: 'string',
+                        description: 'Exact characters[].characterRef for this speaker.',
+                      },
                       text: {
                         type: 'string',
                         minLength: 1,
@@ -299,7 +311,7 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                       },
                       emotion: { type: 'string' },
                     },
-                    required: ['speaker', 'text'],
+                    required: ['characterRef', 'speaker', 'text'],
                   },
                 },
                 thoughts: {
@@ -312,6 +324,10 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                         minLength: 1,
                         maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
                       },
+                      characterRef: {
+                        type: 'string',
+                        description: 'Exact characters[].characterRef for this thinker.',
+                      },
                       text: {
                         type: 'string',
                         minLength: 1,
@@ -319,7 +335,7 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                       },
                       emotion: { type: 'string' },
                     },
-                    required: ['speaker', 'text'],
+                    required: ['characterRef', 'speaker', 'text'],
                   },
                 },
                 caption: { type: 'string', maxLength: GRAPHIC_NOVEL_CAPTION_MAX_CHARS },
@@ -353,6 +369,10 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                               items: {
                                 type: 'object',
                                 properties: {
+                                  characterRef: {
+                                    type: 'string',
+                                    description: 'Exact characters[].characterRef for this visible character.',
+                                  },
                                   name: { type: 'string' },
                                   position: { type: 'string' },
                                   description: {
@@ -362,7 +382,7 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
                                   },
                                   outfitId: structuredCameraCharacterOutfitIdJsonSchema(),
                                 },
-                                required: ['name', 'position', 'description', 'outfitId'],
+                                required: ['characterRef', 'name', 'position', 'description', 'outfitId'],
                               },
                             },
                           },
@@ -384,7 +404,15 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ['title', 'description', 'language', 'environments', 'outfits', 'readingBlocks'],
+  required: [
+    'title',
+    'description',
+    'language',
+    'characters',
+    'environments',
+    'outfits',
+    'readingBlocks',
+  ],
 };
 
 export function buildMixedStoryScriptSchema(

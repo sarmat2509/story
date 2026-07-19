@@ -48,7 +48,11 @@ export function formatStoryTitleSection(options: { isContinuation?: boolean } = 
 }
 
 export interface ContinuationCharacter {
+  id?: string;
+  characterRef?: string;
   name: string;
+  canonicalName?: string;
+  nameAliases?: string[];
   type: string;
   description?: string;
   role?: string;
@@ -69,7 +73,12 @@ export interface ContinuationPromptContext {
     description: string;
     characterOutfits?: string;
   }>;
-  previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
+  previousOutfits?: Array<{
+    id: string;
+    characterRef?: string;
+    characterName: string;
+    description: string;
+  }>;
 }
 
 export function formatPreviousEpisodesSummary(
@@ -217,7 +226,7 @@ export function formatStructuredOutfitRules(
 ): string {
   const rules = [
     'OUTFITS:',
-    '- Return a top-level outfits[] array. Each row has id, characterName, description.',
+    '- Return a top-level outfits[] array. Each row has id, characterRef, characterName, description.',
     '- Detailed wardrobe descriptions are ONLY for child/person/human characters. These rows drive outfit plate matching and dressed turnaround generation.',
     '- For child/person/human characters, outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.',
     '- Animal, imaginary, creature, object, vehicle, or environmental characters must use description exactly "natural appearance"; do not invent garment text for them.',
@@ -252,13 +261,18 @@ export function structuredOutfitsJsonSchema(): JsonSchema {
           type: 'string',
           description: 'Exact story character name that uses this outfit id.',
         },
+        characterRef: {
+          type: 'string',
+          description:
+            'Exact structural characterRef from the story character registry or top-level characters[].',
+        },
         description: {
           type: 'string',
           description:
             'Wardrobe-only English for child/person/human characters. Use exactly "natural appearance" for animal, imaginary, creature, object, vehicle, or environmental characters.',
         },
       },
-      required: ['id', 'characterName', 'description'],
+      required: ['id', 'characterRef', 'characterName', 'description'],
     },
   };
 }
@@ -277,8 +291,10 @@ export function formatStructuredSpeakerNameRules(
   const helperLabel = options.helperKind === 'creature_or_helper' ? 'creature or helper' : 'helper';
   const rules = [
     'SPEAKER NAME RULES:',
-    '- dialogue[].speaker and thoughts[].speaker must use exact character names from CHARACTERS when that character speaks.',
-    `- If the story introduces a new ${helperLabel}, choose one name once and reuse the exact same spelling in every speaker field.`,
+    '- Every dialogue[] and thoughts[] row must include characterRef. Identity comes from characterRef; speaker is localized display text only.',
+    '- dialogue[].speaker and thoughts[].speaker are localized display labels. Keep them consistent and natural in the story language; characterRef remains the identity.',
+    '- A family title or translated display form does not create another character. Reuse the same characterRef.',
+    `- If the story introduces a new ${helperLabel}, choose one display name once and reuse the same characterRef in every speaker row.`,
     '- Do not mix alphabets inside a speaker name. For Ukrainian/Russian names, keep all letters Cyrillic; never write Latin lookalikes inside a Cyrillic name.',
   ];
 
@@ -533,15 +549,36 @@ Create diverse, interesting characters appropriate for the age group and scenari
   return parts.join('\n');
 }
 
-/**
- * Format user characters with IDs for Director prompt (same format as main flow)
- * Used so Director can output "Name [ID: uuid]" for reliable matching.
- */
-export function formatUserCharactersWithIds(
-  characters: Array<{ id?: string; name: string }>
+/** Structural identity registry shared by Director and comic prompts. */
+export function formatCharacterIdentityRegistry(
+  characters: Array<{
+    id?: string;
+    characterRef?: string;
+    name: string;
+    canonicalName?: string;
+    nameAliases?: string[];
+  }>
 ): string {
-  if (!characters?.length) return '';
-  return characters.map((c) => (c.id ? `${c.name} [ID: ${c.id}]` : c.name)).join(', ');
+  if (!characters?.length) return '- No existing character identities.';
+  return characters
+    .filter((character) => character.id || character.characterRef)
+    .map((character) => {
+      const characterRef = character.characterRef || character.id;
+      const aliases = [
+        character.name,
+        character.canonicalName,
+        ...(character.nameAliases || []),
+      ]
+        .filter((value): value is string => typeof value === 'string' && !!value.trim())
+        .filter(
+          (value, index, all) =>
+            all.findIndex(
+              (candidate) => candidate.trim().toLocaleLowerCase() === value.trim().toLocaleLowerCase()
+            ) === index
+        );
+      return `- characterRef: ${characterRef}; displayName: ${formatWriterCharacterName(character.name)}; aliases: ${aliases.join(' | ')}`;
+    })
+    .join('\n');
 }
 
 /**

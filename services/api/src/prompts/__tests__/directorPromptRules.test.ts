@@ -14,7 +14,7 @@ import {
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v27');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v28_structural_character_refs');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
@@ -315,11 +315,11 @@ function testSingleImageDirectorRequiresAllSelectedCharacters() {
 
   const retryPrompt = buildDirectorSelectedCharacterCoverageRetryPrompt({
     originalPrompt: prompt,
-    missingCharacters: ['Roma [ID: roma-id]'],
+    missingCharacters: ['Roma (roma-id)'],
     imagesPerStory: 1,
   });
   assert.ok(retryPrompt.includes('CORRECTION REQUIRED — SELECTED CHARACTERS WERE OMITTED'));
-  assert.ok(retryPrompt.includes('Roma [ID: roma-id]'));
+  assert.ok(retryPrompt.includes('Roma (roma-id)'));
   assert.ok(retryPrompt.includes('Remove invented or supporting characters when necessary'));
 }
 

@@ -41,7 +41,12 @@ function formatContinuationCharacters(chars: any[]): any[] {
         description: pickContinuationDescription(char),
         role: char?.role || 'character',
       };
-      if (char?.id) (base as any).id = char.id;
+      if (char?.id) {
+        (base as any).id = char.id;
+        (base as any).characterRef = char.characterRef || char.id;
+      }
+      if (char?.canonicalName) (base as any).canonicalName = char.canonicalName;
+      if (Array.isArray(char?.nameAliases)) (base as any).nameAliases = char.nameAliases;
       if (char?.subtype) (base as any).subtype = char.subtype;
       if (char?.childProfileId) (base as any).childProfileId = char.childProfileId;
       if (Array.isArray(char?.referencePhotos))
@@ -505,7 +510,12 @@ export async function addContinuationToSeries(
     }
   }
 
-  const newOutfitRows: Array<{ id: string; characterName: string; description: string }> =
+  const newOutfitRows: Array<{
+    id: string;
+    characterRef?: string;
+    characterName: string;
+    description: string;
+  }> =
     Array.isArray(metadata?.outfits) ? metadata.outfits : [];
   const existingOutfitIds = new Set((ctx.previousOutfits || []).map((o) => o.id));
   const mergedOutfits = [...(ctx.previousOutfits || [])];
@@ -514,6 +524,7 @@ export async function addContinuationToSeries(
       existingOutfitIds.add(o.id);
       mergedOutfits.push({
         id: o.id,
+        ...(o.characterRef ? { characterRef: o.characterRef } : {}),
         characterName: o.characterName || '',
         description: o.description || '',
       });

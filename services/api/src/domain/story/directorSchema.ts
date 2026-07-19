@@ -33,13 +33,18 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
       items: {
         type: 'object',
         properties: {
+          characterRef: {
+            type: 'string',
+            description:
+              'Existing character UUID from CHARACTER IDENTITY REGISTRY, or a unique NEW_CH_n value for a newly invented character.',
+          },
           name: { type: 'string', description: 'Character name' },
           type: { type: 'string', description: 'Character type: human, animal, creature, object' },
           description: { type: 'string', description: 'Detailed visual appearance for image generation' },
           role: { type: 'string', description: 'Role in story' },
           personality: { type: 'string', description: 'Key personality traits' },
         },
-        required: ['name', 'type', 'description'],
+        required: ['characterRef', 'name', 'type', 'description'],
       },
       description: 'All characters in the story with visual descriptions',
     },
@@ -69,13 +74,17 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
             type: 'string',
             description: 'EXACT character name as in characters[] (same spelling).',
           },
+          characterRef: {
+            type: 'string',
+            description: 'Exact characters[].characterRef for this wardrobe row.',
+          },
           description: {
             type: 'string',
             description:
               'WARDROBE ONLY IN ENGLISH for child/person/human characters: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Use exactly "natural appearance" when the human character keeps their default/reference clothes for this scene. Animals, imaginary creatures, objects, vehicles, and environmental beings: exactly "natural appearance".',
           },
         },
-        required: ['id', 'characterName', 'description'],
+        required: ['id', 'characterRef', 'characterName', 'description'],
       },
       description:
         'Canonical wardrobe definitions. Build rows for every outfitId cited by illustration cameraComposition rows. Detailed wardrobe descriptions are only for child/person/human characters; non-human character rows use exactly "natural appearance" as technical bindings. If a human character keeps their default/reference clothes and those clothes fit the scene, description may be exactly "natural appearance". Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',

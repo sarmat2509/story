@@ -25,6 +25,8 @@ const STATIC_SPEC: StorySpec = {
   ageGroup: '6-8',
   characters: [
     {
+      id: 'mira-id',
+      characterRef: 'mira-id',
       name: 'Mira',
       type: 'child',
       description: 'A curious reader.',
@@ -57,7 +59,7 @@ function specForAge(ageGroup: string): StorySpec {
 function panel(pageNumber: number, panelNumber: number, text: string) {
   return {
     panelId: `m${pageNumber}-${panelNumber}`,
-    dialogue: [{ speaker: 'Mira', text }],
+    dialogue: [{ characterRef: 'mira-id', speaker: 'Mira', text }],
     thoughts: [],
     visual: {
       environmentId: 'env_main',
@@ -69,6 +71,7 @@ function panel(pageNumber: number, panelNumber: number, text: string) {
           shot: 'medium shot, eye level',
           characters: [
             {
+              characterRef: 'mira-id',
               name: 'Mira',
               position: 'left_foreground',
               description: 'looking toward the clue with a readable curious expression',
@@ -96,6 +99,14 @@ function rawScript(
     title: 'The Mixed Path',
     description: 'A mixed prose and comic story.',
     language: 'en',
+    characters: [
+      {
+        characterRef: 'mira-id',
+        name: 'Mira',
+        type: 'human',
+        description: 'A curious reader.',
+      },
+    ],
     environments: [
       {
         id: 'env_main',
@@ -103,7 +114,14 @@ function rawScript(
         description: 'A friendly path with soft grass and clear open space.',
       },
     ],
-    outfits: [{ id: 'o_mira', characterName: 'Mira', description: 'everyday play clothes' }],
+    outfits: [
+      {
+        id: 'o_mira',
+        characterRef: 'mira-id',
+        characterName: 'Mira',
+        description: 'everyday play clothes',
+      },
+    ],
     readingBlocks: Array.from({ length: sceneCount }, (_, index) => {
       const sceneId = index + 1;
       const page = comicPageBySceneId.get(sceneId);
@@ -141,11 +159,21 @@ function ukrainianScript(): MixedStoryScript {
   raw.language = 'uk';
   raw.title = 'Таємна стежка';
   raw.description = 'Мішана історія з коміксами й прозою.';
-  raw.outfits = [{ id: 'o_mira', characterName: 'Міра', description: 'everyday play clothes' }];
+  raw.characters![0].name = 'Міра';
+  raw.outfits = [
+    {
+      id: 'o_mira',
+      characterRef: 'mira-id',
+      characterName: 'Міра',
+      description: 'everyday play clothes',
+    },
+  ];
   for (const block of raw.readingBlocks) {
     if (block.kind === 'comic') {
       for (const panelScript of block.panels) {
-        panelScript.dialogue = [{ speaker: 'Міра', text: 'Я бачу знак!' }];
+        panelScript.dialogue = [
+          { characterRef: 'mira-id', speaker: 'Міра', text: 'Я бачу знак!' },
+        ];
         const composition = panelScript.visual.sceneVisual.cameraComposition;
         if (typeof composition !== 'string') {
           composition.characters = composition.characters.map((character) => ({

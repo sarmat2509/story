@@ -23,6 +23,7 @@ export interface MixedStoryScript {
   description: string;
   language: string;
   characters?: Array<{
+    characterRef: string;
     name: string;
     type: string;
     description: string;
