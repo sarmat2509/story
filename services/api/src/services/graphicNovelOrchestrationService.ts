@@ -989,6 +989,16 @@ type GraphicNovelReferenceImage = ReferenceImage & {
   outfitId?: string;
 };
 
+type GraphicNovelPanelValidationReferenceImage = {
+  characterName: string;
+  characterId?: string;
+  imageData?: string;
+  fileUri?: string;
+  mimeType: string;
+  referenceKind: 'identity';
+  identitySource: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
+};
+
 type RenderedGraphicNovelPageAssets = {
   pageAssetId: string;
   coverAssetId?: string;
@@ -3245,14 +3255,7 @@ async function validateGraphicNovelPanelCrop(params: {
   detectedPanel: GraphicNovelDetectedPanelBounds;
   panel: PlannedGraphicNovelPage['panels'][number];
   characters: GraphicNovelCharacterManifest;
-  validationReferenceImages: Array<{
-    characterName: string;
-    imageData?: string;
-    fileUri?: string;
-    mimeType: string;
-    referenceKind: 'identity';
-    identitySource: 'turnaround' | 'reference_photo' | 'dressed_turnaround';
-  }>;
+  validationReferenceImages: GraphicNovelPanelValidationReferenceImage[];
   validationRefNamesNormalized: Set<string>;
   dressedTurnaroundValidationNames: Set<string>;
   userId: string;
@@ -3266,6 +3269,24 @@ async function validateGraphicNovelPanelCrop(params: {
     characters: params.characters,
     dressedTurnaroundValidationNames: params.dressedTurnaroundValidationNames,
   });
+  const panelValidationReferenceImages = selectGraphicNovelPanelValidationReferences({
+    validationReferenceImages: params.validationReferenceImages,
+    expectedCharacters,
+    characters: params.characters,
+  });
+  const panelValidationRefNamesNormalized = new Set(
+    panelValidationReferenceImages.map((ref) => normalizeCharacterName(ref.characterName))
+  );
+  const panelDressedTurnaroundValidationNames = new Set(
+    panelValidationReferenceImages
+      .filter((ref) => ref.identitySource === 'dressed_turnaround')
+      .map((ref) => normalizeCharacterName(ref.characterName))
+  );
+  for (const expected of expectedCharacters) {
+    expected.validateOutfit = panelDressedTurnaroundValidationNames.has(
+      normalizeCharacterName(expected.name)
+    );
+  }
   const sceneVisual = buildGraphicNovelPanelValidationSceneVisual({
     pageNumber: params.page.pageNumber,
     panelNumber: params.detectedPanel.panelNumber,
@@ -3277,7 +3298,7 @@ async function validateGraphicNovelPanelCrop(params: {
     expectedCharacters,
     sceneVisual,
     referenceImages:
-      params.validationReferenceImages.length > 0 ? params.validationReferenceImages : undefined,
+      panelValidationReferenceImages.length > 0 ? panelValidationReferenceImages : undefined,
     logContext: {
       storyId: params.storyId,
       sceneId: params.page.pageNumber,
@@ -3285,7 +3306,7 @@ async function validateGraphicNovelPanelCrop(params: {
     },
     includeLayoutChecks: false,
     includeBubbleChecks: false,
-    includeWardrobeChecks: params.dressedTurnaroundValidationNames.size > 0,
+    includeWardrobeChecks: panelDressedTurnaroundValidationNames.size > 0,
     onUsage: (usage) =>
       recordUsage(usage, {
         userId: params.userId,
@@ -3319,12 +3340,12 @@ async function validateGraphicNovelPanelCrop(params: {
     validation.validationStatus === 'provider_blocked'
       ? null
       : computeValidationScore(validation, {
-          referenceNamesNormalized: params.validationRefNamesNormalized,
+          referenceNamesNormalized: panelValidationRefNamesNormalized,
           expectedCharacters,
           sceneVisual,
           validationReferenceImages:
-            params.validationReferenceImages.length > 0
-              ? params.validationReferenceImages
+            panelValidationReferenceImages.length > 0
+              ? panelValidationReferenceImages
               : undefined,
         });
 
@@ -3498,6 +3519,27 @@ function graphicNovelReferenceMatchesExpectedCharacter(
     .filter(Boolean);
 
   return refNames.some((name) => expectedNames.has(name));
+}
+
+function selectGraphicNovelPanelValidationReferences(params: {
+  validationReferenceImages: GraphicNovelPanelValidationReferenceImage[];
+  expectedCharacters: GraphicNovelExpectedValidationCharacter[];
+  characters: GraphicNovelCharacterManifest;
+}): GraphicNovelPanelValidationReferenceImage[] {
+  return params.expectedCharacters.flatMap((expected) => {
+    const reference = params.validationReferenceImages.find((candidate) =>
+      graphicNovelReferenceMatchesExpectedCharacter(
+        {
+          characterName: candidate.characterName,
+          characterId: candidate.characterId,
+          referenceKind: 'character',
+        },
+        expected,
+        params.characters
+      )
+    );
+    return reference ? [{ ...reference, characterName: expected.name }] : [];
+  });
 }
 
 export function selectGraphicNovelPanelReferenceImagesForGeneration(params: {
@@ -6373,6 +6415,7 @@ function graphicNovelPanelValidationReferenceContext(
     )
     .map((ref) => ({
       characterName: ref.characterName!,
+      characterId: ref.characterId,
       imageData: ref.base64Data,
       fileUri: ref.fileUri,
       mimeType: ref.mimeType || 'image/png',
@@ -7607,4 +7650,5 @@ export const graphicNovelOrchestrationTestSeams = {
   bindLegacyPlannedPageCharacterIdentity,
   buildGraphicNovelExpectedCharactersForPanel,
   pageDressedTurnaroundCompositionCharacters,
+  selectGraphicNovelPanelValidationReferences,
 };

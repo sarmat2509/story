@@ -832,6 +832,40 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     ['REF_CH_TEO'],
     'reference selection follows stable characterRef instead of localized display names'
   );
+  assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.selectGraphicNovelPanelValidationReferences({
+      validationReferenceImages: [
+        {
+          characterId: 'theo-uuid',
+          characterName: 'Тео',
+          imageData: 'theo-turnaround',
+          mimeType: 'image/jpeg',
+          referenceKind: 'identity',
+          identitySource: 'dressed_turnaround',
+        },
+      ],
+      expectedCharacters: [
+        {
+          name: 'Тато Тео',
+          characterRef: 'theo-uuid',
+          characterKind: 'human',
+          validateOutfit: false,
+        },
+      ],
+      characters: charactersWithPersistedAliasDuplicate,
+    }),
+    [
+      {
+        characterId: 'theo-uuid',
+        characterName: 'Тато Тео',
+        imageData: 'theo-turnaround',
+        mimeType: 'image/jpeg',
+        referenceKind: 'identity',
+        identitySource: 'dressed_turnaround',
+      },
+    ],
+    'validator receives the stable identity reference under the localized panel alias'
+  );
   assert.equal(
     graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(
       charactersWithPersistedAliasDuplicate[2],
