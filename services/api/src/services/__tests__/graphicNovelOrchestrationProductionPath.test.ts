@@ -656,7 +656,10 @@ async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaro
 }
 
 async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Promise<void> {
-  const { graphicNovelOrchestrationTestSeams } =
+  const {
+    graphicNovelOrchestrationTestSeams,
+    selectGraphicNovelPanelReferenceImagesForGeneration,
+  } =
     await import('../graphicNovelOrchestrationService');
   const characters = [
     {
@@ -779,8 +782,44 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       panel: page.panels[0],
       characters: charactersWithPersistedAliasDuplicate,
       dressedTurnaroundValidationNames: new Set(),
-    }).map((character: any) => character.name),
-    ['Тато Тео']
+    }).map((character: any) => ({
+      name: character.name,
+      characterRef: character.characterRef,
+    })),
+    [{ name: 'Тато Тео', characterRef: 'theo-uuid' }]
+  );
+  const selectedReferences = selectGraphicNovelPanelReferenceImagesForGeneration({
+    storyId: 'story-uuid',
+    pageNumber: 7,
+    environmentReferences: [],
+    characterReferences: [
+      {
+        referenceKind: 'character',
+        characterId: 'theo-uuid',
+        characterName: 'Тео',
+        referenceBindingId: 'REF_CH_TEO',
+      },
+      {
+        referenceKind: 'character',
+        characterId: 'tato-theo-llm-uuid',
+        characterName: 'Тато Тео',
+        referenceBindingId: 'REF_CH_TATO_TEO',
+      },
+    ] as any,
+    expectedCharacters: [
+      {
+        name: 'Тато Тео',
+        characterRef: 'theo-uuid',
+        characterKind: 'human',
+        validateOutfit: false,
+      },
+    ],
+    characters: charactersWithPersistedAliasDuplicate,
+  }).filter((reference: any) => reference.referenceKind === 'character');
+  assert.deepEqual(
+    selectedReferences.map((reference: any) => reference.referenceBindingId),
+    ['REF_CH_TEO'],
+    'reference selection follows stable characterRef instead of localized display names'
   );
   assert.equal(
     graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(

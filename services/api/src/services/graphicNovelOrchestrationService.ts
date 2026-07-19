@@ -1054,6 +1054,7 @@ type GraphicNovelPanelAttemptAsset = {
 
 type GraphicNovelExpectedValidationCharacter = {
   name: string;
+  characterRef?: string;
   characterKind: 'human' | 'animal' | 'imaginary';
   description?: string;
   validateOutfit: boolean;
@@ -2110,6 +2111,7 @@ function buildGraphicNovelExpectedCharactersForPanel(params: {
     seen.add(seenKey);
     expected.push({
       name,
+      ...(identityKey ? { characterRef: identityKey } : {}),
       characterKind: graphicNovelCharacterKind(manifest?.type),
       description: manifest?.description,
       validateOutfit: params.dressedTurnaroundValidationNames.has(normalized),
@@ -3402,7 +3404,7 @@ function graphicNovelPanelReferenceImagesForRepair(
     }
     if (!ref.characterName) return false;
     return expectedCharacters.some((character) =>
-      graphicNovelReferenceMatchesExpectedCharacter(ref, character.name, characters)
+      graphicNovelReferenceMatchesExpectedCharacter(ref, character, characters)
     );
   });
 }
@@ -3423,23 +3425,33 @@ function graphicNovelCharacterNameVariants(
 
 function graphicNovelReferenceMatchesExpectedCharacter(
   ref: GraphicNovelReferenceImage,
-  expectedName: string,
+  expected: GraphicNovelExpectedValidationCharacter,
   characters?: GraphicNovelCharacterManifest
 ): boolean {
   const expectedManifest = characters
-    ? characterManifestForPageName(characters, expectedName)
+    ? characterManifestForRef(characters, expected.characterRef) ||
+      characterManifestForPageName(characters, expected.name)
     : undefined;
   const refManifest =
-    characters && ref.characterName
-      ? characterManifestForPageName(characters, ref.characterName)
+    characters
+      ? characterManifestForRef(characters, ref.characterId) ||
+        (ref.characterName
+          ? characterManifestForPageName(characters, ref.characterName)
+          : undefined)
       : undefined;
 
-  if (expectedManifest?.id && refManifest?.id && expectedManifest.id === refManifest.id) {
-    return true;
+  const expectedRef = normalizeCharacterRef(
+    expected.characterRef || expectedManifest?.characterRef || expectedManifest?.id
+  );
+  const referenceRef = normalizeCharacterRef(
+    ref.characterId || refManifest?.characterRef || refManifest?.id
+  );
+  if (expectedRef && referenceRef) {
+    return expectedRef === referenceRef;
   }
 
   const expectedNames = new Set(
-    graphicNovelCharacterNameVariants(expectedManifest, expectedName)
+    graphicNovelCharacterNameVariants(expectedManifest, expected.name)
       .map(normalizeCharacterName)
       .filter(Boolean)
   );
