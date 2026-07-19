@@ -833,6 +833,33 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     'reference selection follows stable characterRef instead of localized display names'
   );
   assert.deepEqual(
+    selectedReferences.map((reference: any) => reference.characterName),
+    ['Тато Тео'],
+    'per-panel generation and repair references use the panel display alias'
+  );
+  const localizedRepairManifest =
+    graphicNovelOrchestrationTestSeams.buildManualPanelRepairManifest({
+      target: {
+        panelNumber: 1,
+        mode: 'edit',
+        issues: [
+          {
+            kind: 'design',
+            characterId: 'theo-uuid',
+            characterName: 'Тато Тео',
+            comment: 'Match the existing Theo identity.',
+          },
+        ],
+      },
+      panel: page.panels[0],
+      characters: charactersWithPersistedAliasDuplicate,
+    });
+  assert.equal(
+    localizedRepairManifest.subjectReplacements?.[0]?.sceneSlotDescription,
+    'clapping on the right',
+    'manual edit resolves the localized character scene slot by stable ref'
+  );
+  assert.deepEqual(
     graphicNovelOrchestrationTestSeams.selectGraphicNovelPanelValidationReferences({
       validationReferenceImages: [
         {

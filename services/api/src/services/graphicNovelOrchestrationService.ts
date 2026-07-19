@@ -3451,19 +3451,22 @@ function graphicNovelPanelReferenceImagesForRepair(
   storyArtifactReference?: GraphicNovelStoryArtifactReference | null,
   characters?: GraphicNovelCharacterManifest
 ): GraphicNovelReferenceImage[] {
-  return referenceImages.filter((ref) => {
+  return referenceImages.flatMap((ref) => {
     if (ref.referenceKind === 'object') {
       const isStoryArtifact =
         ref.source === 'story_artifact' || ref.type === 'story_artifact_reference';
       if (isStoryArtifact && panel && storyArtifactReference) {
-        return graphicNovelPanelNeedsStoryArtifactReference(panel, storyArtifactReference);
+        return graphicNovelPanelNeedsStoryArtifactReference(panel, storyArtifactReference)
+          ? [ref]
+          : [];
       }
-      return true;
+      return [ref];
     }
-    if (!ref.characterName) return false;
-    return expectedCharacters.some((character) =>
+    if (!ref.characterName) return [];
+    const expected = expectedCharacters.find((character) =>
       graphicNovelReferenceMatchesExpectedCharacter(ref, character, characters)
     );
+    return expected ? [{ ...ref, characterName: expected.name }] : [];
   });
 }
 
@@ -6257,7 +6260,7 @@ function buildManualPanelRepairManifest(params: {
     replacements.set(key, {
       characterName: character.name,
       referenceId: character.referenceBindingId,
-      sceneSlotDescription: manualPanelCharacterSceneSlotDescription(params.panel, character.name),
+      sceneSlotDescription: manualPanelCharacterSceneSlotDescription(params.panel, character),
       found: issue.kind !== 'presence',
       repairKinds: [
         ...new Set([...(current?.repairKinds ?? []), issue.kind] as ImageEditRepairIssueKind[]),
@@ -6277,15 +6280,22 @@ function buildManualPanelRepairManifest(params: {
 
 function manualPanelCharacterSceneSlotDescription(
   panel: PlannedGraphicNovelPage['panels'][number],
-  characterName: string
+  character: GraphicNovelCharacterManifest[number]
 ): string {
   const composition = panel.script.visual.sceneVisual.cameraComposition;
   if (composition && typeof composition !== 'string') {
-    const targetName = normalizeCharacterName(characterName);
-    const character = composition.characters.find(
-      (candidate) => normalizeCharacterName(candidate.name) === targetName
-    );
-    const description = character?.description?.replace(/\s+/g, ' ').trim();
+    const targetRef = normalizeCharacterRef(character.characterRef || character.id);
+    const targetName = normalizeCharacterName(character.name);
+    const row =
+      (targetRef
+        ? composition.characters.find(
+            (candidate) => normalizeCharacterRef(candidate.characterRef) === targetRef
+          )
+        : undefined) ||
+      composition.characters.find(
+        (candidate) => normalizeCharacterName(candidate.name) === targetName
+      );
+    const description = row?.description?.replace(/\s+/g, ' ').trim();
     if (description) return description;
   }
   return panel.script.visual.primaryRead;
