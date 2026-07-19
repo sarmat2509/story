@@ -4604,8 +4604,14 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
       issues.push(makeRepairIssue('outfit', note || 'Wardrobe/accessory mismatch.'));
   }
 
-  if (validation.hasUnexpectedCharacters)
-    issues.push(makeRepairIssue('unexpected', 'Unexpected extra subject.'));
+  if (validation.hasUnexpectedCharacters) {
+    issues.push(
+      makeRepairIssue(
+        'unexpected',
+        compactValidationText(validation.unexpectedCharacterNotes) || 'Unexpected extra subject.'
+      )
+    );
+  }
   if (validation.hasTextOrLetters)
     issues.push(makeRepairIssue('text', 'Visible text or lettering.'));
 
@@ -4674,7 +4680,35 @@ export function buildTargetedEditRepairPlan(
     return false;
   });
 
-  const selectedReferences = selected.map(anonymizeEditRepairReference);
+  const shouldProtectExpectedCharacters =
+    validation.hasUnexpectedCharacters ||
+    validation.characters.some((character) => character.duplicated);
+  const protectedCharacterKeys = new Set(
+    shouldProtectExpectedCharacters
+      ? validation.characters
+          .filter((character) => character.found)
+          .map((character) => stripCharacterIdFromName(character.name).trim().toLowerCase())
+          .filter((key) => key && !needsByName.has(key))
+      : []
+  );
+  const protectedReferenceByName = new Map<string, EditRepairReferenceImage>();
+  for (const ref of refs ?? []) {
+    if (!ref.characterName || !isIdentityRepairReference(ref)) continue;
+    const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+    if (!protectedCharacterKeys.has(key)) continue;
+    const current = protectedReferenceByName.get(key);
+    if (
+      !current ||
+      (!isDressedTurnaroundRepairReference(current) && isDressedTurnaroundRepairReference(ref))
+    ) {
+      protectedReferenceByName.set(key, ref);
+    }
+  }
+  const protectedReferences = Array.from(protectedReferenceByName.values());
+
+  const selectedReferences = [...selected, ...protectedReferences].map(
+    anonymizeEditRepairReference
+  );
   const selectedIdentityRefByName = new Map<string, EditRepairReferenceImage>();
   for (const ref of selectedReferences) {
     if (!ref.characterName) continue;
@@ -4701,6 +4735,14 @@ export function buildTargetedEditRepairPlan(
     manifest: {
       referenceMode: mode,
       issues,
+      ...(protectedReferences.length > 0
+        ? {
+            protectedSubjects: protectedReferences.map((ref) => ({
+              characterName: ref.characterName,
+              referenceId: editRepairReferenceLabel(ref),
+            })),
+          }
+        : {}),
       subjectReplacements: Array.from(needsByName.entries()).map(([key, need]) => {
         const ref = selectedIdentityRefByName.get(key);
         return {

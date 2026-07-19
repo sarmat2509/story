@@ -99,4 +99,63 @@ assert.match(
 );
 assert.doesNotMatch(slotFallbackPrompt, /Replace the entire matching visible subject/);
 
+const unexpectedValidation = validationWithCharacter({
+  recognizableScore: 1,
+  faceMatchesReference: true,
+  hairMatchesReference: true,
+  ageReadMatchesReference: true,
+  proportionsMatchReference: true,
+  matchesColors: true,
+  matchesOutfit: true,
+  sameOverallDesignRead: true,
+  identityComparisonSummary: 'All expected character anchors match.',
+  issue: null,
+  actualVisibleDescription: null,
+});
+unexpectedValidation.hasUnexpectedCharacters = true;
+unexpectedValidation.unexpectedCharacterNotes =
+  'An unidentified older man in a blue tracksuit is present on the left side of the frame.';
+const unexpectedPlan = buildTargetedEditRepairPlan(
+  [
+    {
+      characterName: 'Emilia',
+      referenceBindingId: 'REF_CH_EMILIA_123',
+      instructionText: 'Emilia dressed turnaround',
+      source: 'character_outfit_turnaround',
+      type: 'dressed_turnaround_reference',
+      referenceKind: 'character',
+      base64Data: 'aW1hZ2U=',
+      mimeType: 'image/jpeg',
+    },
+  ],
+  unexpectedValidation,
+  scene
+);
+
+assert.deepEqual(unexpectedPlan.manifest.issues, [
+  {
+    kind: 'unexpected',
+    note: 'An unidentified older man in a blue tracksuit is present on the left side of the frame.',
+  },
+]);
+assert.deepEqual(unexpectedPlan.manifest.protectedSubjects, [
+  { characterName: 'Emilia', referenceId: 'REF_CH_EMILIA_123' },
+]);
+assert.equal(unexpectedPlan.references?.length, 1);
+assert.equal(unexpectedPlan.references?.[0]?.instructionText, 'REF_CH_EMILIA_123: identity');
+
+const unexpectedPrompt = buildImageEditPrompt({
+  validationResult: unexpectedValidation,
+  targetedRepairManifest: unexpectedPlan.manifest,
+});
+assert.match(
+  unexpectedPrompt,
+  /Remove only the unexpected extra subject described as "An unidentified older man in a blue tracksuit is present on the left side of the frame\."/
+);
+assert.match(
+  unexpectedPrompt,
+  /Keep the expected characters matching REF_CH_EMILIA_123 unchanged; do not remove, replace, or redraw them\./
+);
+assert.doesNotMatch(unexpectedPrompt, /^1\. Remove only the unexpected extra subject\.$/m);
+
 console.log('targeted edit repair plan guards passed');

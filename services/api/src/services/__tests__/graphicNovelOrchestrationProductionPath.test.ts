@@ -413,6 +413,76 @@ async function testPanelQualityDecisionUsesHardPanelSignals(): Promise<void> {
     graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(identityDrift as any),
     { accepted: false, failureReasons: ['design_mismatch:Luma'] }
   );
+
+  const sourceWithUnexpectedCharacter = {
+    ...panelValidation,
+    validation: {
+      ...panelValidation.validation,
+      hasUnexpectedCharacters: true,
+      unexpectedCharacterNotes: 'An older man in a tracksuit on the left.',
+    },
+    score: 97,
+  };
+  const regressedCandidate = {
+    ...panelValidation,
+    validation: {
+      ...panelValidation.validation,
+      characters: [
+        {
+          ...baseCharacter,
+          found: false,
+          recognizableScore: 0.1,
+          matchesOutfit: false,
+          sameOverallDesignRead: false,
+        },
+      ],
+    },
+    score: 52,
+  };
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldUseGraphicNovelPanelCandidateAsNextEditSource(
+      sourceWithUnexpectedCharacter as any,
+      regressedCandidate as any
+    ),
+    false,
+    'an edit that resolves the extra subject by breaking an expected character is not chained'
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldUseGraphicNovelPanelCandidateAsNextEditSource(
+      sourceWithUnexpectedCharacter as any,
+      panelValidation as any
+    ),
+    true,
+    'a candidate that resolves the original failure without regressions may advance'
+  );
+
+  const localizedOutfitMismatch = {
+    ...panelValidation,
+    expectedCharacters: [{ name: 'Luma', characterKind: 'imaginary', validateOutfit: true }],
+    validation: {
+      ...panelValidation.validation,
+      characters: [{ ...baseCharacter, matchesOutfit: false }],
+    },
+    score: 78,
+  };
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldAttemptGraphicNovelPostRegenerateEdit(
+      localizedOutfitMismatch as any
+    ),
+    true,
+    'a regenerate candidate with only a local outfit mismatch gets one targeted cleanup edit'
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldAttemptGraphicNovelPostRegenerateEdit({
+      ...localizedOutfitMismatch,
+      validation: {
+        ...localizedOutfitMismatch.validation,
+        hasUnexpectedCharacters: true,
+      },
+    } as any),
+    false,
+    'post-regenerate cleanup does not run for compound failures'
+  );
 }
 
 async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaround(): Promise<void> {

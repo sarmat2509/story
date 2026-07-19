@@ -3450,6 +3450,43 @@ function graphicNovelPanelQualityDecision(
   };
 }
 
+function shouldUseGraphicNovelPanelCandidateAsNextEditSource(
+  current: GraphicNovelPanelRenderedValidation,
+  candidate: GraphicNovelPanelRenderedValidation
+): boolean {
+  const currentDecision = graphicNovelPanelQualityDecision(current);
+  const candidateDecision = graphicNovelPanelQualityDecision(candidate);
+  if (candidateDecision.accepted) return true;
+
+  const currentReasons = new Set(currentDecision.failureReasons);
+  const introducedReasons = candidateDecision.failureReasons.filter(
+    (reason) => !currentReasons.has(reason)
+  );
+  if (introducedReasons.length > 0) return false;
+
+  const candidateReasons = new Set(candidateDecision.failureReasons);
+  const resolvedReasons = currentDecision.failureReasons.filter(
+    (reason) => !candidateReasons.has(reason)
+  );
+  if (resolvedReasons.length > 0) return true;
+
+  return candidate.score != null && (current.score == null || candidate.score > current.score);
+}
+
+function shouldAttemptGraphicNovelPostRegenerateEdit(
+  candidate: GraphicNovelPanelRenderedValidation
+): boolean {
+  const decision = graphicNovelPanelQualityDecision(candidate);
+  if (decision.accepted || candidate.validation.validationStatus !== 'completed') return false;
+  const actionableReasons = decision.failureReasons.filter(
+    (reason) => reason !== 'score_below_threshold'
+  );
+  return (
+    actionableReasons.length > 0 &&
+    actionableReasons.every((reason) => reason.startsWith('outfit_mismatch:'))
+  );
+}
+
 function shouldRegenerateGraphicNovelPanel(
   validation: GraphicNovelPanelRenderedValidation
 ): boolean {
@@ -6921,8 +6958,15 @@ export async function repairGraphicNovelPagePanels(
                 failureReasons: [] as string[],
               };
             }
-            currentImage = generated.imageData;
-            currentValidation = candidate.validation;
+            if (
+              shouldUseGraphicNovelPanelCandidateAsNextEditSource(
+                currentValidation,
+                candidate.validation
+              )
+            ) {
+              currentImage = generated.imageData;
+              currentValidation = candidate.validation;
+            }
           }
 
           const decision = graphicNovelPanelQualityDecision(currentValidation);
@@ -6974,15 +7018,102 @@ export async function repairGraphicNovelPagePanels(
             failureReasons: [] as string[],
           };
         }
+        let finalCandidate = candidate;
+        if (shouldAttemptGraphicNovelPostRegenerateEdit(candidate.validation)) {
+          const repairPlan = buildManualPanelEditRepairPlan({
+            target,
+            page,
+            panel,
+            characters,
+            referenceImages: panelReferenceImages,
+            currentValidation: candidate.validation,
+          });
+          try {
+            const edited = await complexImageDomain.editSceneImage({
+              originalImage: generated.imageData,
+              originalMimeType: 'image/png',
+              validationResult: candidate.validation.validation,
+              sceneDescription: panel.script.visual.primaryRead,
+              imageSize: '1K',
+              referenceImages: repairPlan.references,
+              targetedRepairManifest: repairPlan.manifest,
+              systemInstruction: buildImageEditSystemInstruction(),
+              personGeneration: 'allow_all',
+              onUsage: (usage) =>
+                recordUsage(usage, { userId: story.userId, storyId: params.storyId }),
+              operation: 'graphic_novel_panel_manual_regenerate_cleanup_edit',
+            });
+            const cleanupGenerated = {
+              ...edited,
+              imageData: await normalizePanelCropForPaste(Buffer.from(edited.imageData), cropRect),
+              mimeType: 'image/png',
+              requestManifest: {
+                ...(edited.requestManifest ?? {}),
+                operation: 'graphic_novel_panel_manual_regenerate_cleanup_edit',
+                repairManifest: repairPlan.manifest,
+                repairPlanSource: repairPlan.source,
+                requestedRepairMode: target.mode,
+                postRegenerateEdit: true,
+              },
+            };
+            const cleanupCandidate = await validateCandidate({
+              generated: cleanupGenerated,
+              appliedMode: 'edit',
+              sequence: 2,
+              repairPlanSource: repairPlan.source,
+              repairManifest: repairPlan.manifest,
+            });
+            if (cleanupCandidate.decision.accepted) {
+              return {
+                accepted: true as const,
+                target,
+                panel,
+                validation: cleanupCandidate.validation,
+                requestManifest: cleanupCandidate.requestManifest,
+                appliedMode: 'regenerate' as const,
+                attempts,
+                failureReasons: [] as string[],
+              };
+            }
+            if (
+              shouldUseGraphicNovelPanelCandidateAsNextEditSource(
+                candidate.validation,
+                cleanupCandidate.validation
+              )
+            ) {
+              finalCandidate = cleanupCandidate;
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            attempts.push({
+              sequence: 2,
+              operation: 'graphic_novel_panel_manual_regenerate_cleanup_edit',
+              repairMode: 'edit',
+              repairPlanSource: repairPlan.source,
+              accepted: false,
+              failureReasons: ['edit_provider_error'],
+              errorMessage: message,
+            });
+            logger.warn(
+              {
+                err: error,
+                storyId: params.storyId,
+                pageNumber: params.pageNumber,
+                panelNumber: target.panelNumber,
+              },
+              'Manual graphic novel post-regenerate cleanup edit failed'
+            );
+          }
+        }
         return {
           accepted: false as const,
           target,
           panel,
-          validation: candidate.validation,
-          requestManifest: candidate.requestManifest,
+          validation: finalCandidate.validation,
+          requestManifest: finalCandidate.requestManifest,
           appliedMode: null,
           attempts,
-          failureReasons: candidate.decision.failureReasons,
+          failureReasons: finalCandidate.decision.failureReasons,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -7666,6 +7797,8 @@ export const graphicNovelOrchestrationTestSeams = {
   renderAndStorePage,
   applyVisionBubblePlacementForRenderedPage,
   graphicNovelPanelQualityDecision,
+  shouldUseGraphicNovelPanelCandidateAsNextEditSource,
+  shouldAttemptGraphicNovelPostRegenerateEdit,
   buildManualPanelRepairManifest,
   buildManualPanelEditRepairPlan,
   panelRepairFailedPanelsAfterRun,

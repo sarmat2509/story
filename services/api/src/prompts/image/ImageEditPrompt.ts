@@ -39,10 +39,16 @@ export interface ImageEditSubjectReplacement {
   repairKinds?: ImageEditRepairIssueKind[];
 }
 
+export interface ImageEditProtectedSubject {
+  characterName?: string;
+  referenceId: string;
+}
+
 export interface ImageEditRepairManifest {
   referenceMode: ImageEditRepairReferenceMode;
   issues: ImageEditRepairIssue[];
   subjectReplacements?: ImageEditSubjectReplacement[];
+  protectedSubjects?: ImageEditProtectedSubject[];
 }
 
 export interface ImageEditPromptParams {
@@ -77,8 +83,10 @@ function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string
     replacementActions.length > 0
       ? [...replacementActions, ...buildNonSubjectEditActionsForIssues(issues)]
       : buildEditActionsForIssues(issues);
+  const protectedSubjectAction = buildProtectedSubjectAction(manifest.protectedSubjects);
   const actions = [
     ...repairActions,
+    ...(protectedSubjectAction ? [protectedSubjectAction] : []),
     'Preserve everything else in the image.',
     'Add no unrelated new props or extra subjects.',
   ]
@@ -91,6 +99,18 @@ function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string
 
   return `Make these edits:
 ${actions}${notes}`;
+}
+
+function buildProtectedSubjectAction(
+  protectedSubjects: ImageEditProtectedSubject[] | undefined
+): string | null {
+  const referenceIds = [
+    ...new Set(
+      (protectedSubjects ?? []).map((subject) => subject.referenceId.trim()).filter(Boolean)
+    ),
+  ];
+  if (referenceIds.length === 0) return null;
+  return `Keep the expected characters matching ${referenceIds.join(', ')} unchanged; do not remove, replace, or redraw them.`;
 }
 
 function buildSubjectReplacementAction(replacement: ImageEditSubjectReplacement): string | null {
@@ -149,7 +169,7 @@ function buildEditActionsForIssues(issues: ImageEditRepairIssue[]): string[] {
       identityKinds.add(issue.kind);
       continue;
     }
-    const action = editActionForIssue(issue.kind);
+    const action = editActionForIssue(issue);
     if (!actions.includes(action)) {
       actions.push(action);
     }
@@ -165,7 +185,7 @@ function buildNonSubjectEditActionsForIssues(issues: ImageEditRepairIssue[]): st
     if (isTraitRepairKind(issue.kind) || issue.kind === 'presence') {
       continue;
     }
-    const action = editActionForIssue(issue.kind);
+    const action = editActionForIssue(issue);
     if (!actions.includes(action)) {
       actions.push(action);
     }
@@ -195,14 +215,18 @@ function buildCombinedTraitAction(kinds: Set<ImageEditRepairIssueKind>): string 
   return 'Replace the validator-flagged mismatched visible subject with the matching attached reference image.';
 }
 
-function editActionForIssue(kind: ImageEditRepairIssueKind): string {
-  switch (kind) {
+function editActionForIssue(issue: ImageEditRepairIssue): string {
+  switch (issue.kind) {
     case 'presence':
       return 'Add only the missing expected subject from the selected visual reference.';
     case 'duplicate':
       return 'Remove only the duplicate copy of the same subject.';
-    case 'unexpected':
-      return 'Remove only the unexpected extra subject.';
+    case 'unexpected': {
+      const visible = visibleSubjectDescription(issue.note);
+      return visible
+        ? `Remove only the unexpected extra subject described as "${visible}".`
+        : 'Remove only the unexpected extra subject.';
+    }
     case 'text':
       return 'Remove only the visible text or lettering.';
     case 'generic':
