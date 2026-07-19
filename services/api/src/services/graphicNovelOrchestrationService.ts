@@ -2458,6 +2458,7 @@ async function buildPageCharacterReferenceImages(params: {
   page: PlannedGraphicNovelPage;
   characters: GraphicNovelCharacterManifest;
   imageDomain: ReturnType<typeof getComplexImageDomainService>;
+  includeCharacterIds?: string[];
 }): Promise<GraphicNovelReferenceImage[]> {
   const pageNames = pageCharacterNameKeys(params.page);
   const pageRefs = pageCharacterRefKeys(params.page);
@@ -2466,9 +2467,18 @@ async function buildPageCharacterReferenceImages(params: {
   const assetStorage = getAssetStorageService();
   const references: GraphicNovelReferenceImage[] = [];
   const seenStoragePaths = new Set<string>();
+  const explicitlyIncludedIds = new Set(
+    (params.includeCharacterIds || []).map(normalizeCharacterRef).filter(Boolean)
+  );
 
   for (const character of params.characters) {
-    if (!characterManifestMatchesPage(character, pageNames, pageRefs, params.characters)) continue;
+    const characterId = normalizeCharacterRef(character.id);
+    if (
+      !explicitlyIncludedIds.has(characterId) &&
+      !characterManifestMatchesPage(character, pageNames, pageRefs, params.characters)
+    ) {
+      continue;
+    }
     const firstReference = character.references?.find(
       (ref) => !seenStoragePaths.has(ref.storagePath)
     );
@@ -6501,6 +6511,7 @@ export async function repairGraphicNovelPagePanels(
     page,
     characters,
     imageDomain: complexImageDomain,
+    includeCharacterIds: params.refreshTurnaroundCharacterIds,
   });
   const dressedTurnaroundReferenceImages = await buildPageDressedTurnaroundReferenceImages({
     storyId: params.storyId,
