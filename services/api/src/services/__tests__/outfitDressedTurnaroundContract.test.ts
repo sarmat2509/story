@@ -431,12 +431,76 @@ async function main(): Promise<void> {
     assert.equal(localizedAliasRefs[0].characterName, 'Тато Тео');
     assert.equal(localizedAliasRefs[0].type, 'dressed_turnaround_reference');
     assert.equal(generateCalls, 1);
+
+    // A selected default outfit is still exposed through the dressed-reference contract.
+    installBaseOverrides();
+    generateCalls = 0;
+    const defaultOutfitRefs = await prepareSceneDressedTurnaroundReferences({
+      storyId,
+      userId,
+      normalizedCharacters: ['Mira'],
+      characterDescriptionMap: new Map([
+        [
+          'Mira',
+          {
+            id: characterId,
+            characterRef: characterId,
+            name: 'Mira',
+            type: 'person',
+            source: 'user_provided',
+            defaultOutfitText: 'bright yellow raincoat and matching rubber boots',
+            defaultOutfitEmbedding: [1, 0, 0],
+          } as any,
+        ],
+      ]),
+      characterReferenceData: [
+        {
+          characterId,
+          characterName: 'Mira',
+          url: 'identity/mira.png',
+          base64: Buffer.from('identity-default-outfit').toString('base64'),
+          mimeType: 'image/png',
+          type: 'character_reference',
+          referenceBindingId: 'REF_CH_MIRA',
+        } as any,
+      ],
+      scene: {
+        sceneId: 8,
+        characterOutfitIds: { Mira: 'o_mira_1' },
+        characterOutfitRefs: { [characterId]: 'o_mira_1' },
+      } as any,
+      currentEnvironmentId: envId,
+      currentEnvironment: { id: envId, name: 'Forest Path' } as any,
+      storyOutfits: [
+        {
+          id: 'o_mira_1',
+          characterName: 'Mira',
+          description: 'bright yellow raincoat and matching rubber boots',
+        },
+      ] as any,
+      imageStyle: 'soft_watercolor',
+      ageGroup: '6-8',
+      assetStorage,
+      imageDomain: { uploadReferenceFile: async () => null } as any,
+      outfitPlatePending: new Map(),
+      dressedTurnaroundPending: new Map(),
+    });
+    assert.equal(defaultOutfitRefs.length, 1);
+    assert.equal(defaultOutfitRefs[0].source, 'character_outfit_turnaround');
+    assert.equal(defaultOutfitRefs[0].type, 'dressed_turnaround_reference');
+    assert.equal(defaultOutfitRefs[0].characterId, characterId);
+    assert.equal(defaultOutfitRefs[0].outfitId, 'o_mira_1');
+    assert.equal(
+      defaultOutfitRefs[0].base64,
+      Buffer.from('identity-default-outfit').toString('base64')
+    );
+    assert.equal(generateCalls, 0);
   } finally {
     clearAiServiceTestOverrides();
     clearRepositoryTestOverrides();
   }
 
-  console.log('outfit plate and dressed turnaround contracts passed (10 cases)');
+  console.log('outfit plate and dressed turnaround contracts passed (12 cases)');
 }
 
 main().catch((error) => {

@@ -474,7 +474,19 @@ export async function prepareSceneDressedTurnaroundReferences(params: {
       const plate = await outfitPromise;
       if (isDefaultOutfitPlateSelection(plate)) {
         defaultOutfitCharacterKeys?.add(normalizeOutfitPlateCharacterKey(displayName));
-        return null;
+        return {
+          base64: characterReference.fileUri ? '' : characterReference.base64,
+          mimeType: characterReference.mimeType,
+          ...(characterReference.fileUri ? { fileUri: characterReference.fileUri } : {}),
+          source: 'character_outfit_turnaround',
+          type: 'dressed_turnaround_reference',
+          characterName: displayName,
+          isTurnaround: true,
+          storagePath: characterReference.url,
+          referenceBindingId: characterReference.referenceBindingId,
+          characterId: charData.id,
+          outfitId,
+        };
       }
       if (!plate) return null;
       const dressedPendingKey = [
