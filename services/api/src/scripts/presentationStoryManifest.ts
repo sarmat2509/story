@@ -51,7 +51,7 @@ export const PRESENTATION_STORY_MANIFEST: readonly PresentationStoryDefinition[]
     id: 'story-en-momo-morning',
     format: 'story',
     language: 'en',
-    childName: 'Лина',
+    childName: 'Сами',
     characterNames: ['Момо', 'Кико'],
     goal: 'friendship',
     imageStyle: 'clay',
@@ -290,6 +290,6 @@ export const PRESENTATION_STORY_MANIFEST: readonly PresentationStoryDefinition[]
     imageStyle: 'colored_pencil',
     title: 'Dwa domy, jedna opowieść',
     userNotes:
-      'Tytuł ma brzmieć dokładnie „Dwa domy, jedna opowieść”. Lina, Momo i Kiko odkrywają, że codzienne zwyczaje w dwóch rodzinnych domach mogą się różnić i oba są ważne. Proza jest prosta i ciepła, a bloki komiksowe pokazują trzy wspólne chwile. Bez konfliktu dorosłych; finał buduje poczucie bezpieczeństwa.',
+      'Tytuł ma brzmieć dokładnie „Dwa domy, jedna opowieść”. Sami, Momo i Kiko odkrywają, że codzienne zwyczaje w dwóch rodzinnych domach mogą się różnić i oba są ważne. Proza jest ciepła, a bloki komiksowe pokazują trzy wspólne chwile. Bez konfliktu dorosłych; finał buduje poczucie bezpieczeństwa.',
   },
 ] as const;
