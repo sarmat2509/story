@@ -1010,8 +1010,51 @@ Production-runner `configure:presentation-story-quota` допускает изм
 - У Веспер семиточечное созвездие и сторона выемки уха не воспроизводятся однозначно во всех ракурсах.
 - Все шесть листов приняты как визуальный канон. При генерации историй источником истины считаются сохранённые изображения turnaround, повторная генерация не требуется.
 
-## 12. Что осталось до массовой генерации
+### 11.4. Фактическая генерация 21 материала в production
 
-- Подготовить точный исполняемый manifest для 21 запроса: endpoint формата, `childProfileId`, `scenarioCardId`, goal, `imageStyle`, `selectedCharacters`, рабочее название и подробный `userNotes` на языке истории.
-- Для трёх сюжетов возрастов `1y`/`2-3` использовать точные пользовательские инструкции без scenario card. Польская история про джунгли с пятилетней Майей тоже требует пользовательской инструкции либо переноса на ребёнка группы `6-8`/`9-12`, потому что `jungle_adventures` не поддерживает группу `4-5`.
-- Сгенерировать три контрольных материала — обычную историю, комикс и mixed — затем проверить публикацию, пузырьки и mixed reading order на фактических production-данных.
+Генерация завершена 19.07.2026 на аккаунте `QA Free User`. Все запросы отправлены через те же публичные HTTP endpoints, middleware, durable queues, Writer/Director, text/image validation и storage pipeline, которые использует обычный parent artisan flow. В каждый payload одновременно переданы `childProfileId` и `selectedChildren: [childProfileId]`: ребёнок участвует как постоянный визуальный персонаж, а не только задаёт возраст и язык.
+
+| Формат | Язык | Ребёнок | Название | Request ID | Story ID | Изображения |
+|---|---|---|---|---|---|---:|
+| История | uk | Ноа | Місяць загубив позіхання | `9723932c-a6b8-4043-bcd0-b79524597eea` | `9738b7b8-635c-40af-8ce5-edc1cfc9827f` | 3 |
+| История | ru | Сами | Тропинка светлячков | `6e89a593-af61-411e-90b9-9346a20f41a9` | `14a878de-d1b8-42df-be79-a841752277af` | 3 |
+| История | en | Лина | Momo's Quiet Morning | `1a55dea8-aee1-467b-a2ee-7570d0cf199f` | `d7db50d6-5b68-4e2d-bb99-818097d3ecae` | 3 |
+| История | es | Майя | Las dos canciones de Maya | `0737a969-207c-4bea-8c72-089dcfafc1d9` | `a50cbccf-185a-4d09-86d4-b4b0ca1f9bb4` | 3 |
+| История | de | Лина | Lina und der mutige kleine Schritt | `d8d207ce-8eb2-48ff-b588-f5cf1d9b5842` | `b2dedbd4-e042-46e5-b389-54e583e3bd7e` | 3 |
+| История | fr | Майя | La lanterne de Mamie | `5252f4df-63d9-4eb1-aa75-a47830d08e39` | `ba90c888-5dcf-4b13-bd94-c25dc6ae2df2` | 3 |
+| История | pl | Рави | Ravi i kompas dżungli | `73067815-e7a6-4e4e-a92e-5d627f7b0fad` | `ecc3ee04-6d39-47ba-b0da-f14d76d99844` | 3 |
+| Комикс | uk | Амара | Естафета чесних кроків | `ca8a6ae6-2ff7-4190-8e13-95cc18422c7b` | `a8c9e033-d1ab-46d7-b8d9-86a0dc6b9866` | 8 |
+| Комикс | ru | Зури | Город, который отвечал завтра | `75d77586-33a2-4bf8-84a4-b84461f10ac0` | `b1c4db30-feb1-490d-a9ce-c63db5d13bc2` | 8 |
+| Комикс | en | Амара | The Power of Listening | `1bbbebc6-afdb-4904-841e-c3276b223a77` | `5a2ffaa3-00f9-4dbc-93b5-c402c422afb4` | 8 |
+| Комикс | es | Сами | El mapa de la marea | `8725025c-40ae-4fb6-97d3-238c8f33213c` | `54fa1247-da09-468a-b133-d800594b0eb2` | 8 |
+| Комикс | de | Рави | Die Werkstatt der fliegenden Räder | `e4224f9f-9e16-4957-892a-e1594e708b38` | `093369f1-e3a9-41b1-8fe3-aaf038fa5639` | 8 |
+| Комикс | fr | Сами | Luma et la forêt des géants | `dcaa26a9-8435-4253-b30b-dece2a70680f` | `ef1795bf-6a4d-4655-946f-096b9aabd39e` | 8 |
+| Комикс | pl | Рави | Stacja po drugiej stronie Słońca | `ae361ed3-5667-4d99-ad13-a7795fbe8d73` | `69b097b0-a325-4a05-88c0-6d02e88e0d3d` | 8 |
+| Mixed | uk | Амара | Таємниця годинника на горищі | `9f5b968d-5865-41ae-b770-0d42940091ad` | `ba7b6a5e-2a75-48bf-aa58-06b030aea458` | 3 |
+| Mixed | ru | Сами | Шорохи доброго чердака | `752ab984-c265-465f-a84f-ca2a0646afec` | `dfd71b69-f92d-4402-9d1f-45591836b52c` | 3 |
+| Mixed | en | Рави | Why the Moon Follows Us | `fd22bc06-c034-4a82-a679-004f3c5e786d` | `9619264b-8470-4b83-8571-c2b6f72c613f` | 3 |
+| Mixed | es | Зури | La estación bajo el hielo | `b2ca42e7-6ad2-4eac-a8c8-a46df04f24ca` | `0bd7e934-cc38-4334-abe6-2ec8cc1a5880` | 3 |
+| Mixed | de | Амара | Die Brücke aus Mondlicht | `a534fff5-313b-4351-bb7b-4a0ee4cc8456` | `efec3f42-e211-4161-ab96-61fc87d42d04` | 3 |
+| Mixed | fr | Зури | L’école des sorts oubliés | `02876a1d-9cdd-4162-8f42-e67c2d424991` | `426af5b2-459a-49ea-aba9-e02c273b32e9` | 3 |
+| Mixed | pl | Майя | Dwa domy, jedna opowieść | `2fc16dcc-40ff-4973-b952-4b78311a6395` | `de722aef-ccfa-448c-b928-4a28f0d13385` | 3 |
+
+Финальная техническая проверка production DB:
+
+- 21 завершённый персонализированный request: 7 `story`, 7 `graphic_novel`, 7 `mixed_story`;
+- у всех 21 запросов ровно один `selectedChildren`, а story связан с mirror-character того же детского профиля;
+- 7 обычных историй содержат 21 scene image: минимум и максимум по 3;
+- 7 комиксов содержат 56 завершённых page assets: минимум и максимум по 8;
+- 7 mixed содержат 21 завершённый page asset: минимум и максимум по 3;
+- все graphic/mixed projects имеют статус `completed`, failed pages — 0;
+- у всех mixed сохранён `mixedStoryReadingOrder` в metadata;
+- итог периода: 21 `story_created` и 7 `graphic_novel_created`.
+
+До публикации остаются ручная визуальная проверка консистентности детей/персонажей, проверка bubble text и reading order в публичном reader, затем перевод выбранных stories из draft в опубликованное состояние.
+
+## 12. Текущий статус
+
+- Профили детей и turnaround: завершено.
+- Постоянные персонажи и turnaround: завершено.
+- Публичные контракты и reader трёх форматов: реализовано.
+- Генерация 21 персонализированного материала со всеми изображениями: завершено.
+- Ручная визуальная приёмка и публикация: не выполнены.

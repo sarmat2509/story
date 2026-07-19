@@ -554,7 +554,7 @@ async function monitorGeneration(
         );
         lastProgressKey = progressKey;
       }
-      if (project?.status === 'completed_with_errors' || failedPages.length > 0) {
+      if (project?.status === 'completed_with_errors') {
         throw new Error(
           `${entry.definition.id}: comic pages failed: ${failedPages.map((page) => page.pageNumber).join(', ')}`
         );
