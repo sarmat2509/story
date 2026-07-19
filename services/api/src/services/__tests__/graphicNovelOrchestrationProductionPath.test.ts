@@ -285,6 +285,8 @@ async function testProductionRendererConcurrencyRepairAndPersistence(): Promise<
     assert.equal(finalPageUpdate.status, 'completed');
     assert.equal(finalPageUpdate.imageAssetId, result.pageAssetId);
     assert.equal(finalPageUpdate.generationParams.panelRepair.repairedPanelCount, 1);
+    assert.equal(finalPageUpdate.generationParams.panelRepair.failedPanelCount, 0);
+    assert.deepEqual(finalPageUpdate.generationParams.panelRepair.failedPanels, []);
     assert.equal(
       finalPageUpdate.generationParams.bubblePlacement.mode,
       'post_art_vision_panel_images'
@@ -345,6 +347,72 @@ async function testProductionRendererConcurrencyRepairAndPersistence(): Promise<
     clearAssetStorageServiceTestOverride();
     clearAiServiceTestOverrides();
   }
+}
+
+async function testPanelQualityDecisionUsesHardPanelSignals(): Promise<void> {
+  const { graphicNovelOrchestrationTestSeams } =
+    await import('../graphicNovelOrchestrationService');
+  const baseCharacter = {
+    name: 'Luma',
+    characterKind: 'imaginary',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    matchesColors: true,
+    matchesOutfit: true,
+    proportionsMatchReference: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'Matches the turnaround.',
+  };
+  const panelValidation = {
+    panelNumber: 2,
+    panelId: 'p1-2',
+    cropRect: { left: 0, top: 0, width: 100, height: 100 },
+    normalizedRect: { x: 0, y: 0, width: 1, height: 1 },
+    expectedCharacters: [{ name: 'Luma', characterKind: 'imaginary', validateOutfit: false }],
+    validation: {
+      validationStatus: 'completed',
+      characterCount: 1,
+      expectedCharacterCount: 1,
+      characters: [baseCharacter],
+      hasUnexpectedCharacters: false,
+      hasTextOrLetters: false,
+      hasRenderingArtifacts: false,
+    },
+    score: 100,
+    attempt: 1,
+    repairMode: 'original',
+  };
+
+  assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(panelValidation as any),
+    { accepted: true, failureReasons: [] }
+  );
+
+  const duplicated = {
+    ...panelValidation,
+    validation: {
+      ...panelValidation.validation,
+      characters: [{ ...baseCharacter, duplicated: true }],
+    },
+  };
+  assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(duplicated as any),
+    { accepted: false, failureReasons: ['duplicated_character:Luma'] }
+  );
+
+  const identityDrift = {
+    ...panelValidation,
+    validation: {
+      ...panelValidation.validation,
+      characters: [{ ...baseCharacter, sameOverallDesignRead: false }],
+    },
+  };
+  assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(identityDrift as any),
+    { accepted: false, failureReasons: ['design_mismatch:Luma'] }
+  );
 }
 
 async function testProductionBubbleVisionFallback(): Promise<void> {
@@ -433,6 +501,7 @@ async function testProductionBubbleVisionFallback(): Promise<void> {
 async function main(): Promise<void> {
   await testProductionRendererConcurrencyRepairAndPersistence();
   await testProductionBubbleVisionFallback();
+  await testPanelQualityDecisionUsesHardPanelSignals();
   console.log('graphic novel production orchestration tests passed');
 }
 

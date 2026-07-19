@@ -34,18 +34,24 @@ function testWizardPayloadContract(): void {
 }
 
 function testGraphicNovelQuotaCalculation(): void {
-  assert.deepEqual(
-    calculateGraphicNovelQuota({ limit: 2, used: 1 }),
-    { allowed: true, limit: 2, used: 1, remaining: 1 }
-  );
-  assert.deepEqual(
-    calculateGraphicNovelQuota({ limit: 2, used: 2 }),
-    { allowed: false, limit: 2, used: 2, remaining: 0 }
-  );
-  assert.deepEqual(
-    calculateGraphicNovelQuota({ limit: -1, used: 99 }),
-    { allowed: true, limit: null, used: 99, remaining: null }
-  );
+  assert.deepEqual(calculateGraphicNovelQuota({ limit: 2, used: 1 }), {
+    allowed: true,
+    limit: 2,
+    used: 1,
+    remaining: 1,
+  });
+  assert.deepEqual(calculateGraphicNovelQuota({ limit: 2, used: 2 }), {
+    allowed: false,
+    limit: 2,
+    used: 2,
+    remaining: 0,
+  });
+  assert.deepEqual(calculateGraphicNovelQuota({ limit: -1, used: 99 }), {
+    allowed: true,
+    limit: null,
+    used: 99,
+    remaining: null,
+  });
 }
 
 function testGenerationStatusAfterFirstPage(): void {
@@ -62,13 +68,54 @@ function testGenerationStatusAfterFirstPage(): void {
   assert.equal(status.firstPageReady, true);
   assert.equal(status.generationComplete, false);
   assert.deepEqual(status.readyPageNumbers, [1]);
-  assert.deepEqual(status.pagesWithImages, [{
-    pageNumber: 1,
-    imageUrl: '/page-1.png',
-    assetId: 'asset-1',
-    textOverlayMode: 'html_overlay',
-  }]);
+  assert.deepEqual(status.panelsNeedingRepair, []);
+  assert.deepEqual(status.pagesWithImages, [
+    {
+      pageNumber: 1,
+      imageUrl: '/page-1.png',
+      assetId: 'asset-1',
+      textOverlayMode: 'html_overlay',
+    },
+  ]);
   assert.equal(status.textOverlayMode, 'html_overlay');
+}
+
+function testGenerationStatusReportsPanelsNeedingRepair(): void {
+  const status = buildGraphicNovelGenerationStatus({
+    storyId: 'story-1',
+    projectId: 'project-1',
+    pages: [
+      {
+        pageNumber: 2,
+        status: 'completed',
+        imageUrl: '/page-2.png',
+        imageAssetId: 'asset-2',
+        generationParams: {
+          panelRepair: {
+            failedPanelCount: 1,
+            failedPanels: [
+              {
+                panelNumber: 3,
+                panelId: 'p2-3',
+                score: 92,
+                failureReasons: ['duplicated_character:Amara'],
+              },
+            ],
+          },
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(status.panelsNeedingRepair, [
+    {
+      pageNumber: 2,
+      panelNumber: 3,
+      panelId: 'p2-3',
+      score: 92,
+      failureReasons: ['duplicated_character:Amara'],
+    },
+  ]);
 }
 
 function testFirstPageCompletionRule(): void {
@@ -96,7 +143,13 @@ function testGenerationStatusWithBackgroundFailure(): void {
     pages: [
       { pageNumber: 1, status: 'completed', imageUrl: '/page-1.png', imageAssetId: 'asset-1' },
       { pageNumber: 2, status: 'completed', imageUrl: '/page-2.png', imageAssetId: 'asset-2' },
-      { pageNumber: 3, status: 'failed', imageUrl: null, imageAssetId: null, errorMessage: 'edit failed' },
+      {
+        pageNumber: 3,
+        status: 'failed',
+        imageUrl: null,
+        imageAssetId: null,
+        errorMessage: 'edit failed',
+      },
     ],
   });
 
@@ -116,34 +169,42 @@ function testTextManifestFeedsStoryTextAndOverlay(): void {
       cameraComposition: {
         shot: 'medium two-shot, eye level',
         characters: [
-          { name: 'Mira', description: 'foreground left, whispering, curious face, looking at the gate' },
-          { name: 'Leo', description: 'foreground right, pointing, surprised face, looking at the keyhole' },
+          {
+            name: 'Mira',
+            description: 'foreground left, whispering, curious face, looking at the gate',
+          },
+          {
+            name: 'Leo',
+            description: 'foreground right, pointing, surprised face, looking at the keyhole',
+          },
         ],
       },
     },
   });
   const planned = planGraphicNovelLayouts({
     ageGroup: '6-8',
-    pages: [{
-      pageNumber: 1,
-      pageRole: 'conversation',
-      panels: [
-        {
-          panelId: 'p1-1',
-          beatType: 'conversation',
-          dialogue: [{ speaker: 'Mira', text: 'The {Star Key} is humming.' }],
-          thoughts: [],
-          visual: visual('Two friends whisper near a glowing gate'),
-        },
-        {
-          panelId: 'p1-2',
-          beatType: 'response',
-          dialogue: [{ speaker: 'Leo', text: 'Then it wants a song.' }],
-          thoughts: [],
-          visual: visual('Leo points at a tiny keyhole'),
-        },
-      ],
-    }],
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'conversation',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'conversation',
+            dialogue: [{ speaker: 'Mira', text: 'The {Star Key} is humming.' }],
+            thoughts: [],
+            visual: visual('Two friends whisper near a glowing gate'),
+          },
+          {
+            panelId: 'p1-2',
+            beatType: 'response',
+            dialogue: [{ speaker: 'Leo', text: 'Then it wants a song.' }],
+            thoughts: [],
+            visual: visual('Leo points at a tiny keyhole'),
+          },
+        ],
+      },
+    ],
   });
   const manifest = buildGraphicNovelTextManifest(planned);
 
@@ -233,7 +294,8 @@ function testComicScriptExtractsLlmRobotCharacter(): void {
                 environmentId: 'env',
                 primaryRead: 'Copper Bot opens a glowing hatch',
                 sceneVisual: {
-                  setting: 'A small copper robot named REF_CH_COPPER_BOT rolls beside Emilia near a moonlit door.',
+                  setting:
+                    'A small copper robot named REF_CH_COPPER_BOT rolls beside Emilia near a moonlit door.',
                   lighting: 'warm glow',
                   cameraComposition: {
                     shot: 'medium shot',
@@ -486,6 +548,7 @@ function main(): void {
   testWizardPayloadContract();
   testGraphicNovelQuotaCalculation();
   testGenerationStatusAfterFirstPage();
+  testGenerationStatusReportsPanelsNeedingRepair();
   testFirstPageCompletionRule();
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();

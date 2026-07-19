@@ -948,6 +948,11 @@ type GraphicNovelPanelRenderedValidation = {
   sourcePanelValidations?: GraphicNovelPanelRenderedValidation[];
 };
 
+type GraphicNovelPanelQualityDecision = {
+  accepted: boolean;
+  failureReasons: string[];
+};
+
 function getContinuationDataFromRequest(request: { id: string; intermediateData?: unknown }): {
   intermediateData: Record<string, any>;
   isContinuation: boolean;
@@ -2964,8 +2969,70 @@ function shouldRetryGraphicNovelPanelValidation(
   validation: GraphicNovelPanelRenderedValidation
 ): boolean {
   if (validation.validation.validationStatus === 'provider_blocked') return false;
-  if (validation.score == null) return false;
-  return validation.score <= config.image.validationMinAcceptScore;
+  return !graphicNovelPanelQualityDecision(validation).accepted;
+}
+
+function graphicNovelPanelQualityDecision(
+  panelValidation: GraphicNovelPanelRenderedValidation
+): GraphicNovelPanelQualityDecision {
+  const { validation, expectedCharacters, score } = panelValidation;
+  const reasons = new Set<string>();
+
+  if (validation.validationStatus === 'provider_blocked') {
+    reasons.add('provider_blocked');
+  }
+  if (score == null) {
+    reasons.add('score_unavailable');
+  } else if (score <= config.image.validationMinAcceptScore) {
+    reasons.add('score_below_threshold');
+  }
+  if (validation.characterCount !== validation.expectedCharacterCount) {
+    reasons.add('character_count_mismatch');
+  }
+  if (validation.hasUnexpectedCharacters) reasons.add('unexpected_characters');
+  if (validation.hasTextOrLetters) reasons.add('unwanted_text');
+  if (validation.hasRenderingArtifacts) reasons.add('rendering_artifacts');
+
+  for (const character of validation.characters) {
+    const normalizedCharacterName = normalizeCharacterName(character.name);
+    const expected = expectedCharacters.find(
+      (candidate) => normalizeCharacterName(candidate.name) === normalizedCharacterName
+    );
+    const characterKey = stripCharacterIdFromName(character.name).trim() || character.name;
+    if (!character.found) reasons.add(`missing_character:${characterKey}`);
+    if (character.duplicated) reasons.add(`duplicated_character:${characterKey}`);
+    if (character.matchesColors === false) reasons.add(`color_mismatch:${characterKey}`);
+    if (expected?.validateOutfit === true && character.matchesOutfit === false) {
+      reasons.add(`outfit_mismatch:${characterKey}`);
+    }
+    if (character.faceMatchesReference === false) {
+      reasons.add(`face_identity_mismatch:${characterKey}`);
+    }
+    if (character.hairMatchesReference === false) {
+      reasons.add(`hair_identity_mismatch:${characterKey}`);
+    }
+    if (character.ageReadMatchesReference === false) {
+      reasons.add(`age_read_mismatch:${characterKey}`);
+    }
+    if (character.proportionsMatchReference === false) {
+      reasons.add(`proportions_mismatch:${characterKey}`);
+    }
+    if (character.sameOverallDesignRead === false) {
+      reasons.add(`design_mismatch:${characterKey}`);
+    }
+    if (
+      character.silhouetteDriftSeverity === 'moderate' ||
+      character.silhouetteDriftSeverity === 'severe'
+    ) {
+      reasons.add(`silhouette_drift:${characterKey}`);
+    }
+  }
+
+  const failureReasons = Array.from(reasons);
+  return {
+    accepted: failureReasons.length === 0,
+    failureReasons,
+  };
 }
 
 function shouldRegenerateGraphicNovelPanel(
@@ -3440,9 +3507,18 @@ async function validateAndRepairGraphicNovelPanelCrop(params: {
     requestManifest: repairedRequestManifest,
   });
 
+  const initialDecision = graphicNovelPanelQualityDecision(initialValidation);
+  const repairedDecision = graphicNovelPanelQualityDecision(repairedValidation);
   const initialScore = initialValidation.score ?? -1;
   const repairedScore = repairedValidation.score ?? -1;
-  const selectedValidation = repairedScore >= initialScore ? repairedValidation : initialValidation;
+  const selectedValidation =
+    repairedDecision.accepted !== initialDecision.accepted
+      ? repairedDecision.accepted
+        ? repairedValidation
+        : initialValidation
+      : repairedScore >= initialScore
+        ? repairedValidation
+        : initialValidation;
   return {
     ...selectedValidation,
     sourcePanelValidations: [initialValidation, repairedValidation],
@@ -3706,6 +3782,23 @@ async function validateGraphicNovelRenderedPage(params: {
       );
     }
 
+    const panelQuality = panelValidations.map((panelValidation) => ({
+      panelNumber: panelValidation.panelNumber,
+      panelId: panelValidation.panelId,
+      score: panelValidation.score,
+      attempt: panelValidation.attempt,
+      repairMode: panelValidation.repairMode ?? 'original',
+      ...graphicNovelPanelQualityDecision(panelValidation),
+    }));
+    const failedPanels = panelQuality
+      .filter((panel) => !panel.accepted)
+      .map((panel) => ({
+        panelNumber: panel.panelNumber,
+        panelId: panel.panelId,
+        score: panel.score,
+        failureReasons: panel.failureReasons,
+      }));
+
     return {
       validation,
       score,
@@ -3717,11 +3810,14 @@ async function validateGraphicNovelRenderedPage(params: {
         enabled: allowPanelRepair,
         repairedPanelCount: composed.repairedPanelCount,
         panelCount: panelValidations.length,
-        modes: panelValidations.map((panelValidation) => ({
-          panelNumber: panelValidation.panelNumber,
-          score: panelValidation.score,
-          attempt: panelValidation.attempt,
-          repairMode: panelValidation.repairMode ?? 'original',
+        failedPanelCount: failedPanels.length,
+        failedPanels,
+        panels: panelQuality,
+        modes: panelQuality.map((panel) => ({
+          panelNumber: panel.panelNumber,
+          score: panel.score,
+          attempt: panel.attempt,
+          repairMode: panel.repairMode,
         })),
       },
     };
@@ -5922,6 +6018,7 @@ export function buildGraphicNovelGenerationStatus(params: {
     imageUrl?: string | null;
     imageAssetId?: string | null;
     errorMessage?: string | null;
+    generationParams?: unknown;
   }>;
 }) {
   const readyPages = params.pages.filter((page) => page.status === 'completed' && page.imageUrl);
@@ -5931,6 +6028,33 @@ export function buildGraphicNovelGenerationStatus(params: {
       pageNumber: page.pageNumber,
       errorMessage: page.errorMessage || 'Page generation failed',
     }));
+  const panelsNeedingRepair = params.pages.flatMap((page) => {
+    const generationParams =
+      page.generationParams && typeof page.generationParams === 'object'
+        ? (page.generationParams as Record<string, unknown>)
+        : null;
+    const panelRepair =
+      generationParams?.panelRepair && typeof generationParams.panelRepair === 'object'
+        ? (generationParams.panelRepair as Record<string, unknown>)
+        : null;
+    const failedPanels = Array.isArray(panelRepair?.failedPanels) ? panelRepair.failedPanels : [];
+    return failedPanels.flatMap((failedPanel) => {
+      if (!failedPanel || typeof failedPanel !== 'object') return [];
+      const row = failedPanel as Record<string, unknown>;
+      if (typeof row.panelNumber !== 'number') return [];
+      return [
+        {
+          pageNumber: page.pageNumber,
+          panelNumber: row.panelNumber,
+          panelId: typeof row.panelId === 'string' ? row.panelId : null,
+          score: typeof row.score === 'number' ? row.score : null,
+          failureReasons: Array.isArray(row.failureReasons)
+            ? row.failureReasons.filter((reason): reason is string => typeof reason === 'string')
+            : [],
+        },
+      ];
+    });
+  });
 
   return {
     storyId: params.storyId,
@@ -5942,6 +6066,7 @@ export function buildGraphicNovelGenerationStatus(params: {
       params.pages.every((page) => page.status === 'completed' || page.status === 'failed'),
     readyPageNumbers: readyPages.map((page) => page.pageNumber),
     failedPages,
+    panelsNeedingRepair,
     pagesWithImages: readyPages.map((page) => ({
       pageNumber: page.pageNumber,
       imageUrl: page.imageUrl,
@@ -5955,4 +6080,5 @@ export function buildGraphicNovelGenerationStatus(params: {
 export const graphicNovelOrchestrationTestSeams = {
   renderAndStorePage,
   applyVisionBubblePlacementForRenderedPage,
+  graphicNovelPanelQualityDecision,
 };
