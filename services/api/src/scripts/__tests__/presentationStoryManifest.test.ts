@@ -25,6 +25,16 @@ const expectedScenarioCards = new Set([
   'families_cultures',
 ]);
 
+const childLanguages = new Map<string, readonly string[]>([
+  ['Ноа', ['uk']],
+  ['Лина', ['en', 'de', 'pl']],
+  ['Майя', ['es', 'fr', 'pl']],
+  ['Сами', ['ru', 'es', 'fr']],
+  ['Амара', ['uk', 'en', 'de']],
+  ['Рави', ['de', 'en', 'pl']],
+  ['Зури', ['ru', 'es', 'fr']],
+]);
+
 assert.equal(PRESENTATION_STORY_MANIFEST.length, 21);
 assert.equal(new Set(PRESENTATION_STORY_MANIFEST.map((entry) => entry.id)).size, 21);
 assert.equal(new Set(PRESENTATION_STORY_MANIFEST.map((entry) => entry.title)).size, 21);
@@ -56,6 +66,10 @@ assert.equal(
 );
 
 for (const entry of PRESENTATION_STORY_MANIFEST) {
+  assert.ok(
+    childLanguages.get(entry.childName)?.includes(entry.language),
+    `${entry.id} language is not enabled for ${entry.childName}`
+  );
   assert.ok(IMAGE_STYLES.includes(entry.imageStyle));
   assert.ok(entry.userNotes.length <= 500, `${entry.id} notes exceed the public contract`);
   assert.ok(entry.characterNames.length >= 1 && entry.characterNames.length <= 2);
