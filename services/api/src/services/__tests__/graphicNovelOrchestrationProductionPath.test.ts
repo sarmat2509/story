@@ -778,6 +778,17 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     },
   ]);
   assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.pageDressedTurnaroundCompositionCharacters(page),
+    [
+      {
+        name: 'Тато Тео',
+        characterRef: 'theo-uuid',
+        description: 'clapping on the right',
+      },
+    ],
+    'page-level dressed turnaround preparation keeps display alias attached to the stable ref'
+  );
+  assert.deepEqual(
     graphicNovelOrchestrationTestSeams.buildGraphicNovelExpectedCharactersForPanel({
       panel: page.panels[0],
       characters: charactersWithPersistedAliasDuplicate,

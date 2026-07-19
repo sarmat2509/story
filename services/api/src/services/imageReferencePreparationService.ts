@@ -626,17 +626,24 @@ export async function prepareSceneDressedTurnaroundReferences(params: {
   ).then((refs) => refs.filter(Boolean) as SceneDressedTurnaroundReference[]);
 }
 
-export function applySceneDressedTurnaroundOverrides<T extends { characterName?: string }>(
+export function applySceneDressedTurnaroundOverrides<
+  T extends { characterName?: string; characterId?: string },
+>(
   characterReferenceData: T[],
-  dressedReferences: Array<{ characterName?: string }>,
+  dressedReferences: Array<{ characterName?: string; characterId?: string }>,
 ): T[] {
   if (dressedReferences.length === 0) return characterReferenceData;
+  const dressedCharacterIds = new Set(
+    dressedReferences.map((ref) => ref.characterId?.trim()).filter(Boolean),
+  );
   const dressedNames = new Set(
     dressedReferences
       .map((ref) => stripCharacterIdFromName(ref.characterName || '').trim().toLowerCase())
       .filter(Boolean),
   );
   return characterReferenceData.filter((ref) => {
+    const characterId = ref.characterId?.trim();
+    if (characterId && dressedCharacterIds.has(characterId)) return false;
     const key = stripCharacterIdFromName(ref.characterName || '').trim().toLowerCase();
     return !dressedNames.has(key);
   });

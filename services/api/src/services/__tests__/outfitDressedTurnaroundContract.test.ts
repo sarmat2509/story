@@ -156,6 +156,18 @@ async function main(): Promise<void> {
       filtered.map((row) => row.characterName),
       ['Leo']
     );
+    const localizedAliasFiltered = applySceneDressedTurnaroundOverrides(
+      [
+        { characterId, characterName: 'Theo', url: 'identity.png' },
+        { characterId: 'leo-id', characterName: 'Leo', url: 'leo.png' },
+      ],
+      [{ characterId, characterName: 'Тато Тео' }]
+    );
+    assert.deepEqual(
+      localizedAliasFiltered.map((row) => row.characterName),
+      ['Leo'],
+      'dressed turnaround replaces the same stable character even under a localized alias'
+    );
 
     // Catalog plate: story miss → findSimilar → upsert
     installBaseOverrides();
@@ -335,12 +347,96 @@ async function main(): Promise<void> {
     assert.equal(dressedRefs[0].type, 'dressed_turnaround_reference');
     assert.ok(dressedRefs[0].base64);
     assert.equal(generateCalls, 1);
+
+    // Localized page alias keeps the existing non-LLM identity and receives its dressed reference.
+    installBaseOverrides();
+    generateCalls = 0;
+    const localizedAliasRefs = await prepareSceneDressedTurnaroundReferences({
+      storyId,
+      userId,
+      normalizedCharacters: ['Тато Тео', 'Тео'],
+      characterDescriptionMap: new Map([
+        [
+          'Тато Тео',
+          {
+            id: 'legacy-llm-duplicate',
+            characterRef: 'legacy-llm-duplicate',
+            name: 'Тато Тео',
+            type: 'person',
+            source: 'llm_generated',
+          } as any,
+        ],
+        [
+          'Тео',
+          {
+            id: characterId,
+            characterRef: characterId,
+            name: 'Тео',
+            type: 'person',
+            source: 'user_provided',
+            defaultOutfitText: 'everyday sweater',
+            defaultOutfitEmbedding: [0, 1, 0],
+          } as any,
+        ],
+      ]),
+      characterReferenceData: [
+        {
+          characterId,
+          characterName: 'Тео',
+          url: 'identity/theo.png',
+          base64: Buffer.from('identity').toString('base64'),
+          mimeType: 'image/png',
+          type: 'character_reference',
+        } as any,
+      ],
+      scene: {
+        sceneId: 7,
+        sceneVisual: {
+          setting: 'sports field',
+          lighting: 'daylight',
+          cameraComposition: {
+            shot: 'full comic page',
+            characters: [
+              {
+                characterRef: characterId,
+                name: 'Тато Тео',
+                description: 'cheering at the finish line',
+                outfitId: 'o_theo_sport',
+              },
+            ],
+          },
+        },
+        characterOutfitIds: { 'Тато Тео': 'o_theo_sport' },
+        characterOutfitRefs: { [characterId]: 'o_theo_sport' },
+      } as any,
+      currentEnvironmentId: envId,
+      currentEnvironment: { id: envId, name: 'Sports Field' } as any,
+      storyOutfits: [
+        {
+          id: 'o_theo_sport',
+          characterRef: characterId,
+          characterName: 'Тато Тео',
+          description: 'bright yellow raincoat and matching rubber boots',
+        },
+      ] as any,
+      imageStyle: 'soft_watercolor',
+      ageGroup: '6-8',
+      assetStorage,
+      imageDomain: { uploadReferenceFile: async () => null } as any,
+      outfitPlatePending: new Map(),
+      dressedTurnaroundPending: new Map(),
+    });
+    assert.equal(localizedAliasRefs.length, 1);
+    assert.equal(localizedAliasRefs[0].characterId, characterId);
+    assert.equal(localizedAliasRefs[0].characterName, 'Тато Тео');
+    assert.equal(localizedAliasRefs[0].type, 'dressed_turnaround_reference');
+    assert.equal(generateCalls, 1);
   } finally {
     clearAiServiceTestOverrides();
     clearRepositoryTestOverrides();
   }
 
-  console.log('outfit plate and dressed turnaround contracts passed (8 cases)');
+  console.log('outfit plate and dressed turnaround contracts passed (10 cases)');
 }
 
 main().catch((error) => {

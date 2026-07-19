@@ -105,7 +105,7 @@ import { GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS, graphicNovelPanelCountRange } from 
 import type { Rect } from '../domain/graphicNovel/types';
 import { mixedStoryComicPages, type MixedStoryScript } from '../domain/mixedStory';
 import type { ImageValidationResult } from '../ai/types';
-import type { CharacterData, SceneData, SceneVisual } from './types';
+import type { CameraCharacterComposition, CharacterData, SceneData, SceneVisual } from './types';
 import type { GenerateImageRequest, ReferenceImage } from '../providers/base/IImageProvider';
 import { getOrCreateEnvironmentImage } from './environmentReferenceImageService';
 import {
@@ -2557,6 +2557,32 @@ function pageCharacterOutfitRefs(page: PlannedGraphicNovelPage): Record<string, 
   return Object.keys(ids).length > 0 ? ids : undefined;
 }
 
+/**
+ * Preserve stable page character identity when the page-level outfit pipeline is adapted to a
+ * scene. Localized display aliases can share one characterRef, so the first page row for that
+ * identity is authoritative (the same ordering used by pageCharacterOutfitRefs).
+ */
+function pageDressedTurnaroundCompositionCharacters(
+  page: PlannedGraphicNovelPage
+): CameraCharacterComposition[] {
+  const charactersByIdentity = new Map<string, CameraCharacterComposition>();
+  for (const panel of page.panels) {
+    const composition = panel.script.visual.sceneVisual.cameraComposition;
+    if (!composition || typeof composition === 'string') continue;
+    for (const character of composition.characters || []) {
+      const characterRef = normalizeCharacterRef(character.characterRef);
+      const nameKey = normalizeCharacterName(character.name || '');
+      const identityKey = characterRef ? `ref:${characterRef}` : `name:${nameKey}`;
+      if (!nameKey || charactersByIdentity.has(identityKey)) continue;
+      charactersByIdentity.set(identityKey, {
+        ...character,
+        ...(characterRef ? { characterRef } : {}),
+      });
+    }
+  }
+  return [...charactersByIdentity.values()];
+}
+
 function graphicNovelReferenceToSceneReferenceData(
   ref: GraphicNovelReferenceImage
 ): SceneCharacterReferenceData {
@@ -2633,7 +2659,7 @@ async function buildPageDressedTurnaroundReferenceImages(params: {
         lighting: 'N/A',
         cameraComposition: {
           shot: 'full comic page',
-          characters: [],
+          characters: pageDressedTurnaroundCompositionCharacters(params.page),
         },
       },
       characterOutfitIds,
@@ -2654,7 +2680,8 @@ async function buildPageDressedTurnaroundReferenceImages(params: {
   return dressedRefs.map((ref) =>
     sceneDressedReferenceToGraphicNovelReference(
       ref,
-      characterReferenceBindingIdForPageName(params.characters, ref.characterName)
+      characterManifestForRef(params.characters, ref.characterId)?.referenceBindingId ||
+        characterReferenceBindingIdForPageName(params.characters, ref.characterName)
     )
   );
 }
@@ -7579,4 +7606,5 @@ export const graphicNovelOrchestrationTestSeams = {
   characterManifestMatchesPage,
   bindLegacyPlannedPageCharacterIdentity,
   buildGraphicNovelExpectedCharactersForPanel,
+  pageDressedTurnaroundCompositionCharacters,
 };
