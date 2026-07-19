@@ -698,6 +698,53 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     ),
     false
   );
+
+  const page = {
+    pageNumber: 7,
+    outfits: [
+      { id: 'theo-outfit', characterName: 'Тато Тео', description: 'blue jacket' },
+    ],
+    panels: [
+      {
+        script: {
+          dialogue: [{ speaker: 'Тато Тео', text: 'Уперед!' }],
+          thoughts: [],
+          visual: {
+            sceneVisual: {
+              cameraComposition: {
+                shot: 'medium',
+                characters: [
+                  { name: 'Тато Тео', description: 'clapping on the right' },
+                  { name: 'Тео', description: 'standing on the right' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ],
+  } as any;
+  graphicNovelOrchestrationTestSeams.bindLegacyPlannedPageCharacterIdentity(
+    page,
+    characters
+  );
+  assert.equal(page.outfits[0].characterRef, 'theo-uuid');
+  assert.equal(page.panels[0].script.dialogue[0].characterRef, 'theo-uuid');
+  assert.deepEqual(page.panels[0].script.visual.sceneVisual.cameraComposition.characters, [
+    {
+      name: 'Тато Тео',
+      characterRef: 'theo-uuid',
+      description: 'clapping on the right',
+    },
+  ]);
+  assert.deepEqual(
+    graphicNovelOrchestrationTestSeams.buildGraphicNovelExpectedCharactersForPanel({
+      panel: page.panels[0],
+      characters,
+      dressedTurnaroundValidationNames: new Set(),
+    }).map((character: any) => character.name),
+    ['Тато Тео']
+  );
 }
 
 async function testProductionBubbleVisionFallback(): Promise<void> {

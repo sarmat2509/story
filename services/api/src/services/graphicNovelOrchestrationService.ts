@@ -2097,11 +2097,15 @@ function buildGraphicNovelExpectedCharactersForPanel(params: {
   for (const panelCharacter of panelCharacters) {
     const name = panelCharacter.name;
     const normalized = normalizeCharacterName(name);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
     const manifest =
       characterManifestForRef(params.characters, panelCharacter.characterRef) ||
       characterManifestForPageName(params.characters, name);
+    const identityKey = normalizeCharacterRef(
+      manifest?.characterRef || manifest?.id || panelCharacter.characterRef
+    );
+    const seenKey = identityKey ? `ref:${identityKey}` : `name:${normalized}`;
+    if (!normalized || seen.has(seenKey)) continue;
+    seen.add(seenKey);
     expected.push({
       name,
       characterKind: graphicNovelCharacterKind(manifest?.type),
@@ -2678,6 +2682,58 @@ function characterManifestForRef(
   return characters.find(
     (character) => normalizeCharacterRef(character.characterRef || character.id) === ref
   );
+}
+
+/**
+ * Upgrade saved pre-characterRef layouts in memory before rendering or repair.
+ * Localized/title aliases that resolve to the same manifest identity collapse to one camera row.
+ */
+function bindLegacyPlannedPageCharacterIdentity(
+  page: PlannedGraphicNovelPage,
+  characters: GraphicNovelCharacterManifest
+): PlannedGraphicNovelPage {
+  const resolve = (characterRef: unknown, displayName: unknown) => {
+    return (
+      characterManifestForRef(characters, characterRef) ||
+      (typeof displayName === 'string'
+        ? characterManifestForPageName(characters, displayName)
+        : undefined)
+    );
+  };
+
+  for (const outfit of page.outfits || []) {
+    const character = resolve(outfit.characterRef, outfit.characterName);
+    const characterRef = normalizeCharacterRef(character?.characterRef || character?.id);
+    if (characterRef) outfit.characterRef = characterRef;
+  }
+
+  for (const panel of page.panels) {
+    for (const line of [
+      ...(panel.script.dialogue || []),
+      ...(panel.script.thoughts || []),
+    ]) {
+      const character = resolve(line.characterRef, line.speaker);
+      const characterRef = normalizeCharacterRef(character?.characterRef || character?.id);
+      if (characterRef) line.characterRef = characterRef;
+    }
+
+    const composition = panel.script.visual.sceneVisual.cameraComposition;
+    if (!composition || typeof composition === 'string') continue;
+    const seenIdentities = new Set<string>();
+    composition.characters = composition.characters.filter((row) => {
+      const character = resolve(row.characterRef, row.name);
+      const characterRef = normalizeCharacterRef(character?.characterRef || character?.id);
+      const identityKey = characterRef
+        ? `ref:${characterRef}`
+        : `name:${normalizeCharacterName(row.name)}`;
+      if (characterRef) row.characterRef = characterRef;
+      if (seenIdentities.has(identityKey)) return false;
+      seenIdentities.add(identityKey);
+      return true;
+    });
+  }
+
+  return page;
 }
 
 function characterReferenceBindingIdForPageName(
@@ -5097,6 +5153,7 @@ async function renderAndStorePage(params: {
 
   const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
+  bindLegacyPlannedPageCharacterIdentity(plannedPage, params.characters);
   const complexImageDomain = getComplexImageDomainService();
   const panelImageDomain = getImageDomainService();
   const panelImageProvider = config.image.simpleProvider || 'nanobananapro';
@@ -6383,6 +6440,7 @@ export async function repairGraphicNovelPagePanels(
     imageStyle: params.style || (storyMetadata.imageStyle as string | undefined),
   });
   const currentLayoutManifest = manifestState.layoutManifest as Record<string, any>;
+  bindLegacyPlannedPageCharacterIdentity(page, manifestState.characters);
   const characters = await refreshGraphicNovelManifestTurnarounds({
     characters: manifestState.characters,
     characterIds: params.refreshTurnaroundCharacterIds ?? [],
@@ -7472,4 +7530,6 @@ export const graphicNovelOrchestrationTestSeams = {
   refreshGraphicNovelManifestTurnarounds,
   characterManifestForPageName,
   characterManifestMatchesPage,
+  bindLegacyPlannedPageCharacterIdentity,
+  buildGraphicNovelExpectedCharactersForPanel,
 };
