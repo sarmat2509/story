@@ -18,7 +18,7 @@
 import './loadEnvForScripts';
 
 import { CreateStoryRequestSchema } from '@wondertales/shared';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { closeDatabaseConnection, db } from '../db';
 import {
   characters,
@@ -31,6 +31,7 @@ import {
   stories,
   storyGoals,
   storyRequests,
+  usageEvents,
   users,
   userSubscriptions,
 } from '../db/schema';
@@ -362,6 +363,77 @@ async function cleanupUnpersonalizedRequests(): Promise<void> {
   );
   if (!EXECUTE || targets.length === 0) return;
 
+  const releasedUsage: Array<{
+    eventType: string;
+    referenceType: 'requestId' | 'storyId';
+    referenceId: string;
+    quantity: number;
+  }> = [];
+  const releaseMatchingUsage = async (
+    referenceType: 'requestId' | 'storyId',
+    referenceId: string,
+    allowedEventTypes: string[],
+    childProfileId: string | null
+  ) => {
+    const totals = await db
+      .select({
+        eventType: usageEvents.eventType,
+        resourceType: usageEvents.resourceType,
+        quantity: sql<number>`sum(${usageEvents.quantity})::int`,
+      })
+      .from(usageEvents)
+      .where(
+        and(
+          eq(usageEvents.userId, userId!),
+          inArray(usageEvents.eventType, allowedEventTypes),
+          sql`${usageEvents.metadata}->>${referenceType} = ${referenceId}`
+        )
+      )
+      .groupBy(usageEvents.eventType, usageEvents.resourceType);
+    for (const total of totals) {
+      if (total.quantity <= 0) continue;
+      await db.insert(usageEvents).values({
+        userId: userId!,
+        childProfileId,
+        eventType: total.eventType,
+        resourceType: total.resourceType,
+        quantity: -total.quantity,
+        metadata: {
+          [referenceType]: referenceId,
+          presentationCleanup: true,
+          releaseReason: 'unpersonalized_presentation_cleanup',
+        },
+      });
+      releasedUsage.push({
+        eventType: total.eventType,
+        referenceType,
+        referenceId,
+        quantity: total.quantity,
+      });
+    }
+  };
+
+  for (const request of targets) {
+    await releaseMatchingUsage(
+      'requestId',
+      request.id,
+      ['story_created', 'graphic_novel_created'],
+      request.childProfileId
+    );
+  }
+  for (const storyId of existingStoryIds) {
+    const request = targets.find(
+      (candidate) =>
+        candidate.storyId === storyId || asObject(candidate.intermediateData).storyId === storyId
+    );
+    await releaseMatchingUsage(
+      'storyId',
+      storyId,
+      ['story_quiz_generated'],
+      request?.childProfileId ?? null
+    );
+  }
+
   for (const storyId of existingStoryIds) {
     await deleteStory(storyId, userId!);
   }
@@ -371,6 +443,7 @@ async function cleanupUnpersonalizedRequests(): Promise<void> {
       event: 'cleanup_unpersonalized_complete',
       deletedRequests: targets.length,
       deletedStories: existingStoryIds.size,
+      releasedUsage,
     })
   );
 }
