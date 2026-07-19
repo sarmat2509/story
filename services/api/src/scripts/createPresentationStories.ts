@@ -10,12 +10,15 @@
  *
  * Resume the remaining manifest entries after the control pass:
  *   pnpm create:presentation-stories -- --user-id=<uuid> --phase=remaining --execute
+ *
+ * Remove only manifest-matching requests that omitted selectedChildren:
+ *   pnpm create:presentation-stories -- --user-id=<uuid> --cleanup-unpersonalized --execute
  */
 
 import './loadEnvForScripts';
 
 import { CreateStoryRequestSchema } from '@wondertales/shared';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { closeDatabaseConnection, db } from '../db';
 import {
   characters,
@@ -33,6 +36,7 @@ import {
 } from '../db/schema';
 import { generateToken } from '../services/jwtService';
 import { createSession, deleteSession } from '../services/sessionService';
+import { deleteStory } from '../services/storyOrchestrationService';
 import {
   PRESENTATION_CONTROL_STORY_IDS,
   PRESENTATION_STORY_MANIFEST,
@@ -59,6 +63,7 @@ type GenerationResult = {
 
 const EXECUTE = process.argv.includes('--execute');
 const NO_WAIT = process.argv.includes('--no-wait');
+const CLEANUP_UNPERSONALIZED = process.argv.includes('--cleanup-unpersonalized');
 const userId =
   process.argv
     .find((arg) => arg.startsWith('--user-id='))
@@ -296,6 +301,80 @@ async function findExistingRequest(entry: ResolvedManifestEntry) {
   );
 }
 
+async function cleanupUnpersonalizedRequests(): Promise<void> {
+  const manifestNotes = PRESENTATION_STORY_MANIFEST.map((entry) => entry.userNotes);
+  const candidates = await db
+    .select()
+    .from(storyRequests)
+    .where(
+      and(eq(storyRequests.userId, userId!), inArray(storyRequests.userNotes, manifestNotes))
+    )
+    .orderBy(storyRequests.createdAt);
+  const targets = candidates.filter(
+    (request) => !Array.isArray(request.selectedChildren) || request.selectedChildren.length === 0
+  );
+  const active = targets.filter(
+    (request) => request.status === 'pending' || request.status === 'processing'
+  );
+  if (active.length > 0) {
+    throw new Error(
+      `Refusing cleanup: ${active.length} matching request(s) are still active: ${active
+        .map((request) => request.id)
+        .join(', ')}`
+    );
+  }
+
+  const requestedStoryIds = Array.from(
+    new Set(
+      targets.flatMap((request) => {
+        const storyId =
+          request.storyId ??
+          (typeof asObject(request.intermediateData).storyId === 'string'
+            ? (asObject(request.intermediateData).storyId as string)
+            : null);
+        return storyId ? [storyId] : [];
+      })
+    )
+  );
+  const existingStoryIds =
+    requestedStoryIds.length > 0
+      ? new Set(
+          (
+            await db
+              .select({ id: stories.id })
+              .from(stories)
+              .where(inArray(stories.id, requestedStoryIds))
+          ).map((story) => story.id)
+        )
+      : new Set<string>();
+
+  console.log(
+    JSON.stringify(
+      {
+        event: 'cleanup_unpersonalized_preview',
+        mode: EXECUTE ? 'execute' : 'dry-run',
+        requestIds: targets.map((request) => request.id),
+        storyIds: [...existingStoryIds],
+      },
+      null,
+      2
+    )
+  );
+  if (!EXECUTE || targets.length === 0) return;
+
+  for (const storyId of existingStoryIds) {
+    await deleteStory(storyId, userId!);
+  }
+  await db.delete(storyRequests).where(inArray(storyRequests.id, targets.map((request) => request.id)));
+  console.log(
+    JSON.stringify({
+      event: 'cleanup_unpersonalized_complete',
+      deletedRequests: targets.length,
+      deletedStories: existingStoryIds.size,
+    })
+  );
+}
+
 async function submitRequest(entry: ResolvedManifestEntry, bearerToken: string): Promise<string> {
   const response = await fetch(`${apiBaseUrl}${endpointForFormat(entry.definition.format)}`, {
     method: 'POST',
@@ -438,6 +517,10 @@ async function main(): Promise<void> {
     throw new Error('--timeout-minutes must be a positive number');
   }
   const manifest = await resolveManifest();
+  if (CLEANUP_UNPERSONALIZED) {
+    await cleanupUnpersonalizedRequests();
+    return;
+  }
   console.log(
     JSON.stringify(
       {
