@@ -266,6 +266,7 @@ async function resolveManifest(): Promise<ResolvedManifestEntry[]> {
         ...(definition.scenarioCardId && { scenarioCardId: definition.scenarioCardId }),
         imageStyle: definition.imageStyle,
         userNotes: definition.userNotes,
+        selectedChildren: [child.id],
         selectedCharacters: selected.map((character) => character.id),
       }),
     };
@@ -287,7 +288,11 @@ async function findExistingRequest(entry: ResolvedManifestEntry) {
     )
     .orderBy(desc(storyRequests.createdAt));
   return candidates.find(
-    (candidate) => generationKind(candidate.intermediateData) === entry.definition.format
+    (candidate) =>
+      generationKind(candidate.intermediateData) === entry.definition.format &&
+      Array.isArray(candidate.selectedChildren) &&
+      candidate.selectedChildren.length === 1 &&
+      candidate.selectedChildren[0] === entry.childProfileId
   );
 }
 
