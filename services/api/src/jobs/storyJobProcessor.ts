@@ -36,6 +36,7 @@ import {
 } from '../repositories';
 import { isGrokBlockedForStoryLanguage } from '../providers/audio/grok/supportedLocales';
 import { getIllustrationBlockStartSceneIds } from '../services/storyOrchestration/utilities';
+import { resolveStoryAudioScenes } from '../services/storyAudioTextService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -653,16 +654,22 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         ? 'mixed_story'
         : 'story';
 
-  // Load scenes ordered by sceneId; strip character IDs but keep allowed audio tags
-  const { stripForAudio } = await import('../utils/audioTags');
+  // Normal stories and mixed stories use normalized rows. Graphic novels keep
+  // their ordered page narration in stories.scenes because their visual rows
+  // are graphic-novel pages/panels rather than regular scenes.
   const storyScenes = await getSceneRepository().findByStoryId(job.storyId);
-  const scenesForAudio = storyScenes.map((s) => ({
-    sceneId: s.sceneId,
-    text: stripForAudio(s.text || ''),
-  }));
+  const scenesForAudio = resolveStoryAudioScenes({
+    normalizedScenes: storyScenes,
+    embeddedScenes: story.scenes,
+    fullText: story.fullText,
+  });
+  if (scenesForAudio.length === 0) {
+    throw new Error('Story has no narratable text');
+  }
 
   logger.info({
     storyId: job.storyId,
+    narrationSource: storyScenes.length > 0 ? 'normalized_scenes' : 'embedded_story_manifest',
     totalScenes: scenesForAudio.length,
     totalChars: scenesForAudio.reduce((sum, s) => sum + s.text.length, 0),
   }, 'Loaded scenes for audio generation');
