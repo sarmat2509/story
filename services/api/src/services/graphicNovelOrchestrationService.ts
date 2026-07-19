@@ -737,6 +737,21 @@ function characterDataFromGraphicNovelManifest(
     });
 }
 
+/**
+ * Legacy comic manifests can contain an LLM character placeholder with only a display name.
+ * That row is not an existing character: keeping it in the initial cast makes name-based
+ * extraction exclude it and leaves persistence without a result to bind. Omit only those
+ * unresolved LLM placeholders so the saved script can recover and persist them normally.
+ */
+export function recoverableGraphicNovelInitialCharacters(
+  characters: GraphicNovelCharacterManifest
+): CharacterData[] {
+  return characterDataFromGraphicNovelManifest(characters).filter(
+    (character) =>
+      !((character as any).source === 'llm_generated' && !characterRefForCharacter(character))
+  );
+}
+
 function mergeStoredLlmCharacters(
   existing: unknown,
   next: ComicLlmCharacter[]
@@ -807,7 +822,7 @@ async function ensureGraphicNovelProjectManifestCharacters(params: {
     currentArtifactReference &&
     (currentLayoutManifest.closingArtifactReference as Record<string, unknown> | undefined)
       ?.referenceBindingId !== currentArtifactReference.referenceBindingId;
-  let initialCharacters = characterDataFromGraphicNovelManifest(currentCharacters);
+  let initialCharacters = recoverableGraphicNovelInitialCharacters(currentCharacters);
   const manifestRefs = new Set(
     initialCharacters.map(characterRefForCharacter).filter(Boolean)
   );

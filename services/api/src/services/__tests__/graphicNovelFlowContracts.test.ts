@@ -9,6 +9,7 @@ import {
   getGraphicNovelStoryCharacterLinks,
   extractLlmCharactersFromComicScript,
   graphicNovelPanelNeedsStoryArtifactReference,
+  recoverableGraphicNovelInitialCharacters,
   selectGraphicNovelPanelReferenceImagesForGeneration,
   selectGraphicNovelCoverPanel,
   shouldCompleteGraphicNovelRequestAfterPage,
@@ -336,6 +337,60 @@ function testComicScriptExtractsLlmRobotCharacter(): void {
   assert.doesNotMatch(llmCharacters[0].description, /REF_CH_/);
 }
 
+function testLegacyLlmManifestPlaceholderReturnsToPersistenceCandidates(): void {
+  const initialCharacters = recoverableGraphicNovelInitialCharacters([
+    {
+      id: 'd690dc7d-ce96-4daf-9e73-00fef3bb8b94',
+      name: 'Amara',
+      type: 'person',
+      source: 'child_profile',
+      references: [],
+    },
+    {
+      name: 'Mrs. Gable',
+      type: 'person',
+      source: 'llm_generated',
+      description: 'An older woman who tends a neighborhood garden.',
+      references: [],
+    },
+  ] as any);
+
+  assert.deepEqual(
+    initialCharacters.map((character) => character.name),
+    ['Amara'],
+    'an unresolved legacy LLM row is not treated as an already persisted initial character'
+  );
+
+  const llmCharacters = extractLlmCharactersFromComicScript({
+    initialCharacters,
+    script: {
+      title: 'The Garden Shears',
+      description: 'A comic page',
+      language: 'en',
+      characters: [
+        {
+          name: 'Amara',
+          type: 'human',
+          description: 'The selected child.',
+        },
+        {
+          name: 'Mrs. Gable',
+          type: 'human',
+          description: 'An older woman who tends a neighborhood garden.',
+        },
+      ],
+      environments: [],
+      pages: [],
+    },
+  } as any);
+
+  assert.deepEqual(
+    llmCharacters.map((character) => character.name),
+    ['Mrs. Gable'],
+    'the legacy LLM placeholder is recovered from the saved script for persistence'
+  );
+}
+
 function testMentionedLlmComicCharacterIsAddedToPanelComposition(): void {
   const [page] = planGraphicNovelLayouts({
     ageGroup: '6-8',
@@ -567,6 +622,7 @@ function main(): void {
   testCoverPanelSelectionUsesFirstMatchingStandalonePanel();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
   testComicScriptExtractsLlmRobotCharacter();
+  testLegacyLlmManifestPlaceholderReturnsToPersistenceCandidates();
   testMentionedLlmComicCharacterIsAddedToPanelComposition();
   testStoryArtifactReferenceIsTriggeredByCompositionRefLabel();
   testPanelReferenceSelectionFiltersBeforeBucketLimit();
