@@ -65,6 +65,7 @@ export function buildMixedStoryPrompt(params: {
     visualReferenceLabels,
     visualArtifactReferenceLabel,
   } = params;
+  const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
   const expectedReadingBlockCount = sceneCount;
   const continuationSections =
     isContinuation && continuationContext
@@ -166,9 +167,9 @@ COMIC PAGE STRUCTURE:
 - Do not write a panel where primaryRead/setting says "the small creature/griffin/robot/etc." is doing the action while cameraComposition.characters[] lists only observers. Add the named character row too.
 - characters[].description must be natural-language visual identity text only. Do not use REF_CH_* labels, internal IDs, panel action, or temporary scene state there.
 - Reuse the same age-specific panel density rules as graphic novel mode:
-${ageRules(spec.ageGroup)}
-${panelDensityRules(spec.ageGroup, comicBlockCount)}
-- ${mixedComicPanelRule(spec.ageGroup)}
+${ageRules(complexityAgeGroup)}
+${panelDensityRules(complexityAgeGroup, comicBlockCount)}
+- ${mixedComicPanelRule(complexityAgeGroup)}
 - Use multiple panels for setup, reaction, decision, action, and consequence beats.
 - Keep each comic page readable as a 3:4 page with panel rows/columns chosen later by the server.
 - panelId must be stable and unique, like "m1-1" for mixed comic page 1 panel 1.
@@ -191,10 +192,10 @@ COMIC TEXT COMPLEXITY:
 - Do not write full dialogue or thought lines in ALL CAPS.
 
 DIALOGUE RHYTHM:
-${dialogueRhythmRules(spec.ageGroup, comicBlockCount)}
+${dialogueRhythmRules(complexityAgeGroup, comicBlockCount)}
 
 THOUGHT BUBBLE LOGIC:
-${thoughtBubbleRules(spec.ageGroup, comicBlockCount)}
+${thoughtBubbleRules(complexityAgeGroup, comicBlockCount)}
 
 PROSE TEXT:
 - Prose should be easier than a dense chapter book: one paragraph per prose block, clear sentences, and gentle forward motion.

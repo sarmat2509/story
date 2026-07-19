@@ -140,6 +140,8 @@ export interface ImageValidationResult {
  */
 export interface PolicyProfile {
   ageGroup: string;
+  /** Vocabulary/syntax level; content maturity still follows ageGroup. */
+  readingComplexityAgeGroup?: string;
   language: Locale;
   allowedConflicts: string[];
   constraints: {
@@ -160,6 +162,10 @@ export interface PolicyProfile {
 export interface StorySpec {
   language: Locale;
   ageGroup: string;
+  /** Reading complexity after applying the child profile's per-language adjustment. */
+  storyComplexityAgeGroup?: string;
+  /** Requested per-language adjustment (-2..+2), retained for diagnostics. */
+  storyComplexityAdjustment?: number;
   childName?: string; // Optional - only set if child is a character in the story
   goal?: string;
   goalName?: string; // NEW: Translated goal name for prompts

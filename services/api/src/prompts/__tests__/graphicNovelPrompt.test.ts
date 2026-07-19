@@ -56,6 +56,13 @@ const spec: StorySpec = {
   },
 };
 
+const easierPrompt = buildGraphicNovelPrompt({
+  spec: { ...spec, storyComplexityAgeGroup: '2-3', storyComplexityAdjustment: -2 },
+  pageCount: 5,
+});
+assert.match(easierPrompt, /Use exactly 2 panels per page/);
+assert.doesNotMatch(easierPrompt, /Use 4-6 panels per page/);
+
 const prompt = buildGraphicNovelPrompt({ spec, pageCount: 8 });
 const fallbackPrompt = buildGraphicNovelSafetyFallbackPrompt({ spec, pageCount: 8 });
 const repairPage = {

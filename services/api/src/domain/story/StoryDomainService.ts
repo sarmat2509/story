@@ -216,7 +216,9 @@ export class StoryDomainService {
     );
 
     const sceneCount = this.getSceneCount(spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(
+      spec.storyComplexityAgeGroup ?? spec.ageGroup
+    );
 
     const promptParams: Parameters<typeof buildDirectTextPromptPlain>[0] = {
       spec,
@@ -795,7 +797,9 @@ export class StoryDomainService {
     failedScenes: Array<{ sceneId: number; originalText: string; feedback: string }>,
     options?: StoryDomainOptions
   ): Promise<Array<{ sceneId: number; text: string }>> {
-    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(
+      spec.storyComplexityAgeGroup ?? spec.ageGroup
+    );
     const prompt = buildBatchRegenerationRuntimePrompt({
       spec,
       sceneCount,

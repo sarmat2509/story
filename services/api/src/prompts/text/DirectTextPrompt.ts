@@ -149,7 +149,11 @@ ${helpers.formatStoryRequirements({
   targetWordCountScope: includeWriterAudioTagsPlain ? 'audio_tags_in_manuscript' : 'prose_only',
 })}
 
-${helpers.formatAgeRequirements(spec.ageGroup)}
+${
+  spec.storyComplexityAgeGroup && spec.storyComplexityAgeGroup !== spec.ageGroup
+    ? `${helpers.formatTextComplexityRequirements(spec.storyComplexityAgeGroup)}\n- Content maturity, themes, conflict, and emotional intensity must remain appropriate for chronological age group ${spec.ageGroup}.`
+    : helpers.formatAgeRequirements(spec.ageGroup)
+}
 
 ${helpers.formatContentPolicySection(spec)}
 

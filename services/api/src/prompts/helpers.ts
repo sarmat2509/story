@@ -190,6 +190,7 @@ export function formatStructuredStoryInputSection(
     'STORY INPUT:',
     `- Language: ${spec.language}`,
     `- Age group: ${spec.ageGroup}`,
+    `- Reading complexity group: ${spec.storyComplexityAgeGroup ?? spec.ageGroup} (use for vocabulary, syntax, and text density only; content maturity and safety stay at age group ${spec.ageGroup})`,
     `- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}`,
     `- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}`,
     `- Theme guidance (binding): ${hasDistinctThemeGuidance ? themeGuidance : 'none'}`,
@@ -712,6 +713,36 @@ export function formatAgeRequirements(ageGroup: string): string {
 }
 
 /**
+ * Language-proficiency overrides affect vocabulary and syntax, not content maturity.
+ * Keep only reading/writing mechanics from the age requirements when the adjusted
+ * level differs from the child's chronological age group.
+ */
+export function formatTextComplexityRequirements(ageGroup: string): string {
+  const textRulePrefixes = [
+    'TEXT COMPLEXITY',
+    '- Sentence length:',
+    '- Vocabulary:',
+    '- Word complexity:',
+    '- Structure:',
+    '- Dialogue:',
+    '- Use rhyme,',
+    '- Use predictable',
+    '- Onomatopoeia',
+    '- Very simple cause-effect',
+    '- Vary sentence beginnings',
+    '- Use basic comparisons',
+    '- Literary devices:',
+    '- Expected reading speed:',
+    '- Use sophisticated transitions',
+  ];
+
+  return formatAgeRequirements(ageGroup)
+    .split('\n')
+    .filter((line) => textRulePrefixes.some((prefix) => line.startsWith(prefix)))
+    .join('\n');
+}
+
+/**
  * Format writing style guidelines for text generation
  * @param spec - Story specification (gates rhythm/repetition for youngest buckets only)
  * @param _vocabLevel - Vocabulary level from domain (lexical detail lives in formatAgeRequirements TEXT COMPLEXITY)
@@ -719,8 +750,9 @@ export function formatAgeRequirements(ageGroup: string): string {
  */
 export function formatWritingStyle(spec: StorySpec, _vocabLevel: string): string {
   const sections: string[] = ['WRITING STYLE:'];
+  const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
 
-  if (YOUNG_AGE_GROUPS.includes(spec.ageGroup)) {
+  if (YOUNG_AGE_GROUPS.includes(complexityAgeGroup)) {
     sections.push(
       '- MUST use rhythm and repetition: repeat phrases, gentle refrains, and predictable patterns so very young listeners can anticipate and join in.'
     );
@@ -1262,9 +1294,7 @@ export function formatEnvironmentRules(): string {
 const SPATIAL_POSITION_RULE =
   'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
 
-export function formatSceneVisualStagingDeltaRule(
-  fieldName = 'sceneVisual.setting'
-): string {
+export function formatSceneVisualStagingDeltaRule(fieldName = 'sceneVisual.setting'): string {
   return `${fieldName} must be a visual staging delta, not a plot summary: write 1-2 compact English sentences with concrete visible details beyond the environment plate: visible object state, material/color/light, hand/paw contact, body posture, gaze/expression, and foreground/background placement. If a fixed artifact reference is visible, include its REF_OBJ_* label plus 2-4 visible traits from the artifact description; avoid vague wording like "the object is now resting".`;
 }
 

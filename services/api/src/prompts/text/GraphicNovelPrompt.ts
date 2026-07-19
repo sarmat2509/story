@@ -594,6 +594,7 @@ export function buildGraphicNovelPrompt(params: {
     visualReferenceLabels,
     visualArtifactReferenceLabel,
   } = params;
+  const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
   const continuationSections =
     isContinuation && continuationContext
       ? [
@@ -665,16 +666,16 @@ VISUAL ACTION LOGIC:
 - For coordinated actions, describe one shared system connecting everyone: the same rope/vine/lever/path/light links the characters to the affected object.
 
 AGE RULES:
-${ageRules(spec.ageGroup)}
+${ageRules(complexityAgeGroup)}
 
 PANEL DENSITY:
-${panelDensityRules(spec.ageGroup, pageCount)}
+${panelDensityRules(complexityAgeGroup, pageCount)}
 
 DIALOGUE RHYTHM:
-${dialogueRhythmRules(spec.ageGroup, pageCount)}
+${dialogueRhythmRules(complexityAgeGroup, pageCount)}
 
 THOUGHT BUBBLE LOGIC:
-${thoughtBubbleRules(spec.ageGroup, pageCount)}
+${thoughtBubbleRules(complexityAgeGroup, pageCount)}
 
 CHARACTERS:
 ${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
@@ -755,6 +756,7 @@ export function buildGraphicNovelSafetyFallbackPrompt(params: {
     visualReferenceLabels,
     visualArtifactReferenceLabel,
   } = params;
+  const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
   const continuationSections =
     isContinuation && continuationContext
       ? [
@@ -800,12 +802,12 @@ ${closingArtifactRules(
 )}
 
 PACING:
-${ageRules(spec.ageGroup)}
-${panelDensityRules(spec.ageGroup, pageCount)}
+${ageRules(complexityAgeGroup)}
+${panelDensityRules(complexityAgeGroup, pageCount)}
 
 DIALOGUE:
-${dialogueRhythmRules(spec.ageGroup, pageCount)}
-${thoughtBubbleRules(spec.ageGroup, pageCount)}
+${dialogueRhythmRules(complexityAgeGroup, pageCount)}
+${thoughtBubbleRules(complexityAgeGroup, pageCount)}
 - dialogue[].text and thoughts[].text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer.
 - captions must be ${GRAPHIC_NOVEL_CAPTION_MAX_CHARS} characters or fewer.
 - For panels with 2 dialogue lines, use 2 different speakers and make the lines answer each other directly.

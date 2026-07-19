@@ -11,6 +11,7 @@ import {
   isStoryTextSizeMultiplierStep,
   normalizeStoryTextSizeMultiplier,
 } from '../utils/storyTextPresentation';
+import { isStoryComplexityAdjustment } from '../utils/storyComplexity';
 
 // ==========================================
 // Schemas
@@ -305,6 +306,14 @@ const BaseChildProfileSchema = z.object({
     .preprocess(
       (value) => (value === undefined ? undefined : normalizeStoryTextSizeMultiplier(value)),
       z.number().refine(isStoryTextSizeMultiplierStep, 'Invalid story text size multiplier')
+    )
+    .optional(),
+
+  // Per-language reading-level adjustment relative to the child's age (-2..+2).
+  storyComplexityAdjustments: z
+    .record(
+      LocaleSchema,
+      z.number().int().refine(isStoryComplexityAdjustment, 'Invalid story complexity adjustment')
     )
     .optional(),
 

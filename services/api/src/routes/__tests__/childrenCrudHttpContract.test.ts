@@ -96,6 +96,7 @@ async function main(): Promise<void> {
       authorAboutMe: null,
       storyCreationMode: null,
       storyTextSizeMultiplier: null,
+      storyComplexityAdjustments: {},
       createdAt: now,
       updatedAt: now,
       ...overrides,
@@ -175,7 +176,7 @@ async function main(): Promise<void> {
         const selectRowsQueue: unknown[][] = [[], [{ count: 0 }]];
         let insertValues: unknown = null;
 
-        const awaitable = <T,>(value: T) => ({
+        const awaitable = <T>(value: T) => ({
           then(onFulfilled?: any, onRejected?: any) {
             return Promise.resolve(value).then(onFulfilled, onRejected);
           },
@@ -256,6 +257,7 @@ async function main(): Promise<void> {
       name: '',
       birthDate: '2018-05-15',
       languages: ['en'],
+      storyComplexityAdjustments: { en: -2 },
       childDataConsentAccepted: true,
     });
     assert.equal(createInvalid.status, 400, 'invalid create returns 400');
@@ -264,6 +266,7 @@ async function main(): Promise<void> {
       name: 'Mira',
       birthDate: '2018-05-15',
       languages: ['en'],
+      storyComplexityAdjustments: { en: -2 },
       childDataConsentAccepted: true,
     });
     const createOkBody = (await createOk.json()) as any;
@@ -271,6 +274,7 @@ async function main(): Promise<void> {
     assert.equal(createOkBody.status, 'success');
     assert.equal(createOkBody.child.id, childId);
     assert.equal(createOkBody.child.name, 'Mira');
+    assert.deepEqual(createOkBody.child.storyComplexityAdjustments, { en: -2 });
     assert.ok(profilesById.has(childId));
 
     const listOne = await request('GET', '/api/v1/children');
@@ -282,10 +286,17 @@ async function main(): Promise<void> {
 
     const patchOk = await request('PATCH', `/api/v1/children/${childId}`, {
       name: 'Mira Updated',
+      storyComplexityAdjustments: { en: 2 },
     });
     assert.equal(patchOk.status, 200, 'patch child returns 200');
     const patchOkBody = (await patchOk.json()) as any;
     assert.equal(patchOkBody.child.name, 'Mira Updated');
+    assert.deepEqual(patchOkBody.child.storyComplexityAdjustments, { en: 2 });
+
+    const patchInvalidComplexity = await request('PATCH', `/api/v1/children/${childId}`, {
+      storyComplexityAdjustments: { en: 3 },
+    });
+    assert.equal(patchInvalidComplexity.status, 400, 'out-of-range complexity returns 400');
 
     const patchMissing = await request('PATCH', `/api/v1/children/${missingChildId}`, {
       name: 'Ghost',
@@ -305,7 +316,7 @@ async function main(): Promise<void> {
     await close(server);
   }
 
-  console.log('children CRUD HTTP contract passed (8 input-output cases)');
+  console.log('children CRUD HTTP contract passed (9 input-output cases)');
 }
 
 main().catch((error) => {

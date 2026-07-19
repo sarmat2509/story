@@ -74,6 +74,7 @@ ${storyScenes.map((scene) => `SCENE ${scene.sceneId}:\n${scene.text}`).join('\n\
 
   return `LANGUAGE: ${getLanguageFullDisplay(spec.language as any)}
 AGE GROUP: ${spec.ageGroup}
+READING COMPLEXITY GROUP: ${spec.storyComplexityAgeGroup ?? spec.ageGroup}
 VOCABULARY LEVEL: ${vocabLevel}
 TARGET WORDS PER SCENE: ${minWords}-${maxWords}
 SCENE COUNT IN STORY: ${sceneCount}
@@ -86,7 +87,7 @@ ${textPromptSection}
 
 ${helpers.formatChildProfile(spec)}
 
-${helpers.formatSceneLevelRules({ ageGroup: spec.ageGroup })}
+${helpers.formatSceneLevelRules({ ageGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup })}
 
 Include exactly ${failedScenes.length} corrected scenes in the same order.`;
 }

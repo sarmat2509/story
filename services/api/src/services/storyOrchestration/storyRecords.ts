@@ -108,6 +108,8 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           metadata: {
             llmGeneratedCharacters: llmCharacters,
             imageStyle: (params.spec as any).imageStyle,
+            storyComplexityAgeGroup: params.spec.storyComplexityAgeGroup ?? params.spec.ageGroup,
+            storyComplexityAdjustment: params.spec.storyComplexityAdjustment ?? 0,
             mergedCharacters: params.characters,
             mapTile: (params.text as any).mapTile ?? null,
             ...(params.metadata.plotExampleId && { plotExampleId: params.metadata.plotExampleId }),
@@ -258,6 +260,8 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         metadata: {
           llmGeneratedCharacters: llmCharacters,
           imageStyle: (params.spec as any).imageStyle,
+          storyComplexityAgeGroup: params.spec.storyComplexityAgeGroup ?? params.spec.ageGroup,
+          storyComplexityAdjustment: params.spec.storyComplexityAdjustment ?? 0,
           mergedCharacters: params.characters,
           mapTile: (params.text as any).mapTile ?? null,
           ...(params.metadata.plotExampleId && { plotExampleId: params.metadata.plotExampleId }),

@@ -98,6 +98,24 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
   stub.assertExhausted();
 }
 
+async function testGenerateTextPlainUsesAdjustedReadingComplexity() {
+  const stub = new MockTextProvider().queueText('text_plain', PLAIN_LLM_FIXTURE);
+  const domain = new StoryDomainService(stub);
+
+  await domain.generateTextPlain({
+    ...STATIC_STORY_SPEC,
+    storyComplexityAgeGroup: '2-3',
+    storyComplexityAdjustment: -2,
+  });
+
+  const request = lastTextRequest(stub);
+  assert.ok(request?.prompt?.includes('TEXT COMPLEXITY (Lexile: 100L-200L):'));
+  assert.ok(!request?.prompt?.includes('TEXT COMPLEXITY (Lexile: 500L-700L):'));
+  assert.ok(request?.prompt?.includes('Content maturity, themes, conflict, and emotional intensity'));
+  assert.ok(!request?.prompt?.includes('Focus on family, friendship, daily routines'));
+  stub.assertExhausted();
+}
+
 async function testGenerateTextPlainRejectsEmptyWriterOutput() {
   const stub = new MockTextProvider().queueText(
     'text_plain',
@@ -318,6 +336,7 @@ async function testValidateScenesBatchEnforcesOpenLedgerRows(): Promise<void> {
 
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
+  await testGenerateTextPlainUsesAdjustedReadingComplexity();
   await testGenerateTextPlainRejectsEmptyWriterOutput();
   await testWriterPromptDoesNotExposeCharacterIds();
   await testContinuationWriterPromptDoesNotExposeIds();

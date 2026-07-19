@@ -59,6 +59,15 @@ const prompt = buildMixedStoryPrompt({
   comicBlockCount: 2,
 });
 
+const easierPrompt = buildMixedStoryPrompt({
+  spec: { ...spec, storyComplexityAgeGroup: '2-3', storyComplexityAdjustment: -2 },
+  sceneCount: 5,
+  comicSceneIds: [1, 3],
+  comicBlockCount: 2,
+});
+assert.match(easierPrompt, /Use exactly 2 panels per page/);
+assert.doesNotMatch(easierPrompt, /Use 4-6 panels per page/);
+
 assert.match(prompt, /Create exactly 2 comic blocks/);
 assert.match(
   prompt,

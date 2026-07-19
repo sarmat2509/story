@@ -942,7 +942,7 @@ export class GraphicNovelDomainService {
     bubbleTextSizing?: GraphicNovelBubbleTextSizing;
   }) {
     return planGraphicNovelLayouts({
-      ageGroup: params.spec.ageGroup,
+      ageGroup: params.spec.storyComplexityAgeGroup ?? params.spec.ageGroup,
       pages: params.script.pages,
       outfits: params.script.outfits,
       bubbleTextSizing: params.bubbleTextSizing,

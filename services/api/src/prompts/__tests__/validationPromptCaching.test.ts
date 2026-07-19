@@ -16,6 +16,7 @@ function testTextValidationPromptSplit() {
   const runtime = buildBatchValidationRuntimePrompt({
     policy: {
       ageGroup: '4-5',
+      readingComplexityAgeGroup: '6-8',
       promptGuidelines: '- DB rule: no dangerous tool instructions.',
     } as any,
     scenes: [
@@ -75,12 +76,15 @@ function testTextValidationPromptSplit() {
   assert.ok(!runtime.includes('"shot":"wide"'));
   assert.ok(runtime.includes('DB CONTENT POLICY TO ENFORCE:'));
   assert.ok(runtime.includes('no dangerous tool instructions'));
+  assert.ok(runtime.includes('READING COMPLEXITY GROUP: 6-8'));
+  assert.ok(runtime.includes('Themes, conflict, and emotional intensity must match age group 4-5'));
+  assert.ok(runtime.includes('Vocabulary, syntax, and sentence complexity must match reading complexity group 6-8'));
   assert.ok(!runtime.includes('Output contract'));
 }
 
 function testSingleSceneValidationPrompt() {
   const prompt = buildValidationPrompt({
-    policy: { ageGroup: '4-5' } as any,
+    policy: { ageGroup: '4-5', readingComplexityAgeGroup: '6-8' } as any,
     isLastScene: false,
     sceneText: {
       sceneId: 2,
@@ -105,6 +109,7 @@ function testSingleSceneValidationPrompt() {
   });
 
   assert.ok(prompt.includes('SCENE ID: 2'));
+  assert.ok(prompt.includes('READING COMPLEXITY GROUP: 6-8'));
   assert.ok(prompt.includes('Mia waves to the owl.'));
   assert.ok(prompt.includes('RESERVED CHARACTER IDENTITY VALIDATION'));
   assert.ok(prompt.includes('reserved_character_identity_conflict'));

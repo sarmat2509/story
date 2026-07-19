@@ -429,6 +429,23 @@ async function testComicPanelCountUsesGraphicNovelAgeRules() {
       error.issues.some((issue) => issue.message.includes('requires at least 3 comic pages with 4-6 panels'))
   );
 
+  const easierReadingLevel = normalizeMixedStoryScript({
+    raw: rawScript(comicBlockCount, sceneCount, comicSceneIds, 2),
+    spec: {
+      ...STATIC_SPEC,
+      storyComplexityAgeGroup: '2-3',
+      storyComplexityAdjustment: -2,
+    },
+    sceneCount,
+    comicSceneIds,
+    comicBlockCount,
+  });
+  assert.ok(
+    easierReadingLevel.script.readingBlocks
+      .filter((block) => block.kind === 'comic')
+      .every((block) => block.panels.length === 2)
+  );
+
   const sixPanelOlder = normalizeMixedStoryScript({
     raw: rawScript(comicBlockCount, sceneCount, comicSceneIds, 6),
     spec: STATIC_SPEC,

@@ -34,6 +34,7 @@ export interface ChildProfileData {
   birthDate: Date | string;
   storyCreationMode?: 'instant' | 'artisan';
   storyTextSizeMultiplier?: number;
+  storyComplexityAdjustments?: Partial<Record<string, -2 | -1 | 0 | 1 | 2>>;
   languages: any;
   referencePhotos?: ReferencePhoto[];
   aiGeneratedDescription?: string; // AI-generated narrative description

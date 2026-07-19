@@ -76,6 +76,8 @@ function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitial
       | string
       | null
       | undefined,
+    storyComplexityAdjustments: (child.storyComplexityAdjustments ??
+      child.storycomplexityadjustments) as ChildFormInitialData['storyComplexityAdjustments'],
   };
 }
 

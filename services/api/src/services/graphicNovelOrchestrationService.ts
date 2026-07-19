@@ -4070,6 +4070,8 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       metadata: {
         storyFormat: GRAPHIC_NOVEL_KIND,
         graphicNovelTextMode: 'html_overlay',
+        storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
+        storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
         graphicNovelTextManifestVersion: textManifest.version,
         firstPageReady: false,
         graphicNovelGenerationComplete: false,
@@ -4437,7 +4439,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         const manifest = await buildGraphicNovelCharacterManifest(mixedStoryCharacters);
         const aliases = buildGraphicNovelCharacterAliasMap(manifest);
         const pages = planGraphicNovelLayouts({
-          ageGroup: spec.ageGroup,
+          ageGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
           pages: mixedStoryComicPages(script),
           outfits: script.outfits,
           bubbleTextSizing: readingTextSettings.bubbleTextSizing,
@@ -4453,7 +4455,9 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         };
       }
     );
-    const comicPanelRange = graphicNovelPanelCountRange(spec.ageGroup);
+    const comicPanelRange = graphicNovelPanelCountRange(
+      spec.storyComplexityAgeGroup ?? spec.ageGroup
+    );
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles', MIXED_STORY_KIND);
     await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
 
@@ -4478,6 +4482,8 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         storyFormat: MIXED_STORY_KIND,
         graphicNovelTextMode: 'html_overlay',
         mixedStoryVersion: 1,
+        storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
+        storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
         mixedStoryTextMode: textManifest.textMode,
         mixedStoryTextManifestVersion: textManifest.version,
         mixedStoryComicBlockCount: comicBlockCount,
@@ -5457,6 +5463,7 @@ export async function regenerateGraphicNovelPageImage(params: {
   }
 
   const ageGroup = project.ageGroup || story.ageGroup || '6-8';
+  const layoutAgeGroup = (storyMetadata.storyComplexityAgeGroup as string | undefined) || ageGroup;
   const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
     ageGroup,
     userId: story.userId,
@@ -5478,7 +5485,7 @@ export async function regenerateGraphicNovelPageImage(params: {
   layoutManifest = manifestState.layoutManifest as { characters?: GraphicNovelCharacterManifest };
   const plannedPageWithoutAliases = replanGraphicNovelPageFromSavedScript({
     savedPage,
-    ageGroup,
+    ageGroup: layoutAgeGroup,
     storyFormat: storyMetadata.storyFormat as string | undefined,
     bubbleTextSizing: readingTextSettings.bubbleTextSizing,
   });

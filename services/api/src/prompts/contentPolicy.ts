@@ -224,10 +224,12 @@ function buildAudioTagsRules(isScaryStory: boolean): string {
 }
 
 function buildValidationRules(policy: PolicyProfile, isScaryStory: boolean, ageGroup: string): string {
+  const readingComplexityAgeGroup = policy.readingComplexityAgeGroup ?? ageGroup;
   const rules = [
     `1. Content must be safe and age-appropriate for ${ageGroup}`,
-    '2. Language and themes must match age group',
-    '3. Be fair — only flag real safety issues, not minor style choices',
+    `2. Themes, conflict, and emotional intensity must match age group ${ageGroup}`,
+    `3. Vocabulary, syntax, and sentence complexity must match reading complexity group ${readingComplexityAgeGroup}`,
+    '4. Be fair — only flag real safety issues, not minor style choices',
   ];
 
   if (policy.promptGuidelines && policy.promptGuidelines.trim()) {

@@ -694,6 +694,7 @@ export const childProfiles = pgTable(
     birthDate: date('birth_date').notNull(),
     storyCreationMode: varchar('story_creation_mode', { length: 20 }).notNull().default('instant'),
     storyTextSizeMultiplier: real('story_text_size_multiplier').notNull().default(1),
+    storyComplexityAdjustments: jsonb('story_complexity_adjustments').notNull().default({}),
     languages: jsonb('languages').notNull(), // array of language codes
     referencePhotos: jsonb('reference_photos'), // array of photo objects
     appearanceTraits: jsonb('appearance_traits'), // structured appearance data

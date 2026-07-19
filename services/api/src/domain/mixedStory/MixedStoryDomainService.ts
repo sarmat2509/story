@@ -639,17 +639,18 @@ function validateRawBlockShape(params: {
       issues.push({ path: `${path}.panels`, message: 'Comic block is missing panels.' });
       return;
     }
-    const panelRange = graphicNovelPanelCountRange(spec.ageGroup);
+    const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
+    const panelRange = graphicNovelPanelCountRange(complexityAgeGroup);
     if (block.panels.length < panelRange.min) {
       issues.push({
         path: `${path}.panels`,
-        message: `Comic block has fewer than ${panelRange.min} panels for age ${spec.ageGroup}.`,
+        message: `Comic block has fewer than ${panelRange.min} panels for age ${complexityAgeGroup}.`,
       });
     }
     if (block.panels.length > panelRange.max) {
       issues.push({
         path: `${path}.panels`,
-        message: `Comic block has more than ${panelRange.max} panels for age ${spec.ageGroup}.`,
+        message: `Comic block has more than ${panelRange.max} panels for age ${complexityAgeGroup}.`,
       });
     }
     return;
@@ -697,7 +698,11 @@ function validateNormalizedMixedStoryScript(params: {
     });
   }
 
-  const densityRequirement = graphicNovelPanelDensityRequirement(spec.ageGroup, comicBlockCount);
+  const complexityAgeGroup = spec.storyComplexityAgeGroup ?? spec.ageGroup;
+  const densityRequirement = graphicNovelPanelDensityRequirement(
+    complexityAgeGroup,
+    comicBlockCount
+  );
   if (densityRequirement && comicBlocks.length > 0) {
     const densePages = comicBlocks.filter((block) => {
       const panelCount = block.panels.length;
@@ -711,7 +716,7 @@ function validateNormalizedMixedStoryScript(params: {
       issues.push({
         path: 'readingBlocks',
         message:
-          `Age ${spec.ageGroup} requires at least ${densityRequirement.minimumDensePages} comic pages ` +
+          `Age ${complexityAgeGroup} requires at least ${densityRequirement.minimumDensePages} comic pages ` +
           `with ${densityRequirement.denseMinPanels}` +
           `${densityRequirement.denseMaxPanels ? `-${densityRequirement.denseMaxPanels}` : '+'} panels.`,
       });
@@ -721,11 +726,11 @@ function validateNormalizedMixedStoryScript(params: {
       if (threePanelPages.length > densityRequirement.maximumThreePanelPages) {
         issues.push({
           path: 'readingBlocks',
-          message: `Age ${spec.ageGroup} allows at most ${densityRequirement.maximumThreePanelPages} three-panel comic pages.`,
+          message: `Age ${complexityAgeGroup} allows at most ${densityRequirement.maximumThreePanelPages} three-panel comic pages.`,
         });
       }
     }
-    if (spec.ageGroup === '6-8') {
+    if (complexityAgeGroup === '6-8') {
       const openingPage =
         comicBlocks.find((block) => block.comicPageNumber === 1) ?? comicBlocks[0];
       if (
@@ -856,7 +861,7 @@ export function normalizeMixedStoryScript(params: {
       });
       continue;
     }
-    const panelRange = graphicNovelPanelCountRange(spec.ageGroup);
+    const panelRange = graphicNovelPanelCountRange(spec.storyComplexityAgeGroup ?? spec.ageGroup);
     const sourcePanels =
       Array.isArray(source.panels) && source.panels.length > 0
         ? source.panels.slice(0, panelRange.max)
@@ -960,7 +965,9 @@ export class MixedStoryDomainService {
     let lastError: unknown;
     const schema = buildMixedStoryScriptSchema({
       readingBlockCount: params.sceneCount,
-      comicPanelRange: graphicNovelPanelCountRange(params.spec.ageGroup),
+      comicPanelRange: graphicNovelPanelCountRange(
+        params.spec.storyComplexityAgeGroup ?? params.spec.ageGroup
+      ),
     });
 
     for (let attempt = 1; attempt <= MIXED_STORY_SCRIPT_ATTEMPTS; attempt += 1) {

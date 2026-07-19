@@ -20,14 +20,21 @@ import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children'
 import {
   CreateChildProfileSchema,
   DEFAULT_LOCALE,
+  DEFAULT_STORY_COMPLEXITY_ADJUSTMENT,
   DEFAULT_STORY_TEXT_SIZE_MULTIPLIER,
   UpdateChildProfileSchema,
   LOCALE_IDS,
   ReferencePhoto,
+  STORY_COMPLEXITY_ADJUSTMENT_STEPS,
   STORY_TEXT_SIZE_MULTIPLIER_STEPS,
+  SUPPORTED_LANGUAGES,
+  type Locale,
+  type StoryComplexityAdjustment,
+  type StoryComplexityAdjustments,
   type StoryTextSizeMultiplier,
   getBaseStoryTextSizePxForAgeYears,
   getStoryTextSizePx,
+  normalizeStoryComplexityAdjustments,
   normalizeStoryTextSizeMultiplier,
 } from '@wondertales/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
@@ -120,6 +127,7 @@ export interface ChildFormInitialData {
   authorPseudonym?: string | null;
   authorAboutMe?: string | null;
   storyTextSizeMultiplier?: number | string | null;
+  storyComplexityAdjustments?: StoryComplexityAdjustments | null;
 }
 
 interface Props {
@@ -160,6 +168,7 @@ export function ChildFormContent({
 
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState(new Date());
+  const [profileLanguages, setProfileLanguages] = useState<string[]>([toBaseLocale(i18n.language)]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -168,8 +177,11 @@ export function ChildFormContent({
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
   const [authorPseudonym, setAuthorPseudonym] = useState('');
   const [authorAboutMe, setAuthorAboutMe] = useState('');
-  const [storyTextSizeMultiplier, setStoryTextSizeMultiplier] =
-    useState<StoryTextSizeMultiplier>(DEFAULT_STORY_TEXT_SIZE_MULTIPLIER);
+  const [storyTextSizeMultiplier, setStoryTextSizeMultiplier] = useState<StoryTextSizeMultiplier>(
+    DEFAULT_STORY_TEXT_SIZE_MULTIPLIER
+  );
+  const [storyComplexityAdjustments, setStoryComplexityAdjustments] =
+    useState<StoryComplexityAdjustments>({});
   const [childDataConsentAccepted, setChildDataConsentAccepted] = useState(false);
 
   const [appearance, setAppearance] = useState({
@@ -204,15 +216,9 @@ export function ChildFormContent({
     99,
     Math.round((turnaroundElapsedSeconds / TURNAROUND_ESTIMATED_SECONDS) * 100)
   );
-  const profileLanguages = initialData?.languages?.length
-    ? initialData.languages
-    : [toBaseLocale(i18n.language)];
   const storyTextAgeYears = getFullAgeYears(birthDate);
   const baseStoryTextSizePx = getBaseStoryTextSizePxForAgeYears(storyTextAgeYears);
-  const effectiveStoryTextSizePx = getStoryTextSizePx(
-    baseStoryTextSizePx,
-    storyTextSizeMultiplier
-  );
+  const effectiveStoryTextSizePx = getStoryTextSizePx(baseStoryTextSizePx, storyTextSizeMultiplier);
   const storyTextPreviewLineHeight = Math.round(effectiveStoryTextSizePx * 1.45);
 
   useEffect(() => {
@@ -232,6 +238,9 @@ export function ChildFormContent({
     if (initialData) {
       setName(initialData.name);
       setBirthDate(initialData.birthDate);
+      setProfileLanguages(
+        initialData.languages?.length ? initialData.languages : [toBaseLocale(i18n.language)]
+      );
       if (initialData.referencePhotos && initialData.referencePhotos.length > 0) {
         setPhotos(
           initialData.referencePhotos.map((photo, index) => ({
@@ -250,6 +259,9 @@ export function ChildFormContent({
       setAuthorAboutMe(initialData.authorAboutMe || '');
       setStoryTextSizeMultiplier(
         normalizeStoryTextSizeMultiplier(initialData.storyTextSizeMultiplier)
+      );
+      setStoryComplexityAdjustments(
+        normalizeStoryComplexityAdjustments(initialData.storyComplexityAdjustments)
       );
       setChildDataConsentAccepted(!!childId);
       if (initialData.appearanceTraits) {
@@ -300,12 +312,14 @@ export function ChildFormContent({
     } else {
       setName('');
       setBirthDate(new Date());
+      setProfileLanguages([toBaseLocale(i18n.language)]);
       setPhotos([]);
       setDescription('');
       setDescriptionLanguage(undefined);
       setAuthorPseudonym('');
       setAuthorAboutMe('');
       setStoryTextSizeMultiplier(DEFAULT_STORY_TEXT_SIZE_MULTIPLIER);
+      setStoryComplexityAdjustments({});
       setChildDataConsentAccepted(false);
       setAppearance({
         hairColor: undefined,
@@ -321,7 +335,23 @@ export function ChildFormContent({
       setFamilyCast({});
     }
     setErrors({});
-  }, [initialData, childId]);
+  }, [initialData, childId, i18n.language]);
+
+  const toggleProfileLanguage = (language: string) => {
+    setProfileLanguages((current) => {
+      if (current.includes(language)) {
+        return current.length > 1 ? current.filter((item) => item !== language) : current;
+      }
+      return current.length < 3 ? [...current, language] : current;
+    });
+  };
+
+  const setLanguageComplexity = (language: Locale, adjustment: StoryComplexityAdjustment) => {
+    setStoryComplexityAdjustments((current) => ({
+      ...current,
+      [language]: adjustment,
+    }));
+  };
 
   // Auto-analyze on the child-profile step (create only, when photos exist)
   const hasAnalyzedRef = React.useRef(false);
@@ -456,6 +486,12 @@ export function ChildFormContent({
       const uploadedPhotos = photos
         .filter((photo) => !photo.isUploading && isServerAssetUrl(photo.url))
         .map(({ url, uploadedAt }) => ({ url: toAbsoluteAssetUrl(url), uploadedAt }));
+      const submittedComplexityAdjustments = Object.fromEntries(
+        profileLanguages.map((language) => [
+          language,
+          storyComplexityAdjustments[language as Locale] ?? DEFAULT_STORY_COMPLEXITY_ADJUSTMENT,
+        ])
+      ) as StoryComplexityAdjustments;
 
       if (childId) {
         // Edit: use UpdateChildProfileSchema (no referencePhotos, no URL validation)
@@ -473,6 +509,7 @@ export function ChildFormContent({
           authorPseudonym: authorPseudonym.trim() || null,
           authorAboutMe: authorAboutMe.trim() || null,
           storyTextSizeMultiplier,
+          storyComplexityAdjustments: submittedComplexityAdjustments,
         };
         const result = UpdateChildProfileSchema.safeParse(updateData);
         if (!result.success) {
@@ -507,6 +544,7 @@ export function ChildFormContent({
           authorPseudonym: authorPseudonym.trim() || null,
           authorAboutMe: authorAboutMe.trim() || null,
           storyTextSizeMultiplier,
+          storyComplexityAdjustments: submittedComplexityAdjustments,
         };
         const result = CreateChildProfileSchema.safeParse(data);
         if (!result.success) {
@@ -675,6 +713,41 @@ export function ChildFormContent({
             </View>
 
             <View style={styles.field}>
+              <Text style={styles.label}>{t('child_form.languages_label')}</Text>
+              <View style={styles.languageGrid}>
+                {APP_CONFIG.supportedLanguages.map((language) => {
+                  const locale = language as Locale;
+                  const selected = profileLanguages.includes(language);
+                  const languageConfig = SUPPORTED_LANGUAGES[locale];
+                  return (
+                    <TouchableOpacity
+                      key={language}
+                      style={[styles.languageChip, selected && styles.languageChipSelected]}
+                      activeOpacity={0.8}
+                      onPress={() => toggleProfileLanguage(language)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      testID={`child-profile-language-${language}`}
+                    >
+                      <Text style={styles.languageFlag}>{languageConfig.flag}</Text>
+                      <Text
+                        style={[
+                          styles.languageChipText,
+                          selected && styles.languageChipTextSelected,
+                        ]}
+                      >
+                        {t(`language_names.${language}`, {
+                          defaultValue: languageConfig.nativeName,
+                        })}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.hint}>{t('child_form.languages_hint')}</Text>
+            </View>
+
+            <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.photos_title')}</Text>
               {!childId && (
                 <TouchableOpacity
@@ -736,11 +809,7 @@ export function ChildFormContent({
                   </Text>
                 </View>
                 <View style={styles.textSizeControl}>
-                  <Ionicons
-                    name="text-outline"
-                    size={18}
-                    color={theme.colors.text.tertiary}
-                  />
+                  <Ionicons name="text-outline" size={18} color={theme.colors.text.tertiary} />
                   <View style={styles.textSizeSteps}>
                     <View style={styles.textSizeTrack} />
                     {STORY_TEXT_SIZE_MULTIPLIER_STEPS.map((step) => {
@@ -759,11 +828,7 @@ export function ChildFormContent({
                       );
                     })}
                   </View>
-                  <Ionicons
-                    name="text-outline"
-                    size={26}
-                    color={theme.colors.text.tertiary}
-                  />
+                  <Ionicons name="text-outline" size={26} color={theme.colors.text.tertiary} />
                 </View>
                 <View style={styles.textSizePreviewCard}>
                   <Text style={styles.textSizePreviewLabel}>
@@ -780,6 +845,77 @@ export function ChildFormContent({
                   >
                     {t('child_form.story_text_size_preview_text')}
                   </Text>
+                </View>
+              </View>
+            )}
+
+            {showStoryAuthorFields && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('child_form.story_complexity_section_title')}
+                </Text>
+                <Text style={styles.complexityDescription}>
+                  {t('child_form.story_complexity_description')}
+                </Text>
+                <View style={styles.complexityLanguages}>
+                  {profileLanguages.map((language) => {
+                    const locale = language as Locale;
+                    const languageConfig = SUPPORTED_LANGUAGES[locale];
+                    const adjustment =
+                      storyComplexityAdjustments[locale] ?? DEFAULT_STORY_COMPLEXITY_ADJUSTMENT;
+                    return (
+                      <View key={language} style={styles.complexityLanguageCard}>
+                        <View style={styles.complexityLanguageHeader}>
+                          <Text style={styles.complexityLanguageName}>
+                            {languageConfig.flag}{' '}
+                            {t(`language_names.${language}`, {
+                              defaultValue: languageConfig.nativeName,
+                            })}
+                          </Text>
+                          <Text style={styles.complexityValue}>
+                            {t(`child_form.story_complexity_${adjustment}`)}
+                          </Text>
+                        </View>
+                        <View style={styles.textSizeControl}>
+                          <Ionicons
+                            name="book-outline"
+                            size={18}
+                            color={theme.colors.text.tertiary}
+                          />
+                          <View style={styles.textSizeSteps}>
+                            <View style={styles.textSizeTrack} />
+                            {STORY_COMPLEXITY_ADJUSTMENT_STEPS.map((step) => {
+                              const selected = adjustment === step;
+                              return (
+                                <TouchableOpacity
+                                  key={step}
+                                  style={styles.textSizeStep}
+                                  activeOpacity={0.8}
+                                  onPress={() => setLanguageComplexity(locale, step)}
+                                  accessibilityRole="radio"
+                                  accessibilityState={{ checked: selected }}
+                                  accessibilityLabel={t(`child_form.story_complexity_${step}`)}
+                                  testID={`child-story-complexity-${language}-${step}`}
+                                >
+                                  <View
+                                    style={[
+                                      styles.textSizeDot,
+                                      selected && styles.textSizeDotSelected,
+                                    ]}
+                                  />
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                          <Ionicons
+                            name="book-outline"
+                            size={26}
+                            color={theme.colors.text.tertiary}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -863,7 +999,9 @@ export function ChildFormContent({
                     <Text style={styles.hint}>{t('child_form.generated_by_ai_hint')}</Text>
                   ) : null}
                   {!photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) ? (
-                    <Text style={styles.hint}>{t('child_form.description_upload_photos_first')}</Text>
+                    <Text style={styles.hint}>
+                      {t('child_form.description_upload_photos_first')}
+                    </Text>
                   ) : null}
                 </View>
 
@@ -902,9 +1040,7 @@ export function ChildFormContent({
                     label={t('character_form.eye_color')}
                     options={EYE_COLORS}
                     selected={appearance.eyeColor || ''}
-                    onSelect={(val) =>
-                      setAppearance({ ...appearance, eyeColor: val as EyeColor })
-                    }
+                    onSelect={(val) => setAppearance({ ...appearance, eyeColor: val as EyeColor })}
                     translationPrefix="character_form.eye_colors"
                     getTranslation={t}
                   />
@@ -912,9 +1048,7 @@ export function ChildFormContent({
                     label={t('character_form.skin_tone')}
                     options={SKIN_TONES}
                     selected={appearance.skinTone || ''}
-                    onSelect={(val) =>
-                      setAppearance({ ...appearance, skinTone: val as SkinTone })
-                    }
+                    onSelect={(val) => setAppearance({ ...appearance, skinTone: val as SkinTone })}
                     translationPrefix="character_form.skin_tones"
                     getTranslation={t}
                   />
@@ -1346,6 +1480,37 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[2],
     fontStyle: 'italic',
   },
+  languageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  languageChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  languageChipSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.primary[50],
+  },
+  languageFlag: {
+    fontSize: theme.typography.fontSize.base,
+  },
+  languageChipText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  languageChipTextSelected: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
   textSizeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1424,6 +1589,42 @@ const styles = StyleSheet.create({
   textSizePreviewText: {
     color: theme.colors.text.primary,
     fontWeight: theme.typography.fontWeight.regular,
+  },
+  complexityDescription: {
+    marginBottom: theme.spacing[4],
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  complexityLanguages: {
+    gap: theme.spacing[3],
+  },
+  complexityLanguageCard: {
+    padding: theme.spacing[4],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  complexityLanguageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[3],
+  },
+  complexityLanguageName: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  complexityValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

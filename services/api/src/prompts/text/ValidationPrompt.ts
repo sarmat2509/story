@@ -183,6 +183,7 @@ export function buildValidationPrompt(params: ValidationPromptParams): string {
 Return JSON ONLY.
 
 AGE GROUP: ${policy.ageGroup}
+READING COMPLEXITY GROUP: ${policy.readingComplexityAgeGroup ?? policy.ageGroup}
 SCENE ID: ${sceneText.sceneId}
 IS LAST SCENE: ${isLastScene ? 'yes' : 'no'}
 
@@ -232,6 +233,7 @@ export function buildBatchValidationRuntimePrompt(params: BatchValidationPromptP
     .join('\n\n');
 
   return `AGE GROUP: ${policy.ageGroup}
+READING COMPLEXITY GROUP: ${policy.readingComplexityAgeGroup ?? policy.ageGroup}
 TOTAL SCENES: ${scenes.length}
 LAST SCENE ID: ${scenes.length > 0 ? scenes[scenes.length - 1].sceneId : '?'}
 

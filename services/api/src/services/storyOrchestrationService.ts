@@ -14,6 +14,8 @@ import {
 import {
   DEFAULT_LOCALE,
   LOCALE_IDS,
+  adjustStoryComplexityAgeGroup,
+  getStoryComplexityAdjustment,
   getBaseStoryTextSizePxForAgeGroup,
   getBaseStoryTextSizePxForAgeYears,
   getStoryTextSizePx,
@@ -3264,6 +3266,9 @@ export async function buildStorySpec(
     let selectedCharacters: CharacterData[] = [];
     let selectedChildrenData: CharacterData[] = [];
     let optionalCharacters: CharacterData[] | undefined;
+    const requestedChildProfilePromise = request.childProfileId
+      ? getChildProfileRepository().findById(request.childProfileId, request.userId)
+      : Promise.resolve(null);
 
     let allCharacters: CharacterData[];
 
@@ -3307,9 +3312,6 @@ export async function buildStorySpec(
         request.selectedCharacters && request.selectedCharacters.length > 0
           ? getCharacterRepository().findByIds(request.userId, request.selectedCharacters)
           : Promise.resolve([]);
-      const childProfilePromise = request.childProfileId
-        ? getChildProfileRepository().findById(request.childProfileId, request.userId)
-        : Promise.resolve(null);
       const selectedChildrenPromise =
         request.selectedChildren && request.selectedChildren.length > 0
           ? getChildProfileRepository().findByIds(request.userId, request.selectedChildren)
@@ -3317,7 +3319,7 @@ export async function buildStorySpec(
 
       const [loadedUserCharacters, profile, childProfilesToInclude] = await Promise.all([
         selectedCharactersPromise,
-        childProfilePromise,
+        requestedChildProfilePromise,
         selectedChildrenPromise,
       ]);
       const childProfileCharacters =
@@ -3446,6 +3448,15 @@ export async function buildStorySpec(
       );
 
       allCharacters = selectedCharacters;
+    }
+
+    // Continuations also inherit the current profile age and language-specific reading level.
+    if (!childProfile && request.childProfileId) {
+      const profile = await requestedChildProfilePromise;
+      if (profile?.name && profile.birthDate) {
+        ageGroup = calculateAgeGroup(new Date(profile.birthDate));
+        childProfile = profile as ChildProfileData;
+      }
     }
 
     allCharacters = await attachCharacterNameAliases(allCharacters);
@@ -3667,8 +3678,32 @@ export async function buildStorySpec(
       };
     }
 
-    // Build policy profile
-    const policyProfile = await buildPolicyProfile(ageGroup, storyLanguage);
+    const storyComplexityAdjustment = getStoryComplexityAdjustment(
+      childProfile?.storyComplexityAdjustments,
+      storyLanguage
+    );
+    const storyComplexityAgeGroup = adjustStoryComplexityAgeGroup(
+      ageGroup,
+      storyComplexityAdjustment
+    );
+
+    // Safety remains tied to chronological age; only readability follows the adjusted level.
+    const [agePolicyProfile, complexityPolicyProfile] = await Promise.all([
+      buildPolicyProfile(ageGroup, storyLanguage),
+      storyComplexityAgeGroup === ageGroup
+        ? Promise.resolve(null)
+        : buildPolicyProfile(storyComplexityAgeGroup, storyLanguage),
+    ]);
+    const policyProfile = complexityPolicyProfile
+      ? {
+          ...agePolicyProfile,
+          readability: complexityPolicyProfile.readability,
+          readingComplexityAgeGroup: storyComplexityAgeGroup,
+        }
+      : {
+          ...agePolicyProfile,
+          readingComplexityAgeGroup: storyComplexityAgeGroup,
+        };
 
     const closingArtifact = await selectStoryArtifactForPrompt({
       locale: storyLanguage,
@@ -3690,6 +3725,8 @@ export async function buildStorySpec(
     const spec: StorySpec & { childProfile?: ChildProfileData } = {
       language: storyLanguage,
       ageGroup,
+      storyComplexityAgeGroup,
+      storyComplexityAdjustment,
       childName,
       childProfile: childProfile || undefined,
       goal: goalWithGuidance?.slug || request.goal || undefined,
@@ -3713,6 +3750,8 @@ export async function buildStorySpec(
         characterNames: allCharacters.map((c) => c.name),
         isInstantMode: request.selectedCharacters?.length > 0 && !request.selectedChildren?.length,
         imageStyle: spec.imageStyle,
+        storyComplexityAgeGroup: spec.storyComplexityAgeGroup,
+        storyComplexityAdjustment: spec.storyComplexityAdjustment,
       },
       'Story spec created with characters'
     );
