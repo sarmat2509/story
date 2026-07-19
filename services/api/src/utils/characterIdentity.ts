@@ -200,11 +200,26 @@ export function buildCharacterIdentityRegistry(
   return { byRef, refsByNameKey };
 }
 
-function relationshipBaseNameKey(value: unknown): string {
+export function relationshipBaseCharacterNameKey(value: unknown): string {
   const key = identityNameKey(value);
   if (!key) return '';
   const [first, ...rest] = key.split(' ');
   return first && rest.length > 0 && RELATIONSHIP_TITLE_KEYS.has(first) ? rest.join(' ') : '';
+}
+
+export function resolveRelationshipCharacterRefByName(
+  value: unknown,
+  registry: CharacterIdentityRegistry
+): { characterRef: string | null; reason: 'relationship_alias' | 'none' | 'ambiguous' } {
+  const baseKey = relationshipBaseCharacterNameKey(value);
+  const relationshipRefs = baseKey ? registry.refsByNameKey.get(baseKey) : undefined;
+  if (relationshipRefs?.size === 1) {
+    return { characterRef: [...relationshipRefs][0], reason: 'relationship_alias' };
+  }
+  if (relationshipRefs && relationshipRefs.size > 1) {
+    return { characterRef: null, reason: 'ambiguous' };
+  }
+  return { characterRef: null, reason: 'none' };
 }
 
 export function resolveCharacterRefByName(
@@ -220,15 +235,7 @@ export function resolveCharacterRefByName(
     return { characterRef: null, reason: 'ambiguous' };
   }
 
-  const baseKey = relationshipBaseNameKey(value);
-  const relationshipRefs = baseKey ? registry.refsByNameKey.get(baseKey) : undefined;
-  if (relationshipRefs?.size === 1) {
-    return { characterRef: [...relationshipRefs][0], reason: 'relationship_alias' };
-  }
-  if (relationshipRefs && relationshipRefs.size > 1) {
-    return { characterRef: null, reason: 'ambiguous' };
-  }
-  return { characterRef: null, reason: 'none' };
+  return resolveRelationshipCharacterRefByName(value, registry);
 }
 
 export function replaceTemporaryCharacterRefs(

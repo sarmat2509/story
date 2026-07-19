@@ -127,6 +127,7 @@ import {
   normalizeCharacterRef,
   reconcileGeneratedCharacterIdentity,
   resolveCharacterRefByName,
+  resolveRelationshipCharacterRefByName,
 } from '../utils/characterIdentity';
 import { normalizeStoryArtifactImagePath } from './storyArtifactImageService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
@@ -2659,8 +2660,6 @@ function characterManifestForPageName(
     ].filter((value): value is string => !!value);
     return names.some((name) => normalizeCharacterName(name) === pageNameKey);
   });
-  if (exact) return exact;
-
   const registry = buildCharacterIdentityRegistry(
     characters.flatMap((character) => {
       const id = normalizeCharacterRef(character.id || character.characterRef);
@@ -2669,8 +2668,26 @@ function characterManifestForPageName(
         : [];
     })
   );
+  const relationshipRef = resolveRelationshipCharacterRefByName(
+    pageName,
+    registry
+  ).characterRef;
+  const relationshipCharacter = relationshipRef
+    ? characterManifestForRef(characters, relationshipRef)
+    : undefined;
+  if (
+    exact?.source === 'llm_generated' &&
+    relationshipCharacter &&
+    relationshipCharacter.id !== exact.id &&
+    relationshipCharacter.source !== 'llm_generated'
+  ) {
+    return relationshipCharacter;
+  }
+  if (exact) return exact;
+
   const resolvedRef = resolveCharacterRefByName(pageName, registry).characterRef;
-  return resolvedRef ? characterManifestForRef(characters, resolvedRef) : undefined;
+  return relationshipCharacter ||
+    (resolvedRef ? characterManifestForRef(characters, resolvedRef) : undefined);
 }
 
 function characterManifestForRef(

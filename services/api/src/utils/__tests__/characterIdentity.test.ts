@@ -4,6 +4,7 @@ import {
   reconcileGeneratedCharacterIdentity,
   replaceTemporaryCharacterRefs,
   resolveCharacterRefByName,
+  resolveRelationshipCharacterRefByName,
 } from '../characterIdentity';
 
 function testRelationshipAliasResolvesToExistingIdentity(): void {
@@ -134,6 +135,10 @@ function testLocalizedTitlesResolveThroughAliases(): void {
   });
   assert.deepEqual(resolveCharacterRefByName('Tía Maela', registry), {
     characterRef: 'maela-uuid',
+    reason: 'relationship_alias',
+  });
+  assert.deepEqual(resolveRelationshipCharacterRefByName('Mrs. Gable', registry), {
+    characterRef: 'gable-uuid',
     reason: 'relationship_alias',
   });
 }

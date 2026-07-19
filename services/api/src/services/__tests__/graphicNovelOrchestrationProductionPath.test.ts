@@ -665,11 +665,22 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       name: 'Theo',
       canonicalName: 'Тео',
       nameAliases: ['Teo'],
+      source: 'user_provided',
     },
     {
       id: 'other-theo-uuid',
       characterRef: 'other-theo-uuid',
       name: 'Theodore',
+    },
+  ] as any;
+
+  const charactersWithPersistedAliasDuplicate = [
+    ...characters,
+    {
+      id: 'tato-theo-llm-uuid',
+      characterRef: 'tato-theo-llm-uuid',
+      name: 'Тато Тео',
+      source: 'llm_generated',
     },
   ] as any;
 
@@ -679,6 +690,14 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       'Тато Тео'
     )?.id,
     'theo-uuid'
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.characterManifestForPageName(
+      charactersWithPersistedAliasDuplicate,
+      'Тато Тео'
+    )?.id,
+    'theo-uuid',
+    'legacy titled LLM duplicate yields to the existing base identity'
   );
   assert.equal(
     graphicNovelOrchestrationTestSeams.characterManifestMatchesPage(
@@ -726,7 +745,7 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
   } as any;
   graphicNovelOrchestrationTestSeams.bindLegacyPlannedPageCharacterIdentity(
     page,
-    characters
+    charactersWithPersistedAliasDuplicate
   );
   assert.equal(page.outfits[0].characterRef, 'theo-uuid');
   assert.equal(page.panels[0].script.dialogue[0].characterRef, 'theo-uuid');
@@ -740,7 +759,7 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
   assert.deepEqual(
     graphicNovelOrchestrationTestSeams.buildGraphicNovelExpectedCharactersForPanel({
       panel: page.panels[0],
-      characters,
+      characters: charactersWithPersistedAliasDuplicate,
       dressedTurnaroundValidationNames: new Set(),
     }).map((character: any) => character.name),
     ['Тато Тео']
