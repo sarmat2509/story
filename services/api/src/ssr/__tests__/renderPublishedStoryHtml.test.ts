@@ -48,6 +48,16 @@ void (async function main() {
     /href="[^"]+\/authors\/author-1"/,
     'published story SSR links public author pages when author id is present'
   );
+  assert.match(
+    staticHtml,
+    /\.sidebar\{[^}]*max-height:calc\(100vh - 56px\)[^}]*overflow-y:auto/,
+    'published story SSR keeps an independently scrollable desktop sidebar'
+  );
+  assert.match(
+    staticHtml,
+    /\.sidebar-sticky\{position:static\}/,
+    'published story SSR does not trap tall sidebar content in a sticky child'
+  );
 
   const comicHtml = renderPublishedStoryHtml({
     story: {

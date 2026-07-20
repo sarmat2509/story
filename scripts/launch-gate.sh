@@ -105,6 +105,7 @@ run_in apps/universal-app pnpm exec tsx src/utils/__tests__/billingEntry.test.ts
 run_in apps/universal-app pnpm exec tsx src/utils/__tests__/childDataDeletionRequest.test.ts
 run_in apps/universal-app pnpm exec tsx src/utils/__tests__/privacyRequestMessages.test.ts
 run_in apps/universal-app pnpm exec tsx src/services/analytics/__tests__/privacy.test.ts
+run_in apps/universal-app pnpm exec tsx src/__tests__/publishedStorySidebarScroll.test.ts
 run_in apps/universal-app pnpm type-check
 run_in apps/universal-app pnpm build:web
 run bash scripts/check-web-manifest-brand.sh

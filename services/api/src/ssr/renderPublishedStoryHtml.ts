@@ -56,8 +56,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .comic-bubble span{display:block;width:100%;min-width:0;max-width:100%;flex-shrink:1}
 
 /* ── Right sidebar ── */
-.sidebar{width:360px;flex-shrink:0;border-left:1px solid #e2e8f0;padding:24px}
-.sidebar-sticky{position:sticky;top:80px}
+.sidebar{width:360px;flex-shrink:0;align-self:flex-start;position:sticky;top:56px;max-height:calc(100vh - 56px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border-left:1px solid #e2e8f0;padding:24px 24px 48px}
+.sidebar-sticky{position:static}
 .sidebar-widget{background:#f8fafc;padding:24px;border-radius:16px;margin-bottom:16px}
 audio{width:100%;display:block}
 

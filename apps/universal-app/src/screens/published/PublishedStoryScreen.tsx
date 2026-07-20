@@ -625,8 +625,14 @@ export default function PublishedStoryScreen() {
           >
             <View style={styles.contentWrapper}>{renderMainContent()}</View>
           </ScrollView>
-          <View style={styles.rightColumn}>
-            <View style={styles.sidebar}>{renderRightColumn()}</View>
+          <View style={styles.rightColumnWrapper}>
+            <ScrollView
+              style={styles.rightColumn}
+              contentContainerStyle={styles.rightColumnContent}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.sidebar}>{renderRightColumn()}</View>
+            </ScrollView>
           </View>
         </View>
         <FeedbackModal
@@ -874,16 +880,24 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing[12],
     alignItems: 'center',
   },
-  rightColumn: {
+  rightColumnWrapper: {
     width: theme.layout.sidebar.widthFixed,
+    minWidth: theme.layout.sidebar.widthFixed,
+    maxWidth: theme.layout.sidebar.widthFixed,
+    flexShrink: 0,
+  },
+  rightColumn: {
+    flex: 1,
+  },
+  rightColumnContent: {
     paddingLeft: theme.spacing[6],
     paddingRight: theme.spacing[6],
     paddingVertical: theme.spacing[6],
+    paddingBottom: theme.spacing[12],
   },
   sidebar: {
-    // @ts-ignore - position: sticky is web-only
-    position: 'sticky',
-    top: theme.spacing[6],
+    // The right column owns scrolling; sticky content taller than the viewport
+    // would leave its lower controls unreachable.
   },
   sidebarWidget: {
     backgroundColor: theme.colors.background.secondary,
