@@ -235,7 +235,7 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
     case 'text':
       return 'Remove only the visible text or lettering, including any leaked reference-sheet title, label, or REF_* identifier.';
     case 'composition':
-      return `Restore this exact scene structure: "${compactPromptText(issue.note) || 'use the scene brief'}". Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.`;
+      return `Restore this exact scene structure: "${compactPromptText(issue.note) || 'use the scene brief'}". Count every separate framed, curtained, or bordered night-sky opening as a window, even if it has a different size or shape. If there are two, retain only the original environment-reference window; completely remove the added opening itself (not just its Moon) and fill that area with the continuous surrounding wall/background. Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.`;
     case 'generic':
     default:
       return 'Change only the validator-reported visual mismatch using the selected reference.';

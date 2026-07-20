@@ -186,6 +186,10 @@ assert.deepEqual(compositionPlan.manifest.issues, [
   },
 ]);
 assert.match(compositionPrompt, /Remove duplicate or extra windows, doors, portals, mirrors/);
+assert.match(
+  compositionPrompt,
+  /Count every separate framed, curtained, or bordered night-sky opening as a window/
+);
 
 const forcedAnchorPlan = buildTargetedEditRepairPlan(
   [],
