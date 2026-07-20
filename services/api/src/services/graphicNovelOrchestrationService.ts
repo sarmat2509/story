@@ -6611,15 +6611,30 @@ export async function graphicNovelPanelImageHasMatchingFrameBorder(params: {
   candidateImage: Buffer;
   framedPanelImage: Buffer;
   frameWidthPx?: number;
-  minimumMatchingRatio?: number;
+  minimumExactMatchingRatio?: number;
+  maximumChannelDelta?: number;
+  minimumTolerantMatchingRatio?: number;
+  minimumInteriorLumaContrast?: number;
 }): Promise<boolean> {
   const frameWidthPx = Math.max(
     1,
     Math.floor(params.frameWidthPx ?? GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX)
   );
-  const minimumMatchingRatio = Math.max(
+  const minimumExactMatchingRatio = Math.max(
     0,
-    Math.min(1, params.minimumMatchingRatio ?? 0.9)
+    Math.min(1, params.minimumExactMatchingRatio ?? 0.9)
+  );
+  const maximumChannelDelta = Math.max(
+    0,
+    Math.min(255, Math.floor(params.maximumChannelDelta ?? 64))
+  );
+  const minimumTolerantMatchingRatio = Math.max(
+    0,
+    Math.min(1, params.minimumTolerantMatchingRatio ?? 0.85)
+  );
+  const minimumInteriorLumaContrast = Math.max(
+    0,
+    params.minimumInteriorLumaContrast ?? 24
   );
   const [candidate, framed] = await Promise.all([
     sharp(params.candidateImage).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
@@ -6637,30 +6652,60 @@ export async function graphicNovelPanelImageHasMatchingFrameBorder(params: {
   const height = framed.info.height;
   const channels = framed.info.channels;
   if (width <= frameWidthPx * 2 || height <= frameWidthPx * 2) return false;
-  let matchingPixels = 0;
+  let exactMatchingPixels = 0;
+  let tolerantMatchingPixels = 0;
   let borderPixels = 0;
+  let borderLuma = 0;
+  let innerRingPixels = 0;
+  let innerRingLuma = 0;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      if (
-        x >= frameWidthPx &&
-        x < width - frameWidthPx &&
-        y >= frameWidthPx &&
-        y < height - frameWidthPx
-      ) {
+      const edgeDistance = Math.min(x, y, width - 1 - x, height - 1 - y);
+      if (edgeDistance >= frameWidthPx * 2) {
+        continue;
+      }
+      const offset = (y * width + x) * channels;
+      if (edgeDistance >= frameWidthPx) {
+        innerRingPixels += 1;
+        innerRingLuma +=
+          (candidate.data[offset] +
+            candidate.data[offset + 1] +
+            candidate.data[offset + 2]) /
+          3;
         continue;
       }
       borderPixels += 1;
-      const offset = (y * width + x) * channels;
+      borderLuma +=
+        (candidate.data[offset] + candidate.data[offset + 1] + candidate.data[offset + 2]) /
+        3;
       if (
         candidate.data
           .subarray(offset, offset + channels)
           .equals(framed.data.subarray(offset, offset + channels))
       ) {
-        matchingPixels += 1;
+        exactMatchingPixels += 1;
+        tolerantMatchingPixels += 1;
+        continue;
+      }
+      let maximumObservedChannelDelta = 0;
+      for (let channel = 0; channel < channels; channel += 1) {
+        maximumObservedChannelDelta = Math.max(
+          maximumObservedChannelDelta,
+          Math.abs(candidate.data[offset + channel] - framed.data[offset + channel])
+        );
+      }
+      if (maximumObservedChannelDelta <= maximumChannelDelta) {
+        tolerantMatchingPixels += 1;
       }
     }
   }
-  return borderPixels > 0 && matchingPixels / borderPixels >= minimumMatchingRatio;
+  if (borderPixels === 0) return false;
+  if (exactMatchingPixels / borderPixels >= minimumExactMatchingRatio) return true;
+  if (innerRingPixels === 0) return false;
+  return (
+    tolerantMatchingPixels / borderPixels >= minimumTolerantMatchingRatio &&
+    innerRingLuma / innerRingPixels - borderLuma / borderPixels >= minimumInteriorLumaContrast
+  );
 }
 
 export async function stripGraphicNovelPanelFrame(

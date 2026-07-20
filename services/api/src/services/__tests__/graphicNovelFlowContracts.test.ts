@@ -369,6 +369,23 @@ async function testComicPanelFrameCanBeRemovedWithoutChangingInterior(): Promise
     true,
     'a manual-repair asset that preserved the page frame should be detected'
   );
+  const softenedFrameOverlay = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<rect x="3" y="3" width="94" height="54" fill="none" stroke="#414141" stroke-width="6"/>` +
+      `</svg>`
+  );
+  const softenedFrame = await sharp(candidate)
+    .composite([{ input: softenedFrameOverlay, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+  assert.equal(
+    await graphicNovelPanelImageHasMatchingFrameBorder({
+      candidateImage: softenedFrame,
+      framedPanelImage: framed,
+    }),
+    true,
+    'a repair model that softened the deterministic frame color should still be detected'
+  );
 
   const stripped = await stripGraphicNovelPanelFrame(framed);
   const strippedMetadata = await sharp(stripped).metadata();
