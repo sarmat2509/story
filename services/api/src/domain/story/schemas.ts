@@ -281,7 +281,8 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     },
     hasTextOrLetters: {
       type: 'boolean',
-      description: 'Whether the image contains any text, letters, words, or writing',
+      description:
+        'Whether the generated image contains any text, letters, words, writing, or a leaked reference-sheet title/label/filename/watermark/identifier such as a REF_* token.',
     },
     hasRenderingArtifacts: {
       type: 'boolean',

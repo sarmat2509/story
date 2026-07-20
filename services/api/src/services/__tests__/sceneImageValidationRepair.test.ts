@@ -147,6 +147,18 @@ function sceneQaResult(valid: boolean) {
   };
 }
 
+function sceneQaReferenceTitleLeak() {
+  return {
+    missingExpectedCharacters: [],
+    characterBoundingBoxes: [],
+    hasUnexpectedCharacters: false,
+    unexpectedCharacterNotes: null,
+    hasTextOrLetters: true,
+    hasRenderingArtifacts: false,
+    overallFeedback: 'A leaked reference title, REF_CH_SILVER_MOON_933793, is visible.',
+  };
+}
+
 function generatedImage(imageData: Buffer, fixture: string): GeneratedImage {
   return {
     imageData,
@@ -227,7 +239,7 @@ async function cleanupGeneratedDebugFiles(storyId: string): Promise<void> {
   ]);
 }
 
-async function testLowScoreUsesEditThenPersistsRevalidatedImage(
+async function testReferenceTitleForcesEditThenPersistsRevalidatedImage(
   dependencies: SceneImageTestDependencies
 ): Promise<void> {
   const storyId = 'story-image-edit-repair';
@@ -237,7 +249,7 @@ async function testLowScoreUsesEditThenPersistsRevalidatedImage(
     .queueGenerate('image_generate', generatedImage(initialImage, 'initial'))
     .queueEdit('image_edit', generatedImage(editedImage, 'edited'));
   const validationProvider = new dependencies.MockTextProvider()
-    .queueStructured('image_validation_segmented_scene_qa', sceneQaResult(false))
+    .queueStructured('image_validation_segmented_scene_qa', sceneQaReferenceTitleLeak())
     .queueStructured('image_validation_segmented_scene_qa', sceneQaResult(true));
   const imageDomain = new dependencies.ImageDomainService(imageProvider, validationProvider);
   const harness = installPersistenceHarness(
@@ -268,8 +280,8 @@ async function testLowScoreUsesEditThenPersistsRevalidatedImage(
     assert.equal(editRequest.kind, 'edit');
     if (editRequest.kind === 'edit') {
       assert.deepStrictEqual(editRequest.request.originalImage, initialImage);
-      assert.match(editRequest.request.editInstructions, /unexpected extra subject/i);
       assert.match(editRequest.request.editInstructions, /visible text/i);
+      assert.match(editRequest.request.editInstructions, /reference-sheet title/i);
     }
     assert.equal(result.imageUrl, 'test/final-edited.png');
     assert.deepStrictEqual(harness.uploads, [editedImage]);
@@ -374,7 +386,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    await testLowScoreUsesEditThenPersistsRevalidatedImage(dependencies);
+    await testReferenceTitleForcesEditThenPersistsRevalidatedImage(dependencies);
     repositories.clearRepositoryTestOverrides();
     await testEditFailureFallsBackToGeneration(dependencies);
     console.log('scene image validation repair tests passed');

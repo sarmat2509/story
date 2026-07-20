@@ -42,6 +42,7 @@ import {
   buildStorySpec,
   computeValidationScore,
   createStoryRequest,
+  hasBlockingUnwantedImageText,
   type ContinuationContext,
 } from './storyOrchestrationService';
 import {
@@ -3431,7 +3432,7 @@ function graphicNovelPanelQualityDecision(
     reasons.add('character_count_mismatch');
   }
   if (validation.hasUnexpectedCharacters) reasons.add('unexpected_characters');
-  if (validation.hasTextOrLetters) reasons.add('unwanted_text');
+  if (hasBlockingUnwantedImageText(validation)) reasons.add('unwanted_text');
   if (validation.hasRenderingArtifacts) reasons.add('rendering_artifacts');
 
   for (const character of validation.characters) {

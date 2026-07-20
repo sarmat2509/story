@@ -4374,6 +4374,14 @@ export function computeValidationScore(
   return Math.max(0, Math.min(100, Math.round(score * 10) / 10));
 }
 
+/**
+ * Unwanted generated text is a hard repair condition, independent of the numeric score.
+ * This includes leaked reference-sheet titles/identifiers reported through hasTextOrLetters.
+ */
+export function hasBlockingUnwantedImageText(validation: ImageValidationResult): boolean {
+  return validation.hasTextOrLetters === true;
+}
+
 interface ScoredAttempt {
   imageData: Buffer;
   mimeType: string;
@@ -4620,7 +4628,12 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
     );
   }
   if (validation.hasTextOrLetters)
-    issues.push(makeRepairIssue('text', 'Visible text or lettering.'));
+    issues.push(
+      makeRepairIssue(
+        'text',
+        'Remove all visible text or lettering, including any leaked reference-sheet title or REF_* identifier.'
+      )
+    );
 
   const overall = compactValidationText(validation.overallFeedback);
   if (issues.length === 0 && overall) issues.push(makeRepairIssue('generic', overall));
@@ -5625,7 +5638,8 @@ async function generateSceneImageWithReference(
           );
 
           const minAccept = config.image.validationMinAcceptScore;
-          if (score > minAccept) {
+          const hasBlockingText = hasBlockingUnwantedImageText(validation);
+          if (score > minAccept && !hasBlockingText) {
             acceptByValidationScore = true;
             logger.info(
               {
@@ -5650,6 +5664,7 @@ async function generateSceneImageWithReference(
               expected: validation.expectedCharacterCount,
               hasUnexpectedCharacters: validation.hasUnexpectedCharacters,
               hasTextOrLetters: validation.hasTextOrLetters,
+              blockingUnwantedText: hasBlockingText,
               hasRenderingArtifacts: validation.hasRenderingArtifacts,
               score,
               duplicatedCharacters: validation.characters
@@ -5660,7 +5675,9 @@ async function generateSceneImageWithReference(
                 .map((c: ImageValidationResult['characters'][0]) => c.name),
               feedback: validation.overallFeedback,
             },
-            `Image validation score at or below threshold (${minAccept})`
+            hasBlockingText
+              ? 'Image validation rejected because unwanted text/reference title is visible'
+              : `Image validation score at or below threshold (${minAccept})`
           );
 
           const rejectedImageData = Buffer.isBuffer(image.imageData)

@@ -10,7 +10,11 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../ai/types';
 import type { SceneVisual } from '../types';
-import { computeValidationScore, evaluateGeneratedImageSafety } from '../storyOrchestrationService';
+import {
+  computeValidationScore,
+  evaluateGeneratedImageSafety,
+  hasBlockingUnwantedImageText,
+} from '../storyOrchestrationService';
 import { config } from '../../config';
 
 type ScoringOverride = typeof config.image.validationScoring;
@@ -71,6 +75,18 @@ function testBaselineCleanResult() {
     scoringOverride: baseScoring,
   });
   assert.strictEqual(score, 100, 'Clean validation should score 100');
+}
+
+function testUnwantedTextIsBlockingEvenWhenScoreWouldPass() {
+  const result = makeResult({}, { hasTextOrLetters: true });
+  const score = computeValidationScore(result, { scoringOverride: baseScoring });
+
+  assert.strictEqual(score, 95, 'Text keeps its configured score penalty');
+  assert.strictEqual(
+    hasBlockingUnwantedImageText(result),
+    true,
+    'Visible text/reference labels must force repair even above the normal acceptance threshold'
+  );
 }
 
 function testKindMismatchUsesConfigurablePenalty() {
@@ -525,6 +541,7 @@ function testGeneratedImageSafetyAllowsProviderBlockedValidation() {
 }
 
 testBaselineCleanResult();
+testUnwantedTextIsBlockingEvenWhenScoreWouldPass();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();

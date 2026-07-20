@@ -637,6 +637,7 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
     layoutCall.prompt,
     /Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF/
   );
+  assert.match(layoutCall.prompt, /REF_\* token such as REF_CH_\*/);
   assert.match(layoutCall.prompt, /dog-like fairy as a chicken-like creature/);
   assert.match(layoutCall.prompt, /Lera \(human; identity reference=Image 2\)/);
   assert.match(layoutCall.prompt, /Druzhok \(imaginary; identity reference=Image 3\)/);
@@ -1346,6 +1347,7 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
     /Image 2: turnaround identity reference for "Lera"/
   );
   assert.match(primary.structuredRequests[0].prompt, /- Lera \(human; reference=Image 2\)/);
+  assert.match(primary.structuredRequests[0].prompt, /REF_\* identifiers such as REF_CH_\*/);
   assert.doesNotMatch(primary.structuredRequests[0].prompt, /Lera \(human; description=/);
   assert.doesNotMatch(primary.structuredRequests[0].prompt, /Young girl beside the starry chest/);
   assert.match(

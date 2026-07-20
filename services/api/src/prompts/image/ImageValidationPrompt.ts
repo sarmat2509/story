@@ -40,8 +40,8 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v19';
-export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v7';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v20';
+export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v8';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';
@@ -91,6 +91,7 @@ Validate only what is observable in the generated illustration.
 Without reference images:
 - Check whether expected characters are present.
 	- Check duplicates, unexpected characters, text/letters, and rendering artifacts.
+	- Treat any leaked reference-sheet title, label, filename, watermark, or identifier (especially REF_* tokens such as REF_CH_*) in the generated illustration as unwanted text and set hasTextOrLetters=true.
 - Use the authoritative designer scene brief as ground truth for this specific scene.
 - Scene-specific states from the designer brief are valid: transparent, glowing, startled, mid-action, sleepy, flying, wet, dusty, magical, or otherwise temporarily changed characters.
 - Identity failures require visible evidence available in this validation run.
@@ -149,6 +150,7 @@ Scoring guide:
 	- When the designer scene brief explicitly requests a temporary scene-state effect, evaluate fidelity to that brief first.
 - Validate outfit against the attached full-character visual reference. When clothing, shoes, or worn accessories are visible in the reference, compare them as visual anchors; use matchesOutfit for the wardrobe verdict only when WARDROBE_CHECK=enabled. Held/carried props are wardrobe anchors only when the scene brief explicitly requires the same prop.
 - Check duplicates, missing characters, unexpected characters, text/letters, and rendering artifacts.
+- Treat any title, label, filename, watermark, or identifier copied from a reference image into the generated illustration as unwanted text. In particular, any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true even when the rest of the illustration is correct.
 - Apply scene-appropriate occlusion before failing outfit or visibility checks.
 
 Output JSON rules:

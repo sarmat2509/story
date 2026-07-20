@@ -228,7 +228,7 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
         : 'Remove only the unexpected extra subject.';
     }
     case 'text':
-      return 'Remove only the visible text or lettering.';
+      return 'Remove only the visible text or lettering, including any leaked reference-sheet title, label, or REF_* identifier.';
     case 'generic':
     default:
       return 'Change only the validator-reported visual mismatch using the selected reference.';
