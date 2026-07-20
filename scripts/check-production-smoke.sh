@@ -230,6 +230,35 @@ async function checkPage({ path, label, expectedStatus = 200, robots, contains =
   }
 }
 
+async function checkHydrationBundle(path, label) {
+  const page = await request('GET', path);
+  if (page.res.status !== 200) {
+    fail(`${label} page ${path} returned ${page.res.status}`);
+    return;
+  }
+
+  const scriptSources = [...page.text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
+    .map((match) => match[1]);
+  const bundleSource = scriptSources.find((source) => /(?:bundle\.js|index\.bundle)/i.test(source));
+  if (!bundleSource) {
+    fail(`${label} page ${path} has no hydration bundle script`);
+    return;
+  }
+  if (/(?:\?|&)dev=true(?:&|$)/i.test(bundleSource)) {
+    fail(`${label} uses a development bundle URL: ${bundleSource}`);
+    return;
+  }
+
+  const bundleUrl = new URL(bundleSource, baseUrl).toString();
+  const bundle = await request('HEAD', bundleUrl);
+  const contentType = bundle.res.headers.get('content-type') || '';
+  if (bundle.res.status === 200 && /(?:java|ecma)script/i.test(contentType)) {
+    pass(`${label} loads ${bundleSource}`);
+  } else {
+    fail(`${label} bundle returned ${bundle.res.status} ${contentType || 'missing content-type'}`);
+  }
+}
+
 async function checkLocalizedSeo({ path, label, lang, canonical, alternates }) {
   const { res, text } = await request('GET', path);
   if (res.status !== 200) {
@@ -655,6 +684,10 @@ async function main() {
       robots: 'index,follow',
       contains: [firstStory.title],
     });
+    await checkHydrationBundle(
+      `/stories/${encodeURIComponent(slug)}`,
+      'SSR story hydration bundle'
+    );
     await checkJson({
       path: `/api/v1/public/stories/${encodeURIComponent(slug)}`,
       label: 'Public story detail API',

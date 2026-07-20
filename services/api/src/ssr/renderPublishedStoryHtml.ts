@@ -49,12 +49,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .scene-text{font-size:18px;line-height:31.5px;color:#1e293b;margin:0}
 
 /* ── Comic and mixed-story pages ── */
-.comic-page{width:100%;max-width:900px;margin:0 auto 24px}
-.comic-page-canvas{position:relative;width:100%;overflow:hidden;border-radius:12px;background:#e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.08)}
+.comic-page{width:100%;margin:0 auto 24px}
+.comic-page-canvas{position:relative;width:100%;overflow:hidden;border-radius:12px;background:#e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.08);container-type:inline-size}
 .comic-page-image{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
-.comic-bubble{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:clamp(3px,1.1vw,14px);color:#111;font-size:clamp(8px,1.45vw,22px);font-weight:700;line-height:1.15;text-align:center;overflow-wrap:anywhere}
-.comic-bubble-caption{font-weight:600}
-.comic-bubble span{display:block;max-width:100%}
+.comic-bubble{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;padding:var(--comic-padding-y) var(--comic-padding-x);color:#111;font-size:var(--comic-font-size);font-weight:700;line-height:var(--comic-line-height);text-align:center;overflow-wrap:break-word;text-wrap:balance}
+.comic-bubble span{display:block;width:100%;min-width:0;max-width:100%;flex-shrink:1}
 
 /* ── Right sidebar ── */
 .sidebar{width:360px;flex-shrink:0;border-left:1px solid #e2e8f0;padding:24px}
@@ -69,8 +68,7 @@ audio{width:100%;display:block}
   .page{margin-left:0}
   .layout{flex-direction:column}
   .sidebar{display:none}
-  .main{padding:16px 16px 48px}
-  .comic-bubble{font-size:clamp(7px,2.4vw,18px)}
+  .main{padding:24px 24px 48px}
 }
 
 /* Smooth handoff: brief fade-in when React replaces root content */

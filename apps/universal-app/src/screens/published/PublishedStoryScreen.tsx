@@ -30,7 +30,12 @@ import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
-import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
+import {
+  getReadingTimeMinutes,
+  resolveGraphicNovelTextStyle,
+  scaleGraphicNovelTextStyle,
+  stripMarkdownStyleEmphasis,
+} from '@wondertales/shared';
 import type {
   PublicGraphicNovelPage,
   PublicGraphicNovelTextOverlayItem,
@@ -423,10 +428,9 @@ export default function PublishedStoryScreen() {
     const text = removeAudioTags(item.text || '');
     if (!text) return null;
     const pageSize = page.textOverlay?.pageSize;
-    const textStyle = page.textOverlay?.textStyle;
     const pageWidth = comicPageWidths[page.pageNumber] || pageSize?.width || 1024;
-    const targetWidth = textStyle?.targetPageWidthPx || pageSize?.width || 1024;
-    const scale = pageWidth / targetWidth;
+    const textStyle = resolveGraphicNovelTextStyle(page.textOverlay?.textStyle, pageSize);
+    const scaledTextStyle = scaleGraphicNovelTextStyle(textStyle, pageWidth);
     const rectStyle = {
       left: `${item.rect.x * 100}%`,
       top: `${item.rect.y * 100}%`,
@@ -442,8 +446,8 @@ export default function PublishedStoryScreen() {
           styles.comicTextBox,
           rectStyle as any,
           {
-            paddingHorizontal: (textStyle?.paddingXPx ?? 14) * scale,
-            paddingVertical: (textStyle?.paddingYPx ?? 6) * scale,
+            paddingHorizontal: scaledTextStyle.paddingXPx,
+            paddingVertical: scaledTextStyle.paddingYPx,
           },
         ]}
       >
@@ -452,8 +456,8 @@ export default function PublishedStoryScreen() {
           style={[
             styles.comicBubbleText,
             {
-              fontSize: (textStyle?.fontSizePx ?? 20) * scale,
-              lineHeight: (textStyle?.lineHeightPx ?? 23) * scale,
+              fontSize: scaledTextStyle.fontSizePx,
+              lineHeight: scaledTextStyle.lineHeightPx,
             },
           ]}
         >

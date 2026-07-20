@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { renderPublishedStoryHtml } from '../renderPublishedStoryHtml';
+import { resolveVersionedWebBundleUrl } from '../webBundleUrl';
 
 const story = {
   id: 'story-1',
@@ -62,7 +63,15 @@ void (async function main() {
             mode: 'html_overlay',
             coordinateSpace: 'normalized_0_1',
             pageNumber: 1,
-            pageSize: { width: 1024, height: 1536 },
+            pageSize: { width: 992, height: 1323 },
+            textStyle: {
+              fontSizePx: 15,
+              lineHeightPx: 17,
+              paddingXPx: 11,
+              paddingYPx: 5,
+              targetPageWidthPx: 992,
+              targetPageHeightPx: 1323,
+            },
             items: [
               {
                 id: 'bubble-1',
@@ -85,6 +94,32 @@ void (async function main() {
   assert.match(comicHtml, /class="comic-page"/);
   assert.match(comicHtml, /comics\/page-1\.jpg/);
   assert.match(comicHtml, /We found the moon key!/);
+  assert.match(comicHtml, /--comic-font-size:1\.512097cqw/);
+  assert.match(comicHtml, /--comic-line-height:1\.71371cqw/);
+  assert.match(comicHtml, /--comic-padding-x:1\.108871cqw/);
+  assert.match(comicHtml, /--comic-padding-y:0\.504032cqw/);
+  assert.match(comicHtml, /\.comic-page-canvas\{[^}]*container-type:inline-size/);
+  assert.match(comicHtml, /\.comic-bubble\{[^}]*font-size:var\(--comic-font-size\)/);
+  assert.doesNotMatch(comicHtml, /max-width:900px|font-size:clamp\(/);
+
+  assert.equal(
+    resolveVersionedWebBundleUrl({
+      webBundleUrl: '/apps/universal-app/index.bundle?platform=web&dev=true',
+      webBuildId: 'release-123',
+      nodeEnv: 'production',
+    }),
+    '/static/js/bundle.js?v=release-123',
+    'production SSR replaces the development Metro URL with the deployed compatibility bundle'
+  );
+  assert.equal(
+    resolveVersionedWebBundleUrl({
+      webBundleUrl: '/apps/universal-app/index.bundle?platform=web&dev=true',
+      webBuildId: 'dev',
+      nodeEnv: 'development',
+    }),
+    '/apps/universal-app/index.bundle?platform=web&dev=true',
+    'local development can still opt into the Metro bundle'
+  );
 
   const mixedHtml = renderPublishedStoryHtml({
     story: {

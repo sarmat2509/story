@@ -14,6 +14,10 @@ import type {
 import { escapeHtml } from './escapeHtml';
 import { getReadingTimeMinutes } from '../utils/readingTime';
 import { emojiForAvg } from '../utils/ratingEmojis';
+import {
+  graphicNovelTextStyleContainerUnit,
+  resolveGraphicNovelTextStyle,
+} from '../utils/graphicNovelTextStyle';
 
 export interface PublishedStoryLayoutParams {
   story: StoryPublicView;
@@ -50,13 +54,21 @@ function renderComicPage(page: PublicGraphicNovelPage, apiBase: string): string 
   if (!imageUrl) return '';
   const width = page.textOverlay?.pageSize.width || 1024;
   const height = page.textOverlay?.pageSize.height || 1536;
+  const textStyle = resolveGraphicNovelTextStyle(page.textOverlay?.textStyle, { width, height });
+  const canvasStyle = [
+    `aspect-ratio:${width}/${height}`,
+    `--comic-font-size:${graphicNovelTextStyleContainerUnit(textStyle.fontSizePx, textStyle.targetPageWidthPx)}`,
+    `--comic-line-height:${graphicNovelTextStyleContainerUnit(textStyle.lineHeightPx, textStyle.targetPageWidthPx)}`,
+    `--comic-padding-x:${graphicNovelTextStyleContainerUnit(textStyle.paddingXPx, textStyle.targetPageWidthPx)}`,
+    `--comic-padding-y:${graphicNovelTextStyleContainerUnit(textStyle.paddingYPx, textStyle.targetPageWidthPx)}`,
+  ].join(';');
   const bubbles = (page.textOverlay?.items || [])
     .slice()
     .sort((a, b) => a.readingOrder - b.readingOrder)
     .map(renderComicBubble)
     .join('');
   return `<figure class="comic-page" data-page-number="${page.pageNumber}">` +
-    `<div class="comic-page-canvas" style="aspect-ratio:${width}/${height}">` +
+    `<div class="comic-page-canvas" style="${canvasStyle}">` +
     `<img class="comic-page-image" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` +
     `${bubbles}</div></figure>`;
 }
