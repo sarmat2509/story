@@ -1981,6 +1981,11 @@ export function formatLandingAgeGroup(locale: string, ageGroup: string): string 
     return `${from}–${to} ${unit[normalizedLocale]}`;
   }
 
+  if (/^\d+y$/i.test(compact)) {
+    const years = compact.slice(0, -1);
+    return `${years} ${years === '1' ? singleUnit[normalizedLocale] : unit[normalizedLocale]}`;
+  }
+
   if (/^\d+$/.test(normalized)) {
     return `${normalized} ${normalized === '1' ? singleUnit[normalizedLocale] : unit[normalizedLocale]}`;
   }

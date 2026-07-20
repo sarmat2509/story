@@ -63,6 +63,7 @@ async function main(): Promise<void> {
     const htmlPaths = [
       '/ssr/stories',
       '/ssr/stories/catalog/pl',
+      '/ssr/stories?language=es&age=6-8&reading=short&audio=1',
       '/ssr/landing',
       '/ssr/landing/pl',
       '/ssr/pricing',
@@ -98,6 +99,13 @@ async function main(): Promise<void> {
     });
     assert.equal(notModified.status, 304);
 
+    const normalizedCatalogFilter = await fetch(
+      `${origin}/ssr/stories?language=uk&age=&reading=`,
+      { redirect: 'manual' }
+    );
+    assert.equal(normalizedCatalogFilter.status, 302);
+    assert.equal(normalizedCatalogFilter.headers.get('location'), '/stories?language=uk');
+
     const sitemap = await fetch(`${origin}/sitemap.xml`);
     assert.equal(sitemap.status, 200);
     assert.match(sitemap.headers.get('content-type') ?? '', /^application\/xml/);
@@ -105,6 +113,7 @@ async function main(): Promise<void> {
 
     const missingPaths = [
       '/ssr/stories/not-published',
+      '/ssr/stories?page=2',
       '/ssr/u/not-a-share-token',
       '/ssr/authors/not-a-uuid',
       '/ssr/blog/missing-article',
