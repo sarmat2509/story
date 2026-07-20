@@ -1282,6 +1282,7 @@ export function renderLandingHtml(params?: {
   const alternateLinks = buildLandingAlternateLinks(webAppUrl);
   const pricingUrl = getLocalizedPricingUrl(webAppUrl, locale);
   const structuredData = renderLandingStructuredData({
+    webAppUrl,
     content,
     landingUrl,
     pricingUrl,

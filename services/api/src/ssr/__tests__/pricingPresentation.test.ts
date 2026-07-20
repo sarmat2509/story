@@ -48,8 +48,12 @@ const features = {
 };
 
 function extractJsonLd(html: string): any[] {
-  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
-    .map((match) => JSON.parse(match[1]));
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap(
+    (match) => {
+      const value = JSON.parse(match[1]);
+      return Array.isArray(value['@graph']) ? value['@graph'] : [value];
+    }
+  );
 }
 
 void (async function main() {
@@ -151,14 +155,15 @@ void (async function main() {
   assert.doesNotMatch(html, /href="[^"]*\/welcome"/);
 
   const pricingJsonLd = extractJsonLd(html);
-  const product = pricingJsonLd.find((entry) => entry['@type'] === 'Product');
-  assert.ok(product, 'pricing page should expose Product structured data');
-  assert.strictEqual(product.name, 'WonderTales');
-  assert.strictEqual(product.url, 'https://app.wondertales.com/pricing');
-  assert.strictEqual(product.offers['@type'], 'OfferCatalog');
-  assert.strictEqual(product.offers.itemListElement[0].name, 'Family');
-  assert.strictEqual(product.offers.itemListElement[0].price, '5.00');
-  assert.strictEqual(product.offers.itemListElement[0].priceCurrency, 'USD');
+  const software = pricingJsonLd.find((entry) => entry['@type'] === 'SoftwareApplication');
+  assert.ok(software, 'pricing page should expose SoftwareApplication structured data');
+  assert.strictEqual(software.name, 'WonderTales');
+  assert.strictEqual(software.url, 'https://app.wondertales.com/pricing');
+  assert.ok(Array.isArray(software.offers));
+  assert.strictEqual(software.offers[0]['@type'], 'Offer');
+  assert.strictEqual(software.offers[0].name, 'Family');
+  assert.strictEqual(software.offers[0].price, '5.00');
+  assert.strictEqual(software.offers[0].priceCurrency, 'USD');
 
   const paymentsDisabledHtml = renderPricingHtml({
     locale: 'en',

@@ -11,6 +11,7 @@ import type { PublicStoryFormat, PublicStoryListItem } from '@wondertales/shared
 import { config } from '../config';
 import { formatLandingAgeGroup, formatLandingDuration } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { renderStoriesCatalogStructuredData } from './publicStructuredData';
 import {
   PUBLIC_FOOTER_STYLES,
   PUBLIC_HEADER_STYLES,
@@ -596,6 +597,14 @@ export function renderPublicStoriesCatalogHtml(params: {
     : isFiltered
       ? `<section class="empty"><h2>${escapeHtml(filterCopy.noResultsTitle)}</h2><p>${escapeHtml(filterCopy.noResultsBody)}</p><a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(locale)))}">${escapeHtml(filterCopy.reset)}</a></section>`
       : `<section class="empty"><h2>${escapeHtml(copy.emptyTitle)}</h2><p>${escapeHtml(copy.emptyBody)}</p></section>`;
+  const structuredData = renderStoriesCatalogStructuredData({
+    webAppUrl,
+    pageUrl: canonicalUrl,
+    title: documentTitle,
+    description: copy.description,
+    locale,
+    stories: params.stories,
+  });
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(locale)}">
@@ -612,6 +621,7 @@ export function renderPublicStoriesCatalogHtml(params: {
   <meta property="og:description" content="${escapeHtml(copy.description)}">
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
   ${PUBLIC_HEAD_ASSET_LINKS}
+  ${structuredData}
   <style>${CATALOG_STYLES}</style>
 </head>
 <body>

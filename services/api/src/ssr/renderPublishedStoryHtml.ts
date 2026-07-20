@@ -174,6 +174,7 @@ export function renderPublishedStoryHtml(params: RenderParams): string {
   return renderHtmlDocument({
     story: storyWithAbsoluteAudio,
     baseUrl: apiBase,
+    siteUrl: webAppUrl,
     bodyHtml,
     robots,
     headStyles: LAYOUT_STYLES,

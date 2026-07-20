@@ -9,10 +9,12 @@ import type {
 } from './types';
 import { buildStoryMeta } from './buildStoryMeta';
 import { buildStoryJsonLd } from './buildStoryJsonLd';
+import { escapeHtml } from './escapeHtml';
 
 export interface RenderHtmlDocumentParams {
   story: StoryPublicView;
   baseUrl: string;
+  siteUrl?: string;
   bodyHtml?: string;
   robots?: 'index,follow' | 'noindex,nofollow';
   headStyles?: string;
@@ -117,6 +119,8 @@ function sanitizeStoryPublicView(story: StoryPublicView): StoryPublicView {
     title: String(source.title ?? ''),
     fullText: String(source.fullText ?? ''),
     storyFormat,
+    ...(typeof source.language === 'string' ? { language: source.language } : {}),
+    ...(typeof source.ageGroup === 'string' ? { ageGroup: source.ageGroup } : {}),
     ...(typeof source.seoDescription === 'string' ? { seoDescription: source.seoDescription } : {}),
     scenes: Array.isArray(source.scenes)
       ? source.scenes.map((scene: any) => ({
@@ -201,6 +205,7 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
   const {
     story,
     baseUrl,
+    siteUrl = baseUrl,
     bodyHtml = '<div id="root"></div>',
     robots = 'index,follow',
     headStyles = '',
@@ -214,15 +219,16 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
     ogImageUrl: publicStory.share.ogImageUrl,
     url: publicStory.share.url,
     robots,
+    locale: publicStory.language || 'uk',
   });
 
-  const jsonLd = buildStoryJsonLd(publicStory, baseUrl);
+  const jsonLd = buildStoryJsonLd(publicStory, baseUrl, siteUrl);
   const authenticatedAppBootstrap = authenticatedAppBundleUrl
     ? `<script data-authenticated-app-bootstrap>(function(){try{var persisted=window.localStorage.getItem('auth-storage');if(!persisted)return;var auth=JSON.parse(persisted);var state=auth&&auth.state;if(state&&state.isAuthenticated===true&&typeof state.token==='string'&&state.token){var script=document.createElement('script');script.src=${JSON.stringify(authenticatedAppBundleUrl).replace(/</g, '\\u003c')};script.defer=true;document.body.appendChild(script);}}catch(_error){}})();</script>`
     : '';
 
   return `<!DOCTYPE html>
-<html lang="uk">
+<html lang="${escapeHtml(publicStory.language || 'uk')}">
 <head>
   ${meta}
   <style>${BASE_DOCUMENT_STYLES}${headStyles || ''}</style>

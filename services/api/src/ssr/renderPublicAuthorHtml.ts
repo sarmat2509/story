@@ -2,6 +2,7 @@ import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
 import type { PublicAuthorView, PublicStoryListItem } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { renderAuthorStructuredData } from './publicStructuredData';
 
 const AUTHOR_STYLES = `
 *{box-sizing:border-box}
@@ -91,6 +92,14 @@ export function renderPublicAuthorHtml(params: {
     author.aboutMe || `${author.displayName} has ${total} published stories on WonderTales.`
   );
   const initial = author.displayName.trim().charAt(0).toUpperCase() || 'A';
+  const structuredData = renderAuthorStructuredData({
+    webAppUrl,
+    authorUrl,
+    description,
+    author,
+    avatarUrl,
+    stories,
+  });
 
   return `<!DOCTYPE html>
 <html lang="uk">
@@ -107,6 +116,7 @@ export function renderPublicAuthorHtml(params: {
   <meta property="og:url" content="${escapeHtml(authorUrl)}">
   ${avatarUrl ? `<meta property="og:image" content="${escapeHtml(avatarUrl)}">` : ''}
   ${PUBLIC_HEAD_ASSET_LINKS}
+  ${structuredData}
   <style>${AUTHOR_STYLES}</style>
 </head>
 <body>

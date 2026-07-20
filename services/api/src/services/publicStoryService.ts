@@ -387,6 +387,8 @@ export async function buildStoryPublicView(
     title: story.title,
     fullText: stripAllTags(story.fullText || ''),
     storyFormat,
+    ...(story.language ? { language: String(story.language) } : {}),
+    ...(story.ageGroup ? { ageGroup: String(story.ageGroup) } : {}),
     ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
     // Artifact collection is owner-only. Public story payloads keep the prose readable
     // but omit artifact metadata, labels, text segment markers, and collection affordances.

@@ -11,6 +11,7 @@ import {
 import { config } from '../config';
 import type { PublishedAppRelease } from '../repositories/AppReleaseRepository';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { renderSimplePageStructuredData } from './publicStructuredData';
 import {
   PUBLIC_FOOTER_STYLES,
   PUBLIC_HEADER_STYLES,
@@ -145,10 +146,6 @@ const STYLES = `
 *{box-sizing:border-box}html,body{min-height:100%}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fbf8ff;color:#17122d;line-height:1.55}.updates-page{min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 8% 6%,rgba(255,121,82,.11),transparent 28%),radial-gradient(circle at 92% 8%,rgba(126,103,210,.14),transparent 30%),linear-gradient(180deg,#fffdfa,#fbf8ff)}.updates-wrap{width:min(100%,920px);margin:0 auto;padding:72px 24px 90px;flex:1}.updates-hero{text-align:center;margin:0 auto 66px;max-width:760px}.eyebrow{display:inline-flex;margin:0 0 18px;padding:8px 13px;border-radius:999px;background:#f1ecfc;color:#6c57c7;font-size:13px;font-weight:850}h1{margin:0 0 20px;font-size:clamp(44px,8vw,72px);line-height:1;letter-spacing:-.045em}.lead{margin:0;color:#655f7d;font-size:20px;line-height:1.7}.release-list{position:relative;display:grid;gap:34px}.release-list:before{content:'';position:absolute;left:116px;top:16px;bottom:16px;width:2px;background:linear-gradient(#7d67d2,rgba(125,103,210,.12))}.release{display:grid;grid-template-columns:90px minmax(0,1fr);gap:52px;position:relative}.release-date{padding-top:25px;text-align:right;color:#756d89;font-size:14px;font-weight:850}.release-dot{position:absolute;left:109px;top:30px;width:16px;height:16px;border:4px solid #fbf8ff;border-radius:50%;background:#7d67d2;box-shadow:0 0 0 2px rgba(125,103,210,.25)}.release-card{padding:30px;border:1px solid rgba(125,103,210,.14);border-radius:30px;background:rgba(255,255,255,.92);box-shadow:0 24px 64px rgba(31,24,67,.10)}.release-card h2{margin:0 0 22px;font-size:29px;line-height:1.16;letter-spacing:-.02em}.change-list{display:grid;gap:20px}.change{padding-top:20px;border-top:1px solid rgba(125,103,210,.13)}.change:first-child{padding-top:0;border-top:0}.change-label{display:inline-flex;margin:0 0 7px;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.change-label-new{color:#3c6e2d;background:#edf7e8}.change-label-improved{color:#6650bd;background:#f1edff}.change-label-fixed{color:#9a4b2f;background:#fff0e8}.change h3{margin:0 0 7px;font-size:19px}.change p{margin:0;color:#625b77;font-size:16px;line-height:1.65}.change-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}.change-links a{color:#6c57c7;font-size:14px;font-weight:850;text-decoration:none}.change-links a:hover{text-decoration:underline}.empty{text-align:center;padding:40px;border-radius:26px;background:#fff;color:#655f7d}@media(max-width:680px){.updates-wrap{padding:48px 16px 60px}.updates-hero{margin-bottom:44px}.release-list:before{left:7px}.release{grid-template-columns:1fr;gap:10px;padding-left:28px}.release-date{text-align:left;padding:0}.release-dot{left:0;top:5px}.release-card{padding:23px;border-radius:25px}.release-card h2{font-size:25px}}
 ${PUBLIC_HEADER_STYLES}${PUBLIC_FOOTER_STYLES}`;
 
-function safeJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c');
-}
-
 function renderAlternates(webAppUrl: string, locale: PublicSeoLocale): string {
   const links = PUBLIC_SEO_LOCALES.map(
     (alternate) =>
@@ -203,31 +200,44 @@ export function renderAppUpdatesHtml(params: {
   const webAppUrl = (config.web?.webAppUrl || 'https://wondertales.art').replace(/\/$/, '');
   const canonical = buildAbsoluteRouteUrl(webAppUrl, buildPublicUpdatesPath(locale));
   const languageLinks = buildPublicFooterLanguageLinks(webAppUrl, buildPublicUpdatesPath);
-  const structuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
+  const releasesId = `${canonical}#releases`;
+  const structuredData = renderSimplePageStructuredData({
+    webAppUrl,
+    pageUrl: canonical,
+    pageType: 'CollectionPage',
     name: copy.h1,
     description: copy.description,
-    url: canonical,
-    inLanguage: locale,
-    mainEntity: {
+    locale,
+    mainEntityId: releasesId,
+    breadcrumbs: [
+      { name: 'WonderTales', url: `${webAppUrl}/` },
+      { name: copy.h1, url: canonical },
+    ],
+    extraNodes: [{
       '@type': 'ItemList',
+      '@id': releasesId,
+      numberOfItems: params.releases.length,
       itemListElement: params.releases.map((release, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         item: {
-          '@type': 'SoftwareApplication',
+          '@type': 'CreativeWork',
           name: release.title,
-          dateModified: release.releaseDate,
+          datePublished: release.releaseDate,
           url: canonical,
+          about: {
+            '@type': 'SoftwareApplication',
+            name: 'WonderTales',
+            applicationCategory: 'EducationalApplication',
+          },
         },
       })),
-    },
-  };
+    }],
+  });
   const timeline =
     params.releases.length > 0
       ? params.releases.map((release) => renderRelease(release, copy, locale, webAppUrl)).join('')
       : `<p class="empty">${escapeHtml(copy.empty)}</p>`;
 
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(copy.title)}</title><meta name="description" content="${escapeHtml(copy.description)}"><meta name="robots" content="index,follow"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(copy.title)}"><meta property="og:description" content="${escapeHtml(copy.description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${renderAlternates(webAppUrl, locale)}${PUBLIC_HEAD_ASSET_LINKS}<style>${STYLES}</style><script type="application/ld+json">${safeJson(structuredData)}</script></head><body><div class="updates-page">${renderPublicPageHeader(webAppUrl, locale, 'updates')}<main class="updates-wrap"><header class="updates-hero"><p class="eyebrow">${escapeHtml(copy.eyebrow)}</p><h1>${escapeHtml(copy.h1)}</h1><p class="lead">${escapeHtml(copy.intro)}</p></header><div class="release-list">${timeline}</div></main>${renderPublicPageFooter(webAppUrl, locale, languageLinks, 'updates')}</div></body></html>`;
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(copy.title)}</title><meta name="description" content="${escapeHtml(copy.description)}"><meta name="robots" content="index,follow"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(copy.title)}"><meta property="og:description" content="${escapeHtml(copy.description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${renderAlternates(webAppUrl, locale)}${PUBLIC_HEAD_ASSET_LINKS}${structuredData}<style>${STYLES}</style></head><body><div class="updates-page">${renderPublicPageHeader(webAppUrl, locale, 'updates')}<main class="updates-wrap"><header class="updates-hero"><p class="eyebrow">${escapeHtml(copy.eyebrow)}</p><h1>${escapeHtml(copy.h1)}</h1><p class="lead">${escapeHtml(copy.intro)}</p></header><div class="release-list">${timeline}</div></main>${renderPublicPageFooter(webAppUrl, locale, languageLinks, 'updates')}</div></body></html>`;
 }

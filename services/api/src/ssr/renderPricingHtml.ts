@@ -303,6 +303,7 @@ export function renderPricingHtml(params: {
     : buildFallbackPricingPlans(locale, billingCurrency);
   const plans = sourcePlans.slice().sort((a, b) => a.sortOrder - b.sortOrder);
   const structuredData = renderPricingStructuredData({
+    webAppUrl,
     pricingUrl,
     title,
     subtitle,

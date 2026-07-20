@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { renderLandingHtml } from '../renderLandingHtml';
 
 function extractJsonLd(html: string): any[] {
-  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
-    .map((match) => JSON.parse(match[1]));
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap(
+    (match) => {
+      const value = JSON.parse(match[1]);
+      return Array.isArray(value['@graph']) ? value['@graph'] : [value];
+    }
+  );
 }
 
 const html = renderLandingHtml({ locale: 'en' });
@@ -16,6 +20,9 @@ assert.equal(software.name, 'WonderTales');
 assert.equal(software.url, 'https://app.wondertales.com');
 assert.equal(software.offers.url, 'https://app.wondertales.com/pricing');
 assert.equal(software.inLanguage, 'en');
+assert.ok(jsonLd.some((entry) => entry['@type'] === 'Organization'));
+assert.ok(jsonLd.some((entry) => entry['@type'] === 'WebSite'));
+assert.ok(jsonLd.some((entry) => entry['@type'] === 'WebPage'));
 
 assert.ok(faq, 'landing should expose FAQPage structured data');
 assert.equal(faq.inLanguage, 'en');

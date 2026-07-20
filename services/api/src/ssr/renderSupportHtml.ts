@@ -6,6 +6,7 @@ import {
 } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { renderSimplePageStructuredData } from './publicStructuredData';
 import {
   PUBLIC_FOOTER_STYLES,
   PUBLIC_HEADER_STYLES,
@@ -213,6 +214,28 @@ export function renderSupportHtml(options: RenderSupportHtmlOptions = {}): strin
   const supportEmail = config.web?.supportEmail || 'support@wondertales.art';
   const supportUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(resolvedLocale));
   const languageLinks = buildPublicFooterLanguageLinks(webAppUrl, buildPublicSupportPath);
+  const contactPointId = `${supportUrl}#contact-point`;
+  const structuredData = renderSimplePageStructuredData({
+    webAppUrl,
+    pageUrl: supportUrl,
+    pageType: 'ContactPage',
+    name: copy.title,
+    description: copy.description,
+    locale: resolvedLocale,
+    mainEntityId: contactPointId,
+    breadcrumbs: [
+      { name: 'WonderTales', url: `${webAppUrl}/` },
+      { name: copy.h1, url: supportUrl },
+    ],
+    extraNodes: [{
+      '@type': 'ContactPoint',
+      '@id': contactPointId,
+      contactType: 'customer support',
+      email: supportEmail,
+      url: supportUrl,
+      availableLanguage: resolvedLocale,
+    }],
+  });
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(resolvedLocale)}">
@@ -225,6 +248,7 @@ export function renderSupportHtml(options: RenderSupportHtmlOptions = {}): strin
   ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${escapeHtml(supportUrl)}">
   ${buildSupportAlternateLinks(webAppUrl)}
+  ${structuredData}
   <style>${SUPPORT_STYLES}</style>
 </head>
 <body>

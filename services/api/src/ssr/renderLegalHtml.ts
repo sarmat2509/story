@@ -15,6 +15,7 @@ import {
 } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { renderSimplePageStructuredData } from './publicStructuredData';
 import {
   PUBLIC_FOOTER_STYLES,
   PUBLIC_HEADER_STYLES,
@@ -169,6 +170,18 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
 
   const title = doc === 'terms' ? copy.termsTitle : copy.privacyTitle;
   const description = doc === 'terms' ? copy.termsDescription : copy.privacyDescription;
+  const structuredData = renderSimplePageStructuredData({
+    webAppUrl,
+    pageUrl: legalUrl,
+    pageType: ['WebPage', 'DigitalDocument'],
+    name: title,
+    description,
+    locale: resolvedLocale,
+    breadcrumbs: [
+      { name: 'WonderTales', url: `${webAppUrl}/` },
+      { name: title.replace(/\s+[—-]\s+WonderTales$/, ''), url: legalUrl },
+    ],
+  });
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(resolvedLocale)}">
@@ -181,6 +194,7 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
   ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${escapeHtml(legalUrl)}">
   ${buildLegalAlternateLinks(webAppUrl, doc)}
+  ${structuredData}
   <style>${LEGAL_STYLES}</style>
 </head>
 <body>

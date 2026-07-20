@@ -68,6 +68,10 @@ export interface StoryPublicView {
   title: string;
   fullText: string;
   storyFormat: PublicStoryFormat;
+  /** Story content language, separate from the surrounding UI locale. */
+  language?: string;
+  /** Human-readable target age range persisted with the story. */
+  ageGroup?: string;
   /** Short SEO description (1-2 sentences, max 160 chars). Used for og:description, meta name="description". */
   seoDescription?: string;
   scenes: PublicStoryScene[];
