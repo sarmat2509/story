@@ -11,6 +11,7 @@ import {
   runGraphicNovelPanelImageValidation,
   runProductImageValidation,
   runSegmentedProductImageValidation,
+  deriveExplicitSceneAnchorConstraints,
   type GraphicNovelPanelImageValidationResult,
 } from '../imageValidationRun';
 
@@ -61,6 +62,22 @@ function validResult(): ImageValidationResult {
     overallFeedback: 'ok',
   };
 }
+
+assert.deepEqual(
+  deriveExplicitSceneAnchorConstraints(
+    {
+      setting: 'A glowing yawn floats beside the window.',
+      lighting: 'night',
+      cameraComposition: {
+        shot: 'Frame the armchair and the Moon in the window together.',
+        characters: [],
+      },
+    },
+    'Frame the armchair and the Moon in the window together.'
+  ),
+  ['window', 'Moon subject'],
+  'Singular scene anchors must be promoted into explicit count constraints for scene QA'
+);
 
 function validLayoutResult(): ImageValidationResult {
   return {

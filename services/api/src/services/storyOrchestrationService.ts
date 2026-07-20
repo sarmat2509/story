@@ -5395,13 +5395,9 @@ async function generateSceneImageWithReference(
       )
     );
 
-    // Older persisted rows predate scene-structure QA. Revalidate the existing image before a
-    // manual edit so that a formerly high-scoring but structurally wrong image gets a targeted edit.
-    if (
-      initialEditRepair &&
-      initialEditRepair.validation.hasSceneCompositionMismatch === undefined &&
-      config.image.enableValidation
-    ) {
+    // A manual regenerate edits an existing image. Always obtain a current scene QA verdict first:
+    // validator rules evolve, and a previously accepted row can miss a newly detectable structure error.
+    if (initialEditRepair && config.image.enableValidation) {
       try {
         const refreshedValidation = await context.imageDomain.validateGeneratedImageSegmented({
           imageData: initialEditRepair.originalImage,
@@ -5437,7 +5433,7 @@ async function generateSceneImageWithReference(
       } catch (error) {
         logger.warn(
           { err: error, storyId, sceneId: scene.sceneId },
-          'Manual regenerate composition recheck failed; using persisted validation feedback'
+          'Manual regenerate current validation recheck failed; using persisted validation feedback'
         );
       }
     }

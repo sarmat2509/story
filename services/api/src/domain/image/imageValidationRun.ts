@@ -1404,6 +1404,7 @@ function buildSegmentedSceneQaPrompt(params: {
               : undefined;
           })
           .filter((line): line is string => !!line);
+  const sceneAnchorConstraints = deriveExplicitSceneAnchorConstraints(visual, shot);
   return [
     'Task: validate expected cast and global image quality for Image 1 only.',
     'After this pass, separate per-character validators compare each expected character crop against its own turnaround reference.',
@@ -1418,6 +1419,11 @@ function buildSegmentedSceneQaPrompt(params: {
     referenceRows ? `\nIDENTITY REFERENCES FOR BBOX LABELING:\n${referenceRows}` : '',
     cameraCharacterRows.length > 0
       ? `\nEXPECTED CHARACTER STAGING HINTS:\n${cameraCharacterRows.join('\n')}`
+      : '',
+    sceneAnchorConstraints.length > 0
+      ? `\nEXACT COUNT CONSTRAINTS (mandatory):\n${sceneAnchorConstraints
+          .map((anchor) => `- exactly 1 ${anchor}`)
+          .join('\n')}`
       : '',
     '',
     'Set missingExpectedCharacters to the expected roster names that are not visibly present in Image 1. Use an empty array when all expected characters are visibly present.',
@@ -1438,7 +1444,7 @@ function buildSegmentedSceneQaPrompt(params: {
     'Explicitly scan the entire Image 1, including top/bottom margins and corners, for leaked reference-sheet titles, labels, filenames, watermarks, or identifiers. Any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true.',
     'Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
-    'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
+    'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. Treat every EXACT COUNT CONSTRAINT above as a hard visual count: if it says exactly 1 window or Moon and Image 1 shows two, set this field true even if one copy looks like reused environment decoration. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
     params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks
       ? 'No preset layout guide is attached; use only the page brief below and the visible generated page structure.'
@@ -1462,6 +1468,27 @@ function buildSegmentedSceneQaPrompt(params: {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+const EXPLICIT_SCENE_ANCHOR_PATTERNS: Array<{ anchor: string; pattern: RegExp }> = [
+  { anchor: 'window', pattern: /\b(?:the|one|a|an|single)\s+(?:existing\s+|visible\s+)?window\b/i },
+  { anchor: 'door', pattern: /\b(?:the|one|a|an|single)\s+(?:existing\s+|visible\s+)?door\b/i },
+  { anchor: 'portal', pattern: /\b(?:the|one|a|an|single)\s+(?:existing\s+|visible\s+)?portal\b/i },
+  { anchor: 'mirror', pattern: /\b(?:the|one|a|an|single)\s+(?:existing\s+|visible\s+)?mirror\b/i },
+  { anchor: 'framed opening', pattern: /\b(?:the|one|a|an|single)\s+framed opening\b/i },
+  { anchor: 'Moon subject', pattern: /\b(?:the|one|a|an|single)\s+moon\b/i },
+  { anchor: 'Sun subject', pattern: /\b(?:the|one|a|an|single)\s+sun\b/i },
+];
+
+export function deriveExplicitSceneAnchorConstraints(visual: SceneVisual, shot: string): string[] {
+  const cameraCharacters =
+    typeof visual.cameraComposition === 'string'
+      ? ''
+      : visual.cameraComposition.characters.map((character) => character.description || '').join(' ');
+  const sceneBrief = [visual.setting, shot, cameraCharacters].filter(Boolean).join(' ');
+  return EXPLICIT_SCENE_ANCHOR_PATTERNS.filter(({ pattern }) => pattern.test(sceneBrief)).map(
+    ({ anchor }) => anchor
+  );
 }
 
 function imageDataForGenerated(

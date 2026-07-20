@@ -40,8 +40,8 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v21';
-export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v9';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v22';
+export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v10';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';
