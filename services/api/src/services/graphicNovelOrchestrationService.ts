@@ -41,6 +41,7 @@ import {
   buildTargetedEditRepairPlan,
   buildStorySpec,
   computeValidationScore,
+  hasBlockingSceneCompositionMismatch,
   createStoryRequest,
   hasBlockingUnwantedImageText,
   type ContinuationContext,
@@ -3109,6 +3110,9 @@ function buildGraphicNovelPanelCompositeValidation(params: {
     hasRenderingArtifacts: params.panelValidations.some(
       (panelValidation) => panelValidation.validation.hasRenderingArtifacts
     ),
+    hasSceneCompositionMismatch: params.panelValidations.some(
+      (panelValidation) => panelValidation.validation.hasSceneCompositionMismatch
+    ),
     hasArtworkOutsidePanelBounds: false,
     hasArtworkOverSpeechBubbles: false,
     hasExtraPanelStructure: params.hasStructureIssue,
@@ -3433,6 +3437,7 @@ function graphicNovelPanelQualityDecision(
   }
   if (validation.hasUnexpectedCharacters) reasons.add('unexpected_characters');
   if (hasBlockingUnwantedImageText(validation)) reasons.add('unwanted_text');
+  if (hasBlockingSceneCompositionMismatch(validation)) reasons.add('scene_composition_mismatch');
   if (validation.hasRenderingArtifacts) reasons.add('rendering_artifacts');
 
   for (const character of validation.characters) {

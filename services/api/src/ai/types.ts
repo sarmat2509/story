@@ -124,6 +124,8 @@ export interface ImageValidationResult {
   unexpectedCharacterNotes?: string | null;
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
+  /** True when the artwork changes an explicit, countable scene anchor (for example a second window or Moon). */
+  hasSceneCompositionMismatch?: boolean;
   /** Optional layout QA for panel/bubble-based images, enabled only by validation request flag. */
   hasArtworkOutsidePanelBounds?: boolean;
   /** Optional layout QA for panel/bubble-based images, enabled only by validation request flag. */

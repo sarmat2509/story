@@ -4366,6 +4366,7 @@ export function computeValidationScore(
     }
   }
   if (validation.hasTextOrLetters) score -= p.textPenalty;
+  if (validation.hasSceneCompositionMismatch) score -= p.artifactsPenalty;
   if (validation.hasUnexpectedCharacters) score -= p.unexpectedCharsPenalty;
   if (validation.hasRenderingArtifacts) score -= p.artifactsPenalty;
   if (validation.hasArtworkOutsidePanelBounds) score -= p.artifactsPenalty;
@@ -4380,6 +4381,15 @@ export function computeValidationScore(
  */
 export function hasBlockingUnwantedImageText(validation: ImageValidationResult): boolean {
   return validation.hasTextOrLetters === true;
+}
+
+/** Explicit scene-structure violations must be repaired even when identity scoring is high. */
+export function hasBlockingSceneCompositionMismatch(validation: ImageValidationResult): boolean {
+  return validation.hasSceneCompositionMismatch === true;
+}
+
+export function hasBlockingImageValidationIssue(validation: ImageValidationResult): boolean {
+  return hasBlockingUnwantedImageText(validation) || hasBlockingSceneCompositionMismatch(validation);
 }
 
 interface ScoredAttempt {
@@ -4634,10 +4644,17 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
         'Remove all visible text or lettering, including any leaked reference-sheet title or REF_* identifier.'
       )
     );
+  if (validation.hasSceneCompositionMismatch)
+    issues.push(
+      makeRepairIssue(
+        'composition',
+        compactValidationText(validation.overallFeedback) || 'Scene composition has duplicate or missing anchors.'
+      )
+    );
 
   const overall = compactValidationText(validation.overallFeedback);
   if (issues.length === 0 && overall) issues.push(makeRepairIssue('generic', overall));
-  return issues.slice(0, 4);
+  return issues.slice(0, 5);
 }
 
 export function buildTargetedEditRepairPlan(
@@ -5355,7 +5372,77 @@ async function generateSceneImageWithReference(
       return imagePromptAttemptCounter;
     };
 
-    const isInitialEditRepair = !!context.initialEditRepair;
+    let initialEditRepair = context.initialEditRepair;
+    const expectedCharacters = buildExpectedCharactersForValidation(
+      scene,
+      context.characters,
+      resolvedReferenceImageDataArray,
+      {
+        storyId,
+        sceneId: scene.sceneId,
+        defaultOutfitCharacterKeys: context.defaultOutfitCharacterKeys,
+      }
+    );
+    const validationReferenceImages = await buildValidationReferenceImages({
+      expectedCharacters,
+      characters: context.characters,
+      assetStorage: context.assetStorage,
+      referenceImageDataArray: resolvedReferenceImageDataArray,
+    });
+    const validationRefNamesNormalized = new Set(
+      validationReferenceImages.map((r) =>
+        stripCharacterIdFromName(r.characterName).trim().toLowerCase()
+      )
+    );
+
+    // Older persisted rows predate scene-structure QA. Revalidate the existing image before a
+    // manual edit so that a formerly high-scoring but structurally wrong image gets a targeted edit.
+    if (
+      initialEditRepair &&
+      initialEditRepair.validation.hasSceneCompositionMismatch === undefined &&
+      config.image.enableValidation
+    ) {
+      try {
+        const refreshedValidation = await context.imageDomain.validateGeneratedImageSegmented({
+          imageData: initialEditRepair.originalImage,
+          mimeType: initialEditRepair.originalMimeType,
+          expectedCharacters,
+          sceneVisual: migrateVisualPrompt(scene),
+          referenceImages:
+            validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
+          logContext: { storyId, sceneId: scene.sceneId, attempt: initialEditRepair.previousAttempt },
+          onUsage: (u) =>
+            recordUsage(u, {
+              userId: context.userId,
+              storyId,
+              metadata: {
+                usageTarget: 'image_validation',
+                subjectType: 'scene_image',
+                sceneIndex: scene.sceneId,
+                attempt: initialEditRepair!.previousAttempt,
+                reason: 'manual_regenerate_legacy_composition_recheck',
+              },
+            }),
+        });
+        initialEditRepair = {
+          ...initialEditRepair,
+          validation: refreshedValidation,
+          validationScore: computeValidationScore(refreshedValidation, {
+            referenceNamesNormalized: validationRefNamesNormalized,
+            expectedCharacters,
+            sceneVisual: migrateVisualPrompt(scene),
+            validationReferenceImages,
+          }),
+        };
+      } catch (error) {
+        logger.warn(
+          { err: error, storyId, sceneId: scene.sceneId },
+          'Manual regenerate composition recheck failed; using persisted validation feedback'
+        );
+      }
+    }
+
+    const isInitialEditRepair = !!initialEditRepair;
     const maxAttempts = isInitialEditRepair
       ? 1
       : config.image.enableValidation
@@ -5371,14 +5458,14 @@ async function generateSceneImageWithReference(
       initialImageRoute === 'complex' ? context.complexImageDomain! : context.imageDomain;
     const useEditRepair = config.image.validationUseEditRepair;
 
-    const validationAttemptOffset = context.initialEditRepair?.previousAttempt ?? 0;
+    const validationAttemptOffset = initialEditRepair?.previousAttempt ?? 0;
     const firstValidationAttempt = validationAttemptOffset + 1;
 
     let imageRoute: SceneImageRoute = initialImageRoute;
     let image: SceneGeneratedImage;
     const imageRequestManifests: Record<string, unknown>[] = [];
     let repairRequestManifest: Record<string, unknown> | undefined;
-    if (context.initialEditRepair) {
+    if (initialEditRepair) {
       try {
         image = await editSceneImageUsingValidationFeedback({
           storyId,
@@ -5387,15 +5474,15 @@ async function generateSceneImageWithReference(
           scene,
           imageDomain: initialImageDomain,
           imageRoute,
-          originalImage: context.initialEditRepair.originalImage,
-          originalMimeType: context.initialEditRepair.originalMimeType,
-          validation: context.initialEditRepair.validation,
-          validationScore: context.initialEditRepair.validationScore,
+          originalImage: initialEditRepair.originalImage,
+          originalMimeType: initialEditRepair.originalMimeType,
+          validation: initialEditRepair.validation,
+          validationScore: initialEditRepair.validationScore,
           referenceImagesArray,
-          previousAttempt: context.initialEditRepair.previousAttempt,
-          repairAttempt: context.initialEditRepair.previousAttempt + 1,
+          previousAttempt: initialEditRepair.previousAttempt,
+          repairAttempt: initialEditRepair.previousAttempt + 1,
           reason: 'manual_regenerate',
-          sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
+          sourceImageStoragePath: initialEditRepair.sourceImageStoragePath,
         });
         if (image.requestManifest) repairRequestManifest = image.requestManifest;
       } catch (editError) {
@@ -5412,7 +5499,7 @@ async function generateSceneImageWithReference(
             storyId,
             sceneId: scene.sceneId,
             imageRoute,
-            sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
+            sourceImageStoragePath: initialEditRepair.sourceImageStoragePath,
           },
           'Initial validation edit repair failed'
         );
@@ -5465,28 +5552,6 @@ async function generateSceneImageWithReference(
       }
     }
     let lastValidation: ImageValidationResult | null = null;
-    const expectedCharacters = buildExpectedCharactersForValidation(
-      scene,
-      context.characters,
-      resolvedReferenceImageDataArray,
-      {
-        storyId,
-        sceneId: scene.sceneId,
-        defaultOutfitCharacterKeys: context.defaultOutfitCharacterKeys,
-      }
-    );
-    const validationReferenceImages = await buildValidationReferenceImages({
-      expectedCharacters,
-      characters: context.characters,
-      assetStorage: context.assetStorage,
-      referenceImageDataArray: resolvedReferenceImageDataArray,
-    });
-    const validationRefNamesNormalized = new Set(
-      validationReferenceImages.map((r) =>
-        stripCharacterIdFromName(r.characterName).trim().toLowerCase()
-      )
-    );
-
     // Validation + retry loop (only when ENABLE_IMAGE_VALIDATION=true)
     const scoredAttempts: ScoredAttempt[] = [];
     let acceptByValidationScore = false;
@@ -5633,13 +5698,16 @@ async function generateSceneImageWithReference(
               hasTextOrLetters: validation.hasTextOrLetters,
               hasUnexpectedCharacters: validation.hasUnexpectedCharacters,
               hasRenderingArtifacts: validation.hasRenderingArtifacts,
+              hasSceneCompositionMismatch: validation.hasSceneCompositionMismatch,
             },
             `Validation score for attempt ${attempt}: ${score}/100`
           );
 
           const minAccept = config.image.validationMinAcceptScore;
           const hasBlockingText = hasBlockingUnwantedImageText(validation);
-          if (score > minAccept && !hasBlockingText) {
+          const hasBlockingComposition = hasBlockingSceneCompositionMismatch(validation);
+          const hasBlockingIssue = hasBlockingImageValidationIssue(validation);
+          if (score > minAccept && !hasBlockingIssue) {
             acceptByValidationScore = true;
             logger.info(
               {
@@ -5665,6 +5733,8 @@ async function generateSceneImageWithReference(
               hasUnexpectedCharacters: validation.hasUnexpectedCharacters,
               hasTextOrLetters: validation.hasTextOrLetters,
               blockingUnwantedText: hasBlockingText,
+              hasSceneCompositionMismatch: validation.hasSceneCompositionMismatch,
+              blockingSceneCompositionMismatch: hasBlockingComposition,
               hasRenderingArtifacts: validation.hasRenderingArtifacts,
               score,
               duplicatedCharacters: validation.characters
@@ -5677,6 +5747,8 @@ async function generateSceneImageWithReference(
             },
             hasBlockingText
               ? 'Image validation rejected because unwanted text/reference title is visible'
+              : hasBlockingComposition
+                ? 'Image validation rejected because explicit scene composition is wrong'
               : `Image validation score at or below threshold (${minAccept})`
           );
 

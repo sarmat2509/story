@@ -22,6 +22,7 @@ export type ImageEditRepairIssueKind =
   | 'outfit'
   | 'unexpected'
   | 'text'
+  | 'composition'
   | 'generic';
 
 export interface ImageEditRepairIssue {
@@ -67,6 +68,7 @@ export function buildImageEditSystemInstruction(): string {
     'Follow the numbered edit instructions exactly.',
     'Use REF_* only to match attached reference images; never draw REF_* tokens.',
     'MUST AVOID any kind of text.',
+    'Never create or duplicate architecture, openings, backgrounds, or celestial bodies merely to place a repaired subject; use the existing scene anchor when the instruction names one.',
     'Preserve composition, background, lighting, pose intent, style, and all unmentioned subjects.',
   ].join('\n');
 }
@@ -121,6 +123,9 @@ function buildSubjectReplacementAction(replacement: ImageEditSubjectReplacement)
   const sceneSlot = compactPromptText(replacement.sceneSlotDescription);
 
   if (replacement.found === false && !visible) {
+    if (sceneSlot && /\bwindow\b/i.test(sceneSlot)) {
+      return `Place the full character from ${reference} inside the one existing visible window view described as "${sceneSlot}". Do not create, duplicate, or redraw a window, opening, portal, mirror, frame, sky view, or celestial body.`;
+    }
     return sceneSlot
       ? `Add the full character from ${reference} to this scene slot: "${sceneSlot}".`
       : `Add the full character from ${reference} to the expected scene slot.`;
@@ -229,6 +234,8 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
     }
     case 'text':
       return 'Remove only the visible text or lettering, including any leaked reference-sheet title, label, or REF_* identifier.';
+    case 'composition':
+      return 'Restore the exact scene structure from the brief. Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.';
     case 'generic':
     default:
       return 'Change only the validator-reported visual mismatch using the selected reference.';

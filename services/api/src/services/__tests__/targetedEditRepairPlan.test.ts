@@ -158,4 +158,32 @@ assert.match(
 );
 assert.doesNotMatch(unexpectedPrompt, /^1\. Remove only the unexpected extra subject\.$/m);
 
+const compositionValidation = validationWithCharacter({
+  recognizableScore: 1,
+  faceMatchesReference: true,
+  hairMatchesReference: true,
+  ageReadMatchesReference: true,
+  proportionsMatchReference: true,
+  matchesColors: true,
+  matchesOutfit: true,
+  sameOverallDesignRead: true,
+  identityComparisonSummary: 'All expected character anchors match.',
+  issue: null,
+});
+compositionValidation.hasSceneCompositionMismatch = true;
+compositionValidation.overallFeedback =
+  'Two windows and multiple Moon-like celestial bodies are visible although the brief requires one window and the Moon.';
+const compositionPlan = buildTargetedEditRepairPlan([], compositionValidation, scene);
+const compositionPrompt = buildImageEditPrompt({
+  validationResult: compositionValidation,
+  targetedRepairManifest: compositionPlan.manifest,
+});
+assert.deepEqual(compositionPlan.manifest.issues, [
+  {
+    kind: 'composition',
+    note: compositionValidation.overallFeedback,
+  },
+]);
+assert.match(compositionPrompt, /Remove duplicate or extra windows, doors, portals, mirrors/);
+
 console.log('targeted edit repair plan guards passed');

@@ -128,6 +128,7 @@ type SegmentedSceneQaValidationResult = {
   unexpectedCharacterNotes?: string | null;
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
+  hasSceneCompositionMismatch: boolean;
   overallFeedback: string;
   hasArtworkOutsidePanelBounds?: boolean;
   hasArtworkOverSpeechBubbles?: boolean | null;
@@ -714,6 +715,7 @@ function buildSegmentedSceneQaSchema(
     'unexpectedCharacterNotes',
     'hasTextOrLetters',
     'hasRenderingArtifacts',
+    'hasSceneCompositionMismatch',
     'overallFeedback',
   ];
   if (includeLayoutChecks) {
@@ -776,6 +778,7 @@ function buildSegmentedSceneQaSchema(
       unexpectedCharacterNotes: { type: ['string', 'null'] },
       hasTextOrLetters: { type: 'boolean' },
       hasRenderingArtifacts: { type: 'boolean' },
+      hasSceneCompositionMismatch: { type: 'boolean' },
       overallFeedback: { type: 'string' },
       hasArtworkOutsidePanelBounds: includeLayoutChecks
         ? { type: 'boolean' }
@@ -1435,6 +1438,7 @@ function buildSegmentedSceneQaPrompt(params: {
     'Explicitly scan the entire Image 1, including top/bottom margins and corners, for leaked reference-sheet titles, labels, filenames, watermarks, or identifiers. Any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true.',
     'Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
+    'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
     params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks
       ? 'No preset layout guide is attached; use only the page brief below and the visible generated page structure.'
@@ -1769,6 +1773,7 @@ function panelIssueFromSegmentedValidation(validation: ImageValidationResult): s
   if (validation.hasUnexpectedCharacters) issues.push('unexpected characters present');
   if (validation.hasTextOrLetters) issues.push('unwanted text or letters visible');
   if (validation.hasRenderingArtifacts) issues.push('rendering artifacts visible');
+  if (validation.hasSceneCompositionMismatch) issues.push('scene composition mismatch');
   for (const character of validation.characters) {
     if (
       !character.found ||
@@ -2418,6 +2423,7 @@ export async function runSegmentedProductImageValidation(
     unexpectedCharacterNotes: sceneQa?.unexpectedCharacterNotes ?? null,
     hasTextOrLetters: sceneQa?.hasTextOrLetters ?? false,
     hasRenderingArtifacts: sceneQa?.hasRenderingArtifacts ?? false,
+    hasSceneCompositionMismatch: sceneQa?.hasSceneCompositionMismatch ?? false,
     overallFeedback:
       overallParts.length > 0 ? overallParts.join(' ') : 'Segmented validation completed.',
   };
@@ -3126,6 +3132,7 @@ export async function runProductImageValidation(
     hasUnexpectedCharacters: false,
     hasTextOrLetters: false,
     hasRenderingArtifacts: false,
+    hasSceneCompositionMismatch: false,
     overallFeedback: `provider-blocked: ${lastBlockedError || 'no visual verdict'}`,
   };
   if (input.includeLayoutChecks) {

@@ -40,8 +40,8 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v20';
-export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v8';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v21';
+export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v9';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';
@@ -92,6 +92,7 @@ Without reference images:
 - Check whether expected characters are present.
 	- Check duplicates, unexpected characters, text/letters, and rendering artifacts.
 	- Treat any leaked reference-sheet title, label, filename, watermark, or identifier (especially REF_* tokens such as REF_CH_*) in the generated illustration as unwanted text and set hasTextOrLetters=true.
+	- Set hasSceneCompositionMismatch=true when the image adds, duplicates, or omits a clearly specified countable scene anchor (such as a window, door, portal, mirror, framed opening, sky view, or celestial subject). A singular "the window" or "the Moon" means exactly one unless the brief explicitly says otherwise.
 - Use the authoritative designer scene brief as ground truth for this specific scene.
 - Scene-specific states from the designer brief are valid: transparent, glowing, startled, mid-action, sleepy, flying, wet, dusty, magical, or otherwise temporarily changed characters.
 - Identity failures require visible evidence available in this validation run.
@@ -151,6 +152,7 @@ Scoring guide:
 - Validate outfit against the attached full-character visual reference. When clothing, shoes, or worn accessories are visible in the reference, compare them as visual anchors; use matchesOutfit for the wardrobe verdict only when WARDROBE_CHECK=enabled. Held/carried props are wardrobe anchors only when the scene brief explicitly requires the same prop.
 - Check duplicates, missing characters, unexpected characters, text/letters, and rendering artifacts.
 - Treat any title, label, filename, watermark, or identifier copied from a reference image into the generated illustration as unwanted text. In particular, any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true even when the rest of the illustration is correct.
+- Set hasSceneCompositionMismatch=true when the image adds, duplicates, or omits a clearly specified countable scene anchor (such as a window, door, portal, mirror, framed opening, sky view, or celestial subject). A singular "the window" or "the Moon" means exactly one unless the brief explicitly says otherwise. Multiple views on a turnaround sheet are reference views, never multiple scene subjects.
 - Apply scene-appropriate occlusion before failing outfit or visibility checks.
 
 Output JSON rules:

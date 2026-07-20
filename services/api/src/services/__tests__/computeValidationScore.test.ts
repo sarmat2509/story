@@ -13,6 +13,8 @@ import type { SceneVisual } from '../types';
 import {
   computeValidationScore,
   evaluateGeneratedImageSafety,
+  hasBlockingImageValidationIssue,
+  hasBlockingSceneCompositionMismatch,
   hasBlockingUnwantedImageText,
 } from '../storyOrchestrationService';
 import { config } from '../../config';
@@ -86,6 +88,23 @@ function testUnwantedTextIsBlockingEvenWhenScoreWouldPass() {
     hasBlockingUnwantedImageText(result),
     true,
     'Visible text/reference labels must force repair even above the normal acceptance threshold'
+  );
+}
+
+function testSceneCompositionMismatchIsBlockingEvenWhenScoreWouldPass() {
+  const result = makeResult({}, { hasSceneCompositionMismatch: true });
+  const score = computeValidationScore(result, { scoringOverride: baseScoring });
+
+  assert.strictEqual(score, 90, 'Composition mismatch keeps its configured score penalty');
+  assert.strictEqual(
+    hasBlockingSceneCompositionMismatch(result),
+    true,
+    'A duplicate scene anchor must force repair even above the normal acceptance threshold'
+  );
+  assert.strictEqual(
+    hasBlockingImageValidationIssue(result),
+    true,
+    'Unified hard-blocker must include scene composition mismatches'
   );
 }
 
@@ -542,6 +561,7 @@ function testGeneratedImageSafetyAllowsProviderBlockedValidation() {
 
 testBaselineCleanResult();
 testUnwantedTextIsBlockingEvenWhenScoreWouldPass();
+testSceneCompositionMismatchIsBlockingEvenWhenScoreWouldPass();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();

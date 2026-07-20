@@ -289,6 +289,11 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
       description:
         'Whether the image has visual artifacts at character boundaries: body parts showing through other characters, merged limbs, transparency errors.',
     },
+    hasSceneCompositionMismatch: {
+      type: 'boolean',
+      description:
+        'Whether the artwork violates an explicit scene composition constraint by adding, duplicating, or missing a countable anchor such as a window, door, portal, mirror, framed opening, sky view, or celestial subject. When the brief says "the window" or "the Moon" in singular, extra copies must be reported.',
+    },
     overallFeedback: { type: 'string', description: 'Human-readable summary of all issues found' },
   },
   required: [
@@ -298,6 +303,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     'hasUnexpectedCharacters',
     'hasTextOrLetters',
     'hasRenderingArtifacts',
+    'hasSceneCompositionMismatch',
     'overallFeedback',
   ],
 };
