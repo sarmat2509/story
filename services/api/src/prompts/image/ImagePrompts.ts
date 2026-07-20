@@ -21,7 +21,10 @@ import { getImageContentPolicy } from '../contentPolicy';
 import { config } from '../../config';
 import { crossScriptIdentityKey, toPhoneticKey } from '../../utils/characterNormalization';
 import { formatCharacterLocationLine } from './compositionFormatter';
-import { deriveExplicitSceneAnchorConstraints } from '../../domain/image/imageValidationRun';
+import {
+  deriveExplicitSceneAnchorConstraints,
+  requiresCelestialSubjectInsideWindow,
+} from '../../domain/image/imageValidationRun';
 
 export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v3_color';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
@@ -720,6 +723,11 @@ function buildStructuredPrompt(params: {
       `- Exact scene counts: include exactly one ${sceneAnchorConstraints.join(
         ' and exactly one '
       )}. Do not add, duplicate, or invent another window, door, portal, mirror, sky view, or celestial subject.`,
+    );
+  }
+  if (requiresCelestialSubjectInsideWindow(sceneVisual, shot)) {
+    sections.push(
+      '- Celestial placement: place the single Moon/Sun character inside the existing window sky view. Do not create a separate floating sky cloud, portal, or second night-sky opening.',
     );
   }
 

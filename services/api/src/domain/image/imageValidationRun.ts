@@ -1405,6 +1405,7 @@ function buildSegmentedSceneQaPrompt(params: {
           })
           .filter((line): line is string => !!line);
   const sceneAnchorConstraints = deriveExplicitSceneAnchorConstraints(visual, shot);
+  const requiresCelestialInsideWindow = requiresCelestialSubjectInsideWindow(visual, shot);
   return [
     'Task: validate expected cast and global image quality for Image 1 only.',
     'After this pass, separate per-character validators compare each expected character crop against its own turnaround reference.',
@@ -1425,6 +1426,9 @@ function buildSegmentedSceneQaPrompt(params: {
           .map((anchor) => `- exactly 1 ${anchor}`)
           .join('\n')}`
       : '',
+    requiresCelestialInsideWindow
+      ? 'CELESTIAL PLACEMENT CONSTRAINT (mandatory): the single Moon/Sun character must be visibly inside the one existing window\'s sky view. A floating sky cloud, portal, or separate night-sky rectangle elsewhere in the room is a composition mismatch.'
+      : '',
     '',
     'Set missingExpectedCharacters to the expected roster names that are not visibly present in Image 1. Use an empty array when all expected characters are visibly present.',
     'Return characterBoundingBoxes for every expected roster character, in the same coordinate system for Image 1.',
@@ -1444,7 +1448,7 @@ function buildSegmentedSceneQaPrompt(params: {
     'Explicitly scan the entire Image 1, including top/bottom margins and corners, for leaked reference-sheet titles, labels, filenames, watermarks, or identifiers. Any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true.',
     'Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
-    'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. Treat every EXACT COUNT CONSTRAINT above as a hard visual count: if it says exactly 1 window or Moon and Image 1 shows two, set this field true even if one copy looks like reused environment decoration. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
+    'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. Treat every EXACT COUNT CONSTRAINT above as a hard visual count: if it says exactly 1 window or Moon and Image 1 shows two, set this field true even if one copy looks like reused environment decoration. Enforce any CELESTIAL PLACEMENT CONSTRAINT too: a Moon/Sun outside its required existing window, including inside a separate sky cloud/portal, is a mismatch. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
     params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks
       ? 'No preset layout guide is attached; use only the page brief below and the visible generated page structure.'
@@ -1481,14 +1485,25 @@ const EXPLICIT_SCENE_ANCHOR_PATTERNS: Array<{ anchor: string; pattern: RegExp }>
 ];
 
 export function deriveExplicitSceneAnchorConstraints(visual: SceneVisual, shot: string): string[] {
+  const sceneBrief = sceneAnchorConstraintText(visual, shot);
+  return EXPLICIT_SCENE_ANCHOR_PATTERNS.filter(({ pattern }) => pattern.test(sceneBrief)).map(
+    ({ anchor }) => anchor
+  );
+}
+
+export function requiresCelestialSubjectInsideWindow(visual: SceneVisual, shot: string): boolean {
+  const sceneBrief = sceneAnchorConstraintText(visual, shot);
+  return /\b(?:moon|sun)\b[^.]{0,140}\b(?:in|inside|through)\s+(?:the\s+)?(?:existing\s+)?window\b|\b(?:in|inside|through)\s+(?:the\s+)?(?:existing\s+)?window\b[^.]{0,140}\b(?:moon|sun)\b/i.test(
+    sceneBrief
+  );
+}
+
+function sceneAnchorConstraintText(visual: SceneVisual, shot: string): string {
   const cameraCharacters =
     typeof visual.cameraComposition === 'string'
       ? ''
       : visual.cameraComposition.characters.map((character) => character.description || '').join(' ');
-  const sceneBrief = [visual.setting, shot, cameraCharacters].filter(Boolean).join(' ');
-  return EXPLICIT_SCENE_ANCHOR_PATTERNS.filter(({ pattern }) => pattern.test(sceneBrief)).map(
-    ({ anchor }) => anchor
-  );
+  return [visual.setting, shot, cameraCharacters].filter(Boolean).join(' ');
 }
 
 function imageDataForGenerated(

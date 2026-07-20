@@ -110,7 +110,10 @@ import {
   type StoryGenerationKind,
 } from './generationKindRouting';
 import type { BuiltScenePromptPayload } from '../domain/image/ImageDomainService';
-import { deriveExplicitSceneAnchorConstraints } from '../domain/image/imageValidationRun';
+import {
+  deriveExplicitSceneAnchorConstraints,
+  requiresCelestialSubjectInsideWindow,
+} from '../domain/image/imageValidationRun';
 // NEW M9: Character-based reference tracking
 import {
   buildCharacterRegistry,
@@ -4714,7 +4717,11 @@ export function buildTargetedEditRepairPlan(
     const shot = typeof camera === 'string' ? camera : camera.shot;
     const anchors = deriveExplicitSceneAnchorConstraints(scene.sceneVisual, shot);
     if (anchors.length > 0) {
-      const exactCountNote = `Keep exactly one ${anchors.join(' and exactly one ')}.`;
+      const exactCountNote = `Keep exactly one ${anchors.join(' and exactly one ')}.${
+        requiresCelestialSubjectInsideWindow(scene.sceneVisual, shot)
+          ? ' Place the single Moon/Sun character inside the remaining existing window sky view; do not use a separate sky cloud or portal.'
+          : ''
+      }`;
       const genericIssueIndex = issues.findIndex((issue) => issue.kind === 'generic');
       if (genericIssueIndex >= 0) issues.splice(genericIssueIndex, 1);
       if (!issues.some((issue) => issue.kind === 'composition')) {

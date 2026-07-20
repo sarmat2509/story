@@ -12,6 +12,7 @@ import {
   runProductImageValidation,
   runSegmentedProductImageValidation,
   deriveExplicitSceneAnchorConstraints,
+  requiresCelestialSubjectInsideWindow,
   type GraphicNovelPanelImageValidationResult,
 } from '../imageValidationRun';
 
@@ -77,6 +78,21 @@ assert.deepEqual(
   ),
   ['window', 'Moon subject'],
   'Singular scene anchors must be promoted into explicit count constraints for scene QA'
+);
+assert.equal(
+  requiresCelestialSubjectInsideWindow(
+    {
+      setting: 'A glowing yawn rises near the window.',
+      lighting: 'night',
+      cameraComposition: {
+        shot: 'Frame the Moon visible through the window with the armchair.',
+        characters: [],
+      },
+    },
+    'Frame the Moon visible through the window with the armchair.'
+  ),
+  true,
+  'Moon-in-window staging must become an explicit celestial placement constraint'
 );
 
 function validLayoutResult(): ImageValidationResult {

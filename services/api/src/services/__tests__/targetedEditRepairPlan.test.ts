@@ -210,6 +210,7 @@ const forcedAnchorPlan = buildTargetedEditRepairPlan(
 assert.equal(forcedAnchorPlan.manifest.issues[0]?.kind, 'composition');
 assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one window/);
 assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one Moon subject/);
+assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /inside the remaining existing window sky view/);
 
 const generationAnchorPrompt = buildSceneImagePrompt({
   sceneVisual: {
@@ -227,5 +228,6 @@ assert.match(
   generationAnchorPrompt,
   /Exact scene counts: include exactly one window and exactly one Moon subject/
 );
+assert.match(generationAnchorPrompt, /Celestial placement: place the single Moon\/Sun character inside the existing window sky view/);
 
 console.log('targeted edit repair plan guards passed');
