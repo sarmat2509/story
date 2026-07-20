@@ -112,9 +112,8 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
 }
 
 // Security middleware
-// CSP is configured to allow SSR hydration:
-// - 'unsafe-inline' for window.__INITIAL_STORY__ injection
-// - webAppUrl for the Metro/SPA bundle script src
+// CSP permits the small inline scripts used by server-rendered public pages and
+// the SPA bundle loaded only when a public story detects persisted browser auth.
 const webAppOrigin = (config.web?.webAppUrl || '').replace(/\/$/, '');
 // In local development nginx runs on port 80 (mapped to 8081 on the host).
 // Metro generates source-map and HMR URLs relative to the Host header it receives.

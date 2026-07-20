@@ -2,7 +2,6 @@ import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
 import type { PublicAuthorView, PublicStoryListItem } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
-import { getVersionedWebBundleUrl } from './webBundleUrl';
 
 const AUTHOR_STYLES = `
 *{box-sizing:border-box}
@@ -86,20 +85,12 @@ export function renderPublicAuthorHtml(params: {
   const { author, stories, total } = params;
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art';
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || webAppUrl;
-  const webBundleUrl = getVersionedWebBundleUrl();
-  const fullWebBundleUrl = webBundleUrl.startsWith('http')
-    ? webBundleUrl
-    : `${webAppUrl}${webBundleUrl.startsWith('/') ? '' : '/'}${webBundleUrl}`;
   const authorUrl = `${webAppUrl}/authors/${encodeURIComponent(author.id)}`;
   const avatarUrl = absoluteUrl(author.avatarUrl, apiBase);
   const description = trimDescription(
     author.aboutMe || `${author.displayName} has ${total} published stories on WonderTales.`
   );
   const initial = author.displayName.trim().charAt(0).toUpperCase() || 'A';
-  const initialAuthorJson = JSON.stringify({ author, stories, pagination: { total } }).replace(
-    /</g,
-    '\\u003c'
-  );
 
   return `<!DOCTYPE html>
 <html lang="uk">
@@ -143,8 +134,6 @@ export function renderPublicAuthorHtml(params: {
       </section>
     </main>
   </div>
-  <script>window.__INITIAL_AUTHOR__ = ${initialAuthorJson};</script>
-  <script src="${escapeHtml(fullWebBundleUrl)}" defer></script>
 </body>
 </html>`;
 }

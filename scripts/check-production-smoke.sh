@@ -230,7 +230,7 @@ async function checkPage({ path, label, expectedStatus = 200, robots, contains =
   }
 }
 
-async function checkHydrationBundle(path, label) {
+async function checkStaticSsrDocument(path, label, expectsAuthenticatedApp = false) {
   const page = await request('GET', path);
   if (page.res.status !== 200) {
     fail(`${label} page ${path} returned ${page.res.status}`);
@@ -239,23 +239,44 @@ async function checkHydrationBundle(path, label) {
 
   const scriptSources = [...page.text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
     .map((match) => match[1]);
-  const bundleSource = scriptSources.find((source) => /(?:bundle\.js|index\.bundle)/i.test(source));
-  if (!bundleSource) {
-    fail(`${label} page ${path} has no hydration bundle script`);
-    return;
-  }
-  if (/(?:\?|&)dev=true(?:&|$)/i.test(bundleSource)) {
-    fail(`${label} uses a development bundle URL: ${bundleSource}`);
-    return;
+  if (scriptSources.length === 0) {
+    pass(`${label} has no client bundle`);
+  } else {
+    fail(`${label} unexpectedly loads external script(s): ${scriptSources.join(', ')}`);
   }
 
-  const bundleUrl = new URL(bundleSource, baseUrl).toString();
-  const bundle = await request('HEAD', bundleUrl);
-  const contentType = bundle.res.headers.get('content-type') || '';
-  if (bundle.res.status === 200 && /(?:java|ecma)script/i.test(contentType)) {
-    pass(`${label} loads ${bundleSource}`);
+  if (!/window\.__INITIAL_(?:STORY|STORIES|AUTHOR)__/.test(page.text)) {
+    pass(`${label} has no hydration payload`);
   } else {
-    fail(`${label} bundle returned ${bundle.res.status} ${contentType || 'missing content-type'}`);
+    fail(`${label} still embeds a hydration payload`);
+  }
+
+  if (expectsAuthenticatedApp) {
+    const bundleLiteral = page.text.match(/script\.src=("(?:\\.|[^"\\])*")/)?.[1];
+    if (
+      page.text.includes('data-authenticated-app-bootstrap') &&
+      page.text.includes("localStorage.getItem('auth-storage')") &&
+      page.text.includes("document.createElement('script')") &&
+      bundleLiteral
+    ) {
+      pass(`${label} conditionally mounts the app for authenticated users`);
+    } else {
+      fail(`${label} is missing the authenticated app bootstrap`);
+      return;
+    }
+
+    const bundleSource = JSON.parse(bundleLiteral);
+    if (/(?:\?|&)dev=true(?:&|$)/i.test(bundleSource)) {
+      fail(`${label} uses a development bundle URL: ${bundleSource}`);
+      return;
+    }
+    const bundle = await request('HEAD', new URL(bundleSource, baseUrl).toString());
+    const contentType = bundle.res.headers.get('content-type') || '';
+    if (bundle.res.status === 200 && /(?:java|ecma)script/i.test(contentType)) {
+      pass(`${label} authenticated app bundle is available`);
+    } else {
+      fail(`${label} app bundle returned ${bundle.res.status} ${contentType || 'missing content-type'}`);
+    }
   }
 }
 
@@ -556,6 +577,8 @@ async function main() {
     { path: '/not-a-real-public-route-smoke', label: 'Unknown public route', expectedStatus: 404, robots: 'noindex,nofollow' },
   ];
   for (const page of pages) await checkPage(page);
+  await checkStaticSsrDocument('/stories', 'SSR stories catalog');
+  await checkStaticSsrDocument('/uk/stories', 'SSR Ukrainian stories catalog');
 
   const redirects = [
     { path: '/en', label: 'Legacy English landing', expectedLocation: '/' },
@@ -684,9 +707,10 @@ async function main() {
       robots: 'index,follow',
       contains: [firstStory.title],
     });
-    await checkHydrationBundle(
+    await checkStaticSsrDocument(
       `/stories/${encodeURIComponent(slug)}`,
-      'SSR story hydration bundle'
+      'SSR story detail',
+      true
     );
     await checkJson({
       path: `/api/v1/public/stories/${encodeURIComponent(slug)}`,
@@ -730,6 +754,10 @@ async function main() {
       robots: 'index,follow',
       contains: [firstStory.authorDisplayName || 'WonderTales'],
     });
+    await checkStaticSsrDocument(
+      `/authors/${encodeURIComponent(firstStory.authorId)}`,
+      'SSR author detail'
+    );
     await checkJson({
       path: `/api/v1/public/authors/${encodeURIComponent(firstStory.authorId)}`,
       label: 'Public author API',

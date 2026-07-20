@@ -544,7 +544,7 @@ export const config = {
       process.env.WEB_APP_URL ||
       process.env.EXPO_PUBLIC_API_BASE_URL ||
       'https://api.wondertales.com',
-    webBundleUrl: process.env.WEB_BUNDLE_URL || '/static/js/bundle.js', // SPA bundle for SSR hydration
+    webBundleUrl: process.env.WEB_BUNDLE_URL || '/static/js/bundle.js', // SPA bundle for authenticated SSR handoff
     webBuildId:
       process.env.WEB_BUILD_ID ||
       process.env.SOURCE_VERSION ||

@@ -37,6 +37,7 @@ API_TESTS=(
   src/ssr/__tests__/publishConfirmationI18n.test.ts
   src/ssr/__tests__/renderPublicAuthorHtml.test.ts
   src/ssr/__tests__/renderPublicStoriesCatalogHtml.test.ts
+  src/ssr/__tests__/renderPublishedStoryHtml.test.ts
   src/ssr/__tests__/routeOwnership.test.ts
   src/ssr/__tests__/seoEtag.test.ts
   src/services/__tests__/assetAccessService.test.ts
@@ -106,6 +107,7 @@ run_in apps/universal-app pnpm exec tsx src/utils/__tests__/childDataDeletionReq
 run_in apps/universal-app pnpm exec tsx src/utils/__tests__/privacyRequestMessages.test.ts
 run_in apps/universal-app pnpm exec tsx src/services/analytics/__tests__/privacy.test.ts
 run_in apps/universal-app pnpm exec tsx src/__tests__/publishedStorySidebarScroll.test.ts
+run_in apps/universal-app pnpm exec tsx src/__tests__/publishedStoryDocumentBoundary.test.ts
 run_in apps/universal-app pnpm type-check
 run_in apps/universal-app pnpm build:web
 run bash scripts/check-web-manifest-brand.sh

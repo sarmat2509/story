@@ -28,4 +28,18 @@ assert.doesNotMatch(
   'published story sidebar content should not remain sticky inside its scroll column'
 );
 
+const rightColumnSource = source.match(
+  /const renderRightColumn = \(\) => \(([\s\S]*?)\n  \);\n\n  if \(useDesktopLayout\)/
+)?.[1];
+assert.ok(rightColumnSource, 'published story should define desktop sidebar content');
+const reportActionIndex = rightColumnSource.lastIndexOf('{renderReportStoryButton()}');
+assert.ok(
+  reportActionIndex > rightColumnSource.indexOf("label={t('common.edit')}"),
+  'published story report action should follow the owner edit action in the desktop sidebar'
+);
+assert.ok(
+  reportActionIndex > rightColumnSource.indexOf('<PublishedStoryCta'),
+  'published story report action should follow the guest CTA in the desktop sidebar'
+);
+
 console.log('published story sidebar scroll regression guards passed');

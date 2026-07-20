@@ -28,7 +28,6 @@ router.get('/:token', async (req: Request, res: Response) => {
 
     const html = renderPublishedStoryHtml({
       story,
-      useStaticBody: true,
       robots: 'noindex,nofollow',
     });
 

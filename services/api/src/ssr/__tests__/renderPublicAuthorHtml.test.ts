@@ -40,6 +40,8 @@ void (async function main() {
   assert.match(html, /Ava Author/);
   assert.match(html, /The Moonlit Garden/);
   assert.match(html, /\/stories\/moonlit-garden/);
+  assert.doesNotMatch(html, /window\.__INITIAL_AUTHOR__/);
+  assert.doesNotMatch(html, /<script\b[^>]*\bsrc=/i);
   assert.doesNotMatch(html, /email/i, 'author SSR must not expose private account fields');
 
   console.log('renderPublicAuthorHtml tests passed');

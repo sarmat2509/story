@@ -13,10 +13,10 @@ import { buildStoryJsonLd } from './buildStoryJsonLd';
 export interface RenderHtmlDocumentParams {
   story: StoryPublicView;
   baseUrl: string;
-  webBundleUrl: string;
   bodyHtml?: string;
   robots?: 'index,follow' | 'noindex,nofollow';
   headStyles?: string;
+  authenticatedAppBundleUrl?: string;
 }
 
 const BASE_DOCUMENT_STYLES = `
@@ -193,17 +193,18 @@ function sanitizeStoryPublicView(story: StoryPublicView): StoryPublicView {
 }
 
 /**
- * Renders HTML shell with meta, JSON-LD, body placeholder, and __INITIAL_STORY__ script.
- * Body is typically empty or minimal for SPA hydration.
+ * Renders a complete public story document. Public SSR must not mount the SPA bundle:
+ * guests keep normal document navigation, while signed-in web users can mount the app
+ * on the same canonical URL via a tiny auth-state bootstrap.
  */
 export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
   const {
     story,
     baseUrl,
-    webBundleUrl,
     bodyHtml = '<div id="root"></div>',
     robots = 'index,follow',
     headStyles = '',
+    authenticatedAppBundleUrl,
   } = params;
   const publicStory = sanitizeStoryPublicView(story);
 
@@ -216,7 +217,9 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
   });
 
   const jsonLd = buildStoryJsonLd(publicStory, baseUrl);
-  const initialStoryJson = JSON.stringify(publicStory).replace(/</g, '\\u003c');
+  const authenticatedAppBootstrap = authenticatedAppBundleUrl
+    ? `<script data-authenticated-app-bootstrap>(function(){try{var persisted=window.localStorage.getItem('auth-storage');if(!persisted)return;var auth=JSON.parse(persisted);var state=auth&&auth.state;if(state&&state.isAuthenticated===true&&typeof state.token==='string'&&state.token){var script=document.createElement('script');script.src=${JSON.stringify(authenticatedAppBundleUrl).replace(/</g, '\\u003c')};script.defer=true;document.body.appendChild(script);}}catch(_error){}})();</script>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="uk">
@@ -227,8 +230,7 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
 </head>
 <body>
   ${bodyHtml}
-  <script>window.__INITIAL_STORY__ = ${initialStoryJson};</script>
-  <script src="${webBundleUrl}" defer></script>
+  ${authenticatedAppBootstrap}
 </body>
 </html>`;
 }

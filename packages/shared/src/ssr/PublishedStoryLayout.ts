@@ -23,6 +23,7 @@ export interface PublishedStoryLayoutParams {
   story: StoryPublicView;
   apiBase: string;
   webAppUrl: string;
+  alignmentUrl?: string;
 }
 
 function assetUrl(value: string | null | undefined, apiBase: string): string {
@@ -128,7 +129,7 @@ function renderStoryContent(story: StoryPublicView, apiBase: string): string {
 }
 
 export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): string {
-  const { story, apiBase, webAppUrl } = params;
+  const { story, apiBase, webAppUrl, alignmentUrl = '' } = params;
 
   const publishedAt = story.publishedAt
     ? new Date(story.publishedAt).toLocaleDateString('uk-UA', {
@@ -148,16 +149,65 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
     ? `<div class="sidebar-widget reading-time"><span class="reading-time-text">~${readingTimeMinutes} хв читання</span></div>`
     : '';
 
-  const audioWidget = audioUrl
-    ? `<div class="sidebar-widget"><audio controls src="${escapeHtml(audioUrl)}"></audio></div>`
-    : '';
+  const renderAudioWidget = (placement: 'desktop' | 'mobile') => {
+    if (!audioUrl) return '';
+    const audioDuration = story.audio?.duration;
+    const duration = typeof audioDuration === 'number' && Number.isFinite(audioDuration) && audioDuration > 0
+      ? audioDuration
+      : 0;
+    const followId = `story-audio-follow-${placement}`;
+    return `<section class="sidebar-widget story-audio-widget story-audio-widget-${placement}" data-story-audio-player data-alignment-url="${escapeHtml(alignmentUrl)}">` +
+      `<h2 class="story-audio-title">Аудіоісторія</h2>` +
+      `<audio class="story-audio-native" controls preload="metadata" src="${escapeHtml(audioUrl)}"></audio>` +
+      `<div class="story-audio-custom">` +
+        `<button class="story-audio-play" type="button" data-audio-play aria-label="Відтворити історію" aria-pressed="false">` +
+          `<span class="story-audio-play-icon" aria-hidden="true"></span>` +
+          `<span class="story-audio-pause-icon" aria-hidden="true">Ⅱ</span>` +
+        `</button>` +
+        `<div class="story-audio-progress-row">` +
+          `<span class="story-audio-time" data-audio-current>0:00</span>` +
+          `<input class="story-audio-progress" data-audio-progress type="range" min="0" max="${duration}" step="0.1" value="0" aria-label="Позиція відтворення">` +
+          `<span class="story-audio-time" data-audio-duration>${duration > 0 ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}` : '0:00'}</span>` +
+        `</div>` +
+        `<div class="story-audio-speed-section">` +
+          `<span class="story-audio-speed-title">Швидкість відтворення</span>` +
+          `<div class="story-audio-speed-row">` +
+            `<span class="story-audio-speed-icon" aria-hidden="true">🐌</span>` +
+            `<input class="story-audio-speed" data-audio-speed type="range" min="0.75" max="1.25" step="0.05" value="1" aria-label="Швидкість відтворення">` +
+            `<span class="story-audio-speed-icon" aria-hidden="true">🏃</span>` +
+            `<output class="story-audio-speed-value" data-audio-speed-value>1×</output>` +
+          `</div>` +
+        `</div>` +
+        `${story.audio?.alignment && alignmentUrl
+          ? `<div class="story-audio-follow">` +
+              `<label class="story-audio-follow-row" for="${followId}">` +
+                `<input id="${followId}" class="story-audio-follow-input" data-audio-follow type="checkbox">` +
+                `<span class="story-audio-switch" aria-hidden="true"></span>` +
+                `<span class="story-audio-follow-label">Читати разом</span>` +
+              `</label>` +
+              `<p class="story-audio-follow-description">Читай слідом за оповідачем</p>` +
+            `</div>`
+          : ''}` +
+        `<p class="story-audio-status" data-audio-status role="status" aria-live="polite"></p>` +
+      `</div>` +
+    `</section>`;
+  };
+
+  const desktopAudioWidget = renderAudioWidget('desktop');
+  const mobileAudioWidget = renderAudioWidget('mobile');
 
   const ratingHtml =
     story.rating && story.rating.count > 0
       ? `<div class="sidebar-widget rating-display"><span class="rating-text">${emojiForAvg(story.rating.avg)} ${story.rating.avg.toFixed(1)} (${story.rating.count})</span></div>`
       : '';
 
-  const sidebarContent = [readingTimeHtml, audioWidget, ratingHtml].filter(Boolean).join('');
+  const reportHref = `${webAppUrl.replace(/\/$/, '')}/support?topic=unsafe_content&url=${encodeURIComponent(story.share.url)}`;
+  const reportAction = (placement: 'sidebar' | 'mobile') =>
+    `<a class="report-action report-action-${placement}" href="${escapeHtml(reportHref)}" data-report-story-id="${escapeHtml(story.id)}">Report generated content</a>`;
+
+  const sidebarContent = [readingTimeHtml, desktopAudioWidget, ratingHtml, reportAction('sidebar')]
+    .filter(Boolean)
+    .join('');
   const sidebar = sidebarContent
     ? `<aside class="sidebar"><div class="sidebar-sticky">${sidebarContent}</div></aside>`
     : '';
@@ -168,7 +218,6 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
   const authorHtml = authorHref
     ? `<a class="author-link" href="${escapeHtml(authorHref)}">${authorName}</a>`
     : authorName;
-  const reportHref = `${webAppUrl.replace(/\/$/, '')}/support?topic=unsafe_content&url=${encodeURIComponent(story.share.url)}`;
 
   return `
   <div class="nav-rail"></div>
@@ -180,7 +229,8 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
     <div class="layout">
       <div class="main">
         <p class="meta">${authorHtml} · ${escapeHtml(publishedAt)}</p>
-        <a class="report-action" href="${escapeHtml(reportHref)}" data-report-story-id="${escapeHtml(story.id)}">Report generated content</a>
+        ${mobileAudioWidget}
+        ${reportAction('mobile')}
         ${scenesHtml}
       </div>
       ${sidebar}

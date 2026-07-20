@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query';
 import type {
   StoryRequestStatusResponse,
@@ -900,31 +899,6 @@ export function usePublishedStories(params?: {
     readingTimeMin,
     readingTimeMax,
   } = params ?? {};
-  const canUseInitialStories =
-    typeof window !== 'undefined' &&
-    limit === 24 &&
-    offset === 0 &&
-    hasAudio !== true &&
-    !scenarioCardId &&
-    !language &&
-    !ageGroup &&
-    typeof readingTimeMin !== 'number' &&
-    typeof readingTimeMax !== 'number';
-  const initialStoriesRef = React.useRef<{
-    stories: PublicStoryListItem[];
-    pagination: { limit: number; offset: number; total: number };
-  } | null>(null);
-  if (
-    canUseInitialStories &&
-    !initialStoriesRef.current &&
-    typeof window !== 'undefined' &&
-    (window as any).__INITIAL_STORIES__
-  ) {
-    initialStoriesRef.current = (window as any).__INITIAL_STORIES__;
-    delete (window as any).__INITIAL_STORIES__;
-  }
-  const hasInitialStories = !!initialStoriesRef.current;
-
   const searchParams: Record<string, string | number> = { limit, offset };
   if (hasAudio === true) searchParams.has_audio = 'true';
   if (scenarioCardId) searchParams.scenario_card_id = scenarioCardId;
@@ -956,8 +930,6 @@ export function usePublishedStories(params?: {
         pagination: response.data.pagination,
       };
     },
-    enabled: !hasInitialStories,
-    initialData: hasInitialStories ? (initialStoriesRef.current ?? undefined) : undefined,
   });
 }
 
@@ -986,21 +958,9 @@ export function usePublicAuthor(
   });
 }
 
-// Get published story by slug (public). On web, may use __INITIAL_STORY__ from SSR.
+// Get a published story by slug. Query identity follows the current route slug.
 export function usePublicStory(slug: string | undefined, enabled = true) {
-  const initialStoryRef = React.useRef<StoryPublicView | null>(null);
-  if (
-    typeof window !== 'undefined' &&
-    slug &&
-    (window as any).__INITIAL_STORY__ &&
-    !initialStoryRef.current
-  ) {
-    initialStoryRef.current = (window as any).__INITIAL_STORY__;
-    delete (window as any).__INITIAL_STORY__;
-  }
-  const hasInitialStory = !!initialStoryRef.current;
-
-  const query = useQuery({
+  return useQuery({
     queryKey: ['public-story', slug],
     queryFn: async () => {
       const response = await apiClient.get<{
@@ -1009,23 +969,12 @@ export function usePublicStory(slug: string | undefined, enabled = true) {
       }>(`/api/v1/public/stories/${slug}`);
       return response.data.story;
     },
-    enabled: !!slug && enabled && !hasInitialStory,
+    enabled: !!slug && enabled,
   });
-
-  if (hasInitialStory && slug) {
-    return {
-      ...query,
-      data: initialStoryRef.current,
-      isLoading: false,
-      error: null,
-      isFetching: false,
-    };
-  }
-  return query;
 }
 
 /**
- * Fetch public story by share token (unlisted). No __INITIAL_STORY__ (SSR uses different path).
+ * Fetch a public story by share token (unlisted).
  */
 export function usePublicStoryByToken(token: string, enabled = true) {
   return useQuery({
@@ -1043,7 +992,6 @@ export function usePublicStoryByToken(token: string, enabled = true) {
 
 /**
  * Unified hook for story reader. Use slug for public, storyId for auth.
- * On web with slug, uses __INITIAL_STORY__ from SSR when available.
  */
 export function useStoryForReader(slug?: string, storyId?: string) {
   const publicQuery = usePublicStory(slug, !!slug);

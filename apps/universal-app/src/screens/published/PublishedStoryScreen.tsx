@@ -599,7 +599,6 @@ export default function PublishedStoryScreen() {
         rating={story.rating}
         onVoted={refetch}
       />
-      {renderReportStoryButton()}
       {isAuthenticated && isOwner && (
         <AppButton
           label={t('common.edit')}
@@ -611,6 +610,7 @@ export default function PublishedStoryScreen() {
         />
       )}
       {!isAuthenticated && <PublishedStoryCta slug={slug} isAuthenticated={false} inSidebar />}
+      {renderReportStoryButton()}
     </>
   );
 
