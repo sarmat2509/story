@@ -102,6 +102,7 @@ import {
   getSceneVisualCharacterCount,
   limitSceneVisualCharacters,
   MAX_SCENE_IMAGE_CHARACTERS,
+  normalizeLegacySceneVisualCharacterRefs,
 } from '../domain/story/sceneCharacterLimits';
 import {
   imageJobTypeForGenerationKind,
@@ -314,7 +315,11 @@ function buildFixedStagePlan(params: {
  * 3. Scene has visualPrompt that is a plain string (old stories) → put into cameraComposition
  */
 function migrateVisualPrompt(scene: any): SceneVisual {
-  if (scene.sceneVisual) return limitSceneVisualCharacters(scene.sceneVisual as SceneVisual);
+  if (scene.sceneVisual) {
+    return limitSceneVisualCharacters(
+      normalizeLegacySceneVisualCharacterRefs(scene.sceneVisual as SceneVisual)
+    );
+  }
 
   const vp = scene.visualPrompt || '';
 
@@ -323,7 +328,9 @@ function migrateVisualPrompt(scene: any): SceneVisual {
     try {
       const parsed = JSON.parse(vp);
       if (parsed && typeof parsed.setting === 'string' && parsed.cameraComposition !== undefined) {
-        return limitSceneVisualCharacters(parsed as SceneVisual);
+        return limitSceneVisualCharacters(
+          normalizeLegacySceneVisualCharacterRefs(parsed as SceneVisual)
+        );
       }
     } catch (_) {
       // Not valid JSON — fall through to legacy handling

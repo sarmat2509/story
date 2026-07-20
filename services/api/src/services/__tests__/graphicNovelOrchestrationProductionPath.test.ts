@@ -389,6 +389,22 @@ async function testPanelQualityDecisionUsesHardPanelSignals(): Promise<void> {
     graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(panelValidation as any),
     { accepted: true, failureReasons: [] }
   );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldKeepCurrentGraphicNovelPanelAfterPrevalidation(
+      'edit',
+      panelValidation as any
+    ),
+    true,
+    'a passing current panel skips the paid edit path'
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldKeepCurrentGraphicNovelPanelAfterPrevalidation(
+      'regenerate',
+      panelValidation as any
+    ),
+    false,
+    'an explicit regenerate request remains a force-regeneration operation'
+  );
 
   const duplicated = {
     ...panelValidation,
@@ -400,6 +416,14 @@ async function testPanelQualityDecisionUsesHardPanelSignals(): Promise<void> {
   assert.deepEqual(
     graphicNovelOrchestrationTestSeams.graphicNovelPanelQualityDecision(duplicated as any),
     { accepted: false, failureReasons: ['duplicated_character:Luma'] }
+  );
+  assert.equal(
+    graphicNovelOrchestrationTestSeams.shouldKeepCurrentGraphicNovelPanelAfterPrevalidation(
+      'edit',
+      duplicated as any
+    ),
+    false,
+    'a failing current panel continues into targeted edit'
   );
 
   const identityDrift = {

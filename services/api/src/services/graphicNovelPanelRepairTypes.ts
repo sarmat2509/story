@@ -37,6 +37,7 @@ export interface GraphicNovelPanelRepairRequest {
   storyId: string;
   pageNumber: number;
   panels: GraphicNovelPanelRepairTarget[];
+  recoverStaleGeneratingPage?: boolean;
   refreshTurnaroundCharacterIds?: string[];
   style?: string;
 }

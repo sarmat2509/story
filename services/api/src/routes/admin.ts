@@ -266,6 +266,7 @@ const AdminRepairGraphicNovelPanelsBodySchema = z
       .min(1)
       .max(12),
     refreshTurnaroundCharacterIds: z.array(z.string().uuid()).max(12).optional(),
+    recoverStaleGeneratingPage: z.boolean().optional().default(false),
     style: z.string().trim().min(1).max(400).optional(),
   })
   .strict()
@@ -1951,7 +1952,15 @@ router.post(
         });
       }
 
-      if (page.status !== 'completed') {
+      const pageGenerationParams = (page.generationParams as Record<string, unknown> | null) || {};
+      const canRecoverStaleGeneratingPage =
+        parsedBody.data.recoverStaleGeneratingPage &&
+        page.status === 'generating' &&
+        typeof page.imageUrl === 'string' &&
+        page.imageUrl.trim().length > 0 &&
+        typeof pageGenerationParams.artOnlyImageStoragePath === 'string' &&
+        pageGenerationParams.artOnlyImageStoragePath.trim().length > 0;
+      if (page.status !== 'completed' && !canRecoverStaleGeneratingPage) {
         return res.status(409).json({
           status: 'error',
           message: 'Graphic novel page must be completed before repairing panels',
@@ -1961,7 +1970,6 @@ router.post(
       const plannedPage = page.layoutJson as {
         panels?: Array<{ script?: { panelId?: string } }>;
       } | null;
-      const pageGenerationParams = (page.generationParams as Record<string, unknown> | null) || {};
       if (
         typeof pageGenerationParams.artOnlyImageStoragePath !== 'string' ||
         !pageGenerationParams.artOnlyImageStoragePath.trim()
@@ -1993,6 +2001,9 @@ router.post(
         storyId: parsedParams.data.storyId,
         pageNumber: parsedParams.data.pageNumber,
         panels: parsedBody.data.panels as GraphicNovelPanelRepairTarget[],
+        ...(parsedBody.data.recoverStaleGeneratingPage
+          ? { recoverStaleGeneratingPage: true }
+          : {}),
         ...(parsedBody.data.refreshTurnaroundCharacterIds
           ? { refreshTurnaroundCharacterIds: parsedBody.data.refreshTurnaroundCharacterIds }
           : {}),

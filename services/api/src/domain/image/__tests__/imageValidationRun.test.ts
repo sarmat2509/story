@@ -633,6 +633,10 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.match(layoutCall.prompt, /EXPECTED CHARACTER STAGING HINTS/);
   assert.match(layoutCall.prompt, /trust the stable visual identity from the reference image/);
   assert.match(layoutCall.prompt, /scan the whole Image 1 for ALL visible copies/);
+  assert.match(
+    layoutCall.prompt,
+    /Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF/
+  );
   assert.match(layoutCall.prompt, /dog-like fairy as a chicken-like creature/);
   assert.match(layoutCall.prompt, /Lera \(human; identity reference=Image 2\)/);
   assert.match(layoutCall.prompt, /Druzhok \(imaginary; identity reference=Image 3\)/);

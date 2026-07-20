@@ -13,8 +13,73 @@ type SceneVisualLike = {
   [key: string]: unknown;
 };
 
+type CameraCharacterLike = {
+  characterRef?: unknown;
+  name?: unknown;
+  [key: string]: unknown;
+};
+
+const LEGACY_CHARACTER_ID_SUFFIX = /\s*\[ID:\s*([^\]]+)\]\s*$/i;
+const UUID_CHARACTER_REF =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TEMPORARY_CHARACTER_REF = /^NEW_CH_\d+$/i;
+
 function isCameraCompositionLike(value: unknown): value is CameraCompositionLike {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stableLegacyCharacterRef(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = value.match(LEGACY_CHARACTER_ID_SUFFIX);
+  const candidate = match?.[1]?.trim();
+  if (!candidate) return undefined;
+  return UUID_CHARACTER_REF.test(candidate) || TEMPORARY_CHARACTER_REF.test(candidate)
+    ? candidate
+    : undefined;
+}
+
+/**
+ * Convert legacy display names such as `Pico [ID: uuid]` into the structural
+ * identity used by current Director output. The display name is always cleaned;
+ * an existing characterRef remains authoritative.
+ */
+export function normalizeLegacySceneVisualCharacterRefs<T>(sceneVisual: T): T {
+  if (!sceneVisual || typeof sceneVisual !== 'object') return sceneVisual;
+  const cameraComposition = (sceneVisual as SceneVisualLike).cameraComposition;
+  if (!isCameraCompositionLike(cameraComposition) || !Array.isArray(cameraComposition.characters)) {
+    return sceneVisual;
+  }
+
+  let changed = false;
+  const characters = cameraComposition.characters.map((rawCharacter) => {
+    if (!rawCharacter || typeof rawCharacter !== 'object' || Array.isArray(rawCharacter)) {
+      return rawCharacter;
+    }
+    const character = rawCharacter as CameraCharacterLike;
+    const rawName = typeof character.name === 'string' ? character.name : '';
+    const name = stripCharacterIdFromName(rawName).trim() || rawName;
+    const existingRef =
+      typeof character.characterRef === 'string' && character.characterRef.trim()
+        ? character.characterRef.trim()
+        : undefined;
+    const characterRef = existingRef || stableLegacyCharacterRef(rawName);
+    if (name === rawName && characterRef === existingRef) return rawCharacter;
+    changed = true;
+    return {
+      ...character,
+      name,
+      ...(characterRef ? { characterRef } : {}),
+    };
+  });
+
+  if (!changed) return sceneVisual;
+  return {
+    ...(sceneVisual as SceneVisualLike),
+    cameraComposition: {
+      ...cameraComposition,
+      characters,
+    },
+  } as T;
 }
 
 function characterLimitKey(name: unknown): string {

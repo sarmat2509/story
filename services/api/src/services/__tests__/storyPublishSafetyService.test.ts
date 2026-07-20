@@ -1,5 +1,8 @@
 import assert from 'node:assert';
-import { evaluateStoryPublishSafety } from '../storyPublishSafetyService';
+import {
+  buildGraphicNovelPagePublishValidationEvidence,
+  evaluateStoryPublishSafety,
+} from '../storyPublishSafetyService';
 
 const baseInput = {
   story: {
@@ -220,6 +223,142 @@ void (async function main() {
     }),
     { allowed: true },
     'public publishing does not require image validation rows when image validation is disabled'
+  );
+
+  assert.deepStrictEqual(
+    buildGraphicNovelPagePublishValidationEvidence({
+      status: 'completed',
+      layoutJson: { panels: [{}, {}] },
+      generationParams: {
+        panelRepair: {
+          modes: [
+            { panelNumber: 1, score: 96 },
+            { panelNumber: 2, score: 92 },
+          ],
+        },
+      },
+    }),
+    {
+      panelCount: 2,
+      panelScores: { 1: 96, 2: 92 },
+      missingPanelNumbers: [],
+      failedPanelNumbers: [],
+      score: 92,
+    },
+    'comic page publishing uses the weakest current panel score'
+  );
+
+  assert.deepStrictEqual(
+    buildGraphicNovelPagePublishValidationEvidence({
+      status: 'completed',
+      layoutJson: { panels: [{}, {}] },
+      generationParams: {
+        artValidationRepair: {
+          selectedAttempt: 2,
+          attempts: [
+            {
+              attempt: 1,
+              panelRepair: { modes: [{ panelNumber: 1, score: 90 }] },
+            },
+            {
+              attempt: 2,
+              panelRepair: {
+                modes: [
+                  { panelNumber: 1, score: 94 },
+                  { panelNumber: 2, score: 91 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    }),
+    {
+      panelCount: 2,
+      panelScores: { 1: 94, 2: 91 },
+      missingPanelNumbers: [],
+      failedPanelNumbers: [],
+      score: 91,
+    },
+    'comic page publishing follows the selected full-page validation attempt'
+  );
+
+  assert.deepStrictEqual(
+    buildGraphicNovelPagePublishValidationEvidence({
+      status: 'completed',
+      layoutJson: { panels: [{}, {}] },
+      generationParams: {
+        panelRepair: {
+          modes: [
+            { panelNumber: 1, score: 52 },
+            { panelNumber: 2, score: 90 },
+          ],
+        },
+        manualPanelRepairs: [
+          {
+            panels: [
+              { panelNumber: 1, accepted: true, score: 97 },
+              { panelNumber: 2, accepted: false, score: 40 },
+            ],
+          },
+        ],
+      },
+    }),
+    {
+      panelCount: 2,
+      panelScores: { 1: 97, 2: 90 },
+      missingPanelNumbers: [],
+      failedPanelNumbers: [],
+      score: 90,
+    },
+    'accepted panel edits replace their historical score without accepting failed edits'
+  );
+
+  assert.deepStrictEqual(
+    buildGraphicNovelPagePublishValidationEvidence({
+      status: 'completed',
+      layoutJson: { panels: [{}, {}] },
+      generationParams: {
+        panelRepair: {
+          modes: [
+            { panelNumber: 1, score: 94 },
+            { panelNumber: 2, score: 93 },
+          ],
+          failedPanels: [{ panelNumber: 2 }],
+        },
+      },
+    }),
+    {
+      panelCount: 2,
+      panelScores: { 1: 94, 2: 93 },
+      missingPanelNumbers: [],
+      failedPanelNumbers: [2],
+      score: 0,
+    },
+    'an unresolved failed panel cannot be hidden by other high scores'
+  );
+
+  assert.deepStrictEqual(
+    buildGraphicNovelPagePublishValidationEvidence({
+      status: 'completed',
+      layoutJson: { panels: [{}, {}, {}] },
+      generationParams: {
+        panelRepair: {
+          modes: [
+            { panelNumber: 1, score: 96 },
+            { panelNumber: 3, score: 95 },
+          ],
+        },
+      },
+    }),
+    {
+      panelCount: 3,
+      panelScores: { 1: 96, 3: 95 },
+      missingPanelNumbers: [2],
+      failedPanelNumbers: [],
+      score: null,
+    },
+    'missing current panel validation remains a publish blocker'
   );
 
   console.log('storyPublishSafetyService tests passed');

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { MAX_SCENE_IMAGE_CHARACTERS } from '../../domain/story/sceneCharacterLimits';
+import {
+  MAX_SCENE_IMAGE_CHARACTERS,
+  normalizeLegacySceneVisualCharacterRefs,
+} from '../../domain/story/sceneCharacterLimits';
 import { DIRECTOR_SCHEMA } from '../../domain/story/directorSchema';
 import { mergeDirectorIntoText } from '../storyOrchestration/utilities';
 
@@ -66,6 +69,42 @@ function testMergeDirectorIntoTextKeepsChildWhenLimitingIllustrationCharacters()
   assert.deepStrictEqual(Object.keys(scene.characterOutfitIds), ['A', 'B', 'Child']);
 }
 
+function testLegacyDisplayIdBecomesStructuralCharacterRef() {
+  const picoId = '808a4122-71ab-48f8-aca9-9c956f164e38';
+  const normalized = normalizeLegacySceneVisualCharacterRefs({
+    setting: 'Garden path.',
+    lighting: 'Warm sunlight.',
+    cameraComposition: {
+      shot: 'Medium-wide shot.',
+      characters: [
+        {
+          name: `Pico [ID: ${picoId}]`,
+          description: 'Pico runs beside Maya.',
+        },
+        {
+          characterRef: 'existing-ref',
+          name: `Maya [ID: ignored-legacy-value]`,
+          description: 'Maya smiles.',
+        },
+      ],
+    },
+  });
+
+  assert.deepStrictEqual(normalized.cameraComposition.characters, [
+    {
+      characterRef: picoId,
+      name: 'Pico',
+      description: 'Pico runs beside Maya.',
+    },
+    {
+      characterRef: 'existing-ref',
+      name: 'Maya',
+      description: 'Maya smiles.',
+    },
+  ]);
+}
+
 testDirectorSchemaHasHardCharacterCap();
 testMergeDirectorIntoTextKeepsChildWhenLimitingIllustrationCharacters();
+testLegacyDisplayIdBecomesStructuralCharacterRef();
 console.log('sceneCharacterLimits tests passed');

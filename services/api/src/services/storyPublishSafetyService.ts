@@ -1,6 +1,12 @@
-import type { Story } from '../db/schema';
-import { getAssetRepository, getImageValidationRepository } from '../repositories';
+import type { GraphicNovelPage, Story } from '../db/schema';
+import {
+  getAssetRepository,
+  getGraphicNovelRepository,
+  getImageValidationRepository,
+  getSceneRepository,
+} from '../repositories';
 import { config } from '../config';
+import { normalizeAssetStoragePath } from './entityAssetCleanupService';
 
 export type PublishSafetyCode =
   | 'STORY_HIDDEN'
@@ -46,6 +52,139 @@ export interface PublishImageValidationScore {
   storagePath: string;
   score: number | null;
   validationStatus?: string | null;
+}
+
+export interface GraphicNovelPagePublishValidationEvidence {
+  panelCount: number;
+  panelScores: Record<number, number>;
+  missingPanelNumbers: number[];
+  failedPanelNumbers: number[];
+  score: number | null;
+}
+
+type GraphicNovelPagePublishLike = Pick<
+  GraphicNovelPage,
+  'status' | 'layoutJson' | 'generationParams'
+>;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function positiveInteger(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function finiteNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function panelModesFromGenerationParams(
+  generationParams: Record<string, unknown>
+): unknown[] {
+  const panelRepair = asRecord(generationParams.panelRepair);
+  if (Array.isArray(panelRepair.modes) && panelRepair.modes.length > 0) {
+    return panelRepair.modes;
+  }
+
+  const artValidationRepair = asRecord(generationParams.artValidationRepair);
+  const attempts = Array.isArray(artValidationRepair.attempts)
+    ? artValidationRepair.attempts.map(asRecord)
+    : [];
+  const selectedAttempt = finiteNumber(artValidationRepair.selectedAttempt);
+  const selected =
+    (selectedAttempt !== null
+      ? attempts.find((attempt) => finiteNumber(attempt.attempt) === selectedAttempt)
+      : undefined) ??
+    attempts[attempts.length - 1];
+  const selectedPanelRepair = asRecord(selected?.panelRepair);
+  return Array.isArray(selectedPanelRepair.modes) ? selectedPanelRepair.modes : [];
+}
+
+/**
+ * Resolve validation evidence for the exact panel images composing the current page.
+ * Initial generation stores one score per selected panel; later manual repairs append
+ * accepted replacement scores without rewriting the historical generation summary.
+ */
+export function buildGraphicNovelPagePublishValidationEvidence(
+  page: GraphicNovelPagePublishLike
+): GraphicNovelPagePublishValidationEvidence {
+  const layout = asRecord(page.layoutJson);
+  const layoutPanels = Array.isArray(layout.panels) ? layout.panels : [];
+  const generationParams = asRecord(page.generationParams);
+  const panelRepair = asRecord(generationParams.panelRepair);
+  const panelCount =
+    layoutPanels.length || positiveInteger(panelRepair.panelCount) || 0;
+  const panelScores = new Map<number, number>();
+
+  for (const rawMode of panelModesFromGenerationParams(generationParams)) {
+    const mode = asRecord(rawMode);
+    const panelNumber = positiveInteger(mode.panelNumber);
+    const score = finiteNumber(mode.score);
+    if (panelNumber && score !== null) {
+      panelScores.set(panelNumber, score);
+    }
+  }
+
+  const manualPanelRepairs = Array.isArray(generationParams.manualPanelRepairs)
+    ? generationParams.manualPanelRepairs.map(asRecord)
+    : [];
+  for (const repair of manualPanelRepairs) {
+    const panels = Array.isArray(repair.panels) ? repair.panels.map(asRecord) : [];
+    for (const panel of panels) {
+      if (panel.accepted !== true) continue;
+      const panelNumber = positiveInteger(panel.panelNumber);
+      const score = finiteNumber(panel.score);
+      if (panelNumber && score !== null) {
+        panelScores.set(panelNumber, score);
+      }
+    }
+  }
+
+  const failedPanelNumbers = Array.isArray(panelRepair.failedPanels)
+    ? panelRepair.failedPanels
+        .map((entry) => positiveInteger(asRecord(entry).panelNumber) ?? positiveInteger(entry))
+        .filter((panelNumber): panelNumber is number => panelNumber !== null)
+    : [];
+  if (
+    failedPanelNumbers.length === 0 &&
+    (positiveInteger(panelRepair.failedPanelCount) ?? 0) > 0
+  ) {
+    // The count proves a current failure even if an older row omitted panel details.
+    failedPanelNumbers.push(0);
+  }
+
+  const missingPanelNumbers: number[] = [];
+  for (let panelNumber = 1; panelNumber <= panelCount; panelNumber += 1) {
+    if (!panelScores.has(panelNumber)) {
+      missingPanelNumbers.push(panelNumber);
+    }
+  }
+
+  const orderedScores = Array.from(panelScores.values());
+  const complete =
+    page.status === 'completed' &&
+    panelCount > 0 &&
+    missingPanelNumbers.length === 0;
+  const score = !complete
+    ? null
+    : failedPanelNumbers.length > 0
+      ? Math.min(0, ...orderedScores)
+      : Math.min(...orderedScores);
+
+  return {
+    panelCount,
+    panelScores: Object.fromEntries(
+      Array.from(panelScores.entries()).sort(([left], [right]) => left - right)
+    ),
+    missingPanelNumbers,
+    failedPanelNumbers,
+    score,
+  };
 }
 
 function getPolicyFlag(policyChecks: unknown, key: string): boolean {
@@ -195,14 +334,113 @@ export async function assertStoryPublishSafety(
   story: Story,
   visibility: 'public' | 'unlisted'
 ): Promise<void> {
-  const completedImageAssets = (await getAssetRepository().findByStoryId(story.id, 'image'))
-    .filter((asset) => asset.status === 'completed')
-    .filter((asset) => !asset.storagePath.includes('/rejected/'));
-  const completedImageStoragePaths = completedImageAssets.map((asset) => asset.storagePath);
+  const completedImageStoragePaths = new Set<string>();
+  const derivedValidationScores: PublishImageValidationScore[] = [];
+  const authoritativeDerivedValidationPaths = new Set<string>();
 
+  if (visibility === 'public' && config.image.enableValidation) {
+    const scenes = await getSceneRepository().findByStoryId(story.id);
+    for (const scene of scenes) {
+      if (!scene.imageUrl) continue;
+      const storagePath = normalizeAssetStoragePath(scene.imageUrl);
+      if (storagePath) completedImageStoragePaths.add(storagePath);
+    }
+
+    const storyFormat = getStoryFormat(story.metadata);
+    const pageEvidenceByNumber = new Map<
+      number,
+      GraphicNovelPagePublishValidationEvidence
+    >();
+    if (storyFormat !== 'story') {
+      const project = await getGraphicNovelRepository().findProjectByStoryId(story.id);
+      if (!project) {
+        throw new PublishSafetyError({
+          allowed: false,
+          code: 'STORY_INCOMPLETE',
+          message: 'Comic pages are not ready to publish',
+        });
+      }
+      const pages = await getGraphicNovelRepository().findPagesByProjectId(project.id);
+      if (pages.length === 0 || pages.some((page) => page.status !== 'completed')) {
+        throw new PublishSafetyError({
+          allowed: false,
+          code: 'STORY_INCOMPLETE',
+          message: 'Comic pages are not ready to publish',
+        });
+      }
+
+      const pageAssetIds = pages
+        .map((page) => page.imageAssetId)
+        .filter((assetId): assetId is string => Boolean(assetId));
+      const pageAssets = await getAssetRepository().findByIds(pageAssetIds);
+      const pageAssetById = new Map(pageAssets.map((asset) => [asset.id, asset]));
+
+      for (const page of pages) {
+        const asset = page.imageAssetId ? pageAssetById.get(page.imageAssetId) : null;
+        const storagePath =
+          asset?.status === 'completed' &&
+          asset.assetType === 'image' &&
+          asset.storyId === story.id
+            ? asset.storagePath
+            : page.imageUrl
+              ? normalizeAssetStoragePath(page.imageUrl)
+              : null;
+        if (!storagePath) {
+          throw new PublishSafetyError({
+            allowed: false,
+            code: 'STORY_INCOMPLETE',
+            message: 'Comic pages are not ready to publish',
+            details: { pageNumber: page.pageNumber },
+          });
+        }
+
+        completedImageStoragePaths.add(storagePath);
+        authoritativeDerivedValidationPaths.add(storagePath);
+        const evidence = buildGraphicNovelPagePublishValidationEvidence(page);
+        pageEvidenceByNumber.set(page.pageNumber, evidence);
+        if (evidence.score !== null) {
+          derivedValidationScores.push({
+            storagePath,
+            score: evidence.score,
+            validationStatus: 'completed',
+          });
+        }
+      }
+    }
+
+    if (story.coverAssetId) {
+      const coverAsset = await getAssetRepository().findById(story.coverAssetId);
+      if (
+        coverAsset?.status === 'completed' &&
+        coverAsset.assetType === 'image' &&
+        coverAsset.storyId === story.id
+      ) {
+        completedImageStoragePaths.add(coverAsset.storagePath);
+        const generationParams = asRecord(coverAsset.generationParams);
+        if (generationParams.kind === 'graphic_novel_cover_panel') {
+          authoritativeDerivedValidationPaths.add(coverAsset.storagePath);
+          const pageNumber = positiveInteger(generationParams.pageNumber);
+          const panelIndex = positiveInteger(generationParams.panelIndex);
+          const panelScore =
+            pageNumber && panelIndex
+              ? pageEvidenceByNumber.get(pageNumber)?.panelScores[panelIndex]
+              : undefined;
+          if (panelScore !== undefined) {
+            derivedValidationScores.push({
+              storagePath: coverAsset.storagePath,
+              score: panelScore,
+              validationStatus: 'completed',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const currentImageStoragePaths = Array.from(completedImageStoragePaths);
   const validationRows =
-    visibility === 'public' && config.image.enableValidation && completedImageStoragePaths.length > 0
-      ? await getImageValidationRepository().listByStoragePaths(completedImageStoragePaths)
+    currentImageStoragePaths.length > 0
+      ? await getImageValidationRepository().listByStoragePaths(currentImageStoragePaths)
       : [];
 
   const decision = evaluateStoryPublishSafety({
@@ -210,12 +448,19 @@ export async function assertStoryPublishSafety(
     visibility,
     imageValidationEnabled: config.image.enableValidation,
     imageValidationMinAcceptScore: config.image.validationMinAcceptScore,
-    completedImageStoragePaths,
-    imageValidationScores: validationRows.map((row) => ({
-      storagePath: row.imageStoragePath,
-      score: row.validationScore,
-      validationStatus: row.validationStatus,
-    })),
+    completedImageStoragePaths: currentImageStoragePaths,
+    imageValidationScores: [
+      ...validationRows
+        .filter(
+          (row) => !authoritativeDerivedValidationPaths.has(row.imageStoragePath)
+        )
+        .map((row) => ({
+          storagePath: row.imageStoragePath,
+          score: row.validationScore,
+          validationStatus: row.validationStatus,
+        })),
+      ...derivedValidationScores,
+    ],
   });
 
   if (decision.allowed === false) {

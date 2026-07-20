@@ -1060,6 +1060,7 @@ type RenderedGraphicNovelPageArt = {
 
 type PixelCropRect = { left: number; top: number; width: number; height: number };
 type GraphicNovelCoverSource =
+  | 'closest_story_card_aspect_ratio_panel'
   | 'matching_story_card_aspect_ratio_panel'
   | 'full_width_panel'
   | 'widest_first_page_panel';
@@ -1154,6 +1155,7 @@ function getContinuationDataFromRequest(request: { id: string; intermediateData?
 
 function isGraphicNovelCoverSource(value: unknown): value is GraphicNovelCoverSource {
   return (
+    value === 'closest_story_card_aspect_ratio_panel' ||
     value === 'matching_story_card_aspect_ratio_panel' ||
     value === 'full_width_panel' ||
     value === 'widest_first_page_panel'
@@ -1467,7 +1469,6 @@ async function saveThumbnail(
 }
 
 const STORY_CARD_ASPECT_RATIO = 16 / 9;
-const STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE = 0.03;
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -1485,19 +1486,25 @@ function clampRectToUnit(rect: Rect): Rect | null {
 export function selectGraphicNovelCoverPanel(
   panels: Array<{ panelIndex: number; imageWidth: number; imageHeight: number }>
 ): GraphicNovelCoverPanelSelection | null {
-  const selectedPanel = panels.find((panel) => {
-    if (panel.imageWidth <= 0 || panel.imageHeight <= 0) return false;
-    const aspectRatio = panel.imageWidth / panel.imageHeight;
-    return (
-      Math.abs(aspectRatio - STORY_CARD_ASPECT_RATIO) / STORY_CARD_ASPECT_RATIO <=
-      STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE
+  const selectedPanel = panels.reduce<(typeof panels)[number] | null>((closest, panel) => {
+    if (panel.imageWidth <= 0 || panel.imageHeight <= 0) return closest;
+    if (!closest) return panel;
+
+    const panelDistance = Math.abs(
+      panel.imageWidth / panel.imageHeight - STORY_CARD_ASPECT_RATIO
     );
-  });
+    const closestDistance = Math.abs(
+      closest.imageWidth / closest.imageHeight - STORY_CARD_ASPECT_RATIO
+    );
+    if (panelDistance < closestDistance) return panel;
+    if (panelDistance > closestDistance) return closest;
+    return panel.panelIndex < closest.panelIndex ? panel : closest;
+  }, null);
 
   return selectedPanel
     ? {
         ...selectedPanel,
-        source: 'matching_story_card_aspect_ratio_panel',
+        source: 'closest_story_card_aspect_ratio_panel',
       }
     : null;
 }
@@ -1509,6 +1516,7 @@ async function createGraphicNovelCoverPanelAsset(params: {
   page: PlannedGraphicNovelPage;
   pageAssetId: string;
   panelImages?: GraphicNovelBubbleVisionPanelImage[];
+  sourceImageKind?: 'standalone_final_panel_image' | 'art_only_before_bubble_overlay';
 }): Promise<{ assetId: string; source: GraphicNovelCoverSource } | null> {
   const panelImages = [...(params.panelImages ?? [])].sort(
     (left, right) => left.panelIndex - right.panelIndex
@@ -1557,8 +1565,8 @@ async function createGraphicNovelCoverPanelAsset(params: {
     generationParams: {
       kind: 'graphic_novel_cover_panel',
       source: selectedPanel.source,
-      selectionStrategy: 'first_standalone_panel_matching_story_card_aspect_ratio',
-      sourceImageKind: 'standalone_final_panel_image',
+      selectionStrategy: 'standalone_panel_closest_to_story_card_aspect_ratio',
+      sourceImageKind: params.sourceImageKind ?? 'standalone_final_panel_image',
       pageNumber: params.page.pageNumber,
       panelIndex: selectedPanel.panelIndex,
       panelId: selectedPanelImage.panelId ?? null,
@@ -1568,7 +1576,8 @@ async function createGraphicNovelCoverPanelAsset(params: {
       sourceImageHeight: selectedPanel.imageHeight,
       sourceAspectRatio,
       targetAspectRatio: STORY_CARD_ASPECT_RATIO,
-      aspectRatioRelativeTolerance: STORY_CARD_ASPECT_RATIO_RELATIVE_TOLERANCE,
+      aspectRatioRelativeDistance:
+        Math.abs(sourceAspectRatio - STORY_CARD_ASPECT_RATIO) / STORY_CARD_ASPECT_RATIO,
       templatePanelRect:
         params.page.panels[selectedPanel.panelIndex - 1]?.templatePanel.rect ?? null,
     },
@@ -3448,6 +3457,13 @@ function graphicNovelPanelQualityDecision(
     accepted: failureReasons.length === 0,
     failureReasons,
   };
+}
+
+function shouldKeepCurrentGraphicNovelPanelAfterPrevalidation(
+  requestedMode: GraphicNovelPanelRepairTarget['mode'],
+  panelValidation: GraphicNovelPanelRenderedValidation
+): boolean {
+  return requestedMode === 'edit' && graphicNovelPanelQualityDecision(panelValidation).accepted;
 }
 
 function shouldUseGraphicNovelPanelCandidateAsNextEditSource(
@@ -6133,7 +6149,7 @@ export async function regenerateGraphicNovelPageImage(params: {
         metadata: {
           ...((latestStoryForCover?.metadata as Record<string, unknown> | null) || {}),
           graphicNovelCoverSource:
-            renderedAssets.coverSource ?? 'matching_story_card_aspect_ratio_panel',
+            renderedAssets.coverSource ?? 'closest_story_card_aspect_ratio_panel',
           graphicNovelCoverPageNumber: params.pageNumber,
           graphicNovelCoverPanelAssetId: renderedAssets.coverAssetId,
           graphicNovelCoverPending: false,
@@ -6467,6 +6483,133 @@ async function cropGraphicNovelPagePanels(params: {
   );
 }
 
+export type GraphicNovelCoverBackfillResult = {
+  storyId: string;
+  outcome: 'would_create' | 'created' | 'skipped';
+  reason?: 'cover_already_present';
+  pageNumber?: number;
+  panelIndex?: number;
+  sourceAspectRatio?: number;
+  aspectRatioRelativeDistance?: number;
+  coverAssetId?: string;
+};
+
+export async function backfillGraphicNovelCoverFromStoredPage(params: {
+  storyId: string;
+  dryRun?: boolean;
+}): Promise<GraphicNovelCoverBackfillResult> {
+  const story = await getStoryRepository().findById(params.storyId);
+  if (!story) {
+    throw new Error(`Story ${params.storyId} not found`);
+  }
+  const storyMetadata = (story.metadata as Record<string, unknown> | null) || {};
+  if (
+    storyMetadata.storyFormat !== GRAPHIC_NOVEL_KIND &&
+    storyMetadata.storyFormat !== MIXED_STORY_KIND
+  ) {
+    throw new Error(`Story ${params.storyId} is not a graphic novel or mixed story`);
+  }
+  if (story.coverAssetId) {
+    return {
+      storyId: params.storyId,
+      outcome: 'skipped',
+      reason: 'cover_already_present',
+      coverAssetId: story.coverAssetId,
+    };
+  }
+
+  const project = await getGraphicNovelRepository().findProjectByStoryId(params.storyId);
+  if (!project) {
+    throw new Error(`Graphic novel project for story ${params.storyId} not found`);
+  }
+
+  const pages = await getGraphicNovelRepository().findPagesByProjectId(project.id);
+  const assetStorage = getAssetStorageService();
+  for (const pageRow of pages) {
+    if (pageRow.status !== 'completed' || !pageRow.layoutJson) continue;
+    const page = pageRow.layoutJson as PlannedGraphicNovelPage;
+    if (!Array.isArray(page.panels) || page.panels.length === 0) continue;
+
+    const generationParams =
+      (pageRow.generationParams as Record<string, unknown> | null) || {};
+    const artOnlyImageStoragePath = generationParams.artOnlyImageStoragePath;
+    const pageAssetId =
+      pageRow.imageAssetId ||
+      (typeof generationParams.assetId === 'string' ? generationParams.assetId : null);
+    if (
+      typeof artOnlyImageStoragePath !== 'string' ||
+      !artOnlyImageStoragePath.trim() ||
+      !pageAssetId
+    ) {
+      continue;
+    }
+
+    const artOnlyImage = await assetStorage.getAssetByPath(artOnlyImageStoragePath);
+    const panelImages = await cropGraphicNovelPagePanels({ imageData: artOnlyImage, page });
+    const panelDimensions = await Promise.all(
+      panelImages.map(async (panelImage) => {
+        const metadata = await sharp(panelImage.imageData).metadata();
+        return {
+          panelIndex: panelImage.panelIndex,
+          imageWidth: metadata.width ?? 0,
+          imageHeight: metadata.height ?? 0,
+        };
+      })
+    );
+    const selectedPanel = selectGraphicNovelCoverPanel(panelDimensions);
+    if (!selectedPanel) continue;
+
+    const sourceAspectRatio = selectedPanel.imageWidth / selectedPanel.imageHeight;
+    const resultBase = {
+      storyId: params.storyId,
+      pageNumber: pageRow.pageNumber,
+      panelIndex: selectedPanel.panelIndex,
+      sourceAspectRatio,
+      aspectRatioRelativeDistance:
+        Math.abs(sourceAspectRatio - STORY_CARD_ASPECT_RATIO) / STORY_CARD_ASPECT_RATIO,
+    };
+    if (params.dryRun !== false) {
+      return { ...resultBase, outcome: 'would_create' };
+    }
+
+    const coverAsset = await createGraphicNovelCoverPanelAsset({
+      storyId: params.storyId,
+      userId: story.userId,
+      requestId: project.storyRequestId || `cover-backfill-${params.storyId}`,
+      page,
+      pageAssetId,
+      panelImages,
+      sourceImageKind: 'art_only_before_bubble_overlay',
+    });
+    if (!coverAsset) {
+      throw new Error(`No reusable cover panel found for story ${params.storyId}`);
+    }
+
+    const latestStory = await getStoryRepository().findById(params.storyId);
+    await getStoryRepository().updateStory(params.storyId, {
+      coverAssetId: coverAsset.assetId,
+      metadata: {
+        ...((latestStory?.metadata as Record<string, unknown> | null) || {}),
+        graphicNovelCoverSource: coverAsset.source,
+        graphicNovelCoverPageNumber: pageRow.pageNumber,
+        graphicNovelCoverPanelAssetId: coverAsset.assetId,
+        graphicNovelCoverPending: false,
+      },
+    });
+    if (story.isPublished) {
+      await getStoryRepository().incrementPublicRenderVersion(params.storyId);
+    }
+
+    return {
+      ...resultBase,
+      outcome: 'created',
+      coverAssetId: coverAsset.assetId,
+    };
+  }
+
+  throw new Error(`Story ${params.storyId} has no reusable completed comic page`);
+}
+
 function graphicNovelPanelValidationReferenceContext(
   referenceImages: GraphicNovelReferenceImage[]
 ) {
@@ -6535,7 +6678,7 @@ export async function repairGraphicNovelPagePanels(
     panelNumber: number;
     panelId: string;
     requestedMode: GraphicNovelPanelRepairTarget['mode'];
-    appliedMode: GraphicNovelPanelRepairTarget['mode'] | null;
+    appliedMode: GraphicNovelPanelRepairTarget['mode'] | 'original' | null;
     accepted: boolean;
     score: number | null;
     failureReasons: string[];
@@ -6569,7 +6712,16 @@ export async function repairGraphicNovelPagePanels(
       `Graphic novel page ${params.pageNumber} for story ${params.storyId} not found`
     );
   }
-  if (pageRow.status !== 'completed') {
+  const pageGenerationParams = (pageRow.generationParams as Record<string, unknown> | null) || {};
+  const sourceArtOnlyStoragePath = pageGenerationParams.artOnlyImageStoragePath;
+  const canRecoverStaleGeneratingPage =
+    params.recoverStaleGeneratingPage === true &&
+    pageRow.status === 'generating' &&
+    typeof pageRow.imageUrl === 'string' &&
+    pageRow.imageUrl.trim().length > 0 &&
+    typeof sourceArtOnlyStoragePath === 'string' &&
+    sourceArtOnlyStoragePath.trim().length > 0;
+  if (pageRow.status !== 'completed' && !canRecoverStaleGeneratingPage) {
     throw new Error(
       `Graphic novel page ${params.pageNumber} must be completed before panel repair`
     );
@@ -6594,8 +6746,6 @@ export async function repairGraphicNovelPagePanels(
     }
   }
 
-  const pageGenerationParams = (pageRow.generationParams as Record<string, unknown> | null) || {};
-  const sourceArtOnlyStoragePath = pageGenerationParams.artOnlyImageStoragePath;
   if (typeof sourceArtOnlyStoragePath !== 'string' || !sourceArtOnlyStoragePath.trim()) {
     throw new Error(`Graphic novel page ${params.pageNumber} has no reusable art-only image`);
   }
@@ -6691,6 +6841,40 @@ export async function repairGraphicNovelPagePanels(
     : [];
   const repairAttempt = manualRepairHistory.length + 1;
   const requestId = project.storyRequestId || `admin-panel-repair-${params.storyId}`;
+  const refreshCompletionAfterStaleRecovery = async () => {
+    if (!canRecoverStaleGeneratingPage) return;
+    const pages = await getGraphicNovelRepository().findPagesByProjectId(project.id);
+    const failedPages = pages
+      .filter((candidate) => candidate.status === 'failed')
+      .map((candidate) => ({
+        pageNumber: candidate.pageNumber,
+        errorMessage: candidate.errorMessage || 'Page generation failed',
+      }));
+    const generationComplete = pages.every(
+      (candidate) => candidate.status === 'completed' || candidate.status === 'failed'
+    );
+    await getGraphicNovelRepository().updateProject(project.id, {
+      status: generationComplete
+        ? failedPages.length > 0
+          ? 'completed_with_errors'
+          : 'completed'
+        : 'generating',
+    });
+    const latestStory = await getStoryRepository().findById(params.storyId);
+    await getStoryRepository().updateStory(params.storyId, {
+      metadata: {
+        ...((latestStory?.metadata as Record<string, unknown> | null) || {}),
+        firstPageReady: pages.some(
+          (candidate) =>
+            candidate.pageNumber === 1 &&
+            candidate.status === 'completed' &&
+            !!candidate.imageUrl
+        ),
+        graphicNovelGenerationComplete: generationComplete,
+        failedGraphicNovelPages: failedPages,
+      },
+    });
+  };
 
   const panelResults = await Promise.all(
     params.panels.map(async (target) => {
@@ -6787,6 +6971,19 @@ export async function repairGraphicNovelPagePanels(
           accepted: graphicNovelPanelQualityDecision(currentValidation).accepted,
           requestManifest: sourceRequestManifest,
         });
+
+        if (shouldKeepCurrentGraphicNovelPanelAfterPrevalidation(target.mode, currentValidation)) {
+          return {
+            accepted: true as const,
+            target,
+            panel,
+            validation: currentValidation,
+            requestManifest: sourceRequestManifest,
+            appliedMode: 'original' as const,
+            attempts,
+            failureReasons: [] as string[],
+          };
+        }
 
         const validateCandidate = async (candidateParams: {
           generated: Awaited<ReturnType<typeof generateGraphicNovelPanelCrop>>;
@@ -7224,12 +7421,63 @@ export async function repairGraphicNovelPagePanels(
         ? ('partial' as const)
         : ('no_change' as const);
 
+  const acceptedImageChanges = acceptedPanelResults.filter(
+    (result) => result.appliedMode !== 'original'
+  );
+  if (acceptedPanelResults.length > 0 && acceptedImageChanges.length === 0) {
+    await getGraphicNovelRepository().updatePage(pageRow.id, {
+      status: 'completed',
+      errorMessage: null,
+      generationParams: baseNextGenerationParams,
+    });
+    await refreshCompletionAfterStaleRecovery();
+    await recordStageTiming({
+      storyId: params.storyId,
+      storyRequestId: project.storyRequestId || undefined,
+      userId: story.userId,
+      generationKind,
+      pipelinePhase: 'asset_generation',
+      operation: 'comic_panel_manual_repair',
+      targetType: 'comic_page',
+      targetKey: String(params.pageNumber),
+      pageNumber: params.pageNumber,
+      assetId: pageRow.imageAssetId,
+      startedAt: repairStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        outcome,
+        imageChanged: false,
+        requestedPanelNumbers: [...requestedPanelNumbers],
+        acceptedPanelNumbers: [...acceptedPanelNumbers],
+        failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+        refreshedTurnaroundCharacterIds: params.refreshTurnaroundCharacterIds ?? [],
+      },
+    });
+    logger.info(
+      {
+        storyId: params.storyId,
+        pageNumber: params.pageNumber,
+        outcome,
+        requestedPanelNumbers: [...requestedPanelNumbers],
+        acceptedPanelNumbers: [...acceptedPanelNumbers],
+        failedPanelNumbers: failedPanelResults.map((result) => result.target.panelNumber),
+      },
+      'Current graphic novel panels passed prevalidation; page kept unchanged'
+    );
+    return {
+      outcome,
+      pageAssetId: pageRow.imageAssetId,
+      panelResults: panelResultSummary,
+    };
+  }
+
   if (acceptedPanelResults.length === 0) {
     await getGraphicNovelRepository().updatePage(pageRow.id, {
       status: 'completed',
       errorMessage: null,
       generationParams: baseNextGenerationParams,
     });
+    await refreshCompletionAfterStaleRecovery();
     await recordStageTiming({
       storyId: params.storyId,
       storyRequestId: project.storyRequestId || undefined,
@@ -7347,6 +7595,7 @@ export async function repairGraphicNovelPagePanels(
       storagePath: finalUpload.storagePath,
     },
   });
+  await refreshCompletionAfterStaleRecovery();
 
   const pagePanels = await getGraphicNovelRepository().findPanelsByPageId(pageRow.id);
   await Promise.all(
@@ -7510,7 +7759,7 @@ export async function processGraphicNovelPages(
           metadata: {
             ...((latestStoryForCover?.metadata as Record<string, unknown> | null) || {}),
             graphicNovelCoverSource:
-              renderedAssets.coverSource ?? 'matching_story_card_aspect_ratio_panel',
+              renderedAssets.coverSource ?? 'closest_story_card_aspect_ratio_panel',
             graphicNovelCoverPageNumber: page.pageNumber,
             graphicNovelCoverPanelAssetId: renderedAssets.coverAssetId,
             graphicNovelCoverPending: false,
@@ -7797,6 +8046,7 @@ export const graphicNovelOrchestrationTestSeams = {
   renderAndStorePage,
   applyVisionBubblePlacementForRenderedPage,
   graphicNovelPanelQualityDecision,
+  shouldKeepCurrentGraphicNovelPanelAfterPrevalidation,
   shouldUseGraphicNovelPanelCandidateAsNextEditSource,
   shouldAttemptGraphicNovelPostRegenerateEdit,
   buildManualPanelRepairManifest,

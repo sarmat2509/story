@@ -1057,6 +1057,7 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     '- detectedPanelCount is the number of visible physical comic panel boxes/regions.',
     '- hasExtraPanelStructure=true if visible physical panels do not match expectedPanelCount, or if there are fake gutters, inset panels, split panels, or merged story beats.',
     '- hasTextOrLetters=true for unwanted readable text/letters that are part of the generated artwork.',
+    '- Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the panel brief are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
     '- hasRenderingArtifacts=true for severe broken anatomy, corrupt objects, incoherent artifacts, or unusable rendering.',
     '',
     `PAGE NUMBER: ${params.pageNumber}`,
@@ -1430,6 +1431,7 @@ function buildSegmentedSceneQaPrompt(params: {
     'Set hasUnexpectedCharacters=true when an extra named or character-like subject appears outside the expected roster.',
     'Set unexpectedCharacterNotes to a concise visual description of extra character-like subjects, or null when none are visible.',
     'Set hasTextOrLetters=true for unwanted visible text/letters inside the artwork.',
+    'Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
     'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
     params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks

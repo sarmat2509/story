@@ -221,7 +221,7 @@ function testTextManifestFeedsStoryTextAndOverlay(): void {
   );
 }
 
-function testCoverPanelSelectionUsesFirstMatchingStandalonePanel(): void {
+function testCoverPanelSelectionUsesClosestStandalonePanel(): void {
   assert.deepEqual(
     selectGraphicNovelCoverPanel([
       { panelIndex: 1, imageWidth: 1024, imageHeight: 768 },
@@ -229,21 +229,35 @@ function testCoverPanelSelectionUsesFirstMatchingStandalonePanel(): void {
       { panelIndex: 3, imageWidth: 1376, imageHeight: 768 },
     ]),
     {
-      panelIndex: 2,
-      imageWidth: 1344,
+      panelIndex: 3,
+      imageWidth: 1376,
       imageHeight: 768,
-      source: 'matching_story_card_aspect_ratio_panel',
+      source: 'closest_story_card_aspect_ratio_panel',
     },
-    'the first standalone panel near the 16:9 story-card ratio should be selected'
+    'the standalone panel closest to the 16:9 story-card ratio should be selected'
   );
 
-  assert.equal(
+  assert.deepEqual(
     selectGraphicNovelCoverPanel([
       { panelIndex: 1, imageWidth: 1024, imageHeight: 768 },
       { panelIndex: 2, imageWidth: 768, imageHeight: 1024 },
     ]),
+    {
+      panelIndex: 1,
+      imageWidth: 1024,
+      imageHeight: 768,
+      source: 'closest_story_card_aspect_ratio_panel',
+    },
+    'a page without a near-16:9 panel should still select its closest panel'
+  );
+
+  assert.equal(
+    selectGraphicNovelCoverPanel([
+      { panelIndex: 1, imageWidth: 0, imageHeight: 768 },
+      { panelIndex: 2, imageWidth: 768, imageHeight: 0 },
+    ]),
     null,
-    'a page without a matching panel should leave cover selection open for later pages'
+    'a page without valid panel dimensions should not create a cover'
   );
 }
 
@@ -619,7 +633,7 @@ function main(): void {
   testFirstPageCompletionRule();
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();
-  testCoverPanelSelectionUsesFirstMatchingStandalonePanel();
+  testCoverPanelSelectionUsesClosestStandalonePanel();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
   testComicScriptExtractsLlmRobotCharacter();
   testLegacyLlmManifestPlaceholderReturnsToPersistenceCandidates();

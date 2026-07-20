@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "build:fast": "esbuild src/index.ts src/worker.ts src/scripts/scanOrphanStorageFiles.ts src/scripts/setOpsMode.ts src/scripts/waitForGenerationDrain.ts src/scripts/expireStaleStoryRequests.ts src/scripts/createPresentationChildProfiles.ts src/scripts/createPresentationCharacters.ts src/scripts/configurePresentationStoryQuota.ts src/scripts/createPresentationStories.ts src/scripts/configurePresentationAudioQuota.ts src/scripts/createPresentationAudio.ts --bundle --platform=node --target=node20 --outdir=dist --outbase=src --external:@wondertales/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --external:@aws-sdk/* --external:@google-cloud/* --external:@google/genai --external:openai --external:passport --external:passport-google-oauth20 --minify --log-level=warning --legal-comments=none",
+    "build:fast": "esbuild src/index.ts src/worker.ts src/scripts/scanOrphanStorageFiles.ts src/scripts/setOpsMode.ts src/scripts/waitForGenerationDrain.ts src/scripts/expireStaleStoryRequests.ts src/scripts/createPresentationChildProfiles.ts src/scripts/createPresentationCharacters.ts src/scripts/configurePresentationStoryQuota.ts src/scripts/createPresentationStories.ts src/scripts/configurePresentationAudioQuota.ts src/scripts/createPresentationAudio.ts src/scripts/backfillGraphicNovelCovers.ts --bundle --platform=node --target=node20 --outdir=dist --outbase=src --external:@wondertales/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --external:@aws-sdk/* --external:@google-cloud/* --external:@google/genai --external:openai --external:passport --external:passport-google-oauth20 --minify --log-level=warning --legal-comments=none",
     "start": "node dist/index.js",
     "start:worker": "RUN_HTTP_SERVER=false node dist/worker.js",
     "lint": "eslint src --ext .ts",
@@ -49,6 +49,7 @@
     "backfill:character-name-translations": "tsx src/scripts/backfillCharacterNameTranslations.ts",
     "backfill:ai-usage-costs": "tsx src/scripts/backfillAiUsageCosts.ts",
     "backfill:story-artifact-title-translations": "tsx src/scripts/backfillStoryArtifactTitleTranslations.ts",
+    "backfill:graphic-novel-covers": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 node dist/scripts/backfillGraphicNovelCovers.js",
     "writer:story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/rerunWriterForStory.ts",
     "debug:story-artifact": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/debugStoryArtifactIntegration.ts",
     "print:writer-prompts": "tsx src/scripts/printWriterPromptSample.ts",

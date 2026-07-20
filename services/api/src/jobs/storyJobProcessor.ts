@@ -191,6 +191,7 @@ interface RepairGraphicNovelPanelsJob extends LegacyBaseJob {
   storyId: string;
   pageNumber: number;
   panels: GraphicNovelPanelRepairTarget[];
+  recoverStaleGeneratingPage?: boolean;
   refreshTurnaroundCharacterIds?: string[];
   style?: string;
 }
@@ -244,6 +245,7 @@ interface RepairGraphicNovelPanelsInput {
   storyId: string;
   pageNumber: number;
   panels: GraphicNovelPanelRepairTarget[];
+  recoverStaleGeneratingPage?: boolean;
   refreshTurnaroundCharacterIds?: string[];
   style?: string;
 }
@@ -1586,6 +1588,7 @@ async function processRepairGraphicNovelPanelsLegacy(
     storyId: job.storyId,
     pageNumber: job.pageNumber,
     panels: job.panels,
+    recoverStaleGeneratingPage: job.recoverStaleGeneratingPage,
     refreshTurnaroundCharacterIds: job.refreshTurnaroundCharacterIds,
     style: job.style,
   });
