@@ -234,11 +234,101 @@ async function testSynthesizeStoryReturnsCachedAssetWithoutProviderCall(): Promi
   }
 }
 
+async function testForceFreshSynthesisBypassesExistingFinalAudioCache(): Promise<void> {
+  const synth = mockSynthesizedAudio();
+  const audio = new MockAudioProvider().queueSynthesis(synth);
+  let cacheChecks = 0;
+  let uploads = 0;
+
+  const infrastructure: AudioDomainInfrastructure = {
+    cacheService: {
+      async checkCache() {
+        cacheChecks += 1;
+        return {
+          assetId: 'old-flash-asset',
+          audioUrl: '/api/v1/assets/audio/old-flash.mp3',
+          duration: 3.5,
+          voiceId: providerVoiceId,
+          voiceName: 'Mock Narrator',
+        };
+      },
+      generateTextHash() {
+        return 'fresh-model-hash';
+      },
+    },
+    storageService: {
+      async uploadAsset() {
+        uploads += 1;
+        return {
+          storagePath: `audio/${storyId}/fresh-pro.mp3`,
+          storageUrl: `/api/v1/assets/audio/${storyId}/fresh-pro.mp3`,
+          signedUrl: null,
+          signedUrlExpiresAt: null,
+        };
+      },
+      async getAssetBuffer() {
+        throw new Error('Fresh synthesis must not load an existing audio chunk');
+      },
+    },
+    rateLimiter: {
+      async execute<T>(fn: () => Promise<T>): Promise<T> {
+        return fn();
+      },
+    },
+  };
+
+  installRepositoryTestOverrides({
+    voice: {
+      findById: async () => ({
+        id: voiceDbId,
+        providerVoiceId,
+        name: 'Mock Narrator',
+        language: 'en',
+        supportedLanguages: ['en'],
+        gender: 'neutral',
+        provider: 'openai',
+        isActive: true,
+      }),
+    } as any,
+    asset: {
+      create: async (row: Record<string, unknown>) => ({ id: assetId, ...row }),
+      createAudioAsset: async (row: Record<string, unknown>) => ({ id: audioAssetId, ...row }),
+      findLatestTaggedAudioInputByStoryAndVoice: async () => null,
+    } as any,
+  });
+  installAiServiceTestOverrides({ audioProvider: audio });
+
+  try {
+    const service = new AudioDomainService(audio, infrastructure);
+    const result = await service.synthesizeStory(
+      {
+        id: storyId,
+        userId,
+        fullText: 'Generate this narration with a newer model.',
+        language: 'en',
+      } as Story,
+      { voiceId: voiceDbId },
+      'premium',
+      { forceFreshSynthesis: true }
+    );
+
+    assert.equal(result.cached, false);
+    assert.equal(cacheChecks, 0);
+    assert.equal(uploads, 1);
+    assert.equal(audio.requests.length, 1);
+    audio.assertExhausted();
+  } finally {
+    clearAiServiceTestOverrides();
+    clearRepositoryTestOverrides();
+  }
+}
+
 void (async () => {
   process.env.NODE_ENV = 'test';
   process.env.WT_SKIP_PROCESS_SIGNAL_HANDLERS = '1';
   await testSynthesizeStoryPersistsOnCacheMiss();
   await testSynthesizeStoryReturnsCachedAssetWithoutProviderCall();
+  await testForceFreshSynthesisBypassesExistingFinalAudioCache();
   console.log('audio synthesize persistence contract tests passed');
 })().catch((error) => {
   console.error(error);

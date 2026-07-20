@@ -86,6 +86,11 @@ export const AI_COST_CONFIG = {
       outputPer1M: 10.0,
       audioTokensPerSecond: 25,
     } as AudioTokenCostConfig,
+    'gemini-2.5-pro-tts': {
+      inputPer1M: 1.0,
+      outputPer1M: 20.0,
+      audioTokensPerSecond: 25,
+    } as AudioTokenCostConfig,
     'google-wavenet': 0.000004,
     'google-neural2': 0.000016,
     'gpt-4o-mini-tts': 0.000015,

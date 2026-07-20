@@ -16,6 +16,12 @@ import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 
 export interface AudioDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
+  /**
+   * Generate a new recording even if the same text and voice already have a
+   * cached final asset or reusable partial chunks. This is needed when a TTS
+   * model changes while the narrator voice remains the same.
+   */
+  forceFreshSynthesis?: boolean;
 }
 
 type AudioCacheInfrastructure = Pick<
@@ -358,11 +364,20 @@ export class AudioDomainService {
 
     // 3. Check cache
     logger.info({ storyId: story.id }, 'Step 2/7: Checking full audio cache');
-    const cachedAudio = await this.cacheService.checkCache(
-      fullText,
-      (voice as any).dbId || voice.id, // Use DB UUID for cache
-      speed
-    );
+    const cachedAudio = options?.forceFreshSynthesis
+      ? null
+      : await this.cacheService.checkCache(
+          fullText,
+          (voice as any).dbId || voice.id, // Use DB UUID for cache
+          speed
+        );
+
+    if (options?.forceFreshSynthesis) {
+      logger.info(
+        { storyId: story.id, voiceId: voice.id },
+        'Skipping final audio cache because fresh TTS synthesis was requested'
+      );
+    }
 
     if (cachedAudio) {
       logger.info(
@@ -383,11 +398,22 @@ export class AudioDomainService {
     // NEW: Load existing scene group assets from metadata (M5.1)
     logger.info({ storyId: story.id }, 'Step 3/7: Checking for existing partial chunks');
     const ttsChunkCount = groupsToSynth.length;
-    const existingAssets = await this.loadExistingSceneGroupAssets(story, ttsChunkCount);
+    const existingAssets = options?.forceFreshSynthesis
+      ? new Array<Buffer | null>(ttsChunkCount).fill(null)
+      : await this.loadExistingSceneGroupAssets(story, ttsChunkCount);
 
-    let sceneGroupAssetIds = [
-      ...(((story.audioMetadata as StoryAudioMetadata | null) ?? {}).sceneGroupAssetIds ?? []),
-    ];
+    if (options?.forceFreshSynthesis) {
+      logger.info(
+        { storyId: story.id, ttsChunkCount },
+        'Skipping reusable audio chunks because fresh TTS synthesis was requested'
+      );
+    }
+
+    let sceneGroupAssetIds = options?.forceFreshSynthesis
+      ? new Array<string | null>(ttsChunkCount).fill(null)
+      : [
+          ...(((story.audioMetadata as StoryAudioMetadata | null) ?? {}).sceneGroupAssetIds ?? []),
+        ];
     if (sceneGroupAssetIds.length !== ttsChunkCount) {
       sceneGroupAssetIds = new Array(ttsChunkCount).fill(null);
     } else {
@@ -927,11 +953,13 @@ export class AudioDomainService {
 
     // 3. Check cache
     const speed = voiceParams.speed || 1.0;
-    const cachedAudio = await this.cacheService.checkCache(
-      normalizedText,
-      (voice as any).dbId || voice.id, // Use DB UUID for cache
-      speed
-    );
+    const cachedAudio = options?.forceFreshSynthesis
+      ? null
+      : await this.cacheService.checkCache(
+          normalizedText,
+          (voice as any).dbId || voice.id, // Use DB UUID for cache
+          speed
+        );
 
     if (cachedAudio) {
       logger.info({ storyId: story.id, voiceId: voice.id }, 'Using cached audio');
@@ -1056,7 +1084,7 @@ export class AudioDomainService {
       onUsage({
         provider: 'google-tts',
         operation: 'audio_synthesize',
-        model: 'gemini-2.5-flash-tts',
+        model: config.audio.google.model || 'gemini-2.5-flash-tts',
         inputUnits: Math.ceil(charCount / 4),
         outputUnits: Math.round(durationSeconds * 25),
         durationSeconds,

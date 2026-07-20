@@ -368,6 +368,8 @@ export interface StoryAudioMetadata {
   sceneGroupAssetIds?: (string | null)[];
   finalAssetId?: string;
   provider?: string;
+  /** Concrete vendor model used for the final narration, e.g. gemini-2.5-pro-tts. */
+  ttsModel?: string;
   alignment?: AlignmentData;
 
   // Error state (present when error === true)

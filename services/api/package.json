@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "build:fast": "esbuild src/index.ts src/worker.ts src/scripts/scanOrphanStorageFiles.ts src/scripts/setOpsMode.ts src/scripts/waitForGenerationDrain.ts src/scripts/expireStaleStoryRequests.ts src/scripts/createPresentationChildProfiles.ts src/scripts/createPresentationCharacters.ts src/scripts/configurePresentationStoryQuota.ts src/scripts/createPresentationStories.ts src/scripts/configurePresentationAudioQuota.ts src/scripts/createPresentationAudio.ts src/scripts/backfillGraphicNovelCovers.ts --bundle --platform=node --target=node20 --outdir=dist --outbase=src --external:@wondertales/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --external:@aws-sdk/* --external:@google-cloud/* --external:@google/genai --external:openai --external:passport --external:passport-google-oauth20 --minify --log-level=warning --legal-comments=none",
+    "build:fast": "esbuild src/index.ts src/worker.ts src/scripts/scanOrphanStorageFiles.ts src/scripts/setOpsMode.ts src/scripts/waitForGenerationDrain.ts src/scripts/expireStaleStoryRequests.ts src/scripts/createPresentationChildProfiles.ts src/scripts/createPresentationCharacters.ts src/scripts/configurePresentationStoryQuota.ts src/scripts/createPresentationStories.ts src/scripts/configurePresentationAudioQuota.ts src/scripts/createPresentationAudio.ts src/scripts/backfillGraphicNovelCovers.ts src/scripts/generateStoryAudioWithGeminiProTts.ts --bundle --platform=node --target=node20 --outdir=dist --outbase=src --external:@wondertales/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --external:@aws-sdk/* --external:@google-cloud/* --external:@google/genai --external:openai --external:passport --external:passport-google-oauth20 --minify --log-level=warning --legal-comments=none",
     "start": "node dist/index.js",
     "start:worker": "RUN_HTTP_SERVER=false node dist/worker.js",
     "lint": "eslint src --ext .ts",
@@ -59,6 +59,7 @@
     "verify:defer-tts-prosody-sample": "tsx src/scripts/verifyDeferredTtsProsody.ts -- --from-file=story-llm-generated-sample.txt",
     "verify:defer-tts-prosody-ru-scary": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/verifyDeferredTtsProsody.ts -- --from-file=story-ru-scary-sample.txt --language=ru --tagged-out=./defer-tts-ru-scary-tagged-output.txt",
     "defer-tts:tagged-to-audio": "tsx src/scripts/deferTaggedSamplesToTtsAudio.ts",
+    "generate:story-audio:gemini-pro": "tsx src/scripts/generateStoryAudioWithGeminiProTts.ts",
     "defer-tts:ru-scary-audio": "DEFER_TTS_LANGUAGE=ru DEFER_TTS_GOOGLE_VOICE=Charon tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --from-file=defer-tts-ru-scary-tagged-output.txt --out=./defer-tts-ru-scary-audio-out --omit-google-style-prompt",
     "generate:ru-scary-story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/generateRussianScaryStorySample.ts",
     "generate:seedream-reference-story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/generateSeedreamReferenceStorySample.ts",
