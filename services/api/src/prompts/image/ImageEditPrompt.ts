@@ -235,7 +235,7 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
     case 'text':
       return 'Remove only the visible text or lettering, including any leaked reference-sheet title, label, or REF_* identifier.';
     case 'composition':
-      return 'Restore the exact scene structure from the brief. Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.';
+      return `Restore this exact scene structure: "${compactPromptText(issue.note) || 'use the scene brief'}". Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.`;
     case 'generic':
     default:
       return 'Change only the validator-reported visual mismatch using the selected reference.';

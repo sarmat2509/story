@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../ai/types';
 import { buildImageEditPrompt } from '../../prompts/image/ImageEditPrompt';
+import { buildSceneImagePrompt } from '../../prompts/image/ImagePrompts';
 import { buildTargetedEditRepairPlan } from '../storyOrchestrationService';
 import type { SceneData } from '../types';
 
@@ -185,5 +186,42 @@ assert.deepEqual(compositionPlan.manifest.issues, [
   },
 ]);
 assert.match(compositionPrompt, /Remove duplicate or extra windows, doors, portals, mirrors/);
+
+const forcedAnchorPlan = buildTargetedEditRepairPlan(
+  [],
+  unexpectedValidation,
+  {
+    ...scene,
+    sceneVisual: {
+      setting: 'The child rests beside the window.',
+      lighting: 'night',
+      cameraComposition: {
+        shot: 'Keep the Moon visible through the window.',
+        characters: [],
+      },
+    },
+  },
+  { enforceSceneAnchorCounts: true }
+);
+assert.equal(forcedAnchorPlan.manifest.issues[0]?.kind, 'composition');
+assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one window/);
+assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one Moon subject/);
+
+const generationAnchorPrompt = buildSceneImagePrompt({
+  sceneVisual: {
+    setting: 'The child rests beside the window.',
+    lighting: 'night',
+    cameraComposition: {
+      shot: 'Keep the Moon visible through the window.',
+      characters: [],
+    },
+  },
+  ageGroup: '4-5',
+  style: 'watercolor',
+});
+assert.match(
+  generationAnchorPrompt,
+  /Exact scene counts: include exactly one window and exactly one Moon subject/
+);
 
 console.log('targeted edit repair plan guards passed');

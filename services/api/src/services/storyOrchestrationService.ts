@@ -110,6 +110,7 @@ import {
   type StoryGenerationKind,
 } from './generationKindRouting';
 import type { BuiltScenePromptPayload } from '../domain/image/ImageDomainService';
+import { deriveExplicitSceneAnchorConstraints } from '../domain/image/imageValidationRun';
 // NEW M9: Character-based reference tracking
 import {
   buildCharacterRegistry,
@@ -4660,7 +4661,8 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
 export function buildTargetedEditRepairPlan(
   refs: EditRepairReferenceImage[] | undefined,
   validation: ImageValidationResult,
-  scene?: SceneData
+  scene?: SceneData,
+  options?: { enforceSceneAnchorCounts?: boolean }
 ): TargetedEditRepairPlan {
   const needsByName = new Map<
     string,
@@ -4707,6 +4709,19 @@ export function buildTargetedEditRepairPlan(
   }
 
   const issues = collectTargetedRepairIssues(validation);
+  if (options?.enforceSceneAnchorCounts && scene?.sceneVisual) {
+    const camera = scene.sceneVisual.cameraComposition;
+    const shot = typeof camera === 'string' ? camera : camera.shot;
+    const anchors = deriveExplicitSceneAnchorConstraints(scene.sceneVisual, shot);
+    if (anchors.length > 0) {
+      const exactCountNote = `Keep exactly one ${anchors.join(' and exactly one ')}.`;
+      const genericIssueIndex = issues.findIndex((issue) => issue.kind === 'generic');
+      if (genericIssueIndex >= 0) issues.splice(genericIssueIndex, 1);
+      if (!issues.some((issue) => issue.kind === 'composition')) {
+        issues.unshift(makeRepairIssue('composition', exactCountNote));
+      }
+    }
+  }
   const selected = (refs ?? []).filter((ref) => {
     if (!ref.characterName) return false;
     const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
@@ -4817,7 +4832,8 @@ async function editSceneImageUsingValidationFeedback(params: {
   const repairPlan = buildTargetedEditRepairPlan(
     params.referenceImagesArray,
     params.validation,
-    params.scene
+    params.scene,
+    { enforceSceneAnchorCounts: params.reason === 'manual_regenerate' }
   );
 
   logger.info(

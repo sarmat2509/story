@@ -21,6 +21,7 @@ import { getImageContentPolicy } from '../contentPolicy';
 import { config } from '../../config';
 import { crossScriptIdentityKey, toPhoneticKey } from '../../utils/characterNormalization';
 import { formatCharacterLocationLine } from './compositionFormatter';
+import { deriveExplicitSceneAnchorConstraints } from '../../domain/image/imageValidationRun';
 
 export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v3_color';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
@@ -708,6 +709,17 @@ function buildStructuredPrompt(params: {
   if (sceneVisual.lighting) {
     sections.push(
       `- Lighting: ${replacePromptNames(cleanupPromptText(sceneVisual.lighting), nameContext)}`,
+    );
+  }
+
+  const camera = sceneVisual.cameraComposition;
+  const shot = typeof camera === 'string' ? camera : camera?.shot || '';
+  const sceneAnchorConstraints = deriveExplicitSceneAnchorConstraints(sceneVisual, shot);
+  if (sceneAnchorConstraints.length > 0) {
+    sections.push(
+      `- Exact scene counts: include exactly one ${sceneAnchorConstraints.join(
+        ' and exactly one '
+      )}. Do not add, duplicate, or invent another window, door, portal, mirror, sky view, or celestial subject.`,
     );
   }
 
