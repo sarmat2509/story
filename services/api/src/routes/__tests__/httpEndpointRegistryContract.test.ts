@@ -111,7 +111,7 @@ function discoverRegisteredEndpoints(): Array<{ method: string; path: string; ro
 
 async function main(): Promise<void> {
   const discovered = discoverRegisteredEndpoints();
-  assert.equal(discovered.length, 201, `expected inventory total 201, found ${discovered.length}`);
+  assert.equal(discovered.length, 202, `expected inventory total 202, found ${discovered.length}`);
 
   const keys = discovered.map((row) => `${row.method} ${row.path}`);
   const unique = new Set(keys);

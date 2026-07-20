@@ -1,12 +1,16 @@
 /**
  * Public Unlisted Stories API
  * GET /api/v1/public/u/:token - Get story by share token (unlisted)
+ * GET /api/v1/public/u/:token/alignment - Follow-along timing by share token
  * POST /api/v1/public/u/:token/rating - Submit rating (same as public)
  */
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { getPublicStoryByShareToken } from '../services/publicStoryService';
+import {
+  getAlignmentForUnlistedStory,
+  getPublicStoryByShareToken,
+} from '../services/publicStoryService';
 import { getStoryRepository } from '../repositories';
 import { submitRating } from '../services/storyRatingService';
 import { logger } from '../utils/logger';
@@ -18,6 +22,32 @@ const ratingBodySchema = z.object({
 });
 
 const router = Router();
+
+/**
+ * GET /api/v1/public/u/:token/alignment
+ * Return follow-along timing without exposing it through a publicly cacheable URL.
+ */
+router.get('/:token/alignment', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const alignment = await getAlignmentForUnlistedStory(token);
+    if (!alignment) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Alignment not found',
+      });
+    }
+
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json({ status: 'success', alignment });
+  } catch (error) {
+    logger.error({ err: error, token: req.params.token }, 'Get unlisted story alignment failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get alignment',
+    });
+  }
+});
 
 /**
  * POST /api/v1/public/u/:token/rating

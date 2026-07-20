@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http';
 const userId = 'f0111111-1111-4111-8111-111111111111';
 const sessionId = 'f0222222-2222-4222-8222-222222222222';
 const storyId = 'f0333333-3333-4333-8333-333333333333';
+const shareToken = 'private-follow-token';
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -80,6 +81,10 @@ async function main(): Promise<void> {
         slug === 'aligned-story'
           ? { id: storyId, publishedSlug: slug, audioMetadata: null }
           : null,
+      findByShareToken: async (token: string) =>
+        token === shareToken
+          ? { id: storyId, shareToken: token, isPublished: true, audioMetadata: null }
+          : null,
     } as any,
     alignment: {
       findByStoryId: async (requestedStoryId: string) =>
@@ -115,6 +120,19 @@ async function main(): Promise<void> {
       `${origin}/api/v1/public/stories/missing-story/alignment`
     );
     assert.equal(missingAlignment.status, 404);
+
+    const unlistedAlignment = await fetch(
+      `${origin}/api/v1/public/u/${shareToken}/alignment`
+    );
+    assert.equal(unlistedAlignment.status, 200);
+    assert.match(unlistedAlignment.headers.get('cache-control') ?? '', /private, no-store/);
+    const unlistedAlignmentBody = (await unlistedAlignment.json()) as any;
+    assert.deepEqual(unlistedAlignmentBody.alignment, alignment);
+
+    const missingUnlistedAlignment = await fetch(
+      `${origin}/api/v1/public/u/missing-token/alignment`
+    );
+    assert.equal(missingUnlistedAlignment.status, 404);
   } finally {
     clearRepositoryTestOverrides();
     await close(server);

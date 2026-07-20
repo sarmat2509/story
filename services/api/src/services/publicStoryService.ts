@@ -501,6 +501,23 @@ export async function getAlignmentForPublicStory(slug: string): Promise<Alignmen
   return metadata?.alignment ?? null;
 }
 
+/**
+ * Get alignment for an unlisted story by its private share token.
+ * The token is the access boundary; callers must not cache this response publicly.
+ */
+export async function getAlignmentForUnlistedStory(token: string): Promise<AlignmentData | null> {
+  const storyRepo = getStoryRepository();
+  const story = await storyRepo.findByShareToken(token);
+  if (!story || !story.isPublished) return null;
+
+  const alignmentRepo = getAlignmentRepository();
+  const row = await alignmentRepo.findByStoryId(story.id);
+  if (row?.data) return row.data;
+
+  const metadata = story.audioMetadata as any;
+  return metadata?.alignment ?? null;
+}
+
 export async function listPublicStories(options: {
   limit?: number;
   offset?: number;
@@ -607,25 +624,57 @@ export async function listPublicStories(options: {
 export async function listPublicStoriesForLocaleCatalog(options: {
   locale: string;
   limit?: number;
+  offset?: number;
+  language?: string;
+  ageGroup?: string;
+  hasAudio?: boolean;
+  readingTimeMin?: number;
+  readingTimeMax?: number;
 }): Promise<{
   items: PublicStoryListItem[];
   total: number;
   fallbackStartIndex: number | null;
 }> {
   const limit = options.limit ?? 24;
+  const offset = options.offset ?? 0;
   const locale = options.locale.slice(0, 2).toLowerCase();
-  const primary = await listPublicStories({ limit, offset: 0, language: locale });
+  const filters = {
+    ageGroup: options.ageGroup,
+    hasAudio: options.hasAudio,
+    readingTimeMin: options.readingTimeMin,
+    readingTimeMax: options.readingTimeMax,
+  };
+
+  if (options.language) {
+    const filtered = await listPublicStories({
+      limit,
+      offset,
+      language: options.language,
+      ...filters,
+    });
+    return {
+      items: filtered.items,
+      total: filtered.total,
+      fallbackStartIndex: null,
+    };
+  }
+
+  const primary = await listPublicStories({ limit, offset, language: locale, ...filters });
   const remaining = Math.max(0, limit - primary.items.length);
+  const fallbackOffset = Math.max(0, offset - primary.total);
   const fallback = await listPublicStories({
     limit: remaining,
-    offset: 0,
+    offset: fallbackOffset,
     excludeLanguage: locale,
+    ...filters,
   });
+  const startsFallbackOnThisPage =
+    fallback.items.length > 0 && offset <= primary.total && offset + primary.items.length >= primary.total;
 
   return {
     items: [...primary.items, ...fallback.items],
     total: primary.total + fallback.total,
-    fallbackStartIndex: fallback.items.length > 0 ? primary.items.length : null,
+    fallbackStartIndex: startsFallbackOnThisPage ? primary.items.length : null,
   };
 }
 

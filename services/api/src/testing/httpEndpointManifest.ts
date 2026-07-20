@@ -370,6 +370,7 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
   ]),
   ...ownedRoutes('public', [200, 404], `${routeTests}/publicAlignmentLanguagesHttpContract.test.ts`, [
     ['GET', '/api/v1/public/stories/:slug/alignment'],
+    ['GET', '/api/v1/public/u/:token/alignment'],
   ]),
 
   ...ownedRoutes('asset', [200, 401, 403, 404], `${routeTests}/assetDeliveryHttpContract.test.ts`, [

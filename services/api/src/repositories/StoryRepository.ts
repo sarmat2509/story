@@ -161,7 +161,7 @@ export class StoryRepository {
         .from(schema.stories)
         .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
         .where(and(...conditions, eq(schema.storyRequests.scenarioCardId, scenarioCardId)))
-        .orderBy(desc(schema.stories.publishedAt))
+        .orderBy(desc(schema.stories.publishedAt), desc(schema.stories.id))
         .limit(limit)
         .offset(offset);
       return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId }));
@@ -171,7 +171,7 @@ export class StoryRepository {
       .from(schema.stories)
       .leftJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
       .where(and(...conditions))
-      .orderBy(desc(schema.stories.publishedAt))
+      .orderBy(desc(schema.stories.publishedAt), desc(schema.stories.id))
       .limit(limit)
       .offset(offset);
     return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId ?? null }));
