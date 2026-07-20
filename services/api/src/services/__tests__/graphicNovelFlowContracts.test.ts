@@ -10,6 +10,7 @@ import {
   getGraphicNovelStoryCharacterLinks,
   extractLlmCharactersFromComicScript,
   graphicNovelPanelNeedsStoryArtifactReference,
+  graphicNovelPanelImageHasMatchingFrameBorder,
   graphicNovelPanelImagesMatchInsideFrame,
   persistedGraphicNovelCoverPanelCandidates,
   recoverableGraphicNovelInitialCharacters,
@@ -351,6 +352,22 @@ async function testComicPanelFrameCanBeRemovedWithoutChangingInterior(): Promise
     }),
     true,
     'the persisted standalone panel should match the composed page inside its deterministic frame'
+  );
+  assert.equal(
+    await graphicNovelPanelImageHasMatchingFrameBorder({
+      candidateImage: candidate,
+      framedPanelImage: framed,
+    }),
+    false,
+    'an unframed standalone panel should not be mistaken for a composed-page crop'
+  );
+  assert.equal(
+    await graphicNovelPanelImageHasMatchingFrameBorder({
+      candidateImage: framed,
+      framedPanelImage: framed,
+    }),
+    true,
+    'a manual-repair asset that preserved the page frame should be detected'
   );
 
   const stripped = await stripGraphicNovelPanelFrame(framed);

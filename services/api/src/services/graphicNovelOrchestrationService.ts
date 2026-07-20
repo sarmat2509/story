@@ -1073,6 +1073,7 @@ type GraphicNovelCoverPanelSelection = {
 };
 type GraphicNovelCoverSourceImageKind =
   | 'standalone_final_panel_image'
+  | 'standalone_panel_frame_removed'
   | 'art_only_panel_inset_without_frame'
   | 'art_only_before_bubble_overlay';
 type GraphicNovelCoverPanelImage = GraphicNovelBubbleVisionPanelImage & {
@@ -1185,6 +1186,7 @@ async function hasReusableGraphicNovelCover(
   return (
     params.kind === 'graphic_novel_cover_panel' &&
     (params.sourceImageKind === 'standalone_final_panel_image' ||
+      params.sourceImageKind === 'standalone_panel_frame_removed' ||
       params.sourceImageKind === 'art_only_panel_inset_without_frame')
   );
 }
@@ -6605,6 +6607,62 @@ export async function graphicNovelPanelImagesMatchInsideFrame(params: {
   return true;
 }
 
+export async function graphicNovelPanelImageHasMatchingFrameBorder(params: {
+  candidateImage: Buffer;
+  framedPanelImage: Buffer;
+  frameWidthPx?: number;
+  minimumMatchingRatio?: number;
+}): Promise<boolean> {
+  const frameWidthPx = Math.max(
+    1,
+    Math.floor(params.frameWidthPx ?? GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX)
+  );
+  const minimumMatchingRatio = Math.max(
+    0,
+    Math.min(1, params.minimumMatchingRatio ?? 0.9)
+  );
+  const [candidate, framed] = await Promise.all([
+    sharp(params.candidateImage).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(params.framedPanelImage).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  if (
+    candidate.info.width !== framed.info.width ||
+    candidate.info.height !== framed.info.height ||
+    candidate.info.channels !== framed.info.channels
+  ) {
+    return false;
+  }
+
+  const width = framed.info.width;
+  const height = framed.info.height;
+  const channels = framed.info.channels;
+  if (width <= frameWidthPx * 2 || height <= frameWidthPx * 2) return false;
+  let matchingPixels = 0;
+  let borderPixels = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (
+        x >= frameWidthPx &&
+        x < width - frameWidthPx &&
+        y >= frameWidthPx &&
+        y < height - frameWidthPx
+      ) {
+        continue;
+      }
+      borderPixels += 1;
+      const offset = (y * width + x) * channels;
+      if (
+        candidate.data
+          .subarray(offset, offset + channels)
+          .equals(framed.data.subarray(offset, offset + channels))
+      ) {
+        matchingPixels += 1;
+      }
+    }
+  }
+  return borderPixels > 0 && matchingPixels / borderPixels >= minimumMatchingRatio;
+}
+
 export async function stripGraphicNovelPanelFrame(
   framedPanelImage: Buffer,
   frameWidthPx = GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX
@@ -6672,10 +6730,19 @@ async function loadGraphicNovelCoverPanelImagesFromStoredPage(params: {
               framedPanelImage: framedPanelImage.imageData,
             }))
           ) {
+            const includesComposedFrame =
+              await graphicNovelPanelImageHasMatchingFrameBorder({
+                candidateImage: matchingCandidate,
+                framedPanelImage: framedPanelImage.imageData,
+              });
             return {
               ...framedPanelImage,
-              imageData: matchingCandidate,
-              sourceImageKind: 'standalone_final_panel_image' as const,
+              imageData: includesComposedFrame
+                ? await stripGraphicNovelPanelFrame(matchingCandidate)
+                : matchingCandidate,
+              sourceImageKind: includesComposedFrame
+                ? ('standalone_panel_frame_removed' as const)
+                : ('standalone_final_panel_image' as const),
               sourcePanelAssetId: candidate.assetId,
               sourcePanelStoragePath: candidate.storagePath,
             };
