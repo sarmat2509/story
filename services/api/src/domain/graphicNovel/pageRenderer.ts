@@ -558,9 +558,11 @@ function buildBubbleOnlyOverlaySvg(page: PlannedGraphicNovelPage): string {
 </svg>`;
 }
 
+export const GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX = 6;
+
 function buildPanelFrameOverlaySvg(page: PlannedGraphicNovelPage): string {
   const pageSize = pageSizeForGraphicNovelPage(page);
-  const strokeWidth = 6;
+  const strokeWidth = GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX;
   const halfStroke = strokeWidth / 2;
   const panels = page.panels.map((panel) => {
     const r = px(panel.templatePanel.rect, pageSize);

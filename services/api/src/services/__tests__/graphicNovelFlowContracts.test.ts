@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import sharp from 'sharp';
 import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { calculateGraphicNovelQuota } from '../graphicNovelQuotaService';
 import {
@@ -9,10 +10,13 @@ import {
   getGraphicNovelStoryCharacterLinks,
   extractLlmCharactersFromComicScript,
   graphicNovelPanelNeedsStoryArtifactReference,
+  graphicNovelPanelImagesMatchInsideFrame,
+  persistedGraphicNovelCoverPanelCandidates,
   recoverableGraphicNovelInitialCharacters,
   selectGraphicNovelPanelReferenceImagesForGeneration,
   selectGraphicNovelCoverPanel,
   shouldCompleteGraphicNovelRequestAfterPage,
+  stripGraphicNovelPanelFrame,
 } from '../graphicNovelOrchestrationService';
 import { planGraphicNovelLayouts } from '../../domain/graphicNovel';
 
@@ -258,6 +262,112 @@ function testCoverPanelSelectionUsesClosestStandalonePanel(): void {
     ]),
     null,
     'a page without valid panel dimensions should not create a cover'
+  );
+}
+
+function testCoverPanelCandidatesPreferLatestAcceptedRepair(): void {
+  assert.deepEqual(
+    persistedGraphicNovelCoverPanelCandidates(
+      {
+        panelImageGeneration: {
+          panels: [
+            {
+              panelIndex: 5,
+              panelImageAssetId: 'base-asset',
+              panelImageStoragePath: 'panels/base.png',
+            },
+          ],
+        },
+        manualPanelRepairs: [
+          {
+            panels: [
+              {
+                panelNumber: 5,
+                accepted: true,
+                appliedMode: 'edit',
+                requestManifest: {
+                  panelImageAssetId: 'first-edit-asset',
+                  panelImageStoragePath: 'panels/first-edit.png',
+                },
+              },
+            ],
+          },
+          {
+            panels: [
+              {
+                panelNumber: 5,
+                accepted: false,
+                appliedMode: 'edit',
+                requestManifest: {
+                  panelImageAssetId: 'rejected-asset',
+                  panelImageStoragePath: 'panels/rejected.png',
+                },
+              },
+              {
+                panelNumber: 5,
+                accepted: true,
+                appliedMode: 'regenerate',
+                requestManifest: {
+                  panelImageAssetId: 'latest-asset',
+                  panelImageStoragePath: 'panels/latest.png',
+                },
+              },
+            ],
+          },
+        ],
+      },
+      5
+    ),
+    [
+      { assetId: 'latest-asset', storagePath: 'panels/latest.png' },
+      { assetId: 'first-edit-asset', storagePath: 'panels/first-edit.png' },
+      { assetId: 'base-asset', storagePath: 'panels/base.png' },
+    ]
+  );
+}
+
+async function testComicPanelFrameCanBeRemovedWithoutChangingInterior(): Promise<void> {
+  const width = 100;
+  const height = 60;
+  const candidate = await sharp({
+    create: { width, height, channels: 3, background: '#7db5e8' },
+  })
+    .png()
+    .toBuffer();
+  const frameOverlay = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<rect x="3" y="3" width="94" height="54" fill="none" stroke="#111111" stroke-width="6"/>` +
+      `</svg>`
+  );
+  const framed = await sharp(candidate)
+    .composite([{ input: frameOverlay, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+
+  assert.equal(
+    await graphicNovelPanelImagesMatchInsideFrame({
+      candidateImage: candidate,
+      framedPanelImage: framed,
+    }),
+    true,
+    'the persisted standalone panel should match the composed page inside its deterministic frame'
+  );
+
+  const stripped = await stripGraphicNovelPanelFrame(framed);
+  const strippedMetadata = await sharp(stripped).metadata();
+  assert.deepEqual(
+    { width: strippedMetadata.width, height: strippedMetadata.height },
+    { width: 88, height: 48 },
+    'the six-pixel frame should be removed from every side'
+  );
+  const expectedInterior = await sharp(candidate)
+    .extract({ left: 6, top: 6, width: 88, height: 48 })
+    .png()
+    .toBuffer();
+  assert.deepEqual(
+    await sharp(stripped).removeAlpha().raw().toBuffer(),
+    await sharp(expectedInterior).removeAlpha().raw().toBuffer(),
+    'fallback frame removal should preserve every visible interior pixel'
   );
 }
 
@@ -625,7 +735,7 @@ function testPanelReferenceSelectionFiltersBeforeBucketLimit(): void {
   assert.deepEqual(characterLabels, ['REF_CH_EMILIYA_6AC078', 'REF_CH_GROMIK_C909E6']);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   testWizardPayloadContract();
   testGraphicNovelQuotaCalculation();
   testGenerationStatusAfterFirstPage();
@@ -634,6 +744,8 @@ function main(): void {
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();
   testCoverPanelSelectionUsesClosestStandalonePanel();
+  testCoverPanelCandidatesPreferLatestAcceptedRepair();
+  await testComicPanelFrameCanBeRemovedWithoutChangingInterior();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
   testComicScriptExtractsLlmRobotCharacter();
   testLegacyLlmManifestPlaceholderReturnsToPersistenceCandidates();
@@ -643,4 +755,4 @@ function main(): void {
   console.log('graphicNovelFlowContracts tests passed');
 }
 
-main();
+void main();

@@ -19,6 +19,7 @@ export {
   buildGraphicNovelPanelCropInstructions,
   buildGraphicNovelPanelCropSystemInstruction,
   composeGraphicNovelPanelArtPage,
+  GRAPHIC_NOVEL_PANEL_FRAME_WIDTH_PX,
   normalizeGraphicNovelPanelArtForTemplate,
   overlayGraphicNovelBubblesOnly,
   overlayGraphicNovelPanelFrames,
