@@ -13,11 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp, type NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import {
-  usePublicStory,
-  usePublicStoryByToken,
-  useSavePublicStoryCharacter,
-} from '@/api/stories';
+import { usePublicStory, usePublicStoryByToken, useSavePublicStoryCharacter } from '@/api/stories';
 import { useAuthStore } from '@/store/authStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
@@ -56,6 +52,9 @@ const removeAudioTags = (text: string): string => {
     .replace(/\s{2,}/g, ' ')
     .trim();
 };
+
+const normalizeHighlightText = (text: string): string =>
+  removeAudioTags(text).replace(/\s+/g, ' ').trim().toLocaleLowerCase();
 
 type RouteProps = RouteProp<MainDrawerParamList, 'PublishedStory' | 'UnlistedStory'>;
 
@@ -134,6 +133,22 @@ export default function PublishedStoryScreen() {
   // Derive active scene from the active sentence
   const activeSceneIndex =
     activeSentenceIndex !== null ? (sentences[activeSentenceIndex]?.sceneIndex ?? null) : null;
+  const activeScene =
+    activeSceneIndex !== null
+      ? ((story?.scenes?.[activeSceneIndex] as PublicStoryScene) ?? null)
+      : null;
+  const activeComicPageNumber =
+    activeSceneIndex !== null
+      ? Number.isFinite(Number(activeScene?.graphicNovelPageNumber))
+        ? Number(activeScene?.graphicNovelPageNumber)
+        : story?.storyFormat === 'graphic_novel'
+          ? activeSceneIndex + 1
+          : null
+      : null;
+  const activeSentenceText =
+    activeSentenceIndex !== null
+      ? normalizeHighlightText(sentences[activeSentenceIndex]?.text ?? '')
+      : '';
 
   // Auto-scroll to the active scene when it changes (mirrors StoryViewerScreen)
   useEffect(() => {
@@ -208,7 +223,8 @@ export default function PublishedStoryScreen() {
 
   const sharedCharacters = story?.characters ?? [];
   const savedCharacterIds = useMemo(
-    () => sharedCharacters.filter((character) => character.isSaved).map((character) => character.id),
+    () =>
+      sharedCharacters.filter((character) => character.isSaved).map((character) => character.id),
     [sharedCharacters]
   );
 
@@ -379,66 +395,85 @@ export default function PublishedStoryScreen() {
   );
 
   const renderSceneText = (cleanedText: string, sceneIndex: number) => {
-    if (!hasAlignment || sentences.length === 0) {
-      return <Text style={styles.sceneText}>{cleanedText}</Text>;
-    }
+    const highlightedText = renderAlignedTextContent(cleanedText, sceneIndex);
+    return <Text style={styles.sceneText}>{highlightedText ?? cleanedText}</Text>;
+  };
+
+  function renderAlignedTextContent(
+    cleanedText: string,
+    sceneIndex: number
+  ): React.ReactNode[] | null {
+    if (!effectiveHighlightEnabled || !hasAlignment || sentences.length === 0) return null;
+
     const sceneSentences = sentences.filter((s) => s.sceneIndex === sceneIndex);
-    if (sceneSentences.length === 0) {
-      return <Text style={styles.sceneText}>{cleanedText}</Text>;
-    }
+    if (sceneSentences.length === 0) return null;
+
     const renderedText: React.ReactNode[] = [];
     let lastIndex = 0;
+    let matchedSentenceCount = 0;
     sceneSentences.forEach((sentence, sentenceLocalIndex) => {
       const sentenceIndex = sentences.indexOf(sentence);
       const isSentenceActive = effectiveHighlightEnabled && sentenceIndex === activeSentenceIndex;
       const sentencePos = cleanedText.indexOf(sentence.text, lastIndex);
       if (sentencePos === -1) return;
+      matchedSentenceCount += 1;
       if (sentencePos > lastIndex) {
         renderedText.push(cleanedText.substring(lastIndex, sentencePos));
       }
-      if (effectiveHighlightEnabled) {
-        const sentenceWords = sentence.words.map((word, wordIndex) => {
-          const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
-          const wordStyle = isSentenceActive
-            ? isActiveWord
-              ? styles.activeWordColor
-              : styles.inactiveWordColor
-            : undefined;
-          return (
-            <React.Fragment key={`${sentenceIndex}-${wordIndex}`}>
-              <Text style={wordStyle}>{word.text}</Text>
-              {wordIndex < sentence.words.length - 1 && ' '}
-            </React.Fragment>
-          );
-        });
-        renderedText.push(
-          <Text
-            key={`sentence-${sentenceIndex}`}
-            style={[
-              styles.sentenceText,
-              isSentenceActive && styles.activeSentenceBackground,
-              !isSentenceActive && styles.grayTextColor,
-            ]}
-          >
-            {sentenceWords}
-          </Text>
+
+      const sentenceWords = sentence.words.map((word, wordIndex) => {
+        const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
+        const wordStyle = isSentenceActive
+          ? isActiveWord
+            ? styles.activeWordColor
+            : styles.inactiveWordColor
+          : undefined;
+        return (
+          <React.Fragment key={`${sentenceIndex}-${wordIndex}`}>
+            <Text style={wordStyle}>{word.text}</Text>
+            {wordIndex < sentence.words.length - 1 && ' '}
+          </React.Fragment>
         );
-      } else {
-        renderedText.push(
-          <Text key={`sentence-${sentenceIndex}`} style={styles.sentenceText}>
-            {sentence.text}
-          </Text>
-        );
-      }
+      });
+      renderedText.push(
+        <Text
+          key={`sentence-${sentenceIndex}`}
+          style={[
+            styles.sentenceText,
+            isSentenceActive && styles.activeSentenceBackground,
+            !isSentenceActive && styles.grayTextColor,
+          ]}
+        >
+          {sentenceWords}
+        </Text>
+      );
       if (sentenceLocalIndex < sceneSentences.length - 1) {
         renderedText.push(' ');
       }
       lastIndex = sentencePos + sentence.text.length;
     });
+    if (matchedSentenceCount === 0) return null;
     if (lastIndex < cleanedText.length) {
       renderedText.push(cleanedText.substring(lastIndex));
     }
-    return <Text style={styles.sceneText}>{renderedText}</Text>;
+    return renderedText;
+  }
+
+  const findComicSceneIndex = (pageNumber: number) => {
+    const sceneIndex = (story.scenes ?? []).findIndex((scene, index) => {
+      const scenePageNumber = Number(scene.graphicNovelPageNumber ?? scene.sceneId ?? index + 1);
+      return scenePageNumber === pageNumber;
+    });
+    return sceneIndex >= 0 ? sceneIndex : Math.max(0, pageNumber - 1);
+  };
+
+  const isComicTextActive = (item: PublicGraphicNovelTextOverlayItem, pageNumber: number) => {
+    if (!effectiveHighlightEnabled || !activeSentenceText) return false;
+    if (activeComicPageNumber !== pageNumber) return false;
+    const itemText = normalizeHighlightText(item.text || '');
+    return (
+      !!itemText && (itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText))
+    );
   };
 
   const renderProseScene = (scene: PublicStoryScene, sceneIndex: number, showImage = true) => {
@@ -469,6 +504,9 @@ export default function PublishedStoryScreen() {
   ) => {
     const text = removeAudioTags(item.text || '');
     if (!text) return null;
+    const sceneIndex = findComicSceneIndex(page.pageNumber);
+    const highlightedText = renderAlignedTextContent(text, sceneIndex);
+    const isActive = !highlightedText && isComicTextActive(item, page.pageNumber);
     const pageSize = page.textOverlay?.pageSize;
     const pageWidth = comicPageWidths[page.pageNumber] || pageSize?.width || 1024;
     const textStyle = resolveGraphicNovelTextStyle(page.textOverlay?.textStyle, pageSize);
@@ -501,9 +539,10 @@ export default function PublishedStoryScreen() {
               fontSize: scaledTextStyle.fontSizePx,
               lineHeight: scaledTextStyle.lineHeightPx,
             },
+            isActive && styles.comicBubbleTextActive,
           ]}
         >
-          {text}
+          {highlightedText ?? text}
         </Text>
       </View>
     );
@@ -514,10 +553,7 @@ export default function PublishedStoryScreen() {
     const pageSize = page.textOverlay?.pageSize;
     const aspectRatio =
       pageSize?.width && pageSize?.height ? pageSize.width / pageSize.height : 3 / 4;
-    const sceneIndex = (story.scenes ?? []).findIndex(
-      (scene: PublicStoryScene) => scene.graphicNovelPageNumber === page.pageNumber
-    );
-    const refIndex = sceneIndex >= 0 ? sceneIndex : Math.max(0, page.pageNumber - 1);
+    const refIndex = findComicSceneIndex(page.pageNumber);
     const handleLayout = (event: LayoutChangeEvent) => {
       const width = event.nativeEvent.layout.width;
       setComicPageWidths((current) =>
@@ -888,6 +924,10 @@ const styles = StyleSheet.create({
       },
       default: {},
     }),
+  },
+  comicBubbleTextActive: {
+    backgroundColor: 'rgb(218, 239, 253)',
+    color: theme.colors.text.primary,
   },
   comicPagePlaceholder: {
     ...StyleSheet.absoluteFillObject,

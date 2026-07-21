@@ -157,7 +157,11 @@ void (async function main() {
     },
   });
   assert.equal(
-    (audioHtml.match(/<section class="sidebar-widget story-audio-widget [^"]+" data-story-audio-player/g) ?? []).length,
+    (
+      audioHtml.match(
+        /<section class="sidebar-widget story-audio-widget [^"]+" data-story-audio-player/g
+      ) ?? []
+    ).length,
     2,
     'SSR renders equivalent desktop and mobile audio player placements'
   );
@@ -190,7 +194,10 @@ void (async function main() {
     /<script data-published-story-audio>([\s\S]*?)<\/script>/
   )?.[1];
   assert.ok(audioEnhancement, 'SSR audio progressive enhancement is present');
-  assert.doesNotThrow(() => new Script(audioEnhancement), 'SSR audio enhancement is valid JavaScript');
+  assert.doesNotThrow(
+    () => new Script(audioEnhancement),
+    'SSR audio enhancement is valid JavaScript'
+  );
 
   const unlistedAudioHtml = renderPublishedStoryHtml({
     story: {
@@ -211,6 +218,23 @@ void (async function main() {
     story: {
       ...story,
       storyFormat: 'graphic_novel',
+      fullText: 'We found the moon key!',
+      scenes: [
+        {
+          sceneId: 1,
+          text: 'We found the moon key!',
+          graphicNovelPageNumber: 1,
+        },
+      ],
+      audio: {
+        url: '/api/v1/assets/audio/comic.mp3',
+        alignment: {
+          words: [
+            { text: 'We', start: 0, end: 0.2 },
+            { text: 'found', start: 0.2, end: 0.5 },
+          ],
+        } as any,
+      },
       comicPages: [
         {
           pageNumber: 1,
@@ -257,6 +281,16 @@ void (async function main() {
   assert.match(comicHtml, /--comic-padding-y:0\.504032cqw/);
   assert.match(comicHtml, /\.comic-page-canvas\{[^}]*container-type:inline-size/);
   assert.match(comicHtml, /\.comic-bubble\{[^}]*font-size:var\(--comic-font-size\)/);
+  assert.match(
+    comicHtml,
+    /data-alignment-url="\/api\/v1\/public\/u\/share-token\/alignment"/,
+    'comic SSR exposes read-along alignment through its public story access path'
+  );
+  assert.match(
+    comicHtml,
+    /querySelectorAll\('\.scene-text,\.comic-bubble span'\)/,
+    'comic SSR enhancement includes overlay bubble text in its timed-word targets'
+  );
   assert.doesNotMatch(comicHtml, /max-width:900px|font-size:clamp\(/);
 
   assert.equal(
@@ -282,17 +316,51 @@ void (async function main() {
     story: {
       ...story,
       storyFormat: 'mixed_story',
+      fullText: 'Prose comes first.\n\nThe comic clue glows!',
       scenes: [
         { sceneId: 1, text: 'Prose comes first.' },
-        { sceneId: 2, text: 'Internal comic source text.' },
+        {
+          sceneId: 2,
+          text: 'The comic clue glows!',
+          mixedStoryBlockKind: 'comic',
+          mixedStoryScreenOrder: 2,
+          graphicNovelPageNumber: 1,
+        },
       ],
+      audio: {
+        url: '/api/v1/assets/audio/mixed.mp3',
+        alignment: {
+          words: [
+            { text: 'Prose', start: 0, end: 0.3 },
+            { text: 'The', start: 0.8, end: 1 },
+          ],
+        } as any,
+      },
       comicPages: [
         {
           pageNumber: 1,
           pageRole: 'story',
           status: 'completed',
           imageUrl: '/api/v1/assets/comics/mixed-1.jpg',
-          textOverlay: null,
+          textOverlay: {
+            mode: 'html_overlay',
+            coordinateSpace: 'normalized_0_1',
+            pageNumber: 1,
+            pageSize: { width: 992, height: 1323 },
+            items: [
+              {
+                id: 'mixed-bubble-1',
+                segmentId: 'mixed-segment-1',
+                pageNumber: 1,
+                panelIndex: 1,
+                bubbleIndex: 1,
+                readingOrder: 1,
+                kind: 'caption',
+                text: 'The comic clue glows!',
+                rect: { x: 0.1, y: 0.1, width: 0.3, height: 0.12 },
+              },
+            ],
+          },
         },
       ],
       mixedStoryReadingOrder: [
@@ -302,7 +370,21 @@ void (async function main() {
     },
   });
   assert.ok(mixedHtml.indexOf('Prose comes first.') < mixedHtml.indexOf('mixed-1.jpg'));
-  assert.doesNotMatch(mixedHtml, /Internal comic source text/);
+  assert.match(
+    mixedHtml,
+    /class="comic-bubble[^>]*>[\s\S]*?<span>The comic clue glows!<\/span>/,
+    'mixed SSR renders comic narration in the visible overlay'
+  );
+  assert.doesNotMatch(
+    mixedHtml,
+    /class="scene-text">The comic clue glows!<\/p>/,
+    'mixed SSR does not duplicate the comic narration as a prose block'
+  );
+  assert.match(
+    mixedHtml,
+    /data-story-audio-player[^>]*data-alignment-url="\/api\/v1\/public\/u\/share-token\/alignment"/,
+    'mixed SSR exposes read-along controls for prose and comic blocks'
+  );
 
   const artifactLeakAttemptHtml = renderPublishedStoryHtml({
     story: {
