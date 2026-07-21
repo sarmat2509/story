@@ -28,6 +28,7 @@ export interface PlanWithLimits extends Plan {
   imagesPerStory: number;
   graphicNovelsPerMonth: number;
   mixedStoriesPerMonth: number;
+  storyMixBudgetPoints: number;
 }
 
 export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
@@ -49,6 +50,7 @@ export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
         imagesPerStory: getLimit('images_per_story', 3),
         graphicNovelsPerMonth: getLimit('graphic_novels_per_month', 0),
         mixedStoriesPerMonth: getLimit('mixed_stories_per_month', 0),
+        storyMixBudgetPoints: getLimit('story_mix_budget_points', 0),
       };
     })
   );
@@ -186,6 +188,7 @@ export interface PlanFeatures {
   storiesPerMonth: number;
   audioStoriesPerMonth: number;
   charactersPerMonth: number;
+  storyMixBudgetPoints: number;
 }
 
 /**
@@ -211,6 +214,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
       storiesPerMonth: 5,
       audioStoriesPerMonth: 1,
       charactersPerMonth: 3,
+      storyMixBudgetPoints: 0,
     };
     return defaultFeatures;
   }
@@ -238,6 +242,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
     storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 3),
     audioStoriesPerMonth: getNumericFeature(featureMap, 'audio_stories_per_month', 1),
     charactersPerMonth: getNumericFeature(featureMap, 'characters_per_month', 3),
+    storyMixBudgetPoints: getNumericFeature(featureMap, 'story_mix_budget_points', 0),
   };
   
   return result;

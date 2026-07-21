@@ -32,6 +32,11 @@ export const USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_REGENERATE =
   'graphic_novel_panel_crop_validation_regenerate';
 export const USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT =
   'graphic_novel_panel_crop_validation_edit';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_EDIT = 'graphic_novel_panel_manual_edit';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_REGENERATE =
+  'graphic_novel_panel_manual_regenerate';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_REGENERATE_CLEANUP_EDIT =
+  'graphic_novel_panel_manual_regenerate_cleanup_edit';
 
 /** Deferred TTS prosody LLM (`enrichDeferredProsodyForTtsChunk`); priced like text tokens (same provider/model). */
 export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
@@ -82,7 +87,10 @@ function isImageGenerationPricedOperation(operation: string): boolean {
     operation === USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_GENERATE ||
     operation === USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_REGENERATE ||
     operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_REGENERATE ||
-    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_EDIT ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_REGENERATE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_REGENERATE_CLEANUP_EDIT
   );
 }
 

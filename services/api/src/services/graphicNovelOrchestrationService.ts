@@ -7136,6 +7136,10 @@ export async function repairGraphicNovelPagePanels(
   });
 
   const complexImageDomain = getComplexImageDomainService();
+  // Manual panel edits are replacement image calls, so use the same economical
+  // image route as the original panel render. The quality gate remains on the
+  // complex route below.
+  const panelEditImageDomain = getImageDomainService();
   const ageGroup = project.ageGroup || story.ageGroup || '6-8';
   const style =
     params.style || (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor';
@@ -7443,9 +7447,9 @@ export async function repairGraphicNovelPagePanels(
               referenceImages: panelReferenceImages,
               currentValidation,
             });
-            let edited: Awaited<ReturnType<typeof complexImageDomain.editSceneImage>>;
+            let edited: Awaited<ReturnType<typeof panelEditImageDomain.editSceneImage>>;
             try {
-              edited = await complexImageDomain.editSceneImage({
+              edited = await panelEditImageDomain.editSceneImage({
                 originalImage: currentImage,
                 originalMimeType: 'image/png',
                 validationResult: currentValidation.validation,
@@ -7585,7 +7589,7 @@ export async function repairGraphicNovelPagePanels(
             currentValidation: candidate.validation,
           });
           try {
-            const edited = await complexImageDomain.editSceneImage({
+            const edited = await panelEditImageDomain.editSceneImage({
               originalImage: generated.imageData,
               originalMimeType: 'image/png',
               validationResult: candidate.validation.validation,

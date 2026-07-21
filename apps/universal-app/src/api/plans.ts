@@ -120,6 +120,15 @@ export interface SubscriptionUsageData {
   cancelAtPeriodEnd?: boolean;
   paymentProvider?: string | null;
   enableRealPayments?: boolean;
+  storyMix?: {
+    budgetPoints: number;
+    usedPoints: number;
+    remainingPoints: number;
+    weights: { story: number; mixedStory: number; graphicNovel: number };
+    used: { stories: number; mixedStories: number; graphicNovels: number };
+    maximum: { stories: number; mixedStories: number; graphicNovels: number };
+    allocation: { stories: number; mixedStories: number; graphicNovels: number };
+  };
 }
 
 type SubscriptionUsageApiData = SubscriptionUsageData & {
@@ -191,6 +200,7 @@ function normalizeSubscriptionUsage(data: SubscriptionUsageApiData): Subscriptio
     cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? data.cancel_at_period_end,
     paymentProvider: data.paymentProvider ?? data.payment_provider,
     enableRealPayments: data.enableRealPayments ?? data.enable_real_payments,
+    storyMix: data.storyMix,
   };
 }
 
@@ -204,6 +214,18 @@ export const useSubscriptionUsage = (enabled: boolean = true) => {
       return normalizeSubscriptionUsage(response.data.data);
     },
     enabled,
+  });
+};
+
+export const useUpdateStoryMix = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { graphicNovels: number; mixedStories: number }) => {
+      await apiClient.put('/api/v1/me/story-mix', input);
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['subscription-usage'] });
+    },
   });
 };
 

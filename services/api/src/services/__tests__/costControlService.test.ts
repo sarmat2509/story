@@ -8,19 +8,44 @@ import {
 
 const thresholds = normalizeCostControlThresholds({
   storyWarnUsd: 1,
+  graphicNovelWarnUsd: 4,
+  mixedStoryWarnUsd: 2,
   dailyWarnUsd: 10,
   monthlyWarnUsd: 100,
   userDailyWarnUsd: 20,
   queueDepthWarn: 5,
 });
 
+const healthyStoryCosts = [
+  {
+    format: 'story' as const,
+    storyCount: 1,
+    avgCostUsd: 0.5,
+    highCostStoryCount: 0,
+    maxStoryCostUsd: 0.5,
+  },
+  {
+    format: 'graphic_novel' as const,
+    storyCount: 1,
+    avgCostUsd: 3,
+    highCostStoryCount: 1,
+    maxStoryCostUsd: 8,
+  },
+  {
+    format: 'mixed_story' as const,
+    storyCount: 1,
+    avgCostUsd: 1.5,
+    highCostStoryCount: 0,
+    maxStoryCostUsd: 1.5,
+  },
+];
+
 assert.equal(
   classifyCostControlStatus(
     {
       projectedMonthlyCostUsd: 20,
       dailyAverageCostUsd: 1,
-      highCostStoryCount: 0,
-      maxStoryCostUsd: 0.5,
+      storyCostsByFormat: healthyStoryCosts,
       unpricedEventCount: 0,
       topUser24hCostUsd: 0,
     },
@@ -34,8 +59,7 @@ assert.equal(
     {
       projectedMonthlyCostUsd: 20,
       dailyAverageCostUsd: 11,
-      highCostStoryCount: 0,
-      maxStoryCostUsd: 0.5,
+      storyCostsByFormat: healthyStoryCosts,
       unpricedEventCount: 0,
       topUser24hCostUsd: 0,
     },
@@ -49,8 +73,7 @@ assert.equal(
     {
       projectedMonthlyCostUsd: 101,
       dailyAverageCostUsd: 1,
-      highCostStoryCount: 0,
-      maxStoryCostUsd: 0.5,
+      storyCostsByFormat: healthyStoryCosts,
       unpricedEventCount: 0,
       topUser24hCostUsd: 0,
     },
@@ -68,8 +91,16 @@ assert.equal(classifyQueueStatus(10, thresholds.queueDepthWarn), 'critical');
     {
       projectedMonthlyCostUsd: 120,
       dailyAverageCostUsd: 12,
-      highCostStoryCount: 2,
-      maxStoryCostUsd: 2.5,
+      storyCostsByFormat: [
+        {
+          format: 'story',
+          storyCount: 2,
+          avgCostUsd: 2.5,
+          highCostStoryCount: 2,
+          maxStoryCostUsd: 2.5,
+        },
+        ...healthyStoryCosts.slice(1),
+      ],
       unpricedEventCount: 3,
       topUser24hCostUsd: 21,
     },
@@ -83,7 +114,7 @@ assert.equal(classifyQueueStatus(10, thresholds.queueDepthWarn), 'critical');
       ['projected-monthly-spend', 'critical', '/admin/dashboard'],
       ['daily-average-spend', 'warning', '/admin/dashboard'],
       ['top-user-daily-spend-critical', 'critical', '/admin/users'],
-      ['max-story-cost-critical', 'critical', '/admin/stories'],
+      ['avg-story-cost-critical', 'critical', '/admin/stories'],
       ['unpriced-ai-events', 'warning', '/admin/dashboard'],
     ]
   );
@@ -95,8 +126,7 @@ assert.equal(classifyQueueStatus(10, thresholds.queueDepthWarn), 'critical');
     {
       projectedMonthlyCostUsd: 20,
       dailyAverageCostUsd: 1,
-      highCostStoryCount: 0,
-      maxStoryCostUsd: 0.5,
+      storyCostsByFormat: healthyStoryCosts,
       unpricedEventCount: 0,
       topUser24hCostUsd: 0,
     },

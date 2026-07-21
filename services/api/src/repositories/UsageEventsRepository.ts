@@ -70,6 +70,58 @@ export class UsageEventsRepository {
     return Number(row?.total ?? 0);
   }
 
+  async getStoryMixUsageForPeriod(userId: string, startDate: Date, endDate: Date): Promise<{
+    points: number;
+    stories: number;
+    graphicNovels: number;
+    mixedStories: number;
+  }> {
+    const [row] = await this.db
+      .select({
+        points: sql<number>`COALESCE(SUM(
+          ${schema.usageEvents.quantity} * COALESCE(
+            NULLIF(${schema.usageEvents.metadata}->>'storyMixPoints', '')::integer,
+            CASE ${schema.usageEvents.metadata}->>'reservationSource'
+              WHEN 'graphic_novel' THEN 8370
+              WHEN 'mixed_story' THEN 5030
+              ELSE 1000
+            END
+          )
+        ), 0)::integer`,
+        stories: sql<number>`COALESCE(SUM(CASE
+          WHEN COALESCE(${schema.usageEvents.metadata}->>'reservationSource', '') NOT IN ('graphic_novel', 'mixed_story')
+            THEN ${schema.usageEvents.quantity}
+          ELSE 0
+        END), 0)::integer`,
+        graphicNovels: sql<number>`COALESCE(SUM(CASE
+          WHEN ${schema.usageEvents.metadata}->>'reservationSource' = 'graphic_novel'
+            THEN ${schema.usageEvents.quantity}
+          ELSE 0
+        END), 0)::integer`,
+        mixedStories: sql<number>`COALESCE(SUM(CASE
+          WHEN ${schema.usageEvents.metadata}->>'reservationSource' = 'mixed_story'
+            THEN ${schema.usageEvents.quantity}
+          ELSE 0
+        END), 0)::integer`,
+      })
+      .from(schema.usageEvents)
+      .where(
+        and(
+          eq(schema.usageEvents.userId, userId),
+          eq(schema.usageEvents.eventType, 'story_created'),
+          gte(schema.usageEvents.createdAt, startDate),
+          lt(schema.usageEvents.createdAt, endDate)
+        )
+      );
+
+    return {
+      points: Number(row?.points ?? 0),
+      stories: Number(row?.stories ?? 0),
+      graphicNovels: Number(row?.graphicNovels ?? 0),
+      mixedStories: Number(row?.mixedStories ?? 0),
+    };
+  }
+
   /**
    * Sum audio_synthesized quantity for one story in a billing window (metadata.storyId).
    * Used to bill at most once per story per period — regenerations should not inflate usage.

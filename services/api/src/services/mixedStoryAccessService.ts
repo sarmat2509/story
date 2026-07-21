@@ -1,4 +1,5 @@
-import { getFeatureLimit } from './planService';
+import { planAllowsComicFormats } from '@wondertales/shared';
+import { getPlanFeatures } from './planService';
 
 export class MixedStoryAccessError extends Error {
   readonly statusCode = 403;
@@ -18,8 +19,8 @@ export function isMixedStoryAccessError(error: unknown): error is MixedStoryAcce
 }
 
 export async function assertMixedStoryAccessAvailable(userId: string): Promise<void> {
-  const limit = await getFeatureLimit(userId, 'mixed_stories_per_month');
-  if (limit == null || limit <= 0) {
-    throw new MixedStoryAccessError(limit ?? 0);
+  const features = await getPlanFeatures(userId);
+  if (!planAllowsComicFormats(features.graphicNovelsPerMonth)) {
+    throw new MixedStoryAccessError(features.graphicNovelsPerMonth);
   }
 }

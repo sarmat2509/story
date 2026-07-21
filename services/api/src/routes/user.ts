@@ -49,6 +49,13 @@ const DataPrivacyRequestBodySchema = z
   })
   .strict();
 
+const StoryMixAllocationSchema = z
+  .object({
+    graphicNovels: z.number().int().min(0).max(100),
+    mixedStories: z.number().int().min(0).max(100),
+  })
+  .strict();
+
 // Get current user
 router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
@@ -271,6 +278,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
+    const { getUsageEventsRepository } = await import('../repositories');
     const { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } =
       await import('../services/bundleService');
     const { getGraphicNovelUsageForPeriod } = await import('../services/graphicNovelQuotaService');
@@ -298,7 +306,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       currentPeriodEnd
     );
 
-    const [storiesUsed, graphicNovelsUsed, audioUsed] = await Promise.all([
+    const [storiesUsed, graphicNovelsUsed, audioUsed, storyMixUsage] = await Promise.all([
       getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'story_created'),
       getGraphicNovelUsageForPeriod({
         userId: usageOwnerId,
@@ -306,11 +314,17 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
         periodEnd: currentPeriodEnd,
       }),
       getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
+      getUsageEventsRepository().getStoryMixUsageForPeriod(
+        usageOwnerId,
+        currentPeriodStart,
+        currentPeriodEnd
+      ),
     ]);
     const storiesPlanLimit = features.storiesPerMonth;
     const graphicNovelsPlanLimit = features.graphicNovelsPerMonth;
     const mixedStoriesPlanLimit = features.mixedStoriesPerMonth;
     const audioPlanLimit = features.audioStoriesPerMonth;
+    const storyMixBudgetPoints = features.storyMixBudgetPoints;
     const graphicNovelsBundleBonus = calculateBundleGraphicNovelBonus({
       extraStories: bundleBonus.extraStories,
       storiesPlanLimit,
@@ -337,29 +351,95 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const graphicNovelsLimit =
       graphicNovelsPlanLimit + graphicNovelsBundleBonus + graphicNovelsConditionalExtension;
     const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
+    const storyMixBudgetWithBundle =
+      storyMixBudgetPoints > 0
+        ? storyMixBudgetPoints + (bundleBonus.extraStories + storiesConditionalExtension) * 1_000
+        : 0;
+    const storyMixRemainingPoints = Math.max(0, storyMixBudgetWithBundle - storyMixUsage.points);
+    const storedStoryMix = (subscription.metadata as Record<string, unknown> | null)?.storyMix;
+    const storedAllocation =
+      storedStoryMix && typeof storedStoryMix === 'object'
+        ? (storedStoryMix as Record<string, unknown>)
+        : null;
+    const storedAllocationIsCurrentPeriod =
+      storedAllocation?.periodStart === subscription.currentPeriodStart.toISOString();
+    const requestedGraphicNovels = storedAllocationIsCurrentPeriod
+      ? Math.max(0, Math.trunc(Number(storedAllocation?.graphicNovels) || 0))
+      : 0;
+    const requestedMixedStories = storedAllocationIsCurrentPeriod
+      ? Math.max(0, Math.trunc(Number(storedAllocation?.mixedStories) || 0))
+      : 0;
+    const allocatedGraphicNovels = Math.max(
+      storyMixUsage.graphicNovels,
+      Math.min(
+        Math.floor(storyMixBudgetWithBundle / 8_370),
+        requestedGraphicNovels
+      )
+    );
+    const allocatedMixedStories = Math.max(
+      storyMixUsage.mixedStories,
+      Math.min(
+        Math.floor(
+          Math.max(0, storyMixBudgetWithBundle - allocatedGraphicNovels * 8_370) / 5_030
+        ),
+        requestedMixedStories
+      )
+    );
+    const allocatedStories = Math.max(
+      storyMixUsage.stories,
+      Math.floor(
+        Math.max(
+          0,
+          storyMixBudgetWithBundle - allocatedGraphicNovels * 8_370 - allocatedMixedStories * 5_030
+        ) / 1_000
+      )
+    );
 
     const { default: config } = await import('../config');
 
     const data: SubscriptionUsageView = {
       stories: {
-        used: storiesUsed,
-        limit: storiesLimit,
-        remaining: Math.max(0, storiesLimit - storiesUsed),
+        used: storyMixBudgetPoints > 0 ? storyMixUsage.stories : storiesUsed,
+        limit:
+          storyMixBudgetPoints > 0
+            ? allocatedStories
+            : storiesLimit,
+        remaining:
+          storyMixBudgetPoints > 0
+            ? Math.max(0, allocatedStories - storyMixUsage.stories)
+            : Math.max(0, storiesLimit - storiesUsed),
         plan_limit: storiesPlanLimit,
         bundle_bonus: bundleBonus.extraStories,
       },
       graphicNovels: {
-        used: graphicNovelsUsed,
-        limit: graphicNovelsLimit,
+        used: storyMixBudgetPoints > 0 ? storyMixUsage.graphicNovels : graphicNovelsUsed,
+        limit: storyMixBudgetPoints > 0 ? allocatedGraphicNovels : graphicNovelsLimit,
         remaining:
-          graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
+          storyMixBudgetPoints > 0
+            ? Math.max(0, allocatedGraphicNovels - storyMixUsage.graphicNovels)
+            : graphicNovelsLimit < 0
+            ? -1
+            : Math.max(
+                0,
+                graphicNovelsLimit -
+                  (storyMixBudgetPoints > 0 ? storyMixUsage.graphicNovels : graphicNovelsUsed)
+              ),
         plan_limit: graphicNovelsPlanLimit,
         bundle_bonus: graphicNovelsBundleBonus,
       },
       mixedStories: {
-        used: storiesUsed,
-        limit: mixedStoriesLimit,
-        remaining: mixedStoriesLimit < 0 ? -1 : Math.max(0, mixedStoriesLimit - storiesUsed),
+        used: storyMixBudgetPoints > 0 ? storyMixUsage.mixedStories : storiesUsed,
+        limit: storyMixBudgetPoints > 0 ? allocatedMixedStories : mixedStoriesLimit,
+        remaining:
+          storyMixBudgetPoints > 0
+            ? Math.max(0, allocatedMixedStories - storyMixUsage.mixedStories)
+            : mixedStoriesLimit < 0
+            ? -1
+            : Math.max(
+                0,
+                mixedStoriesLimit -
+                  (storyMixBudgetPoints > 0 ? storyMixUsage.mixedStories : storiesUsed)
+              ),
         plan_limit: mixedStoriesPlanLimit,
         bundle_bonus: mixedStoriesPlanLimit > 0 ? bundleBonus.extraStories : 0,
       },
@@ -378,6 +458,31 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       paymentProvider: subscription.paymentProvider,
       enableRealPayments: config.features.enableRealPayments,
+      ...(storyMixBudgetPoints > 0
+        ? {
+            storyMix: {
+              budgetPoints: storyMixBudgetWithBundle,
+              usedPoints: storyMixUsage.points,
+              remainingPoints: storyMixRemainingPoints,
+              weights: { story: 1_000, mixedStory: 5_030, graphicNovel: 8_370 },
+              used: {
+                stories: storyMixUsage.stories,
+                mixedStories: storyMixUsage.mixedStories,
+                graphicNovels: storyMixUsage.graphicNovels,
+              },
+              maximum: {
+                stories: Math.floor(storyMixBudgetWithBundle / 1_000),
+                mixedStories: Math.floor(storyMixBudgetWithBundle / 5_030),
+                graphicNovels: Math.floor(storyMixBudgetWithBundle / 8_370),
+              },
+              allocation: {
+                stories: allocatedStories,
+                mixedStories: allocatedMixedStories,
+                graphicNovels: allocatedGraphicNovels,
+              },
+            },
+          }
+        : {}),
     };
 
     res.json({
@@ -390,6 +495,62 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       status: 'error',
       message: 'Failed to fetch subscription usage',
     });
+  }
+});
+
+router.put('/story-mix', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  const parsed = StoryMixAllocationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ status: 'error', message: 'Invalid story mix allocation' });
+  }
+
+  try {
+    const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
+    const { getUsageEventsRepository } = await import('../repositories');
+    const subscription = await getUserSubscription(req.user!.id);
+    if (!subscription) {
+      return res.status(403).json({ status: 'error', code: 'NO_SUBSCRIPTION' });
+    }
+    const features = await getPlanFeatures(req.user!.id);
+    if (features.storyMixBudgetPoints <= 0) {
+      return res.status(403).json({ status: 'error', code: 'STORY_MIX_NOT_AVAILABLE' });
+    }
+    const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt;
+    const usage = await getUsageEventsRepository().getStoryMixUsageForPeriod(
+      req.user!.id,
+      subscription.currentPeriodStart,
+      periodEnd
+    );
+    const { graphicNovels, mixedStories } = parsed.data;
+    const usedPoints =
+      usage.stories * 1_000 + graphicNovels * 8_370 + mixedStories * 5_030;
+    if (
+      graphicNovels < usage.graphicNovels ||
+      mixedStories < usage.mixedStories ||
+      usedPoints > features.storyMixBudgetPoints
+    ) {
+      return res.status(409).json({
+        status: 'error',
+        code: 'STORY_MIX_EXCEEDS_BUDGET',
+        message: 'This story mix exceeds the remaining monthly budget',
+      });
+    }
+    const { getPlanRepository } = await import('../repositories');
+    await getPlanRepository().updateSubscription(req.user!.id, {
+      metadata: {
+        ...((subscription.metadata as Record<string, unknown> | null) ?? {}),
+        storyMix: {
+          graphicNovels,
+          mixedStories,
+          periodStart: subscription.currentPeriodStart.toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+    return res.json({ status: 'success' });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Update story mix failed');
+    return res.status(500).json({ status: 'error', message: 'Failed to update story mix' });
   }
 });
 

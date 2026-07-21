@@ -60,7 +60,9 @@ import {
   getPricingFeatureLabel,
   isPricingFeatureAvailable,
   normalizePricingLocale,
+  planAllowsComicFormats,
   sortPricingFeatureEntries,
+  STORY_MIX_POINT_WEIGHTS,
   type PricingTranslate,
 } from '@wondertales/shared';
 
@@ -94,6 +96,18 @@ function formatZeroPlanPrice(locale: string, currency: string) {
     if (normalizedCurrency === 'EUR') return '0 €';
     return `0 ${normalizedCurrency}`;
   }
+}
+
+function renderPlanLabelWithBoldNumbers(label: string) {
+  return label.split(/(\d+(?:[.,]\d+)?)/).map((part, index) =>
+    /^\d/.test(part) ? (
+      <Text key={`${part}-${index}`} style={styles.planLabelNumber}>
+        {part}
+      </Text>
+    ) : (
+      part
+    )
+  );
 }
 
 export default function PlansScreen() {
@@ -195,11 +209,13 @@ export default function PlansScreen() {
   }, [effectiveIsAuthenticated, plans]);
   const currentPlanSlug = currentPlan?.slug ?? null;
   const currentPlanName = currentPlan?.name ?? null;
-  const currentPlanBundleComicRatio = useMemo(() => {
-    const storiesLimit = getPlanFeatureLimit(currentPlan?.features, 'stories_per_month');
-    const comicsLimit = getPlanFeatureLimit(currentPlan?.features, 'graphic_novels_per_month');
-    return storiesLimit && comicsLimit ? comicsLimit / storiesLimit : 0;
-  }, [currentPlan?.features]);
+  const currentPlanAllowsComicFormats = useMemo(
+    () =>
+      planAllowsComicFormats(
+        getPlanFeatureLimit(currentPlan?.features, 'graphic_novels_per_month')
+      ),
+    [currentPlan?.features]
+  );
   const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug, billingCurrency);
   const sortedBundles = useMemo(() => {
     const rows = bundlesQuery.data;
@@ -373,7 +389,26 @@ export default function PlansScreen() {
       sortedBundles.map((b, idx) => {
         const canBuy = enableRealPayments && isWeb;
         const featured = sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
-        const extraComics = Math.floor(b.extraStories * currentPlanBundleComicRatio);
+        const extraComics = currentPlanAllowsComicFormats
+          ? Math.floor(
+              (b.extraStories * STORY_MIX_POINT_WEIGHTS.story) /
+                STORY_MIX_POINT_WEIGHTS.graphicNovel
+            )
+          : 0;
+        const extraMixedStories = currentPlanAllowsComicFormats
+          ? Math.floor(
+              (b.extraStories * STORY_MIX_POINT_WEIGHTS.story) /
+                STORY_MIX_POINT_WEIGHTS.mixedStory
+            )
+          : 0;
+        const storyMixLabel =
+          extraComics > 0 || extraMixedStories > 0
+            ? t('plans.bundles.story_mix_limits', {
+                stories: b.extraStories,
+                comics: extraComics,
+                mixed: extraMixedStories,
+              })
+            : t('plans.bundles.story_limits', { stories: b.extraStories });
         return (
           <View
             key={b.slug}
@@ -393,29 +428,21 @@ export default function PlansScreen() {
               <Text style={styles.bundleName}>
                 {t(`plans.bundles.slug_titles.${b.slug}` as never, { defaultValue: b.name })}
               </Text>
-              <Text style={styles.bundleStoriesHero}>+{b.extraStories}</Text>
-              <Text style={styles.bundleStoriesHint}>{t('plans.bundles.stories_word')}</Text>
               <View style={styles.bundleMetaList}>
+                <View style={styles.bundleMetaRow}>
+                  <Ionicons name="book-outline" size={15} color={theme.colors.text.tertiary} />
+                  <Text style={styles.bundleMetaText}>
+                    {renderPlanLabelWithBoldNumbers(storyMixLabel)}
+                  </Text>
+                </View>
                 <View style={styles.bundleMetaRow}>
                   <Ionicons name="headset-outline" size={15} color={theme.colors.text.tertiary} />
                   <Text style={styles.bundleMetaText}>
-                    {t('plans.bundles.audio_within_stories', {
-                      audio: b.extraAudio,
-                      stories: b.extraStories,
-                    })}
+                    {renderPlanLabelWithBoldNumbers(
+                      t('plans.bundles.audio_limit', { audio: b.extraAudio })
+                    )}
                   </Text>
                 </View>
-                {extraComics > 0 ? (
-                  <View style={styles.bundleMetaRow}>
-                    <Ionicons name="book-outline" size={15} color={theme.colors.text.tertiary} />
-                    <Text style={styles.bundleMetaText}>
-                      {t('plans.bundles.comics_within_stories', {
-                        comics: extraComics,
-                        stories: b.extraStories,
-                      })}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
               <Text style={styles.bundlePrice}>{formatPrice(b.priceMinor, b.pricingCurrency)}</Text>
               <AppButton
@@ -440,7 +467,7 @@ export default function PlansScreen() {
       openBundleCheckout,
       createBundleCheckout.isPending,
       billingCurrency,
-      currentPlanBundleComicRatio,
+      currentPlanAllowsComicFormats,
     ]
   );
 
@@ -596,7 +623,12 @@ export default function PlansScreen() {
             }
 
             return (
-              <AnimatedSection key={plan.id} delay={cardDelay(planIndex)} trigger={enterKey}>
+              <AnimatedSection
+                key={plan.id}
+                delay={cardDelay(planIndex)}
+                trigger={enterKey}
+                style={[styles.planCardWrapper, isWeb && styles.planCardWrapperWeb]}
+              >
                 <View
                   style={
                     [
@@ -628,9 +660,9 @@ export default function PlansScreen() {
                         size={20}
                         color={theme.colors.interactive.primary}
                       />
-                      <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
-                        {usageHighlight}
-                      </Text>
+                          <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
+                            {usageHighlight}
+                          </Text>
                     </View>
                   )}
 
@@ -657,11 +689,13 @@ export default function PlansScreen() {
                                   !available && styles.featureTextDisabled,
                                 ]}
                               >
-                                {getPricingFeatureLabel(
-                                  pricingLocale,
-                                  translatePricing,
-                                  slug,
-                                  feature
+                                {renderPlanLabelWithBoldNumbers(
+                                  getPricingFeatureLabel(
+                                    pricingLocale,
+                                    translatePricing,
+                                    slug,
+                                    feature
+                                  )
                                 )}
                               </Text>
                             </View>
@@ -1207,7 +1241,15 @@ const styles = StyleSheet.create({
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
+    flex: 1,
     ...modernShadows.card,
+  },
+  planCardWrapper: {
+    alignSelf: 'stretch',
+  },
+  planCardWrapperWeb: {
+    minWidth: 280,
+    maxWidth: 320,
   },
   planCardNative: {
     width: '100%',
@@ -1275,6 +1317,9 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.interactive.primary,
+  },
+  planLabelNumber: {
+    fontWeight: theme.typography.fontWeight.bold,
   },
   featuresContainer: {
     flex: 1,
@@ -1605,25 +1650,10 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing[4],
   },
   bundleName: {
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: theme.spacing[1],
-  },
-  bundleStoriesHero: {
-    fontSize: theme.typography.fontSize['5xl'],
+    fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.interactive.primary,
-    letterSpacing: -1,
-    lineHeight: theme.typography.fontSize['5xl'] * 1.05,
-  },
-  bundleStoriesHint: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    marginTop: -theme.spacing[1],
-    marginBottom: theme.spacing[2],
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[3],
   },
   bundleMetaList: {
     gap: theme.spacing[1],

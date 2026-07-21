@@ -27,6 +27,12 @@ const PERIOD_OPTIONS = [
 
 type PeriodUnit = (typeof PERIOD_OPTIONS)[number]['value'];
 
+const STORY_FORMAT_LABELS = {
+  story: 'Regular story',
+  graphic_novel: 'Comic',
+  mixed_story: 'Story + comic',
+} as const;
+
 const TIMING_GENERATION_KIND_TABS = [
   { value: 'story', label: 'Regular' },
   { value: 'graphic_novel', label: 'Comics' },
@@ -669,11 +675,14 @@ export default function AdminDashboardScreen() {
               value={formatNumber(overview.totalStories)}
               helper={`${formatRangeSummary(appliedRange.amount, appliedRange.unit)} • ${formatUsd(overview.totalCostUsd)} total AI cost`}
             />
-            <MetricCard
-              label="Avg story cost"
-              value={formatUsd(overview.avgCostUsd)}
-              helper={`${overview.avgImageSceneCount.toFixed(1)} images/story • ${overview.avgSceneCount.toFixed(1)} scenes/story`}
-            />
+            {overview.costByStoryFormat.map((item) => (
+              <MetricCard
+                key={item.format}
+                label={`Avg ${STORY_FORMAT_LABELS[item.format].toLowerCase()} cost`}
+                value={formatUsd(item.avgCostUsd)}
+                helper={`${formatNumber(item.costTrackedStoryCount)} cost-tracked of ${formatNumber(item.storyCount)} ${item.format === 'graphic_novel' ? 'comics' : 'stories'}${item.unpricedStoryCount > 0 ? ` • ${formatNumber(item.unpricedStoryCount)} unpriced` : ''}`}
+              />
+            ))}
             <MetricCard
               label="Request success"
               value={formatPercent(overview.requestSuccessRate)}
@@ -702,7 +711,7 @@ export default function AdminDashboardScreen() {
             <MetricCard
               label="Cost guardrail"
               value={statusLabel(data.costControls.status)}
-              helper={`${formatUsd(data.costControls.projectedMonthlyCostUsd)} projected monthly • ${formatNumber(data.costControls.highCostStoryCount)} high-cost stories`}
+              helper={`${formatUsd(data.costControls.projectedMonthlyCostUsd)} projected monthly • format averages monitored`}
               tone={statusTone(data.costControls.status)}
             />
             <MetricCard
@@ -722,7 +731,7 @@ export default function AdminDashboardScreen() {
           <View style={styles.sectionGrid}>
             <SectionCard
               title="Cost guardrails"
-              subtitle={`Story warn ${formatUsd(data.costControls.thresholds.storyWarnUsd)} • daily warn ${formatUsd(data.costControls.thresholds.dailyWarnUsd)} • monthly warn ${formatUsd(data.costControls.thresholds.monthlyWarnUsd)}`}
+              subtitle={`Regular ${formatUsd(data.costControls.thresholds.storyWarnUsd)} • comic ${formatUsd(data.costControls.thresholds.graphicNovelWarnUsd)} • mixed ${formatUsd(data.costControls.thresholds.mixedStoryWarnUsd)} per story`}
             >
               <View style={styles.highlightList}>
                 <View style={styles.highlightItem}>
@@ -738,11 +747,21 @@ export default function AdminDashboardScreen() {
                   </Text>
                 </View>
                 <View style={styles.highlightItem}>
-                  <Text style={styles.highlightLabel}>Max story cost</Text>
+                  <Text style={styles.highlightLabel}>Max cost across all types</Text>
                   <Text style={styles.highlightValue}>
                     {formatUsd(data.costControls.maxStoryCostUsd)}
                   </Text>
                 </View>
+                {data.costControls.storyCostsByFormat.map((item) => (
+                  <View key={item.format} style={styles.highlightItem}>
+                    <Text style={styles.highlightLabel}>
+                      {STORY_FORMAT_LABELS[item.format]} guardrail
+                    </Text>
+                    <Text style={styles.highlightValue}>
+                      {formatUsd(item.avgCostUsd)} avg • {formatUsd(item.maxStoryCostUsd)} max
+                    </Text>
+                  </View>
+                ))}
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Unpriced AI events</Text>
                   <Text style={styles.highlightValue}>

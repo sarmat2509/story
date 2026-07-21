@@ -9,6 +9,8 @@ import {
   type CostControlAlert,
   type CostControlStatus,
   type CostControlThresholds,
+  type StoryCostControlMetric,
+  type StoryCostFormat,
 } from '../services/costControlService';
 import {
   buildQualityReviewSummary,
@@ -36,6 +38,16 @@ export type AdminDashboardOverview = {
   firstPassImageRate: number;
   audioStoryCount: number;
   audioAttachRate: number;
+  costByStoryFormat: AdminDashboardStoryCostByFormat[];
+};
+
+export type AdminDashboardStoryCostByFormat = {
+  format: StoryCostFormat;
+  storyCount: number;
+  costTrackedStoryCount: number;
+  unpricedStoryCount: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
 };
 
 export type AdminDashboardDailyPoint = {
@@ -100,6 +112,7 @@ export type AdminDashboardCostControls = {
   projectedMonthlyCostUsd: number;
   highCostStoryCount: number;
   maxStoryCostUsd: number;
+  storyCostsByFormat: StoryCostControlMetric[];
   unpricedEventCount: number;
   topUser24hUserId: string | null;
   topUser24hCostUsd: number;
@@ -175,7 +188,9 @@ export class AdminDashboardRepository {
       cost_by_story AS (
         SELECT
           sb.id AS story_id,
-          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd
+          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd,
+          COUNT(aue.id)::int AS event_count,
+          COUNT(aue.id) FILTER (WHERE aue.cost_usd IS NULL)::int AS unpriced_event_count
         FROM story_base sb
         LEFT JOIN ai_usage_events aue ON aue.story_id = sb.id
         GROUP BY sb.id
@@ -224,7 +239,12 @@ export class AdminDashboardRepository {
         rm.successful_requests,
         rm.failed_requests,
         COALESCE(SUM(cbs.total_cost_usd), 0)::numeric AS total_cost_usd,
-        COALESCE(AVG(cbs.total_cost_usd), 0)::numeric AS avg_cost_usd,
+        COALESCE(
+          AVG(cbs.total_cost_usd) FILTER (
+            WHERE cbs.event_count > 0 AND cbs.unpriced_event_count = 0
+          ),
+          0
+        )::numeric AS avg_cost_usd,
         COALESCE(AVG(sb.generation_time_ms), 0)::numeric AS avg_generation_time_ms,
         COALESCE(AVG(sb.word_count), 0)::numeric AS avg_word_count,
         COALESCE(AVG(sb.scene_count), 0)::numeric AS avg_scene_count,
@@ -514,25 +534,107 @@ export class AdminDashboardRepository {
       LIMIT 8
     `);
 
-    const costControlResult = await this.db.execute(sql`
+    const storyCostsByFormatResult = await this.db.execute(sql`
       WITH story_base AS (
-        SELECT s.id
+        SELECT
+          s.id,
+          CASE COALESCE(
+            NULLIF(s.metadata->>'storyFormat', ''),
+            NULLIF(sr.intermediate_data->>'generationKind', ''),
+            'story'
+          )
+            WHEN 'graphic_novel' THEN 'graphic_novel'
+            WHEN 'mixed_story' THEN 'mixed_story'
+            ELSE 'story'
+          END AS story_format
         FROM stories s
+        LEFT JOIN story_requests sr ON sr.id = s.story_request_id
         ${storyWhereClause}
       ),
       cost_by_story AS (
         SELECT
           sb.id AS story_id,
-          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd
+          sb.story_format,
+          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd,
+          COUNT(aue.id)::int AS event_count,
+          COUNT(aue.id) FILTER (WHERE aue.cost_usd IS NULL)::int AS unpriced_event_count
         FROM story_base sb
         LEFT JOIN ai_usage_events aue ON aue.story_id = sb.id
-        GROUP BY sb.id
+        GROUP BY sb.id, sb.story_format
+      )
+      SELECT
+        story_format,
+        COUNT(*)::int AS story_count,
+        COUNT(*) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0)::int
+          AS cost_tracked_story_count,
+        COUNT(*) FILTER (WHERE unpriced_event_count > 0)::int AS unpriced_story_count,
+        COALESCE(
+          SUM(total_cost_usd) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0),
+          0
+        )::numeric AS total_cost_usd,
+        COALESCE(
+          AVG(total_cost_usd) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0),
+          0
+        )::numeric AS avg_cost_usd
+      FROM cost_by_story
+      GROUP BY story_format
+      ORDER BY story_format ASC
+    `);
+
+    const costControlResult = await this.db.execute(sql`
+      WITH formats(story_format) AS (
+        VALUES ('story'), ('graphic_novel'), ('mixed_story')
+      ),
+      story_base AS (
+        SELECT
+          s.id,
+          CASE COALESCE(
+            NULLIF(s.metadata->>'storyFormat', ''),
+            NULLIF(sr.intermediate_data->>'generationKind', ''),
+            'story'
+          )
+            WHEN 'graphic_novel' THEN 'graphic_novel'
+            WHEN 'mixed_story' THEN 'mixed_story'
+            ELSE 'story'
+          END AS story_format
+        FROM stories s
+        LEFT JOIN story_requests sr ON sr.id = s.story_request_id
+        ${storyWhereClause}
+      ),
+      cost_by_story AS (
+        SELECT
+          sb.id AS story_id,
+          sb.story_format,
+          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd,
+          COUNT(aue.id)::int AS event_count,
+          COUNT(aue.id) FILTER (WHERE aue.cost_usd IS NULL)::int AS unpriced_event_count
+        FROM story_base sb
+        LEFT JOIN ai_usage_events aue ON aue.story_id = sb.id
+        GROUP BY sb.id, sb.story_format
       ),
       story_costs AS (
         SELECT
-          COUNT(*) FILTER (WHERE total_cost_usd >= ${thresholds.storyWarnUsd})::int AS high_cost_story_count,
-          COALESCE(MAX(total_cost_usd), 0)::numeric AS max_story_cost_usd
+          story_format,
+          COUNT(*) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0)::int AS story_count,
+          COALESCE(
+            AVG(total_cost_usd) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0),
+            0
+          )::numeric AS avg_cost_usd,
+          COUNT(*) FILTER (
+            WHERE event_count > 0
+              AND unpriced_event_count = 0
+              AND total_cost_usd >= CASE story_format
+              WHEN 'graphic_novel' THEN (${thresholds.graphicNovelWarnUsd})::numeric
+              WHEN 'mixed_story' THEN (${thresholds.mixedStoryWarnUsd})::numeric
+              ELSE (${thresholds.storyWarnUsd})::numeric
+            END
+          )::int AS high_cost_story_count,
+          COALESCE(
+            MAX(total_cost_usd) FILTER (WHERE event_count > 0 AND unpriced_event_count = 0),
+            0
+          )::numeric AS max_story_cost_usd
         FROM cost_by_story
+        GROUP BY story_format
       ),
       unpriced_events AS (
         SELECT COUNT(*)::int AS unpriced_event_count
@@ -553,14 +655,18 @@ export class AdminDashboardRepository {
         LIMIT 1
       )
       SELECT
-        sc.high_cost_story_count,
-        sc.max_story_cost_usd,
+        f.story_format,
+        COALESCE(sc.story_count, 0)::int AS story_count,
+        COALESCE(sc.avg_cost_usd, 0)::numeric AS avg_cost_usd,
+        COALESCE(sc.high_cost_story_count, 0)::int AS high_cost_story_count,
+        COALESCE(sc.max_story_cost_usd, 0)::numeric AS max_story_cost_usd,
         ue.unpriced_event_count,
         tu.user_id AS top_user_24h_user_id,
         COALESCE(tu.total_cost_usd, 0)::numeric AS top_user_24h_cost_usd,
         COALESCE(tu.event_count, 0)::int AS top_user_24h_event_count,
         COALESCE(tu.story_count, 0)::int AS top_user_24h_story_count
-      FROM story_costs sc
+      FROM formats f
+      LEFT JOIN story_costs sc ON sc.story_format = f.story_format
       CROSS JOIN unpriced_events ue
       LEFT JOIN top_user_24h tu ON true
     `);
@@ -640,6 +746,9 @@ export class AdminDashboardRepository {
     >;
     const languageRows = (languagesResult.rows ?? []) as Array<Record<string, unknown>>;
     const imageStyleRows = (imageStylesResult.rows ?? []) as Array<Record<string, unknown>>;
+    const storyCostsByFormatRows = (storyCostsByFormatResult.rows ?? []) as Array<
+      Record<string, unknown>
+    >;
     const costControlRows = (costControlResult.rows ?? []) as Array<Record<string, unknown>>;
     const qualityReviewRows = (qualityReviewResult.rows ?? []) as Array<Record<string, unknown>>;
     const overviewRow = overviewRows[0] ?? {};
@@ -650,6 +759,18 @@ export class AdminDashboardRepository {
     const totalRequests = Number(overviewRow.total_requests ?? 0);
     const successfulRequests = Number(overviewRow.successful_requests ?? 0);
     const audioStoryCount = Number(overviewRow.audio_story_count ?? 0);
+    const storyCostFormats: StoryCostFormat[] = ['story', 'graphic_novel', 'mixed_story'];
+    const costByStoryFormat: AdminDashboardStoryCostByFormat[] = storyCostFormats.map((format) => {
+      const row = storyCostsByFormatRows.find((item) => item.story_format === format) ?? {};
+      return {
+        format,
+        storyCount: Number(row.story_count ?? 0),
+        costTrackedStoryCount: Number(row.cost_tracked_story_count ?? 0),
+        unpricedStoryCount: Number(row.unpriced_story_count ?? 0),
+        totalCostUsd: Number(row.total_cost_usd ?? 0),
+        avgCostUsd: Number(row.avg_cost_usd ?? 0),
+      };
+    });
 
     const overview: AdminDashboardOverview = {
       totalStories,
@@ -672,6 +793,7 @@ export class AdminDashboardRepository {
       firstPassImageRate: Number(overviewRow.first_pass_image_rate ?? 0),
       audioStoryCount,
       audioAttachRate: totalStories > 0 ? audioStoryCount / totalStories : 0,
+      costByStoryFormat,
     };
 
     const daily = dailyRows.map((row) => ({
@@ -724,8 +846,21 @@ export class AdminDashboardRepository {
     const dailyAverageDenominator = days > 0 ? Math.max(days, 1) : Math.max(dailyRows.length, 1);
     const dailyAverageCostUsd = overview.totalCostUsd / dailyAverageDenominator;
     const projectedMonthlyCostUsd = dailyAverageCostUsd * 30;
-    const highCostStoryCount = Number(costControlRow.high_cost_story_count ?? 0);
-    const maxStoryCostUsd = Number(costControlRow.max_story_cost_usd ?? 0);
+    const storyCostsByFormat: StoryCostControlMetric[] = storyCostFormats.map((format) => {
+      const row = costControlRows.find((item) => item.story_format === format) ?? {};
+      return {
+        format,
+        storyCount: Number(row.story_count ?? 0),
+        avgCostUsd: Number(row.avg_cost_usd ?? 0),
+        highCostStoryCount: Number(row.high_cost_story_count ?? 0),
+        maxStoryCostUsd: Number(row.max_story_cost_usd ?? 0),
+      };
+    });
+    const highCostStoryCount = storyCostsByFormat.reduce(
+      (total, item) => total + item.highCostStoryCount,
+      0
+    );
+    const maxStoryCostUsd = Math.max(...storyCostsByFormat.map((item) => item.maxStoryCostUsd), 0);
     const unpricedEventCount = Number(costControlRow.unpriced_event_count ?? 0);
     const topUser24hCostUsd = Number(costControlRow.top_user_24h_cost_usd ?? 0);
     const topUser24hUserId =
@@ -735,8 +870,7 @@ export class AdminDashboardRepository {
     const costControlMetrics = {
       projectedMonthlyCostUsd,
       dailyAverageCostUsd,
-      highCostStoryCount,
-      maxStoryCostUsd,
+      storyCostsByFormat,
       unpricedEventCount,
       topUser24hCostUsd,
     };
@@ -748,6 +882,7 @@ export class AdminDashboardRepository {
       projectedMonthlyCostUsd,
       highCostStoryCount,
       maxStoryCostUsd,
+      storyCostsByFormat,
       unpricedEventCount,
       topUser24hUserId,
       topUser24hCostUsd,

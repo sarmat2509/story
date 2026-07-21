@@ -30,7 +30,12 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
-import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
+import {
+  usePlansWithAuth,
+  useSubscriptionUsage,
+  useCreatePortalSession,
+  useUpdateStoryMix,
+} from '@/api/plans';
 import {
   useCreatePrivacyRequest,
   usePrivacyRequests,
@@ -81,6 +86,7 @@ export default function ProfileScreen() {
   const privacyRequestsQuery = usePrivacyRequests();
   const createPrivacyRequest = useCreatePrivacyRequest();
   const createPortalSession = useCreatePortalSession();
+  const updateStoryMix = useUpdateStoryMix();
   const plans = plansData && 'plans' in plansData ? plansData.plans : plansData;
   const enableRealPayments =
     plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
@@ -108,6 +114,14 @@ export default function ProfileScreen() {
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(() =>
     getAnalyticsConsent()
   );
+  const [storyMixGraphicNovels, setStoryMixGraphicNovels] = useState(0);
+  const [storyMixMixedStories, setStoryMixMixedStories] = useState(0);
+
+  useEffect(() => {
+    if (!usage?.storyMix) return;
+    setStoryMixGraphicNovels(usage.storyMix.allocation.graphicNovels);
+    setStoryMixMixedStories(usage.storyMix.allocation.mixedStories);
+  }, [usage?.storyMix]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -176,6 +190,55 @@ export default function ProfileScreen() {
   const hasPaymentIssue = usage?.subscriptionStatus
     ? PAYMENT_ISSUE_STATUSES.has(usage.subscriptionStatus)
     : false;
+  const storyMix = usage?.storyMix;
+  const storyMixStoriesLimit = storyMix
+    ? Math.max(
+        storyMix.used.stories,
+        Math.floor(
+          Math.max(
+            0,
+            storyMix.budgetPoints -
+              storyMixGraphicNovels * storyMix.weights.graphicNovel -
+              storyMixMixedStories * storyMix.weights.mixedStory
+          ) / storyMix.weights.story
+        )
+      )
+    : 0;
+  const storyMixMaxGraphicNovels = storyMix
+    ? Math.max(
+        storyMix.used.graphicNovels,
+        Math.floor(
+          Math.max(
+            0,
+            storyMix.budgetPoints - storyMixMixedStories * storyMix.weights.mixedStory
+          ) / storyMix.weights.graphicNovel
+        )
+      )
+    : 0;
+  const storyMixMaxMixedStories = storyMix
+    ? Math.max(
+        storyMix.used.mixedStories,
+        Math.floor(
+          Math.max(
+            0,
+            storyMix.budgetPoints - storyMixGraphicNovels * storyMix.weights.graphicNovel
+          ) / storyMix.weights.mixedStory
+        )
+      )
+    : 0;
+  const saveStoryMix = async () => {
+    try {
+      await updateStoryMix.mutateAsync({
+        graphicNovels: storyMixGraphicNovels,
+        mixedStories: storyMixMixedStories,
+      });
+    } catch (error) {
+      Alert.alert(
+        t('common.error', { defaultValue: 'Error' }),
+        getLocalizedApiError(t, error, 'common.error')
+      );
+    }
+  };
   const recentPrivacyRequests = useMemo(
     () => (privacyRequestsQuery.data ?? []).slice(0, 3),
     [privacyRequestsQuery.data]
@@ -902,6 +965,95 @@ export default function ProfileScreen() {
                       {t('profile.stories_per_month', { count: storiesLimit })}
                     </Text>
                   )}
+                  {storyMix ? (
+                    <View style={styles.storyMixCard}>
+                      <Text style={styles.storyMixTitle}>
+                        {t('profile.story_mix_title', { defaultValue: 'Your story mix this month' })}
+                      </Text>
+                      <Text style={styles.storyMixHint}>
+                        {t('profile.story_mix_hint', {
+                          defaultValue:
+                            'Choose comics and mixed stories. Ordinary stories are calculated automatically.',
+                        })}
+                      </Text>
+                      <View style={styles.storyMixRow}>
+                        <Text style={styles.storyMixLabel}>
+                          {t('profile.story_mix_comics', { defaultValue: 'Comics' })}
+                        </Text>
+                        <View style={styles.storyMixControl}>
+                          <TouchableOpacity
+                            accessibilityLabel="Decrease comics"
+                            onPress={() =>
+                              setStoryMixGraphicNovels((value) =>
+                                Math.max(storyMix.used.graphicNovels, value - 1)
+                              )
+                            }
+                            style={styles.storyMixStep}
+                          >
+                            <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
+                          </TouchableOpacity>
+                          <Text style={styles.storyMixValue}>{storyMixGraphicNovels}</Text>
+                          <TouchableOpacity
+                            accessibilityLabel="Increase comics"
+                            onPress={() =>
+                              setStoryMixGraphicNovels((value) =>
+                                Math.min(storyMixMaxGraphicNovels, value + 1)
+                              )
+                            }
+                            style={styles.storyMixStep}
+                          >
+                            <Ionicons name="add" size={18} color={theme.colors.text.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={styles.storyMixRow}>
+                        <Text style={styles.storyMixLabel}>
+                          {t('profile.story_mix_mixed', { defaultValue: 'Comic-to-text story' })}
+                        </Text>
+                        <View style={styles.storyMixControl}>
+                          <TouchableOpacity
+                            accessibilityLabel="Decrease mixed stories"
+                            onPress={() =>
+                              setStoryMixMixedStories((value) =>
+                                Math.max(storyMix.used.mixedStories, value - 1)
+                              )
+                            }
+                            style={styles.storyMixStep}
+                          >
+                            <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
+                          </TouchableOpacity>
+                          <Text style={styles.storyMixValue}>{storyMixMixedStories}</Text>
+                          <TouchableOpacity
+                            accessibilityLabel="Increase mixed stories"
+                            onPress={() =>
+                              setStoryMixMixedStories((value) =>
+                                Math.min(storyMixMaxMixedStories, value + 1)
+                              )
+                            }
+                            style={styles.storyMixStep}
+                          >
+                            <Ionicons name="add" size={18} color={theme.colors.text.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={styles.storyMixRow}>
+                        <Text style={styles.storyMixLabel}>
+                          {t('usage_summary.stories', { defaultValue: 'Stories' })}
+                        </Text>
+                        <View style={[styles.storyMixControl, styles.storyMixReadonlyControl]}>
+                          <Text style={styles.storyMixValue}>{storyMixStoriesLimit}</Text>
+                        </View>
+                      </View>
+                      <AppButton
+                        label={t('profile.story_mix_save', { defaultValue: 'Save story mix' })}
+                        onPress={saveStoryMix}
+                        loading={updateStoryMix.isPending}
+                        disabled={updateStoryMix.isPending}
+                        variant="secondary"
+                        style={styles.storyMixSave}
+                      />
+                    </View>
+                  ) : null}
                   <AppButton
                     label={
                       canManageSubscription
@@ -1817,6 +1969,64 @@ const styles = StyleSheet.create({
   subscriptionAction: {
     alignSelf: 'flex-start',
     minWidth: 240,
+  },
+  storyMixCard: {
+    marginBottom: theme.spacing[4],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    gap: theme.spacing[3],
+  },
+  storyMixTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  storyMixHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+  },
+  storyMixRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+  },
+  storyMixLabel: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  storyMixControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  storyMixReadonlyControl: {
+    width: 32 * 2 + 28 + theme.spacing[2] * 2,
+    justifyContent: 'center',
+  },
+  storyMixStep: {
+    width: 32,
+    height: 32,
+    borderRadius: theme.borders.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+  },
+  storyMixValue: {
+    minWidth: 28,
+    textAlign: 'center',
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  storyMixSave: {
+    alignSelf: 'flex-start',
   },
   logoutAction: {
     minWidth: 220,

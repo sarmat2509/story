@@ -178,6 +178,9 @@ async function main(): Promise<void> {
     assert.equal(graphicBody.code, 'GRAPHIC_NOVEL_LIMIT_REACHED');
     assert.equal(graphicBody.featureSlug, 'graphic_novels_per_month');
 
+    // Comic-to-text is available on the same plans as comics. Simulate a
+    // plan without comic access before checking that both formats are gated.
+    featureValues.set('graphic_novels_per_month', { limit: 0 });
     const mixedBlocked = await post('/api/v1/mixed-stories');
     assert.equal(mixedBlocked.status, 403, 'mixed story unavailable on plan returns 403');
     const mixedBody = (await mixedBlocked.json()) as any;

@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
 import { getStoryRepository } from '../repositories';
 import * as schema from '../db/schema';
 import { logger } from '../utils/logger';
@@ -9,6 +9,7 @@ import {
 } from './quotaReservationReleaseUtils';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 import { getActivatedConditionalQuotaExtension } from './conditionalQuotaExtensionService';
+import { readStoryMixBudgetPoints, storyMixPointsForSource } from './storyMixBudgetService';
 
 export type StoryQuotaReservationSource =
   | 'wizard'
@@ -157,8 +158,9 @@ export async function createStoryRequestWithQuotaReservation(
     const periodStart = activePeriod.periodStart;
     const periodEnd = activePeriod.periodEnd;
 
-    const [featureRow] = await tx
+    const featureRows = await tx
       .select({
+        slug: schema.features.slug,
         value: schema.planFeatures.value,
       })
       .from(schema.planFeatures)
@@ -166,12 +168,17 @@ export async function createStoryRequestWithQuotaReservation(
       .where(
         and(
           eq(schema.planFeatures.planId, subscription.planId),
-          eq(schema.features.slug, 'stories_per_month')
+          inArray(schema.features.slug, ['stories_per_month', 'story_mix_budget_points'])
         )
-      )
-      .limit(1);
+      );
 
-    const planLimit = extractLimit(featureRow?.value);
+    const featureValues = new Map(featureRows.map((row) => [row.slug, row.value]));
+    const storyPlanLimit = extractLimit(
+      featureValues.get('stories_per_month') ?? featureRows[0]?.value
+    );
+    const storyMixBudgetPoints = readStoryMixBudgetPoints(
+      featureValues.get('story_mix_budget_points')
+    );
 
     const [bundleRow] = await tx
       .select({
@@ -189,6 +196,16 @@ export async function createStoryRequestWithQuotaReservation(
     const [usageRow] = await tx
       .select({
         total: sql<number>`COALESCE(SUM(${schema.usageEvents.quantity}), 0)::integer`,
+        storyMixPoints: sql<number>`COALESCE(SUM(
+          ${schema.usageEvents.quantity} * COALESCE(
+            NULLIF(${schema.usageEvents.metadata}->>'storyMixPoints', '')::integer,
+            CASE ${schema.usageEvents.metadata}->>'reservationSource'
+              WHEN 'graphic_novel' THEN 8370
+              WHEN 'mixed_story' THEN 5030
+              ELSE 1000
+            END
+          )
+        ), 0)::integer`,
       })
       .from(schema.usageEvents)
       .where(
@@ -202,6 +219,7 @@ export async function createStoryRequestWithQuotaReservation(
 
     const bundleBonus = Number(bundleRow?.extraStories ?? 0);
     const currentUsage = Number(usageRow?.total ?? 0);
+    const currentStoryMixPoints = Number(usageRow?.storyMixPoints ?? 0);
     const conditionalExtension = getActivatedConditionalQuotaExtension({
       metadata: subscription.metadata as Record<string, unknown> | null,
       featureSlug: 'stories_per_month',
@@ -209,11 +227,14 @@ export async function createStoryRequestWithQuotaReservation(
       periodStart,
       periodEnd,
     });
+    const usingStoryMixBudget = storyMixBudgetPoints > 0;
     const quota = calculateStoryQuota({
-      planLimit,
-      bundleBonus: bundleBonus + conditionalExtension,
-      currentUsage,
-      requestedQty: 1,
+      planLimit: usingStoryMixBudget ? storyMixBudgetPoints : storyPlanLimit,
+      bundleBonus: usingStoryMixBudget
+        ? (bundleBonus + conditionalExtension) * 1_000
+        : bundleBonus + conditionalExtension,
+      currentUsage: usingStoryMixBudget ? currentStoryMixPoints : currentUsage,
+      requestedQty: usingStoryMixBudget ? storyMixPointsForSource(options.source) : 1,
     });
 
     if (!quota.allowed) {
@@ -247,6 +268,7 @@ export async function createStoryRequestWithQuotaReservation(
         requestId: request.id,
         quotaReservation: true,
         reservationSource: options.source,
+        storyMixPoints: storyMixPointsForSource(options.source),
         reservedAt: new Date().toISOString(),
         reservationBehavior: 'consumed_on_queue_acceptance',
       },
@@ -258,7 +280,7 @@ export async function createStoryRequestWithQuotaReservation(
         requestId: request.id,
         source: options.source,
         limit: quota.effectiveLimit,
-        usedBeforeReservation: currentUsage,
+        usedBeforeReservation: usingStoryMixBudget ? currentStoryMixPoints : currentUsage,
         conditionalExtension,
       },
       'Reserved monthly story quota'
@@ -267,7 +289,10 @@ export async function createStoryRequestWithQuotaReservation(
     return {
       requestId: request.id,
       limit: quota.effectiveLimit,
-      remaining: quota.remaining === null ? null : Math.max(0, quota.remaining - 1),
+      remaining:
+        quota.remaining === null
+          ? null
+          : Math.max(0, quota.remaining - (usingStoryMixBudget ? storyMixPointsForSource(options.source) : 1)),
     };
   });
 }
@@ -345,6 +370,10 @@ export async function releaseStoryQuotaReservationForRequest(
     const [reservationRow] = await tx
       .select({
         netReserved: sql<number>`COALESCE(SUM(${schema.usageEvents.quantity}), 0)::integer`,
+        storyMixPoints: sql<number>`COALESCE(MAX(
+          NULLIF(${schema.usageEvents.metadata}->>'storyMixPoints', '')::integer
+        ), 1000)::integer`,
+        reservationSource: sql<string | null>`MAX(${schema.usageEvents.metadata}->>'reservationSource')`,
       })
       .from(schema.usageEvents)
       .where(
@@ -357,6 +386,7 @@ export async function releaseStoryQuotaReservationForRequest(
       );
 
     const netReserved = Number(reservationRow?.netReserved ?? 0);
+    const storyMixPoints = Number(reservationRow?.storyMixPoints ?? 1_000);
     const releaseQuantity = getQuotaReservationReleaseQuantity(netReserved);
     if (releaseQuantity === 0) {
       return {
@@ -379,6 +409,8 @@ export async function releaseStoryQuotaReservationForRequest(
         ...(request.storyId && { storyId: request.storyId }),
         quotaReservation: true,
         quotaReservationRelease: true,
+        reservationSource: reservationRow?.reservationSource ?? 'wizard',
+        storyMixPoints,
         releaseReason: options.reason,
         releasedAt: new Date().toISOString(),
         reservationBehavior: 'released_on_downstream_failure',

@@ -81,6 +81,13 @@ async function main(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   };
+  let storyMixEnabled = false;
+  const storyMixUsage = {
+    points: 35_480,
+    stories: 2,
+    graphicNovels: 4,
+    mixedStories: 0,
+  };
 
   const freePlan = { id: planId, slug: 'free', name: 'Free' } as any;
   const plusPlan = { id: plusPlanId, slug: 'plus', name: 'Plus' } as any;
@@ -134,16 +141,30 @@ async function main(): Promise<void> {
               stripePriceId: 'price_plus',
             }
           : null,
-      findAllFeaturesForPlan: async () => [
-        { slug: 'stories_per_month', value: { limit: 5 } },
-        { slug: 'audio_stories_per_month', value: { limit: 2 } },
-        { slug: 'graphic_novels_per_month', value: { limit: 1 } },
-        { slug: 'mixed_stories_per_month', value: { limit: 0 } },
-        { slug: 'images_per_story', value: { limit: 3 } },
-        { slug: 'characters_per_month', value: { limit: 3 } },
-      ],
+      findAllFeaturesForPlan: async () =>
+        storyMixEnabled
+          ? [
+              { slug: 'stories_per_month', value: { limit: 100 } },
+              { slug: 'audio_stories_per_month', value: { limit: 2 } },
+              { slug: 'graphic_novels_per_month', value: { limit: 11 } },
+              { slug: 'mixed_stories_per_month', value: { limit: 19 } },
+              { slug: 'story_mix_budget_points', value: { limit: 100_000 } },
+              { slug: 'images_per_story', value: { limit: 3 } },
+              { slug: 'characters_per_month', value: { limit: 3 } },
+            ]
+          : [
+              { slug: 'stories_per_month', value: { limit: 5 } },
+              { slug: 'audio_stories_per_month', value: { limit: 2 } },
+              { slug: 'graphic_novels_per_month', value: { limit: 1 } },
+              { slug: 'mixed_stories_per_month', value: { limit: 0 } },
+              { slug: 'images_per_story', value: { limit: 3 } },
+              { slug: 'characters_per_month', value: { limit: 3 } },
+            ],
       findFeatureValue: async () => ({ enabled: true }),
-      updateSubscription: async () => subscription,
+      updateSubscription: async (_userId: string, update: Record<string, unknown>) => {
+        subscription = { ...subscription, ...update };
+        return subscription;
+      },
     } as any,
     usageEvents: {
       getUsageForPeriod: async (
@@ -157,6 +178,7 @@ async function main(): Promise<void> {
         if (eventType === 'graphic_novel_created') return 0;
         return 0;
       },
+      getStoryMixUsageForPeriod: async () => storyMixUsage,
     } as any,
     bundle: {
       sumGrantBonusForPeriod: async () => ({ extraStories: 1, extraAudio: 0 }),
@@ -220,6 +242,76 @@ async function main(): Promise<void> {
     assert.equal(usageOkBody.data.audio.limit, 2);
     assert.equal(usageOkBody.data.subscriptionStatus, 'active');
     assert.equal(usageOkBody.data.enableRealPayments, false);
+
+    storyMixEnabled = true;
+    subscription = {
+      ...subscription,
+      metadata: {
+        storyMix: {
+          graphicNovels: 4,
+          mixedStories: 0,
+          periodStart: subscription.currentPeriodStart.toISOString(),
+        },
+      },
+    };
+    const storyMixOk = await request('GET', '/api/v1/me/subscription-usage');
+    assert.equal(storyMixOk.status, 200);
+    const storyMixOkBody = (await storyMixOk.json()) as any;
+    assert.deepEqual(storyMixOkBody.data.stories, {
+      used: 2,
+      limit: 67,
+      remaining: 65,
+      plan_limit: 100,
+      bundle_bonus: 1,
+    });
+    assert.deepEqual(storyMixOkBody.data.graphicNovels, {
+      used: 4,
+      limit: 4,
+      remaining: 0,
+      plan_limit: 11,
+      bundle_bonus: 0,
+    });
+    assert.deepEqual(storyMixOkBody.data.mixedStories, {
+      used: 0,
+      limit: 0,
+      remaining: 0,
+      plan_limit: 19,
+      bundle_bonus: 1,
+    });
+    assert.deepEqual(storyMixOkBody.data.storyMix.allocation, {
+      stories: 67,
+      graphicNovels: 4,
+      mixedStories: 0,
+    });
+
+    const invalidStoryMix = await request('PUT', '/api/v1/me/story-mix', {
+      graphicNovels: 3,
+      mixedStories: 0,
+    });
+    assert.equal(invalidStoryMix.status, 409);
+    assert.equal((await invalidStoryMix.json() as any).code, 'STORY_MIX_EXCEEDS_BUDGET');
+
+    const savedStoryMix = await request('PUT', '/api/v1/me/story-mix', {
+      graphicNovels: 4,
+      mixedStories: 1,
+    });
+    assert.equal(savedStoryMix.status, 200);
+    const storyMixAfterSave = await request('GET', '/api/v1/me/subscription-usage');
+    const storyMixAfterSaveBody = (await storyMixAfterSave.json()) as any;
+    assert.deepEqual(storyMixAfterSaveBody.data.stories, {
+      used: 2,
+      limit: 62,
+      remaining: 60,
+      plan_limit: 100,
+      bundle_bonus: 1,
+    });
+    assert.deepEqual(storyMixAfterSaveBody.data.mixedStories, {
+      used: 0,
+      limit: 1,
+      remaining: 1,
+      plan_limit: 19,
+      bundle_bonus: 1,
+    });
 
     subscription = null;
     const usageMissing = await request('GET', '/api/v1/me/subscription-usage');

@@ -52,7 +52,11 @@ import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { getWebSearch } from '@/utils/webRuntime';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
-import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
+import {
+  IMAGE_STYLE_METADATA,
+  planAllowsComicFormats,
+  type ImageStyle,
+} from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 
@@ -142,13 +146,11 @@ export default function WizardScreen() {
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
     [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
   );
-  const graphicNovelLimit = usage?.graphicNovels?.limit;
-  const graphicNovelAccessLocked =
-    typeof graphicNovelLimit === 'number' && graphicNovelLimit >= 0 && graphicNovelLimit <= 0;
+  const graphicNovelPlanLimit = usage?.graphicNovels?.planLimit ?? usage?.graphicNovels?.limit;
+  const comicFormatsAccessLocked = !planAllowsComicFormats(graphicNovelPlanLimit);
+  const graphicNovelAccessLocked = comicFormatsAccessLocked;
   const isGraphicNovelUpgradePaywall = paywallKind === 'graphicNovels' && graphicNovelAccessLocked;
-  const mixedStoryLimit = usage?.mixedStories?.limit;
-  const mixedStoryAccessLocked =
-    typeof mixedStoryLimit === 'number' && mixedStoryLimit >= 0 && mixedStoryLimit <= 0;
+  const mixedStoryAccessLocked = comicFormatsAccessLocked;
   const isMixedStoryUpgradePaywall = paywallKind === 'mixedStories' && mixedStoryAccessLocked;
   const usesGraphicQuota = storyFormat === 'comic';
   const usesMixedStoryQuota = storyFormat === 'mixed';
@@ -365,7 +367,7 @@ export default function WizardScreen() {
     storyFormat === 'comic'
       ? t('wizard.format_comic', { defaultValue: 'Comic' })
       : storyFormat === 'mixed'
-        ? t('wizard.format_mixed', { defaultValue: 'Story + comic' })
+        ? t('wizard.format_mixed', { defaultValue: 'Comic-to-text story' })
         : t('wizard.format_story', { defaultValue: 'Story' });
   const summaryItems = [
     {
@@ -665,10 +667,10 @@ export default function WizardScreen() {
       : paywallKind === 'mixedStories'
         ? isMixedStoryUpgradePaywall
           ? t('paywall.mixed_stories_upgrade_title', {
-              defaultValue: 'Story + comic is available from Golden Stars',
+              defaultValue: 'Comic-to-text stories are available from Golden Stars',
             })
           : t('paywall.mixed_stories_limit_title', {
-              defaultValue: 'Story + comic limit reached',
+              defaultValue: 'Comic-to-text story limit reached',
             })
         : undefined;
   const paywallMessage =
@@ -686,14 +688,14 @@ export default function WizardScreen() {
         : paywallKind === 'mixedStories' && isMixedStoryUpgradePaywall
           ? t('paywall.mixed_stories_upgrade_message', {
               defaultValue:
-                'Upgrade to Golden Stars or higher to create Story + comic. It uses the same monthly story credits as regular stories.',
+                'Upgrade to Golden Stars or higher to create comic-to-text stories. They use the same monthly story credits as regular stories.',
             })
           : paywallKind === 'mixedStories' && usage?.mixedStories
             ? t('paywall.mixed_stories_limit_message', {
                 used: usage.mixedStories.used,
                 limit: usage.mixedStories.limit,
                 defaultValue:
-                  'You have used {{used}} of {{limit}} Story + comic stories for this billing period.',
+                  'You have used {{used}} of {{limit}} comic-to-text stories for this billing period.',
               })
             : undefined;
   const paywallLimitInfo =
@@ -846,7 +848,7 @@ export default function WizardScreen() {
                             {
                               value: 'mixed' as const,
                               icon: 'albums-outline' as const,
-                              label: t('wizard.format_mixed', { defaultValue: 'Story + comic' }),
+                              label: t('wizard.format_mixed', { defaultValue: 'Comic-to-text story' }),
                               description: t('wizard.format_mixed_desc', {
                                 defaultValue: 'Comic strips alternating with short prose',
                               }),
@@ -916,7 +918,7 @@ export default function WizardScreen() {
                                     {locked
                                       ? option.value === 'mixed'
                                         ? t('wizard.format_mixed_locked_hint', {
-                                            defaultValue: 'Upgrade to create story + comic',
+                                            defaultValue: 'Upgrade to create comic-to-text stories',
                                           })
                                         : t('wizard.format_comic_locked_hint', {
                                             defaultValue: 'Upgrade to create comics',
@@ -1028,7 +1030,7 @@ export default function WizardScreen() {
                       {usesMixedStoryQuota && usage.mixedStories ? (
                         <Text style={styles.summaryLimit}>
                           {t('usage_summary.mixed_stories_in_story_limit', {
-                            defaultValue: 'Story + comic within stories',
+                            defaultValue: 'Comic-to-text stories',
                           })}
                           : {formatUsageLimitLabel(usage.mixedStories)}
                         </Text>
@@ -1061,7 +1063,7 @@ export default function WizardScreen() {
                             ? t('wizard.create_comic', { defaultValue: 'Create comic' })
                             : storyFormat === 'mixed'
                               ? t('wizard.create_mixed_story', {
-                                  defaultValue: 'Create story + comic',
+                                  defaultValue: 'Create comic-to-text story',
                                 })
                               : t('common.create')
                           : t('common.next')
@@ -1155,7 +1157,7 @@ export default function WizardScreen() {
                       {usesMixedStoryQuota && usage.mixedStories ? (
                         <Text style={styles.summaryLimit}>
                           {t('usage_summary.mixed_stories_in_story_limit', {
-                            defaultValue: 'Story + comic within stories',
+                            defaultValue: 'Comic-to-text stories',
                           })}
                           : {formatUsageLimitLabel(usage.mixedStories)}
                         </Text>
@@ -1186,7 +1188,7 @@ export default function WizardScreen() {
                         ? t('wizard.create_comic', { defaultValue: 'Create comic' })
                         : storyFormat === 'mixed'
                           ? t('wizard.create_mixed_story', {
-                              defaultValue: 'Create story + comic',
+                              defaultValue: 'Create comic-to-text story',
                             })
                           : t('common.create')
                       : t('common.next')

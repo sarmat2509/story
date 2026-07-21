@@ -15,12 +15,13 @@ const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
     audio_stories_one: '{{count}} audio story per month',
     audio_stories: '{{count}} audio stories per month',
     audio_stories_other: '{{count}} audio stories per month',
-    'features.monthly_usage_with_comics': '{{stories}}, including up to {{comics}} comics per month',
-    'features.monthly_usage_with_comics_and_audio': '{{stories}}, including up to {{comics}} comics, and {{audio}} per month',
-    'features.graphic_novels_per_month': 'Up to {{value}} comics within the story limit',
+    'features.monthly_usage_with_comics': 'Up to {{stories}} and up to {{comics}} comics per month',
+    'features.monthly_usage_with_comics_and_mixed': 'Up to {{stories}}, up to {{comics}} comics, and up to {{mixed}} comic-to-text stories per month',
+    'features.monthly_usage_with_comics_and_audio': 'Up to {{stories}}, up to {{comics}} comics, and {{audio}} per month',
+    'features.graphic_novels_per_month': 'Up to {{value}} comics per month',
     'features.graphic_novels_locked': 'Comics',
-    'features.mixed_stories_per_month': 'Story + comic for all {{value}} monthly stories',
-    'features.mixed_stories_locked': 'Story + comic',
+    'features.mixed_stories_per_month': 'Up to {{value}} comic-to-text stories per month',
+    'features.mixed_stories_locked': 'Comic-to-text story',
     'features.images_per_story_one': '{{value}} illustration in story',
     'features.images_per_story_other': '{{value}} illustrations in story',
     'features.images_per_story': '{{value}} illustrations in story',
@@ -38,7 +39,7 @@ const features = {
   stories_per_month: { name: 'Stories per month', value: { limit: 10 }, category: 'usage' },
   audio_stories_per_month: { name: 'Audio per month', value: { limit: 2 }, category: 'usage' },
   graphic_novels_per_month: { name: 'Comics per month', value: { limit: 5 }, category: 'usage' },
-  mixed_stories_per_month: { name: 'Story + comic', value: { limit: 10 }, category: 'usage' },
+  mixed_stories_per_month: { name: 'Comic-to-text story', value: { limit: 10 }, category: 'usage' },
   story_from_drawing: { name: 'Story from drawing', value: { enabled: true }, category: 'creation' },
   image_quality: { name: 'Image quality', value: { selected: 'standard' }, category: 'media' },
   images_per_story: { name: 'Images per story', value: { limit: 3 }, category: 'usage' },
@@ -75,8 +76,8 @@ void (async function main() {
 
   assert.strictEqual(
     getCombinedPricingUsageHighlight('en', translate, features),
-    '10 stories, including up to 5 comics, and 2 audio stories per month',
-    'pricing usage highlight should present comics as part of the story limit'
+    'Up to 10 stories, up to 5 comics, and up to 10 comic-to-text stories per month',
+    'pricing usage highlight should present every story type maximum'
   );
 
   assert.deepStrictEqual(
@@ -84,30 +85,34 @@ void (async function main() {
     [
       'images_per_story',
       'characters_per_month',
-      'graphic_novels_per_month',
-      'mixed_stories_per_month',
+      'audio_stories_per_month',
       'child_profiles_limit',
       'premium_voices',
     ],
-    'pricing feature order and hidden-feature rules should be shared'
+    'audio should be a regular feature while story-mix quotas remain in the highlight'
   );
 
   assert.deepStrictEqual(
     sortPricingFeatureEntries({
       ...features,
+      story_mix_budget_points: {
+        name: 'Flexible story mix budget',
+        value: { limit: 0 },
+        category: 'limits',
+      },
       graphic_novels_per_month: {
         name: 'Comics per month',
         value: { limit: 0 },
         category: 'usage',
       },
       mixed_stories_per_month: {
-        name: 'Story + comic',
+        name: 'Comic-to-text story',
         value: { limit: 0 },
         category: 'usage',
       },
     }).map(([slug]) => slug),
-    ['images_per_story', 'characters_per_month', 'child_profiles_limit', 'graphic_novels_per_month', 'mixed_stories_per_month', 'premium_voices'],
-    'comic and mixed access should remain visible as locked features on plans without access'
+    ['images_per_story', 'characters_per_month', 'audio_stories_per_month', 'child_profiles_limit', 'premium_voices'],
+    'disabled story-mix configuration and its component quotas should not appear as plan features'
   );
 
   const html = renderPricingHtml({
@@ -126,10 +131,11 @@ void (async function main() {
     ],
   });
 
-  assert.match(html, /10 stories, including up to 5 comics, and 2 audio stories per month/);
+  assert.match(html, /Up to 10 stories, up to 5 comics, and up to 10 comic-to-text stories per month/);
   assert.match(html, /3 personalized illustrations per story/);
-  assert.match(html, /Up to 5 comics within the story limit/);
-  assert.match(html, /Story \+ comic for all 10 monthly stories/);
+  assert.match(html, /2 audio stories per month/);
+  assert.doesNotMatch(html, /Up to 5 comics per month/);
+  assert.strictEqual((html.match(/comic-to-text stories per month/g) ?? []).length, 1);
   assert.doesNotMatch(html, /pages per comic/);
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
@@ -211,8 +217,8 @@ void (async function main() {
   );
   assert.strictEqual(
     (fallbackPlans.find((plan) => plan.slug === 'fairyworld')?.features.stories_per_month.value as { limit: number }).limit,
-    30,
-    'static pricing fallback should preserve Story World story limit'
+    100,
+    'static pricing fallback should show the maximum ordinary-story capacity'
   );
   assert.deepStrictEqual(
     fallbackPlans.map((plan) => [
@@ -248,12 +254,12 @@ void (async function main() {
   assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Story World<\/div>/);
   assert.match(goldenCard, /<span class="plan-badge">Most popular<\/span>/);
-  assert.match(fallbackHtml, /Up to 5 comics within the story limit/);
-  assert.match(fallbackHtml, /Up to 15 comics within the story limit/);
-  assert.match(fallbackHtml, /Story \+ comic for all 20 monthly stories/);
-  assert.match(fallbackHtml, /Story \+ comic for all 30 monthly stories/);
-  assert.match(fallbackHtml, /3 stories and 1 audio story per month/);
-  assert.match(fallbackHtml, /30 stories, including up to 15 comics, and 15 audio stories per month/);
+  assert.match(fallbackHtml, /Up to 50 stories, up to 5 comics, and up to 9 comic-to-text stories per month/);
+  assert.match(fallbackHtml, /Up to 100 stories, up to 11 comics, and up to 19 comic-to-text stories per month/);
+  assert.match(fallbackHtml, /3 stories per month/);
+  assert.match(fallbackHtml, /1 audio story per month/);
+  assert.match(fallbackHtml, /10 audio stories per month/);
+  assert.match(fallbackHtml, /15 audio stories per month/);
 
   console.log('pricingPresentation tests passed');
 })();

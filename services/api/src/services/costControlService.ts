@@ -1,18 +1,28 @@
 export type CostControlStatus = 'healthy' | 'warning' | 'critical';
+export type StoryCostFormat = 'story' | 'graphic_novel' | 'mixed_story';
 
 export interface CostControlThresholds {
   storyWarnUsd: number;
+  graphicNovelWarnUsd: number;
+  mixedStoryWarnUsd: number;
   dailyWarnUsd: number;
   monthlyWarnUsd: number;
   userDailyWarnUsd: number;
   queueDepthWarn: number;
 }
 
+export interface StoryCostControlMetric {
+  format: StoryCostFormat;
+  storyCount: number;
+  avgCostUsd: number;
+  highCostStoryCount: number;
+  maxStoryCostUsd: number;
+}
+
 export interface CostControlStatusInput {
   projectedMonthlyCostUsd: number;
   dailyAverageCostUsd: number;
-  highCostStoryCount: number;
-  maxStoryCostUsd: number;
+  storyCostsByFormat: StoryCostControlMetric[];
   unpricedEventCount: number;
   topUser24hCostUsd: number;
 }
@@ -37,11 +47,28 @@ export function normalizeCostControlThresholds(
 ): CostControlThresholds {
   return {
     storyWarnUsd: positiveNumber(thresholds.storyWarnUsd ?? 0, 1.25),
+    graphicNovelWarnUsd: positiveNumber(thresholds.graphicNovelWarnUsd ?? 0, 2.75),
+    mixedStoryWarnUsd: positiveNumber(thresholds.mixedStoryWarnUsd ?? 0, 1.1),
     dailyWarnUsd: positiveNumber(thresholds.dailyWarnUsd ?? 0, 25),
     monthlyWarnUsd: positiveNumber(thresholds.monthlyWarnUsd ?? 0, 500),
     userDailyWarnUsd: positiveNumber(thresholds.userDailyWarnUsd ?? 0, 15),
     queueDepthWarn: Math.max(1, Math.floor(positiveNumber(thresholds.queueDepthWarn ?? 0, 20))),
   };
+}
+
+export function storyCostWarnThreshold(
+  format: StoryCostFormat,
+  thresholds: CostControlThresholds
+): number {
+  if (format === 'graphic_novel') return thresholds.graphicNovelWarnUsd;
+  if (format === 'mixed_story') return thresholds.mixedStoryWarnUsd;
+  return thresholds.storyWarnUsd;
+}
+
+function storyCostFormatLabel(format: StoryCostFormat): string {
+  if (format === 'graphic_novel') return 'comic';
+  if (format === 'mixed_story') return 'mixed story';
+  return 'regular story';
 }
 
 export function classifyCostControlStatus(
@@ -51,14 +78,18 @@ export function classifyCostControlStatus(
   if (
     metrics.projectedMonthlyCostUsd >= thresholds.monthlyWarnUsd ||
     metrics.topUser24hCostUsd >= thresholds.userDailyWarnUsd ||
-    metrics.maxStoryCostUsd >= thresholds.storyWarnUsd * 2
+    metrics.storyCostsByFormat.some(
+      (metric) => metric.avgCostUsd >= storyCostWarnThreshold(metric.format, thresholds) * 2
+    )
   ) {
     return 'critical';
   }
 
   if (
     metrics.dailyAverageCostUsd >= thresholds.dailyWarnUsd ||
-    metrics.highCostStoryCount > 0 ||
+    metrics.storyCostsByFormat.some(
+      (metric) => metric.avgCostUsd >= storyCostWarnThreshold(metric.format, thresholds)
+    ) ||
     metrics.unpricedEventCount > 0 ||
     metrics.topUser24hCostUsd >= thresholds.userDailyWarnUsd * 0.75
   ) {
@@ -125,28 +156,33 @@ export function buildCostControlAlerts(
     });
   }
 
-  if (metrics.maxStoryCostUsd >= thresholds.storyWarnUsd * 2) {
-    alerts.push({
-      key: 'max-story-cost-critical',
-      severity: 'critical',
-      title: 'A story cost is more than 2x the per-story guardrail',
-      detail: `Highest story cost is $${metrics.maxStoryCostUsd.toFixed(2)} against a $${thresholds.storyWarnUsd.toFixed(2)} warning threshold.`,
-      action: 'Review the expensive story path, retries, image count, and provider usage before promoting the current plan mix.',
-      reviewUrl: '/admin/stories',
-      metricValue: metrics.maxStoryCostUsd,
-      thresholdValue: thresholds.storyWarnUsd,
-    });
-  } else if (metrics.highCostStoryCount > 0 || metrics.maxStoryCostUsd >= thresholds.storyWarnUsd) {
-    alerts.push({
-      key: 'high-cost-stories',
-      severity: 'warning',
-      title: 'High-cost stories were detected',
-      detail: `${metrics.highCostStoryCount} stories exceeded the $${thresholds.storyWarnUsd.toFixed(2)} per-story guardrail.`,
-      action: 'Review story/image retry patterns and update generation settings if the pattern repeats.',
-      reviewUrl: '/admin/stories',
-      metricValue: metrics.highCostStoryCount,
-      thresholdValue: 1,
-    });
+  for (const metric of metrics.storyCostsByFormat) {
+    const threshold = storyCostWarnThreshold(metric.format, thresholds);
+    const label = storyCostFormatLabel(metric.format);
+
+    if (metric.avgCostUsd >= threshold * 2) {
+      alerts.push({
+        key: `avg-${metric.format}-cost-critical`,
+        severity: 'critical',
+        title: `Average ${label} cost is more than 2x its guardrail`,
+        detail: `Average ${label} cost is $${metric.avgCostUsd.toFixed(2)} across ${metric.storyCount} cost-tracked stories, against a $${threshold.toFixed(2)} warning threshold.`,
+        action: 'Review the generation mix, retries, image count, and provider usage before promoting the current plan mix.',
+        reviewUrl: '/admin/stories',
+        metricValue: metric.avgCostUsd,
+        thresholdValue: threshold,
+      });
+    } else if (metric.avgCostUsd >= threshold) {
+      alerts.push({
+        key: `high-average-${metric.format}-cost`,
+        severity: 'warning',
+        title: `Average ${label} cost is above its guardrail`,
+        detail: `Average ${label} cost is $${metric.avgCostUsd.toFixed(2)} across ${metric.storyCount} cost-tracked stories, against a $${threshold.toFixed(2)} warning threshold.`,
+        action: 'Review the generation mix and retry patterns, and update the matching format guardrail if the cost is expected.',
+        reviewUrl: '/admin/stories',
+        metricValue: metric.avgCostUsd,
+        thresholdValue: threshold,
+      });
+    }
   }
 
   if (metrics.unpricedEventCount > 0) {

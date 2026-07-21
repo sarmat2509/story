@@ -453,6 +453,14 @@ export type AdminDashboardOverview = {
   firstPassImageRate: number;
   audioStoryCount: number;
   audioAttachRate: number;
+  costByStoryFormat: Array<{
+    format: 'story' | 'graphic_novel' | 'mixed_story';
+    storyCount: number;
+    costTrackedStoryCount: number;
+    unpricedStoryCount: number;
+    totalCostUsd: number;
+    avgCostUsd: number;
+  }>;
 };
 
 export type AdminDashboardStatus = 'healthy' | 'warning' | 'critical';
@@ -461,6 +469,8 @@ export type AdminDashboardCostControls = {
   status: AdminDashboardStatus;
   thresholds: {
     storyWarnUsd: number;
+    graphicNovelWarnUsd: number;
+    mixedStoryWarnUsd: number;
     dailyWarnUsd: number;
     monthlyWarnUsd: number;
     userDailyWarnUsd: number;
@@ -470,6 +480,13 @@ export type AdminDashboardCostControls = {
   projectedMonthlyCostUsd: number;
   highCostStoryCount: number;
   maxStoryCostUsd: number;
+  storyCostsByFormat: Array<{
+    format: 'story' | 'graphic_novel' | 'mixed_story';
+    storyCount: number;
+    avgCostUsd: number;
+    highCostStoryCount: number;
+    maxStoryCostUsd: number;
+  }>;
   unpricedEventCount: number;
   topUser24hUserId: string | null;
   topUser24hCostUsd: number;

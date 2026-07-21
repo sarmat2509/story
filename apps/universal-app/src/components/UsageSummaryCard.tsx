@@ -96,12 +96,18 @@ export function UsageSummaryCard({
             label={t('usage_summary.stories', { defaultValue: 'Stories' })}
             bucket={usage.stories}
           />
-          {usage.graphicNovels ? (
+          {usage.graphicNovels && (!usage.storyMix || usage.graphicNovels.limit > 0 || usage.graphicNovels.used > 0) ? (
             <UsageRow
-              label={t('usage_summary.graphic_novels_in_story_limit', {
-                defaultValue: 'Comics within stories',
-              })}
+              label={t('usage_summary.graphic_novels', { defaultValue: 'Comics' })}
               bucket={usage.graphicNovels}
+            />
+          ) : null}
+          {usage.mixedStories && (!usage.storyMix || usage.mixedStories.limit > 0 || usage.mixedStories.used > 0) ? (
+            <UsageRow
+              label={t('usage_summary.mixed_stories_in_story_limit', {
+                defaultValue: 'Comic-to-text stories',
+              })}
+              bucket={usage.mixedStories}
             />
           ) : null}
           <UsageRow

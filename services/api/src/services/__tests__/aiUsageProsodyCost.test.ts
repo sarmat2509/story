@@ -6,6 +6,7 @@ import {
   USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE,
   USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_EDIT,
   USAGE_OP_GRAPHIC_NOVEL_PANEL_CROP_VALIDATION_REGENERATE,
+  USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_EDIT,
   USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_GENERATE,
   USAGE_OP_GRAPHIC_NOVEL_TEMPLATE_PANEL_REGENERATE,
   USAGE_OP_IMAGE_ENVIRONMENT,
@@ -158,6 +159,22 @@ function testHistoricalUnpricedOperationsArePriced() {
     },
     {
       provider: 'gemini',
+      operation: USAGE_OP_GRAPHIC_NOVEL_PANEL_MANUAL_EDIT,
+      model: 'gemini-3.1-flash-image',
+      inputUnits: 1_000,
+      outputUnits: 0,
+      metadata: { imageTokens: 1120, thoughtTokens: 0 },
+    },
+    {
+      provider: 'gemini',
+      operation: 'graphic_novel_panel_manual_regenerate_cleanup_edit',
+      model: 'gemini-3.1-flash-image',
+      inputUnits: 1_000,
+      outputUnits: 0,
+      metadata: { imageTokens: 1120, thoughtTokens: 0 },
+    },
+    {
+      provider: 'gemini',
       operation: 'map_tile_brief',
       model: 'gemini-3.1-flash-lite',
       inputUnits: 1_000,
@@ -169,6 +186,14 @@ function testHistoricalUnpricedOperationsArePriced() {
       model: 'gemini-3.1-flash-lite',
       inputUnits: 1_000,
       outputUnits: 1_000,
+    },
+    {
+      provider: 'google-tts',
+      operation: 'audio_synthesize',
+      model: 'gemini-3.1-flash-tts-preview',
+      inputUnits: 1_000,
+      outputUnits: 2_500,
+      metadata: { durationSeconds: 100 },
     },
   ];
 

@@ -628,7 +628,10 @@ export const config = {
   },
 
   costControls: {
+    // Calibrated from fully tracked current averages using the regular-story safety multiplier.
     storyWarnUsd: parseFloat(process.env.COST_CONTROL_STORY_WARN_USD || '1.25'),
+    graphicNovelWarnUsd: parseFloat(process.env.COST_CONTROL_GRAPHIC_NOVEL_WARN_USD || '2.75'),
+    mixedStoryWarnUsd: parseFloat(process.env.COST_CONTROL_MIXED_STORY_WARN_USD || '1.10'),
     dailyWarnUsd: parseFloat(process.env.COST_CONTROL_DAILY_WARN_USD || '25'),
     monthlyWarnUsd: parseFloat(process.env.COST_CONTROL_MONTHLY_WARN_USD || '500'),
     userDailyWarnUsd: parseFloat(process.env.COST_CONTROL_USER_DAILY_WARN_USD || '15'),

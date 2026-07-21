@@ -19,6 +19,15 @@ export type SubscriptionUsageView = {
   cancelAtPeriodEnd?: boolean;
   paymentProvider?: string | null;
   enableRealPayments?: boolean;
+  storyMix?: {
+    budgetPoints: number;
+    usedPoints: number;
+    remainingPoints: number;
+    weights: { story: number; mixedStory: number; graphicNovel: number };
+    used: { stories: number; mixedStories: number; graphicNovels: number };
+    maximum: { stories: number; mixedStories: number; graphicNovels: number };
+    allocation: { mixedStories: number; graphicNovels: number; stories: number };
+  };
 };
 
 function childSafeBucket(bucket: UsageBucketView): UsageBucketView {
@@ -41,5 +50,6 @@ export function toChildSafeSubscriptionUsageView(
     storyCharacterSelectionLimit: data.storyCharacterSelectionLimit,
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd,
+    storyMix: data.storyMix,
   };
 }
