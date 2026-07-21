@@ -27,6 +27,14 @@ const PERIOD_OPTIONS = [
 
 type PeriodUnit = (typeof PERIOD_OPTIONS)[number]['value'];
 
+const TIMING_GENERATION_KIND_TABS = [
+  { value: 'story', label: 'Regular' },
+  { value: 'graphic_novel', label: 'Comics' },
+  { value: 'mixed_story', label: 'Mixed' },
+] as const;
+
+type TimingGenerationKind = (typeof TIMING_GENERATION_KIND_TABS)[number]['value'];
+
 const MAX_DASHBOARD_RANGE_DAYS = 3650;
 
 function getRangeDays(amount: number, unit: PeriodUnit) {
@@ -393,28 +401,33 @@ function buildOperationBars(items: AdminDashboardOperationBreakdown[]) {
   }));
 }
 
-function TimingPercentileList({ items }: { items: AdminDashboardTimingPercentile[] }) {
-  if (items.length === 0) {
+function TimingPercentileList({
+  items,
+  generationKind,
+}: {
+  items: AdminDashboardTimingPercentile[];
+  generationKind: TimingGenerationKind;
+}) {
+  const selectedItems = items.filter((item) => item.generationKind === generationKind);
+
+  if (selectedItems.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyStateText}>No generation timing events yet.</Text>
+        <Text style={styles.emptyStateText}>No timing events for this format yet.</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.timingList}>
-      {items.slice(0, 12).map((item) => (
+      {selectedItems.slice(0, 12).map((item) => (
         <View
           key={`${item.generationKind}-${item.pipelinePhase}-${item.operation}`}
           style={styles.timingRow}
         >
           <View style={styles.timingTitleRow}>
             <Text style={styles.timingOperation}>{prettifyOperation(item.operation)}</Text>
-            <Text style={styles.timingMeta}>
-              {prettifyBreakdownValue(item.generationKind)} •{' '}
-              {prettifyBreakdownValue(item.pipelinePhase)}
-            </Text>
+            <Text style={styles.timingMeta}>{prettifyBreakdownValue(item.pipelinePhase)}</Text>
           </View>
           <View style={styles.timingMetricRow}>
             <View style={styles.timingMetric}>
@@ -524,6 +537,7 @@ export default function AdminDashboardScreen() {
   const [rangeValue, setRangeValue] = useState('30');
   const [rangeUnit, setRangeUnit] = useState<PeriodUnit>('days');
   const [isPeriodMenuOpen, setIsPeriodMenuOpen] = useState(false);
+  const [timingGenerationKind, setTimingGenerationKind] = useState<TimingGenerationKind>('story');
   const [days, setDays] = useState<number>(30);
   const [appliedRange, setAppliedRange] = useState<{ amount: number; unit: PeriodUnit }>({
     amount: 30,
@@ -764,7 +778,29 @@ export default function AdminDashboardScreen() {
               title="Generation timing percentiles"
               subtitle="p50, p90, p95 and p99 by format, phase, and operation"
             >
-              <TimingPercentileList items={data.timingByOperation} />
+              <View style={styles.timingTabs} accessibilityRole="tablist">
+                {TIMING_GENERATION_KIND_TABS.map((tab) => {
+                  const active = timingGenerationKind === tab.value;
+                  return (
+                    <TouchableOpacity
+                      key={tab.value}
+                      accessibilityRole="tab"
+                      accessibilityLabel={`${tab.label} generation timing`}
+                      accessibilityState={{ selected: active }}
+                      style={[styles.timingTab, active && styles.timingTabActive]}
+                      onPress={() => setTimingGenerationKind(tab.value)}
+                    >
+                      <Text style={[styles.timingTabText, active && styles.timingTabTextActive]}>
+                        {tab.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TimingPercentileList
+                items={data.timingByOperation}
+                generationKind={timingGenerationKind}
+              />
             </SectionCard>
 
             <SectionCard
@@ -1285,6 +1321,31 @@ const styles = StyleSheet.create({
   },
   timingList: {
     gap: 12,
+  },
+  timingTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timingTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  timingTabActive: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  timingTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+  },
+  timingTabTextActive: {
+    color: theme.colors.text.inverse,
   },
   timingRow: {
     gap: 10,
