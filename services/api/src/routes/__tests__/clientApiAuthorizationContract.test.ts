@@ -10,6 +10,8 @@ interface ProtectedEndpointCase {
 }
 
 const id = '11111111-1111-4111-8111-111111111111';
+const childProfileId = '11111111-1111-4111-8111-111111111112';
+const characterId = '11111111-1111-4111-8111-111111111113';
 
 /**
  * Authenticated endpoints called by the universal app and admin app.
@@ -252,11 +254,46 @@ async function main(): Promise<void> {
         { sceneId: 2, text: 'She shared the light, and the friends reached home.' },
       ],
       storyRequestId: null,
-      childProfileId: null,
+      childProfileId,
       createdByChildProfileId: null,
       createdAt: now,
+      createdByMode: 'parent',
+      parentReviewStatus: 'not_required',
+      metadata: { imageGenerationComplete: true, sceneIdsWithImages: [] },
+      audioMetadata: { totalDuration: 3.2, generatedAt: now.toISOString() },
+      publishCharacters: true,
       closingArtifactId: '22222222-2222-4222-8222-222222222222',
       closingKeepsakeLabel: 'Lantern Badge',
+    } as any;
+    const childProfile = {
+      id: childProfileId,
+      userId: id,
+      name: 'Mira',
+      birthDate: '2018-05-15',
+      languages: ['en'],
+      referencePhotos: [],
+      turnaroundSheet: null,
+      aiGeneratedDescription: 'A curious young reader.',
+      storyTextSizeMultiplier: 1,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    } as any;
+    const linkedCharacter = {
+      id: characterId,
+      userId: id,
+      childProfileId: null,
+      name: 'Maple Fox',
+      type: 'animal',
+      subtype: 'fox',
+      role: 'companion',
+      isHidden: false,
+      isActive: true,
+      description: 'A friendly fox carrying a tiny lantern.',
+      referencePhotos: [],
+      turnaroundSheet: null,
+      createdAt: now,
+      updatedAt: now,
     } as any;
     const artifact = {
       id: story.closingArtifactId,
@@ -292,12 +329,19 @@ async function main(): Promise<void> {
       } as any,
       story: {
         findByIdAndUser: async () => story,
-        findLinkedCharactersByStoryId: async () => [],
+        findById: async () => story,
+        findLinkedCharactersByStoryId: async () => [linkedCharacter],
+      } as any,
+      childProfile: {
+        findById: async () => childProfile,
+        findByIds: async () => [childProfile],
+        findByIdsIncludingInactive: async () => [childProfile],
       } as any,
       scene: {
         findByStoryId: async () => story.scenes,
       } as any,
       asset: {
+        findByStoryId: async () => [],
         findCompletedSceneImagesByStoryId: async () => [],
       } as any,
       alignment: {
@@ -305,6 +349,7 @@ async function main(): Promise<void> {
       } as any,
       dictionary: {
         findTranslations: async () => [],
+        findTranslationsForEntities: async () => [],
       } as any,
       storyArtifact: {
         findById: async () => artifact,
@@ -371,6 +416,25 @@ async function main(): Promise<void> {
       assert.equal(alignment.status, 200, 'follow-along alignment returns 200');
       const alignmentBody = (await alignment.json()) as any;
       assert.equal(alignmentBody.alignment.words[0].text, 'Hi');
+
+      const storyManifest = await fetch(`${origin}/api/v1/me/stories/${id}`, {
+        headers: {
+          authorization: `Bearer ${generateToken({ userId: id, sessionId: id })}`,
+        },
+      });
+      assert.equal(
+        storyManifest.status,
+        200,
+        'rich story with child profile, character, metadata, and alignment returns 200'
+      );
+      const storyManifestBody = (await storyManifest.json()) as any;
+      assert.equal(storyManifestBody.status, 'success');
+      assert.equal(storyManifestBody.manifest.storyId, id);
+      assert.equal(storyManifestBody.manifest.audioMetadata.alignment.words[0].text, 'Hi');
+      assert.deepEqual(
+        storyManifestBody.manifest.characters.map((character: any) => character.id),
+        [childProfileId, characterId]
+      );
 
       const dryRunMapTile = await fetch(`${origin}/api/v1/stories/${id}/map-tile`, {
         method: 'POST',
