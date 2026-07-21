@@ -21,8 +21,8 @@ DROPLET_USER="root"
 DROPLET_PATH="/var/www/kazka"
 API_IMAGE="kazka-api"
 API_TAG="latest"
-API_PRELOAD_MIN_FREE_KB=2097152
-API_POST_DEPLOY_CLEANUP_MIN_FREE_KB=1048576
+API_RUNTIME_DISK_RESERVE_KB=2097152
+API_POST_DEPLOY_MIN_FREE_KB=2097152
 DEPLOY_DRAIN_TIMEOUT_MS="${DEPLOY_DRAIN_TIMEOUT_MS:-900000}"
 DEPLOY_ACTIVE_REQUEST_TTL_MS="${DEPLOY_ACTIVE_REQUEST_TTL_MS:-600000}"
 DEPLOY_TELEGRAM_ENABLED="${DEPLOY_TELEGRAM_ENABLED:-true}"
@@ -661,75 +661,77 @@ EOF
 
 cleanup_api_docker_artifacts() {
   local available_kb
-  available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
 
-  if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
-    echo "⚠️  Could not determine free disk space — skipping Docker cleanup"
-    return 0
-  fi
-
-  if (( available_kb >= API_POST_DEPLOY_CLEANUP_MIN_FREE_KB )); then
-    echo "ℹ️  Free disk space is above 1GB — skipping Docker cleanup"
-    return 0
-  fi
-
-  print_step "Low disk space detected, cleaning old Docker images and build cache..."
+  print_step "Cleaning superseded API images..."
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
 echo "--- Before cleanup ---"
 docker system df || true
 echo
-docker image prune -a -f || true
-echo
-docker builder prune -a -f || true
+echo "+ docker image prune -f"
+docker image prune -f
 echo
 echo "--- After cleanup ---"
 docker system df || true
 EOF
+
+  available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
+  if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
+    echo "❌ Could not determine free disk space after Docker cleanup"
+    return 1
+  fi
+  if (( available_kb < API_POST_DEPLOY_MIN_FREE_KB )); then
+    echo "❌ Only $((available_kb / 1024))MB is free after Docker cleanup; at least $((API_POST_DEPLOY_MIN_FREE_KB / 1024))MB is required"
+    return 1
+  fi
+
+  echo "✅ $((available_kb / 1024))MB free after removing superseded images"
+  print_step_done
 }
 
 prepare_disk_for_api_deploy() {
+  local required_kb="$1"
   local available_kb
   available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
 
   if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
-    echo "⚠️  Could not determine free disk space before API load — continuing without pre-cleanup"
+    echo "❌ Could not determine free disk space before API upload"
+    return 1
+  fi
+
+  if (( available_kb >= required_kb )); then
+    echo "ℹ️  $((available_kb / 1024))MB free before API upload; $((required_kb / 1024))MB required"
     return 0
   fi
 
-  if (( available_kb >= API_PRELOAD_MIN_FREE_KB )); then
-    echo "ℹ️  Free disk space before API load is above 2GB — no pre-cleanup needed"
-    return 0
-  fi
-
-  print_step "Low disk space before API load, stopping old API and cleaning Docker artifacts..."
+  print_step "Low disk space before API upload, cleaning superseded images..."
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
 echo "--- Before pre-cleanup ---"
-df -h
-echo
+df -h /
 docker system df || true
 echo
-echo "+ docker compose -f docker-compose.prod.yml stop api"
-docker compose -f docker-compose.prod.yml stop api || true
-echo
-echo "+ docker compose -f docker-compose.prod.yml rm -f api"
-docker compose -f docker-compose.prod.yml rm -f api || true
-echo
-echo "+ docker image rm ${API_IMAGE}:${API_TAG}"
-docker image rm ${API_IMAGE}:${API_TAG} || true
-echo
-echo "+ docker image prune -a -f"
-docker image prune -a -f || true
-echo
-echo "+ docker builder prune -a -f"
-docker builder prune -a -f || true
+echo "+ docker image prune -f"
+docker image prune -f
 echo
 echo "--- After pre-cleanup ---"
-df -h
-echo
+df -h /
 docker system df || true
 EOF
+
+  available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
+  if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
+    echo "❌ Could not determine free disk space after pre-cleanup"
+    return 1
+  fi
+  if (( available_kb < required_kb )); then
+    echo "❌ Only $((available_kb / 1024))MB is free after cleanup; API upload/load requires $((required_kb / 1024))MB"
+    echo "   The running API was left untouched. Free disk space before retrying the deploy."
+    return 1
+  fi
+
+  echo "✅ $((available_kb / 1024))MB free after pre-cleanup"
+  print_step_done
 }
 
 sync_migration_files() {
@@ -893,9 +895,7 @@ wait_for_generation_drain() {
 # Step 2: Build and deploy API
 # ─────────────────────────────────────────────────────────────────────────────
 deploy_api() {
-  wait_for_generation_drain
-
-  local existing_web_build_id local_web_build_id
+  local existing_web_build_id local_web_build_id api_tarball_kb api_image_kb required_remote_kb
   existing_web_build_id=$(ssh_droplet "if [ -f '${DROPLET_PATH}/.env.production' ]; then grep -E '^WEB_BUILD_ID=' '${DROPLET_PATH}/.env.production' | tail -n 1 | cut -d= -f2-; fi" || true)
   local_web_build_id=$(read_env_var "${PROJECT_ROOT}/.env.production" "WEB_BUILD_ID" || true)
 
@@ -910,6 +910,15 @@ deploy_api() {
   docker save ${API_IMAGE}:${API_TAG} | gzip > /tmp/${API_IMAGE}.tar.gz
   print_step_done
 
+  api_tarball_kb=$(du -k "/tmp/${API_IMAGE}.tar.gz" | awk '{print $1}')
+  api_image_kb=$(( ($(docker image inspect --format '{{.Size}}' "${API_IMAGE}:${API_TAG}") + 1023) / 1024 ))
+  required_remote_kb=$((api_tarball_kb + api_image_kb + API_RUNTIME_DISK_RESERVE_KB))
+  prepare_disk_for_api_deploy "${required_remote_kb}"
+
+  # Keep production in normal mode while local build and remote disk preflight run.
+  # Drain only once the artifact is ready and the deploy is certain it can upload it.
+  wait_for_generation_drain
+
   print_step "Uploading API image to droplet..."
   scp -o ControlPath=${SSH_CONTROL_PATH} /tmp/${API_IMAGE}.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
   print_step_done
@@ -923,8 +932,6 @@ deploy_api() {
   print_step_done
 
   upload_google_credentials
-
-  prepare_disk_for_api_deploy
 
   print_step "Uploading production compose file..."
   scp -o ControlPath=${SSH_CONTROL_PATH} docker-compose.prod.yml ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/docker-compose.prod.yml

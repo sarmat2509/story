@@ -38,21 +38,23 @@ The script uses SSH multiplexing and opens the first connection with `BatchMode=
 At a high level, `scripts/deploy.sh --api --web`:
 
 1. Opens SSH to `root@167.172.102.75`.
-2. For API deploys, sets runtime ops mode to `draining`, expires stale requests, and waits for active generation jobs to drain.
-3. Builds `kazka-api:latest` locally for `linux/amd64`.
-4. Saves the image to `/tmp/kazka-api.tar.gz` and uploads it to `/var/www/kazka`.
-5. Uploads `.env.production`, preserving remote `WEB_BUILD_ID` if the local file lacks it.
-6. Uploads Google service account JSON when `GOOGLE_APPLICATION_CREDENTIALS` is configured.
-7. Uploads `docker-compose.prod.yml`.
-8. Loads the API image on the droplet and runs `docker compose -f docker-compose.prod.yml up -d api`.
-9. Syncs localized voice samples, story artifact catalog images, and pregenerated outfit plates into the API uploads volume.
-10. Syncs and validates nginx config, then stops legacy `wondertales-nginx`.
-11. Waits for the API container to become healthy.
-12. Runs SQL migrations inside `wondertales-api-prod` with `npx tsx src/scripts/runAllMigrations.ts`.
-13. Starts the `worker` container.
-14. Restores ops mode to `normal`.
-15. Builds the webapp locally, uploads `dist`, updates `WEB_BUILD_ID`, recreates `api` and `webapp`, then restarts `shared-nginx-proxy` if present.
-16. Prints `docker compose ps` and public URLs.
+2. Builds `kazka-api:latest` locally for `linux/amd64` and saves it to `/tmp/kazka-api.tar.gz`.
+3. Checks remote capacity for the compressed tarball, loaded image, and 2 GB runtime reserve; if needed, removes dangling images without stopping the current API.
+4. Sets runtime ops mode to `draining`, expires stale requests, and waits for active generation jobs to drain.
+5. Uploads the image to `/var/www/kazka`.
+6. Uploads `.env.production`, preserving remote `WEB_BUILD_ID` if the local file lacks it.
+7. Uploads Google service account JSON when `GOOGLE_APPLICATION_CREDENTIALS` is configured.
+8. Uploads `docker-compose.prod.yml`.
+9. Loads the API image on the droplet and runs `docker compose -f docker-compose.prod.yml up -d api`.
+10. Syncs localized voice samples, story artifact catalog images, and pregenerated outfit plates into the API uploads volume.
+11. Syncs and validates nginx config, then stops legacy `wondertales-nginx`.
+12. Waits for the API container to become healthy.
+13. Runs SQL migrations inside `wondertales-api-prod` with `npx tsx src/scripts/runAllMigrations.ts`.
+14. Starts the `worker` container.
+15. Restores ops mode to `normal`.
+16. Removes dangling images left by replacing `kazka-api:latest` and verifies at least 2 GB remains free.
+17. Builds the webapp locally, uploads `dist`, updates `WEB_BUILD_ID`, recreates `api` and `webapp`, then restarts `shared-nginx-proxy` if present.
+18. Prints `docker compose ps` and public URLs.
 
 The deploy also sends best-effort Telegram notifications at start and completion. The start message includes the deployment id, selected components, Git revision/worktree state, and drain mode. The completion message reports success or failure, duration, and the failed step when applicable. Credentials are read on the droplet from `/etc/wondertales/ops-alert.env` or `/etc/wondertales/deploy-alert.env`, using `DEPLOY_ALERT_TELEGRAM_*`, `OPS_ALERT_TELEGRAM_*`, or the generic `TELEGRAM_*` fallback variables. Telegram delivery failures are logged but do not abort the deployment. Set `DEPLOY_TELEGRAM_ENABLED=false` to skip notifications or `DEPLOY_TELEGRAM_DRY_RUN=true` to print them without sending.
 
@@ -70,7 +72,8 @@ Important behavior:
 - Local Docker build avoids OOM on small droplets.
 - `services/api/Dockerfile` production stage bundles `dist`, migrations, selected `src/scripts`, config/utils/legal assets, and API assets needed at runtime.
 - `scripts/check-api-production-assets.sh` guards production bundling assumptions.
-- Disk cleanup can stop/remove old API images when droplet free space is low.
+- Before uploading the image tarball, the deploy reserves enough space for the compressed tarball, the loaded image, and 2 GB of runtime headroom. If necessary it prunes only dangling images; if space is still insufficient, it aborts without stopping the running API.
+- After a successful API deploy and migrations, it always runs `docker image prune -f`. This removes superseded untagged API images while preserving running containers, tagged images, and all volumes.
 - Migrations run after the new API image is healthy. If API is not running during `--migrate`, the script skips predeploy migrations and relies on postdeploy migration when API is deployed.
 
 Drain behavior:
