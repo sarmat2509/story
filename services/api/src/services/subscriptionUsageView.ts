@@ -50,6 +50,6 @@ export function toChildSafeSubscriptionUsageView(
     storyCharacterSelectionLimit: data.storyCharacterSelectionLimit,
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd,
-    storyMix: data.storyMix,
+    ...(data.storyMix ? { storyMix: data.storyMix } : {}),
   };
 }
