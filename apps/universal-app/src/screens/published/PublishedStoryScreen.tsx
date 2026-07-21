@@ -32,6 +32,7 @@ import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
+import { assignWebLocation } from '@/utils/webRuntime';
 import {
   getReadingTimeMinutes,
   resolveGraphicNovelTextStyle,
@@ -64,11 +65,13 @@ type RouteProps = RouteProp<MainDrawerParamList, 'PublishedStory' | 'UnlistedSto
 export default function PublishedStoryScreen() {
   const route = useRoute<RouteProps>();
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user, sessionMode } = useAuthStore();
   const { isDesktop, isTabletLandscape } = useResponsive();
   const slug = (route.params as any)?.slug ?? '';
   const token = (route.params as any)?.token ?? '';
   const useDesktopLayout = isDesktop || isTabletLandscape;
+  const canOpenAdminStory =
+    Platform.OS === 'web' && user?.role === 'admin' && sessionMode !== 'child';
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
@@ -318,6 +321,10 @@ export default function PublishedStoryScreen() {
     : '';
 
   const isOwner = !!(story as any)?.isOwner;
+  const handleOpenAdminStory = useCallback(() => {
+    if (!story?.id) return;
+    assignWebLocation(`/admin/stories/${encodeURIComponent(story.id)}`);
+  }, [story?.id]);
   const authorAvatarUrl =
     formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
   const authorInitial = (story.authorDisplayName || 'A').trim().charAt(0).toUpperCase();
@@ -386,6 +393,22 @@ export default function PublishedStoryScreen() {
                   style={styles.editAction}
                 />
               )}
+          {!useDesktopLayout && canOpenAdminStory ? (
+            <AppButton
+              label={t('story_viewer.open_admin_panel')}
+              onPress={handleOpenAdminStory}
+              variant="secondary"
+              size="md"
+              leading={
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+              }
+              style={styles.editAction}
+            />
+          ) : null}
         </View>
       </View>
 
@@ -766,6 +789,20 @@ export default function PublishedStoryScreen() {
           }
         />
       )}
+      {canOpenAdminStory ? (
+        <AppButton
+          label={t('story_viewer.open_admin_panel')}
+          onPress={handleOpenAdminStory}
+          variant="secondary"
+          leading={
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={theme.colors.interactive.primary}
+            />
+          }
+        />
+      ) : null}
       {!isAuthenticated && <PublishedStoryCta slug={slug} isAuthenticated={false} inSidebar />}
       {renderReportStoryButton()}
     </>
