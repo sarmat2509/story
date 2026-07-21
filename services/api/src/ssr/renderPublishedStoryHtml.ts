@@ -54,6 +54,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .comic-page{width:100%;margin:0 auto 24px}
 .comic-page-canvas{position:relative;width:100%;overflow:hidden;border-radius:12px;background:#e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.08);container-type:inline-size}
 .comic-page-image{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.comic-panel-scroll-target{position:absolute;z-index:1;pointer-events:none}
 .comic-bubble{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;padding:var(--comic-padding-y) var(--comic-padding-x);color:#111;font-size:var(--comic-font-size);font-weight:700;line-height:var(--comic-line-height);text-align:center;overflow-wrap:break-word;text-wrap:balance}
 .comic-bubble span{display:block;width:100%;min-width:0;max-width:100%;flex-shrink:1}
 

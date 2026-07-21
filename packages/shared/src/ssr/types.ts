@@ -57,12 +57,18 @@ export interface PublicGraphicNovelTextOverlay {
   items: PublicGraphicNovelTextOverlayItem[];
 }
 
+export interface PublicGraphicNovelPanelRect {
+  panelIndex: number;
+  rect: { x: number; y: number; width: number; height: number };
+}
+
 export interface PublicGraphicNovelPage {
   pageNumber: number;
   pageRole: string;
   status: string;
   imageUrl: string | null;
   textOverlay: PublicGraphicNovelTextOverlay | null;
+  panelRects?: PublicGraphicNovelPanelRect[];
 }
 
 export interface PublicMixedStoryReadingOrderItem {

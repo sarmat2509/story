@@ -195,6 +195,20 @@ function pageOverlayFromRows(page: { bubbleLayoutJson: unknown; layoutJson: unkn
   }
 }
 
+function publicPanelRects(layoutJson: unknown) {
+  if (!layoutJson || typeof layoutJson !== 'object') return [];
+  const panels = (layoutJson as Record<string, unknown>).panels;
+  if (!Array.isArray(panels)) return [];
+
+  return panels.flatMap((panel: unknown, index: number) => {
+    if (!panel || typeof panel !== 'object') return [];
+    const source = panel as Record<string, any>;
+    const rect = publicRect(source.templatePanel?.rect ?? source.rect);
+    if (!rect) return [];
+    return [{ panelIndex: positiveInteger(source.panelIndex) ?? index + 1, rect }];
+  });
+}
+
 async function loadPublicComicPages(
   storyId: string,
   shareToken?: string
@@ -209,6 +223,7 @@ async function loadPublicComicPages(
     status: page.status,
     imageUrl: publicAssetUrl(page.imageUrl, shareToken),
     textOverlay: pageOverlayFromRows(page),
+    panelRects: publicPanelRects(page.layoutJson),
   }));
 }
 

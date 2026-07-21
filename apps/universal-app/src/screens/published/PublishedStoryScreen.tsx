@@ -56,6 +56,9 @@ const removeAudioTags = (text: string): string => {
 const normalizeHighlightText = (text: string): string =>
   removeAudioTags(text).replace(/\s+/g, ' ').trim().toLocaleLowerCase();
 
+const comicPanelKey = (pageNumber: number, panelIndex: number): string =>
+  `${pageNumber}:${panelIndex}`;
+
 type RouteProps = RouteProp<MainDrawerParamList, 'PublishedStory' | 'UnlistedStory'>;
 
 export default function PublishedStoryScreen() {
@@ -87,12 +90,18 @@ export default function PublishedStoryScreen() {
   const [isHighlightEnabled, setIsHighlightEnabled] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [comicPageWidths, setComicPageWidths] = useState<Record<number, number>>({});
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const activeStoryId = useAudioPlayerStore((s) => s.activeStoryId);
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
   const isHighlightEnabledRef = useRef(false);
   const lastPositionUpdateTime = useRef(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const sceneRefs = useRef<Record<number, View | null>>({});
+  const comicPanelRefs = useRef<Record<string, View | null>>({});
+
+  const handleScrollViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    setScrollViewportHeight(event.nativeEvent.layout.height);
+  }, []);
 
   const audioUrl = story?.audio?.url;
   const duration = story?.audio?.duration ?? 0;
@@ -149,26 +158,68 @@ export default function PublishedStoryScreen() {
     activeSentenceIndex !== null
       ? normalizeHighlightText(sentences[activeSentenceIndex]?.text ?? '')
       : '';
+  const activeComicTextItem = useMemo<PublicGraphicNovelTextOverlayItem | null>(() => {
+    if (!effectiveHighlightEnabled || !activeSentenceText || activeComicPageNumber === null) {
+      return null;
+    }
+    const page = story?.comicPages?.find(
+      (candidate) => Number(candidate.pageNumber) === activeComicPageNumber
+    );
+    return (
+      page?.textOverlay?.items.find((item) => {
+        const itemText = normalizeHighlightText(item.text || '');
+        return (
+          !!itemText &&
+          (itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText))
+        );
+      }) ?? null
+    );
+  }, [activeComicPageNumber, activeSentenceText, effectiveHighlightEnabled, story?.comicPages]);
+  const activeComicPanelKey = activeComicTextItem
+    ? comicPanelKey(activeComicTextItem.pageNumber, activeComicTextItem.panelIndex)
+    : null;
 
-  // Auto-scroll to the active scene when it changes (mirrors StoryViewerScreen)
-  useEffect(() => {
-    if (!effectiveHighlightEnabled || activeSceneIndex === null) return;
-    const sceneElement = sceneRefs.current[activeSceneIndex];
-    if (!sceneElement) return;
-
-    if (Platform.OS === 'web') {
-      const el = sceneElement as any;
-      el?.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-    } else {
-      sceneElement.measureLayout(
+  const scrollTargetToViewportCenter = useCallback(
+    (target: View | null) => {
+      if (!target) return;
+      if (Platform.OS === 'web') {
+        (target as any)?.scrollIntoView?.({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+        return;
+      }
+      target.measureLayout(
         scrollViewRef.current as any,
-        (_x: number, y: number) => {
-          scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
+        (_x: number, y: number, _width: number, height: number) => {
+          const centeredY =
+            scrollViewportHeight > 0 ? y + height / 2 - scrollViewportHeight / 2 : y - 100;
+          scrollViewRef.current?.scrollTo({ y: Math.max(centeredY, 0), animated: true });
         },
         () => {}
       );
+    },
+    [scrollViewportHeight]
+  );
+
+  // Scroll comic narration by panel. Multiple bubbles in one panel share the same key, so the
+  // effect does not run again until narration moves to another panel.
+  useEffect(() => {
+    if (!effectiveHighlightEnabled || activeSceneIndex === null) return;
+    if (activeComicPageNumber !== null) {
+      const panel = activeComicPanelKey ? comicPanelRefs.current[activeComicPanelKey] : null;
+      scrollTargetToViewportCenter(panel ?? sceneRefs.current[activeSceneIndex]);
+      return;
     }
-  }, [activeSceneIndex, effectiveHighlightEnabled]);
+    scrollTargetToViewportCenter(sceneRefs.current[activeSceneIndex]);
+  }, [
+    activeComicPageNumber,
+    activeComicPanelKey,
+    activeSceneIndex,
+    effectiveHighlightEnabled,
+    scrollTargetToViewportCenter,
+  ]);
 
   const handleActivate = useCallback(async () => {
     if (!audioUrl || !story) return;
@@ -576,6 +627,24 @@ export default function PublishedStoryScreen() {
                 style={styles.comicPageImage as ImageStyle}
                 resizeMode="contain"
               />
+              {(page.panelRects ?? []).map((panel) => (
+                <View
+                  key={`panel-scroll-target-${page.pageNumber}-${panel.panelIndex}`}
+                  pointerEvents="none"
+                  ref={(ref: View | null) => {
+                    comicPanelRefs.current[comicPanelKey(page.pageNumber, panel.panelIndex)] = ref;
+                  }}
+                  style={[
+                    styles.comicPanelScrollTarget,
+                    {
+                      left: `${panel.rect.x * 100}%`,
+                      top: `${panel.rect.y * 100}%`,
+                      width: `${panel.rect.width * 100}%`,
+                      height: `${panel.rect.height * 100}%`,
+                    },
+                  ]}
+                />
+              ))}
               {(page.textOverlay?.items ?? [])
                 .slice()
                 .sort((a, b) => a.readingOrder - b.readingOrder)
@@ -708,6 +777,7 @@ export default function PublishedStoryScreen() {
         <View style={styles.desktopLayout}>
           <ScrollView
             ref={scrollViewRef}
+            onLayout={handleScrollViewportLayout}
             style={styles.leftColumn}
             contentContainerStyle={styles.leftColumnContent}
           >
@@ -742,6 +812,7 @@ export default function PublishedStoryScreen() {
     <>
       <ScrollView
         ref={scrollViewRef}
+        onLayout={handleScrollViewportLayout}
         style={styles.container}
         contentContainerStyle={styles.content}
       >
@@ -928,6 +999,10 @@ const styles = StyleSheet.create({
   comicBubbleTextActive: {
     backgroundColor: 'rgb(218, 239, 253)',
     color: theme.colors.text.primary,
+  },
+  comicPanelScrollTarget: {
+    position: 'absolute',
+    zIndex: 1,
   },
   comicPagePlaceholder: {
     ...StyleSheet.absoluteFillObject,

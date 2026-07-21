@@ -45,9 +45,20 @@ function renderComicBubble(item: PublicGraphicNovelTextOverlayItem): string {
     `width:${percent(rect.width)}`,
     `height:${percent(rect.height)}`,
   ].join(';');
-  return `<div class="comic-bubble comic-bubble-${escapeHtml(item.kind)}" style="${style}"` +
+  return `<div class="comic-bubble comic-bubble-${escapeHtml(item.kind)}" data-panel-index="${item.panelIndex}" style="${style}"` +
     `${item.ariaLabel ? ` aria-label="${escapeHtml(item.ariaLabel)}"` : ''}>` +
     `<span>${escapeHtml(item.text)}</span></div>`;
+}
+
+function renderComicPanelTarget(panel: NonNullable<PublicGraphicNovelPage['panelRects']>[number]): string {
+  const rect = panel.rect;
+  const style = [
+    `left:${percent(rect.x)}`,
+    `top:${percent(rect.y)}`,
+    `width:${percent(rect.width)}`,
+    `height:${percent(rect.height)}`,
+  ].join(';');
+  return `<div class="comic-panel-scroll-target" data-panel-index="${panel.panelIndex}" style="${style}" aria-hidden="true"></div>`;
 }
 
 function renderComicPage(page: PublicGraphicNovelPage, apiBase: string): string {
@@ -68,10 +79,11 @@ function renderComicPage(page: PublicGraphicNovelPage, apiBase: string): string 
     .sort((a, b) => a.readingOrder - b.readingOrder)
     .map(renderComicBubble)
     .join('');
+  const panelTargets = (page.panelRects || []).map(renderComicPanelTarget).join('');
   return `<figure class="comic-page" data-page-number="${page.pageNumber}">` +
     `<div class="comic-page-canvas" style="${canvasStyle}">` +
     `<img class="comic-page-image" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` +
-    `${bubbles}</div></figure>`;
+    `${panelTargets}${bubbles}</div></figure>`;
 }
 
 function renderProseScene(scene: PublicStoryScene, apiBase: string): string {

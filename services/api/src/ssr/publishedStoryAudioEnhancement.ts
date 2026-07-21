@@ -56,7 +56,13 @@ export const PUBLISHED_STORY_AUDIO_ENHANCEMENT_SCRIPT = `(function(){
     var rendered=[];
     var scenes=Array.prototype.slice.call(document.querySelectorAll('.scene-text,.comic-bubble span'));
     scenes.forEach(function(sceneText){
-      var scrollTarget=sceneText.closest('.scene,.comic-page')||sceneText;
+      var bubble=sceneText.closest('.comic-bubble');
+      var comicPage=bubble&&bubble.closest('.comic-page');
+      var panelIndex=bubble&&bubble.getAttribute('data-panel-index');
+      var panelTarget=comicPage&&panelIndex
+        ?comicPage.querySelector('.comic-panel-scroll-target[data-panel-index="'+panelIndex+'"]')
+        :null;
+      var scrollTarget=panelTarget||sceneText.closest('.scene,.comic-page')||sceneText;
       var parts=String(sceneText.textContent||'').split(/(\\s+)/u);
       var fragment=document.createDocumentFragment();
       parts.forEach(function(part){

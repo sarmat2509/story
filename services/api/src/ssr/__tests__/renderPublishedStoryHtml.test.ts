@@ -241,6 +241,7 @@ void (async function main() {
           pageRole: 'story',
           status: 'completed',
           imageUrl: '/api/v1/assets/comics/page-1.jpg',
+          panelRects: [{ panelIndex: 1, rect: { x: 0.04, y: 0.06, width: 0.92, height: 0.42 } }],
           textOverlay: {
             mode: 'html_overlay',
             coordinateSpace: 'normalized_0_1',
@@ -283,8 +284,28 @@ void (async function main() {
   assert.match(comicHtml, /\.comic-bubble\{[^}]*font-size:var\(--comic-font-size\)/);
   assert.match(
     comicHtml,
+    /class="comic-panel-scroll-target" data-panel-index="1" style="left:4%;top:6%;width:92%;height:42%"/,
+    'comic SSR renders a scroll target matching the full panel bounds'
+  );
+  assert.match(
+    comicHtml,
+    /class="comic-bubble comic-bubble-speech" data-panel-index="1"/,
+    'comic bubbles identify their containing panel'
+  );
+  assert.match(
+    comicHtml,
     /data-alignment-url="\/api\/v1\/public\/u\/share-token\/alignment"/,
     'comic SSR exposes read-along alignment through its public story access path'
+  );
+  assert.match(
+    comicHtml,
+    /comicPage\.querySelector\('\.comic-panel-scroll-target\[data-panel-index="'\+panelIndex\+'"\]'\)/,
+    'SSR read-along resolves a bubble to its full-panel scroll target'
+  );
+  assert.match(
+    comicHtml,
+    /if\(activeScene!==found\.scene\)[\s\S]*?found\.scene\.scrollIntoView\(\{behavior:'smooth',block:'center'/,
+    'SSR scrolls only when the panel target changes and centers that target'
   );
   assert.match(
     comicHtml,
@@ -342,6 +363,7 @@ void (async function main() {
           pageRole: 'story',
           status: 'completed',
           imageUrl: '/api/v1/assets/comics/mixed-1.jpg',
+          panelRects: [{ panelIndex: 1, rect: { x: 0.05, y: 0.08, width: 0.9, height: 0.4 } }],
           textOverlay: {
             mode: 'html_overlay',
             coordinateSpace: 'normalized_0_1',

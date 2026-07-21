@@ -8,6 +8,10 @@ const publishedStorySource = readFileSync(
   resolve(process.cwd(), 'src/screens/published/PublishedStoryScreen.tsx'),
   'utf8'
 );
+const storyViewerSource = readFileSync(
+  resolve(process.cwd(), 'src/screens/story/StoryViewerScreen.tsx'),
+  'utf8'
+);
 
 assert.match(
   appSource,
@@ -31,6 +35,26 @@ assert.match(
   publishedStorySource,
   /const renderComicTextItem[\s\S]*?findComicSceneIndex\(page\.pageNumber\)[\s\S]*?renderAlignedTextContent\(text, sceneIndex\)[\s\S]*?\{highlightedText \?\? text\}/,
   'the authenticated published-story app should render aligned text inside comic overlays'
+);
+assert.match(
+  publishedStorySource,
+  /const activeComicPanelKey = activeComicTextItem[\s\S]*?comicPanelKey\(activeComicTextItem\.pageNumber, activeComicTextItem\.panelIndex\)/,
+  'the published-story app should use page and panel, not bubble, as its scroll identity'
+);
+assert.match(
+  publishedStorySource,
+  /comicPanelRefs\.current\[activeComicPanelKey\][\s\S]*?scrollTargetToViewportCenter\(panel \?\? sceneRefs\.current\[activeSceneIndex\]\)/,
+  'the published-story app should center the full panel anchor with a page fallback'
+);
+assert.match(
+  publishedStorySource,
+  /scrollViewportHeight > 0 \? y \+ height \/ 2 - scrollViewportHeight \/ 2/,
+  'native published stories should center the target bounds in the viewport'
+);
+assert.match(
+  storyViewerSource,
+  /const activeGraphicNovelPanelKey = activeGraphicNovelTextItem[\s\S]*?graphicNovelPanelKey\([\s\S]*?panelIndex[\s\S]*?scrollTargetToViewportCenter\(panelElement \?\? sceneRefs\.current\[activeSceneIndex\]\)/,
+  'the signed-in story viewer should also center a stable full-panel target'
 );
 assert.match(
   publishedStorySource,

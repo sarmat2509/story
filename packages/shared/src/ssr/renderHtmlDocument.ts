@@ -102,12 +102,31 @@ function sanitizeComicTextOverlay(value: any): PublicGraphicNovelTextOverlay | n
 }
 
 function sanitizeComicPage(page: any): PublicGraphicNovelPage {
+  const numberOr = (candidate: unknown, fallback: number) => {
+    const parsed = Number(candidate);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const panelRects = Array.isArray(page?.panelRects)
+    ? page.panelRects.flatMap((panel: any, index: number) => {
+        if (!panel?.rect) return [];
+        return [{
+          panelIndex: numberOr(panel.panelIndex, index + 1),
+          rect: {
+            x: numberOr(panel.rect.x, 0),
+            y: numberOr(panel.rect.y, 0),
+            width: numberOr(panel.rect.width, 0),
+            height: numberOr(panel.rect.height, 0),
+          },
+        }];
+      })
+    : [];
   return {
     pageNumber: Number(page?.pageNumber ?? 0),
     pageRole: String(page?.pageRole ?? ''),
     status: String(page?.status ?? ''),
     imageUrl: page?.imageUrl == null ? null : String(page.imageUrl),
     textOverlay: sanitizeComicTextOverlay(page?.textOverlay),
+    ...(panelRects.length ? { panelRects } : {}),
   };
 }
 

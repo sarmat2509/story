@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  clearRepositoryTestOverrides,
-  installRepositoryTestOverrides,
-} from '../../repositories';
+import { clearRepositoryTestOverrides, installRepositoryTestOverrides } from '../../repositories';
 import { buildStoryPublicView } from '../publicStoryService';
 
 const storyId = 'a2222222-2222-4222-8222-222222222221';
@@ -28,7 +25,15 @@ void (async function main() {
           pageRole: 'story',
           status: 'completed',
           imageUrl: 'development/author/story/comic/page-1.jpg',
-          layoutJson: { internalPrompt: 'must not be public' },
+          layoutJson: {
+            internalPrompt: 'must not be public',
+            panels: [
+              {
+                panelIndex: 1,
+                templatePanel: { rect: { x: 0.04, y: 0.06, width: 0.92, height: 0.42 } },
+              },
+            ],
+          },
           bubbleLayoutJson: {
             rendererInternals: { secret: true },
             textOverlay: {
@@ -62,9 +67,7 @@ void (async function main() {
     } as any,
     user: {
       findPublicAuthorById: async (id: string) =>
-        id === authorId
-          ? { id: authorId, displayName: 'Mira Author', avatarUrl: null }
-          : null,
+        id === authorId ? { id: authorId, displayName: 'Mira Author', avatarUrl: null } : null,
     } as any,
     childProfile: {
       findPublicChildAuthorById: async () => null,
@@ -121,10 +124,13 @@ void (async function main() {
     );
 
     assert.equal(story.storyFormat, 'mixed_story');
-    assert.deepStrictEqual(story.mixedStoryReadingOrder?.map(({ screenOrder, kind }) => ({ screenOrder, kind })), [
-      { screenOrder: 1, kind: 'prose' },
-      { screenOrder: 2, kind: 'comic' },
-    ]);
+    assert.deepStrictEqual(
+      story.mixedStoryReadingOrder?.map(({ screenOrder, kind }) => ({ screenOrder, kind })),
+      [
+        { screenOrder: 1, kind: 'prose' },
+        { screenOrder: 2, kind: 'comic' },
+      ]
+    );
     assert.equal(story.comicPages?.length, 1);
     assert.equal(
       story.comicPages?.[0]?.imageUrl,
@@ -137,9 +143,15 @@ void (async function main() {
       width: 0.35,
       height: 0.12,
     });
+    assert.deepStrictEqual(story.comicPages?.[0]?.panelRects, [
+      { panelIndex: 1, rect: { x: 0.04, y: 0.06, width: 0.92, height: 0.42 } },
+    ]);
 
     const serialized = JSON.stringify(story.comicPages);
-    assert.doesNotMatch(serialized, /internalPrompt|rendererInternals|rawPlainText|rawText|audioText|panel-internal-id/);
+    assert.doesNotMatch(
+      serialized,
+      /internalPrompt|rendererInternals|rawPlainText|rawText|audioText|panel-internal-id/
+    );
   } finally {
     clearRepositoryTestOverrides();
   }
