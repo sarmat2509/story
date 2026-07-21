@@ -67,4 +67,14 @@ assert.doesNotMatch(
   'the public catalog app query must not depend on an SSR hydration payload'
 );
 
+const earlyReturnsIndex = publishedStorySource.indexOf(
+  '// ── Early returns after all hooks'
+);
+assert.ok(earlyReturnsIndex > 0, 'published story should mark its early-return boundary');
+assert.doesNotMatch(
+  publishedStorySource.slice(earlyReturnsIndex),
+  /\buse(?:State|Effect|LayoutEffect|Memo|Callback|Ref)\s*(?:<[^>]+>)?\s*\(/,
+  'published story must not declare hooks after early returns'
+);
+
 console.log('published story SSR/app document boundary regression guards passed');

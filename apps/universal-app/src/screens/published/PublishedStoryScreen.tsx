@@ -282,6 +282,11 @@ export default function PublishedStoryScreen() {
     [sharedCharacters]
   );
 
+  const handleOpenAdminStory = useCallback(() => {
+    if (!story?.id) return;
+    assignWebLocation(`/admin/stories/${encodeURIComponent(story.id)}`);
+  }, [story?.id]);
+
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!slug && !token) {
     return (
@@ -321,10 +326,6 @@ export default function PublishedStoryScreen() {
     : '';
 
   const isOwner = !!(story as any)?.isOwner;
-  const handleOpenAdminStory = useCallback(() => {
-    if (!story?.id) return;
-    assignWebLocation(`/admin/stories/${encodeURIComponent(story.id)}`);
-  }, [story?.id]);
   const authorAvatarUrl =
     formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
   const authorInitial = (story.authorDisplayName || 'A').trim().charAt(0).toUpperCase();
