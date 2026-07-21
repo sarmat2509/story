@@ -1837,7 +1837,7 @@ export default function StoryViewerScreen() {
       // Invalidate usage query to show updated counter
       queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
 
-      toastService.info('Готуємо аудіосказку', 'Це може зайняти кілька хвилин');
+      toastService.info(t('toast.audio_generating_title'), t('toast.audio_generating_message'));
     } catch (error: any) {
       setAudioGenerationRequested(false);
       console.log('[handleGenerateAudio] Error:', error);

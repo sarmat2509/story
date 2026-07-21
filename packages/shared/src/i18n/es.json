@@ -1870,17 +1870,17 @@
     "cta_button": "Sign in and create"
   },
   "toast": {
-    "audio_ready_title": "Audio story is ready!",
-    "audio_play": "Play",
-    "audio_ready_message": "You can now listen to the story",
-    "audio_generating_title": "Preparing audio story",
-    "audio_generating_message": "This may take a few minutes",
+    "audio_ready_title": "¡La historia con audio está lista!",
+    "audio_play": "Reproducir",
+    "audio_ready_message": "Ya puedes escuchar la historia",
+    "audio_generating_title": "Preparando la historia con audio",
+    "audio_generating_message": "Esto puede tardar unos minutos",
     "audio_error_title": "Error",
-    "audio_error_message": "Failed to create audio story",
-    "audio_not_available_title": "Audio stories unavailable",
-    "audio_not_available_message": "Upgrade your plan to enable audio stories",
-    "audio_limit_title": "Limit exceeded",
-    "audio_limit_message": "Monthly audio story limit reached"
+    "audio_error_message": "No se pudo crear la historia con audio",
+    "audio_not_available_title": "Las historias con audio no están disponibles",
+    "audio_not_available_message": "Mejora tu plan para activar las historias con audio",
+    "audio_limit_title": "Límite alcanzado",
+    "audio_limit_message": "Se alcanzó el límite mensual de historias con audio"
   },
   "photo_upload": {
     "permission_title": "Permission Required",
