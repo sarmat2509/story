@@ -990,6 +990,8 @@
     "save_character": "Зберегти до моїх персонажів",
     "character_saved": "Персонажа збережено!",
     "character_save_error": "Не вдалося зберегти персонажа. Спробуйте ще раз.",
+    "publish_with_characters": "Публікувати з персонажами",
+    "publish_with_characters_hint": "Так ви зможете поділитися персонажами з іншими читачами.",
     "character_type_person": "Людина",
     "character_type_animal": "Тваринка",
     "character_type_pet": "Тваринка",

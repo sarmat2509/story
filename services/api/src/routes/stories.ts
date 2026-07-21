@@ -1118,6 +1118,7 @@ const PublishStorySchema = z.object({
   coverAssetId: z.string().uuid().nullable().optional(),
   childAuthorPseudonym: z.string().trim().max(100).optional(),
   childAuthorAboutMe: z.string().trim().max(1000).optional(),
+  publishCharacters: z.boolean().optional().default(true),
 });
 
 const ParentReviewStorySchema = z.object({
@@ -1229,7 +1230,13 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
     }
 
     if (body.isPublished) {
-      const result = await publishStory(id, ownerUserId, body.visibility, body.coverAssetId);
+      const result = await publishStory(
+        id,
+        ownerUserId,
+        body.visibility,
+        body.coverAssetId,
+        body.publishCharacters
+      );
       if (!result) {
         return res.status(404).json({
           status: 'error',

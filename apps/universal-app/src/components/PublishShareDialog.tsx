@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Image,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
@@ -30,7 +31,8 @@ interface PublishShareDialogProps {
     visibility: PublishVisibility,
     coverAssetId?: string | null,
     pseudonym?: string,
-    aboutMe?: string
+    aboutMe?: string,
+    publishCharacters?: boolean
   ) => void;
   onCancel: () => void;
   shareUrl?: string | null;
@@ -75,6 +77,7 @@ export function PublishShareDialog({
   const [selectedCoverAssetId, setSelectedCoverAssetId] = React.useState<string | null>(null);
   const [pseudonymInput, setPseudonymInput] = React.useState('');
   const [aboutMeInput, setAboutMeInput] = React.useState('');
+  const [publishCharacters, setPublishCharacters] = React.useState(true);
   const isPostPublish = !!shareUrl;
 
   const coverAssetsWithImages = useMemo(
@@ -102,6 +105,7 @@ export function PublishShareDialog({
       setPseudonymInput(userPseudonym ?? '');
       setAboutMeInput(authorAboutMe ?? '');
       setSelectedVisibility(initialVisibility);
+      setPublishCharacters(true);
     }
   }, [visible, validInitialCoverAssetId, initialVisibility, userPseudonym, authorAboutMe]);
 
@@ -381,6 +385,24 @@ export function PublishShareDialog({
                 </View>
               )}
 
+              <View style={styles.publishCharactersOption}>
+                <View style={styles.publishCharactersCopy}>
+                  <Text style={styles.publishCharactersLabel}>
+                    {t('story_viewer.publish_with_characters')}
+                  </Text>
+                  <Text style={styles.publishCharactersHint}>
+                    {t('story_viewer.publish_with_characters_hint')}
+                  </Text>
+                </View>
+                <Switch
+                  value={publishCharacters}
+                  onValueChange={setPublishCharacters}
+                  disabled={isLoading}
+                  trackColor={{ false: theme.colors.border.light, true: theme.colors.interactive.primary }}
+                  testID="publish-share-characters"
+                />
+              </View>
+
               <AppButton
                 label={
                   openedFromShare
@@ -394,7 +416,8 @@ export function PublishShareDialog({
                     (!userPseudonym || allowAuthorProfileEdit) && pseudonymInput.trim()
                       ? pseudonymInput.trim()
                       : undefined,
-                    allowAuthorProfileEdit && aboutMeInput.trim() ? aboutMeInput.trim() : undefined
+                    allowAuthorProfileEdit && aboutMeInput.trim() ? aboutMeInput.trim() : undefined,
+                    publishCharacters
                   )
                 }
                 disabled={isLoading}
@@ -531,6 +554,28 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.fontSize.sm * 1.35,
     color: theme.colors.text.secondary,
+  },
+  publishCharactersOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    marginBottom: theme.spacing[4],
+  },
+  publishCharactersCopy: {
+    flex: 1,
+  },
+  publishCharactersLabel: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  publishCharactersHint: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
   pseudonymText: {
     fontSize: theme.typography.fontSize.sm,

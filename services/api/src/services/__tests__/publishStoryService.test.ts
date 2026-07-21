@@ -12,6 +12,7 @@ assert.deepStrictEqual(
     authorChildProfileId: null,
     visibility: null,
     shareToken: null,
+    publishCharacters: false,
   },
   'unpublish should return the story to the private visibility state'
 );
@@ -27,6 +28,7 @@ assert.deepStrictEqual(
     authorChildProfileId: null,
     visibility: null,
     shareToken: null,
+    publishCharacters: false,
     showOnHomePage: false,
   },
   'unpublish should also remove home-page featuring'

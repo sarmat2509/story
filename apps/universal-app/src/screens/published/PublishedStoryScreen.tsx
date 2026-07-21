@@ -13,7 +13,11 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp, type NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { usePublicStory, usePublicStoryByToken } from '@/api/stories';
+import {
+  usePublicStory,
+  usePublicStoryByToken,
+  useSavePublicStoryCharacter,
+} from '@/api/stories';
 import { useAuthStore } from '@/store/authStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
@@ -25,6 +29,8 @@ import { StoryRatingWidget } from '@/components/StoryRatingWidget';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AppButton } from '@/components/AppButton';
+import { StoryCharactersSection } from '@/components/StoryCharactersSection';
+import { toastService } from '@/services/toastService';
 import AudioPlayer from '@/components/AudioPlayer';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -64,10 +70,11 @@ export default function PublishedStoryScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
-  const publicQuery = usePublicStory(slug, !!slug && !token);
-  const tokenQuery = usePublicStoryByToken(token, !!token);
+  const publicQuery = usePublicStory(slug, !!slug && !token, !!isAuthenticated);
+  const tokenQuery = usePublicStoryByToken(token, !!token, !!isAuthenticated);
   const activeQuery = token ? tokenQuery : publicQuery;
   const { data: story, isLoading, error, refetch } = activeQuery;
+  const saveCharacter = useSavePublicStoryCharacter();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -181,6 +188,29 @@ export default function PublishedStoryScreen() {
   const handleReportStory = useCallback(() => {
     setShowFeedbackModal(true);
   }, []);
+
+  const handleSaveCharacter = useCallback(
+    async (characterId: string) => {
+      try {
+        await saveCharacter.mutateAsync({
+          slugOrToken: token || slug,
+          characterId,
+          isUnlisted: !!token,
+        });
+        toastService.success(t('story_viewer.character_saved'));
+        await refetch();
+      } catch {
+        toastService.error(t('common.error'), t('story_viewer.character_save_error'));
+      }
+    },
+    [refetch, saveCharacter, slug, t, token]
+  );
+
+  const sharedCharacters = story?.characters ?? [];
+  const savedCharacterIds = useMemo(
+    () => sharedCharacters.filter((character) => character.isSaved).map((character) => character.id),
+    [sharedCharacters]
+  );
 
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!slug && !token) {
@@ -325,6 +355,18 @@ export default function PublishedStoryScreen() {
           isUnlisted={!!token}
           rating={story.rating}
           onVoted={refetch}
+        />
+      )}
+
+      {!useDesktopLayout && isAuthenticated && sharedCharacters.length > 0 && (
+        <StoryCharactersSection
+          characters={sharedCharacters}
+          savedCharacterIds={savedCharacterIds}
+          isArtisanMode={false}
+          canSaveCharacters
+          onSaveCharacter={handleSaveCharacter}
+          isSavePending={saveCharacter.isPending}
+          collapsible
         />
       )}
 
@@ -591,6 +633,16 @@ export default function PublishedStoryScreen() {
             onPositionChange={handlePositionChange}
           />
         </View>
+      )}
+      {isAuthenticated && sharedCharacters.length > 0 && (
+        <StoryCharactersSection
+          characters={sharedCharacters}
+          savedCharacterIds={savedCharacterIds}
+          isArtisanMode={false}
+          canSaveCharacters
+          onSaveCharacter={handleSaveCharacter}
+          isSavePending={saveCharacter.isPending}
+        />
       )}
       <StoryRatingWidget
         storyId={story.id}

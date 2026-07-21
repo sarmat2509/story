@@ -4,7 +4,7 @@
  * SSR HTML is rendered on-demand via GET /ssr/stories/:slug (Redis cache).
  */
 
-import { getStoryRepository } from '../repositories';
+import { getCharacterRepository, getStoryRepository } from '../repositories';
 import { addPublishedSlug, incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
 import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
@@ -13,6 +13,7 @@ import { assertStoryPublishSafety } from './storyPublishSafetyService';
 import { resolveStoryCoverAssetId, validateStoryCoverAssetId } from './storyCoverService';
 import crypto from 'crypto';
 import anyAscii from 'any-ascii';
+import { syncChildProfileCharactersForUser } from './childProfileService';
 
 /**
  * Slugify title: lowercase, transliterate, replace non-alphanumeric with hyphens.
@@ -82,6 +83,7 @@ export interface UnpublishStoryUpdate {
   authorChildProfileId: null;
   visibility: null;
   shareToken: null;
+  publishCharacters: false;
   showOnHomePage?: false;
 }
 
@@ -95,6 +97,7 @@ export function buildUnpublishStoryUpdate(story: { showOnHomePage?: boolean | nu
     authorChildProfileId: null,
     visibility: null,
     shareToken: null,
+    publishCharacters: false,
     ...(story.showOnHomePage === true ? { showOnHomePage: false } : {}),
   };
 }
@@ -108,7 +111,8 @@ export async function publishStory(
   storyId: string,
   userId: string,
   visibility: PublishVisibility = 'public',
-  requestedCoverAssetId?: string | null
+  requestedCoverAssetId?: string | null,
+  publishCharacters = true
 ): Promise<PublishResult | null> {
   const storyRepo = getStoryRepository();
 
@@ -136,11 +140,17 @@ export async function publishStory(
       ? { coverAssetId: resolvedCoverAssetId }
       : {};
 
+  if (publishCharacters) {
+    await ensureChildCharactersAreLinked(story);
+  }
+
   // Already published with same visibility - return existing URL
   if (story.isPublished && currentVisibility === visibility) {
-    if (Object.keys(coverUpdate).length > 0) {
+    const sharingChanged = story.publishCharacters !== publishCharacters;
+    if (Object.keys(coverUpdate).length > 0 || sharingChanged) {
       await storyRepo.updateStory(storyId, {
         ...coverUpdate,
+        publishCharacters,
       });
       await storyRepo.incrementPublicRenderVersion(storyId);
     }
@@ -175,6 +185,7 @@ export async function publishStory(
       publishedSlug: null,
       visibility: 'unlisted',
       shareToken: token,
+      publishCharacters,
       ...authorUpdate,
       ...coverUpdate,
       ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
@@ -210,6 +221,7 @@ export async function publishStory(
     publishedSlug: slug,
     visibility: 'public',
     shareToken: null,
+    publishCharacters,
     ...authorUpdate,
     ...coverUpdate,
   });
@@ -228,6 +240,37 @@ export async function publishStory(
     visibility: 'public',
     publishedStoriesCount,
   };
+}
+
+async function ensureChildCharactersAreLinked(story: {
+  id: string;
+  userId: string;
+  storyRequestId?: string | null;
+  childProfileId?: string | null;
+}): Promise<void> {
+  const request = story.storyRequestId
+    ? await getStoryRepository().findRequestById(story.storyRequestId)
+    : null;
+  const selected = Array.isArray(request?.selectedChildren)
+    ? request.selectedChildren.filter((id): id is string => typeof id === 'string')
+    : [];
+  const childProfileIds = [...new Set([
+    ...selected,
+    ...(story.childProfileId ? [story.childProfileId] : []),
+  ])];
+  if (childProfileIds.length === 0) return;
+
+  await syncChildProfileCharactersForUser(story.userId);
+  const mirrors = await Promise.all(
+    childProfileIds.map((childProfileId) =>
+      getCharacterRepository().findByChildProfileId(story.userId, childProfileId)
+    )
+  );
+  await getStoryRepository().createStoryCharacters(
+    mirrors
+      .filter((character): character is NonNullable<typeof character> => !!character)
+      .map((character) => ({ storyId: story.id, characterId: character.id, role: 'protagonist' }))
+  );
 }
 
 /**

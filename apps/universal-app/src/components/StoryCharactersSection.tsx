@@ -33,6 +33,8 @@ interface StoryCharactersSectionProps {
   onSaveCharacter: (characterId: string, description?: string | null) => void;
   isSavePending: boolean;
   collapsible?: boolean;
+  /** Public-story mode: every unsaved canonical character can be linked to the reader's library. */
+  canSaveCharacters?: boolean;
 }
 
 /** Fixed box for reference photo; image is ~90% of the box so content has a slight inset from the frame. */
@@ -227,10 +229,14 @@ function StoryCharactersSectionInner({
   onSaveCharacter,
   isSavePending,
   collapsible = false,
+  canSaveCharacters = false,
 }: StoryCharactersSectionProps) {
   const { t, i18n } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
-  const visibleCharacters = useMemo(() => characters.filter(hasCharacterImage), [characters]);
+  const visibleCharacters = useMemo(
+    () => (canSaveCharacters ? characters : characters.filter(hasCharacterImage)),
+    [canSaveCharacters, characters]
+  );
   const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
   const [tappedCharacterId, setTappedCharacterId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(!collapsible);
@@ -287,7 +293,8 @@ function StoryCharactersSectionInner({
       </Pressable>
       {shouldShowCharacters && visibleCharacters.map((char) => {
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
-        const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
+        const canSaveCharacter =
+          !savedSet.has(char.id) && (canSaveCharacters || (isEffectivelyHidden && isArtisanMode));
         const displayName = getCharacterDisplayName(char, i18n.resolvedLanguage ?? i18n.language);
         const isPreviewVisible = previewedCharacterId === char.id;
         return (

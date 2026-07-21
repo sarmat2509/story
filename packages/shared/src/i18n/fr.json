@@ -509,6 +509,8 @@
     "save_character": "Sauvegarder dans mes personnages",
     "character_saved": "Personnage sauvegardé !",
     "character_save_error": "Impossible d'enregistrer le personnage. Veuillez réessayer.",
+    "publish_with_characters": "Publier avec les personnages",
+    "publish_with_characters_hint": "Vous pourrez ainsi partager les personnages avec d’autres lecteurs.",
     "character_type_pet": "Animal",
     "character_type_friend": "Ami",
     "character_type_imaginary_friend": "Ami imaginaire",

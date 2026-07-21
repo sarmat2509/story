@@ -1481,7 +1481,8 @@ export default function StoryViewerScreen() {
       visibility: 'public' | 'unlisted' = 'public',
       coverAssetId?: string | null,
       pseudonym?: string,
-      aboutMe?: string
+      aboutMe?: string,
+      publishCharacters = true
     ) => {
       try {
         if (parentReviewBlocksSharing) {
@@ -1502,6 +1503,7 @@ export default function StoryViewerScreen() {
           coverAssetId,
           ...(isChildSession && pseudonym ? { childAuthorPseudonym: pseudonym } : {}),
           ...(isChildSession && aboutMe ? { childAuthorAboutMe: aboutMe } : {}),
+          publishCharacters,
         });
         if (result?.shareUrl) {
           getAnalytics().capture('story_published', {

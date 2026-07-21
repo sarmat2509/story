@@ -298,6 +298,10 @@ export interface Character {
   descriptionEn?: string;
   descriptionLanguage?: string;
   isHidden: boolean;
+  /** True when this canonical character belongs to the current user. */
+  isOwned?: boolean;
+  /** True when the current user saved somebody else's canonical character. */
+  isSaved?: boolean;
   descriptionEmbedding?: number[];
   createdByMode?: 'parent' | 'child';
   createdByChildProfileId?: string | null;

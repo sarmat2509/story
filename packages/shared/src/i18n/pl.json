@@ -948,6 +948,8 @@
     "save_character": "Zapisz do moich postaci",
     "character_saved": "Postac zapisana!",
     "character_save_error": "Nie udalo sie zapisac postaci. Sprobuj ponownie.",
+    "publish_with_characters": "Opublikuj z postaciami",
+    "publish_with_characters_hint": "W ten sposób udostępnisz postacie innym czytelnikom.",
     "character_type_person": "Osoba",
     "character_type_animal": "Zwierze",
     "character_type_pet": "Zwierze",

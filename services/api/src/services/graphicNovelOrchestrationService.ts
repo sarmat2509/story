@@ -6467,7 +6467,10 @@ async function refreshGraphicNovelManifestTurnarounds(params: {
     if (!characterManifestMatchesPage(manifestCharacter, pageNames, pageRefs, refreshed)) {
       throw new Error(`Turnaround refresh character ${characterId} is not used on this page`);
     }
-    const currentCharacter = await getCharacterRepository().findById(characterId, params.userId);
+    const currentCharacter = await getCharacterRepository().findAccessibleById(
+      characterId,
+      params.userId
+    );
     if (!currentCharacter) {
       throw new Error(`Turnaround refresh character ${characterId} was not found`);
     }

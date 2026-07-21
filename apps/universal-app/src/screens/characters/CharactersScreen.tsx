@@ -174,7 +174,9 @@ export default function CharactersScreen() {
                   <CharacterCard
                     character={character}
                     onPress={() => {
-                      if (canAddCharacter) handleEditCharacter(character);
+                      if (canAddCharacter && character.isOwned !== false) {
+                        handleEditCharacter(character);
+                      }
                     }}
                     onDelete={isChildSession ? undefined : handleDelete}
                   />

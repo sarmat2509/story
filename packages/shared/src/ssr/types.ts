@@ -14,6 +14,17 @@ export interface PublicStoryScene {
   graphicNovelPageNumber?: number;
 }
 
+export interface PublicStoryCharacter {
+  id: string;
+  name: string;
+  localizedName?: string | null;
+  nameTranslations?: Record<string, string | null | undefined>;
+  type: string;
+  description?: string | null;
+  referencePhotoUrl?: string | null;
+  isSaved: boolean;
+}
+
 export interface PublicGraphicNovelTextOverlayItem {
   id: string;
   segmentId: string;
@@ -77,6 +88,8 @@ export interface StoryPublicView {
   scenes: PublicStoryScene[];
   comicPages?: PublicGraphicNovelPage[];
   mixedStoryReadingOrder?: PublicMixedStoryReadingOrderItem[];
+  /** Returned only to authenticated readers when the author opted into character sharing. */
+  characters?: PublicStoryCharacter[];
   author?: {
     id: string;
     displayName: string;

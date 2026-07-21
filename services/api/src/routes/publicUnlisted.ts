@@ -15,6 +15,11 @@ import { getStoryRepository } from '../repositories';
 import { submitRating } from '../services/storyRatingService';
 import { logger } from '../utils/logger';
 import { ratingLimiter } from '../middleware/rateLimiter';
+import { optionalAuth, requireAuth, requireParentSession } from '../middleware/authMiddleware';
+import {
+  getPublishedStoryCharacterPreview,
+  saveCharacterFromPublishedStory,
+} from '../services/publicCharacterSharingService';
 
 const ratingBodySchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -102,14 +107,56 @@ router.post('/:token/rating', ratingLimiter, async (req: Request, res: Response)
   }
 });
 
+router.post(
+  '/:token/characters/:characterId/save',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await saveCharacterFromPublishedStory({
+        lookup: { kind: 'unlisted', value: req.params.token },
+        characterId: req.params.characterId,
+        userId: req.user!.id,
+      });
+      if (!result) {
+        return res.status(404).json({ status: 'error', message: 'Character not available' });
+      }
+      return res.json({ status: 'success', ...result });
+    } catch (error) {
+      logger.error({ err: error, token: req.params.token }, 'Save shared character failed');
+      return res.status(500).json({ status: 'error', message: 'Failed to save character' });
+    }
+  }
+);
+
+router.get(
+  '/:token/characters/:characterId/image',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const preview = await getPublishedStoryCharacterPreview({
+        lookup: { kind: 'unlisted', value: req.params.token },
+        characterId: req.params.characterId,
+      });
+      if (!preview) return res.status(404).end();
+      res.setHeader('Content-Type', preview.mimeType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.send(preview.buffer);
+    } catch (error) {
+      logger.warn({ err: error, token: req.params.token }, 'Shared character preview failed');
+      return res.status(404).end();
+    }
+  }
+);
+
 /**
  * GET /api/v1/public/u/:token
  * Get an unlisted story by share token. 404 if not found.
  */
-router.get('/:token', async (req: Request, res: Response) => {
+router.get('/:token', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
-    const story = await getPublicStoryByShareToken(token);
+    const story = await getPublicStoryByShareToken(token, req.user?.id);
 
     if (!story) {
       return res.status(404).json({

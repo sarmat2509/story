@@ -52,6 +52,8 @@ function triggerNameLocalization(character: Character): void {
 
 export type CharacterWithNameTranslations = Character & {
   nameTranslations?: CharacterNameTranslations;
+  isOwned?: boolean;
+  isSaved?: boolean;
 };
 
 async function attachNameTranslations(
@@ -119,8 +121,13 @@ export async function getCharacters(
   }
 
   const results = await getCharacterRepository().findByUserId(userId, type, options);
-  // Filter out hidden LLM-generated characters from the user-facing list
-  const visible = results.filter((c) => !c.isHidden);
+  const savedIds = await getCharacterRepository().findSavedCharacterIds(
+    userId,
+    results.map((character) => character.id)
+  );
+  // Hidden LLM-generated characters remain hidden for their author until explicitly saved,
+  // but a canonical character saved from somebody else's story belongs in this library view.
+  const visible = results.filter((character) => !character.isHidden || savedIds.has(character.id));
   logger.debug(
     {
       userId,
@@ -132,7 +139,36 @@ export async function getCharacters(
     },
     'Fetched characters'
   );
-  return attachNameTranslations(visible);
+  const localized = await attachNameTranslations(visible);
+  return localized.map((character) => {
+    const isOwned = character.userId === userId;
+    if (isOwned) {
+      return { ...character, isOwned: true, isSaved: false };
+    }
+    const previewUrl = `/api/v1/characters/${character.id}/shared-preview`;
+    const turnaround = character.turnaroundSheet && typeof character.turnaroundSheet === 'object'
+      ? character.turnaroundSheet as Record<string, unknown>
+      : {};
+    return {
+      ...character,
+      // Never expose another user's raw photo paths through the library payload.
+      childProfileId: null,
+      createdByChildProfileId: null,
+      referencePhotos: [],
+      turnaroundSheet: {
+        ...turnaround,
+        url: previewUrl,
+        frontUrl: previewUrl,
+        frontThumbnailUrl: previewUrl,
+      },
+      isOwned: false,
+      isSaved: true,
+    };
+  });
+}
+
+export async function removeSavedCharacter(userId: string, characterId: string): Promise<boolean> {
+  return getCharacterRepository().removeSavedForUser(userId, characterId);
 }
 
 /**

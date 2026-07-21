@@ -7695,7 +7695,7 @@ export async function regenerateSceneImage(
   const linkedChars = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
   const userCharsWithDetails = await Promise.all(
     linkedChars.map(async (lc) => {
-      const c = await getCharacterRepository().findById(lc.id, story.userId);
+      const c = await getCharacterRepository().findAccessibleById(lc.id, story.userId);
       return c ? { characters: c } : null;
     })
   );

@@ -24,6 +24,7 @@ interface Character {
   type: string;
   referencePhotos?: Array<{ url: string }>;
   turnaroundSheet?: { url: string; frontUrl?: string };
+  isOwned?: boolean;
 }
 
 interface Props {
@@ -74,6 +75,7 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
       <TouchableOpacity
         style={styles.card}
         onPress={onPress}
+        disabled={character.isOwned === false}
         activeOpacity={0.7}
         testID={`character-card-button-${character.id}`}
       >

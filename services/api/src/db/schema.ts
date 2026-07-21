@@ -1222,6 +1222,7 @@ export const stories = pgTable(
       onDelete: 'set null',
     }),
     visibility: varchar('visibility', { length: 20 }).default('public'), // 'public' | 'unlisted'
+    publishCharacters: boolean('publish_characters').default(false).notNull(),
     shareToken: varchar('share_token', { length: 64 }), // For unlisted: token for /u/:token URL
     coverAssetId: uuid('cover_asset_id').references(() => assets.id, { onDelete: 'set null' }),
     publicRenderVersion: integer('public_render_version').default(1), // Bump on publish/unpublish/audio/alignment/theme
@@ -1436,6 +1437,30 @@ export const storyCharacters = pgTable(
       uniqueIdx: uniqueIndex('story_characters_unique_idx').on(table.storyId, table.characterId),
     };
   }
+);
+
+// User library links to canonical characters shared through published stories.
+export const savedCharacters = pgTable(
+  'saved_characters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    characterId: uuid('character_id')
+      .references(() => characters.id, { onDelete: 'cascade' })
+      .notNull(),
+    sourceStoryId: uuid('source_story_id').references(() => stories.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index('saved_characters_user_id_idx').on(table.userId),
+    characterIdIdx: index('saved_characters_character_id_idx').on(table.characterId),
+    uniqueIdx: uniqueIndex('saved_characters_user_character_unique_idx').on(
+      table.userId,
+      table.characterId
+    ),
+  })
 );
 
 // AI usage events table (cost tracking)
@@ -1722,6 +1747,8 @@ export type NewModerationDecisionEvent = typeof moderationDecisionEvents.$inferI
 
 export type StoryCharacter = typeof storyCharacters.$inferSelect;
 export type NewStoryCharacter = typeof storyCharacters.$inferInsert;
+export type SavedCharacter = typeof savedCharacters.$inferSelect;
+export type NewSavedCharacter = typeof savedCharacters.$inferInsert;
 
 export type StoryRating = typeof storyRatings.$inferSelect;
 export type NewStoryRating = typeof storyRatings.$inferInsert;

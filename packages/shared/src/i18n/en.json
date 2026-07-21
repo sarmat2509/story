@@ -990,6 +990,8 @@
     "save_character": "Save to my characters",
     "character_saved": "Character saved!",
     "character_save_error": "Could not save character. Please try again.",
+    "publish_with_characters": "Publish with characters",
+    "publish_with_characters_hint": "This lets you share the characters with other readers.",
     "character_type_person": "Person",
     "character_type_animal": "Animal",
     "character_type_pet": "Animal",

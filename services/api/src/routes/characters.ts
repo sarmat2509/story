@@ -26,6 +26,7 @@ import {
   generateLlmCharacterTurnaround,
 } from '../services/turnaroundSheetService';
 import { getChildProfileRepository } from '../repositories';
+import { getSavedCharacterPreview } from '../services/publicCharacterSharingService';
 
 const router = Router();
 
@@ -530,6 +531,22 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
 });
 
 // GET /api/v1/characters/:id - Get single character
+router.get('/:id/shared-preview', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const preview = await getSavedCharacterPreview({
+      characterId: req.params.id,
+      userId: req.user!.id,
+    });
+    if (!preview) return res.status(404).end();
+    res.setHeader('Content-Type', preview.mimeType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.send(preview.buffer);
+  } catch (error) {
+    logger.warn({ error, characterId: req.params.id }, 'Saved character preview failed');
+    return res.status(404).end();
+  }
+});
+
 router.get('/:id', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   try {
     const userId = req.user!.id;
@@ -564,6 +581,15 @@ router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
+
+    const ownedCharacter = await characterService.getCharacterById(id, userId);
+    if (!ownedCharacter) {
+      const removed = await characterService.removeSavedCharacter(userId, id);
+      if (removed) {
+        return res.status(204).send();
+      }
+      return res.status(404).json({ status: 'error', error: 'Character not found' });
+    }
     
     // Check if character is used in any stories
     const usageCount = await characterService.countStoriesByCharacter(id, userId);

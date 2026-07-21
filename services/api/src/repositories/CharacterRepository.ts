@@ -15,8 +15,17 @@ export class CharacterRepository {
   }
 
   async findByUserId(userId: string, type?: string, options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
+    // A saved-character row is a durable library grant. Publication is checked only
+    // when the row is created, so later unpublishing does not break existing stories.
     const conditions = [
-      eq(schema.characters.userId, userId),
+      or(
+        eq(schema.characters.userId, userId),
+        sql`EXISTS (
+          SELECT 1 FROM ${schema.savedCharacters}
+          WHERE ${schema.savedCharacters.userId} = ${userId}
+            AND ${schema.savedCharacters.characterId} = ${schema.characters.id}
+        )`
+      )!,
       eq(schema.characters.isActive, true),
     ];
     if (options.childProfileId) {
@@ -101,7 +110,14 @@ export class CharacterRepository {
   async findByIds(userId: string, ids: string[], options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
     if (ids.length === 0) return [];
     const conditions = [
-      eq(schema.characters.userId, userId),
+      or(
+        eq(schema.characters.userId, userId),
+        sql`EXISTS (
+          SELECT 1 FROM ${schema.savedCharacters}
+          WHERE ${schema.savedCharacters.userId} = ${userId}
+            AND ${schema.savedCharacters.characterId} = ${schema.characters.id}
+        )`
+      )!,
       eq(schema.characters.isActive, true),
       inArray(schema.characters.id, ids),
     ];
@@ -121,12 +137,53 @@ export class CharacterRepository {
       .where(and(...conditions));
   }
 
+  async findAccessibleById(
+    id: string,
+    userId: string,
+    options: CharacterScopeOptions = {}
+  ): Promise<schema.Character | null> {
+    const [character] = await this.findByIds(userId, [id], options);
+    return character ?? null;
+  }
+
   async create(data: schema.NewCharacter): Promise<schema.Character> {
     const [character] = await this.db
       .insert(schema.characters)
       .values(data)
       .returning();
     return character;
+  }
+
+  async saveForUser(userId: string, characterId: string, sourceStoryId: string): Promise<void> {
+    await this.db
+      .insert(schema.savedCharacters)
+      .values({ userId, characterId, sourceStoryId })
+      .onConflictDoNothing({
+        target: [schema.savedCharacters.userId, schema.savedCharacters.characterId],
+      });
+  }
+
+  async removeSavedForUser(userId: string, characterId: string): Promise<boolean> {
+    const removed = await this.db
+      .delete(schema.savedCharacters)
+      .where(and(
+        eq(schema.savedCharacters.userId, userId),
+        eq(schema.savedCharacters.characterId, characterId)
+      ))
+      .returning({ id: schema.savedCharacters.id });
+    return removed.length > 0;
+  }
+
+  async findSavedCharacterIds(userId: string, characterIds: string[]): Promise<Set<string>> {
+    if (characterIds.length === 0) return new Set();
+    const rows = await this.db
+      .select({ characterId: schema.savedCharacters.characterId })
+      .from(schema.savedCharacters)
+      .where(and(
+        eq(schema.savedCharacters.userId, userId),
+        inArray(schema.savedCharacters.characterId, characterIds)
+      ));
+    return new Set(rows.map((row) => row.characterId));
   }
 
   async update(

@@ -8,6 +8,7 @@ import type { Story } from '../db/schema';
 import {
   getAssetRepository,
   getChildProfileRepository,
+  getCharacterRepository,
   getGraphicNovelRepository,
   getStoryRepository,
   getAlignmentRepository,
@@ -37,6 +38,7 @@ import type {
   PublicStoryFormat,
   PublicStoryListItem,
   PublicStoryScene,
+  PublicStoryCharacter,
   StoryPublicView,
   StoryAudioMetadata,
 } from '@wondertales/shared';
@@ -337,7 +339,7 @@ function appendUnlistedShareToken(url: string | null, shareToken?: string): stri
 export async function buildStoryPublicView(
   story: any,
   slug: string,
-  options?: { shareToken?: string }
+  options?: { shareToken?: string; viewerUserId?: string }
 ): Promise<StoryPublicView> {
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || '';
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
@@ -381,7 +383,12 @@ export async function buildStoryPublicView(
     };
   });
 
-  const author = await getPublicAuthorForStory(story);
+  const [author, sharedCharacters] = await Promise.all([
+    getPublicAuthorForStory(story),
+    options?.viewerUserId && story.publishCharacters === true
+      ? getSharedStoryCharacters(story, options.viewerUserId, slug, !!options.shareToken)
+      : Promise.resolve(undefined),
+  ]);
   return {
     id: story.id,
     title: story.title,
@@ -397,6 +404,7 @@ export async function buildStoryPublicView(
     ...(storyFormat === 'mixed_story'
       ? { mixedStoryReadingOrder: publicMixedReadingOrder(metadata, formattedScenes) }
       : {}),
+    ...(sharedCharacters && sharedCharacters.length > 0 ? { characters: sharedCharacters } : {}),
     ...(author && { author }),
     authorDisplayName: author?.displayName || 'Anonymous',
     publishedAt: story.publishedAt ? story.publishedAt.toISOString?.() ?? String(story.publishedAt) : null,
@@ -416,6 +424,38 @@ export async function buildStoryPublicView(
   };
 }
 
+async function getSharedStoryCharacters(
+  story: { id: string; userId: string },
+  viewerUserId: string,
+  slugOrToken: string,
+  isUnlisted: boolean
+): Promise<PublicStoryCharacter[]> {
+  const characters = await getStoryRepository().findLinkedCharactersByStoryId(story.id);
+  const savedIds = await getCharacterRepository().findSavedCharacterIds(
+    viewerUserId,
+    characters.map((character) => character.id)
+  );
+  return characters.map((character) => {
+    const turnaround = character.turnaroundSheet as { url?: string; frontUrl?: string } | null;
+    const photos = Array.isArray(character.referencePhotos)
+      ? character.referencePhotos as Array<{ url?: string }>
+      : [];
+    const hasPreview = !!(turnaround?.frontUrl || turnaround?.url || photos[0]?.url);
+    return {
+      id: character.id,
+      name: character.name,
+      type: character.type,
+      description: character.description,
+      ...(hasPreview ? {
+        referencePhotoUrl: isUnlisted
+          ? `/api/v1/public/u/${encodeURIComponent(slugOrToken)}/characters/${character.id}/image`
+          : `/api/v1/public/stories/${encodeURIComponent(slugOrToken)}/characters/${character.id}/image`,
+      } : {}),
+      isSaved: story.userId === viewerUserId || savedIds.has(character.id),
+    };
+  });
+}
+
 function buildRatingFromStory(story: { ratingSum?: number | null; ratingCount?: number | null }): { rating?: { avg: number; count: number } } {
   const count = story.ratingCount ?? 0;
   if (count === 0) return {};
@@ -425,11 +465,14 @@ function buildRatingFromStory(story: { ratingSum?: number | null; ratingCount?: 
   };
 }
 
-export async function getPublicStoryBySlug(slug: string): Promise<StoryPublicView | null> {
+export async function getPublicStoryBySlug(
+  slug: string,
+  viewerUserId?: string
+): Promise<StoryPublicView | null> {
   const storyRepo = getStoryRepository();
   const story = await storyRepo.findByPublishedSlug(slug);
   if (!story) return null;
-  return buildStoryPublicView(story, slug);
+  return buildStoryPublicView(story, slug, { viewerUserId });
 }
 
 /**
@@ -478,11 +521,17 @@ export async function getShareCardImageBuffer(
   }
 }
 
-export async function getPublicStoryByShareToken(token: string): Promise<StoryPublicView | null> {
+export async function getPublicStoryByShareToken(
+  token: string,
+  viewerUserId?: string
+): Promise<StoryPublicView | null> {
   const storyRepo = getStoryRepository();
   const story = await storyRepo.findByShareToken(token);
   if (!story) return null;
-  return buildStoryPublicView(story, story.publishedSlug || `u-${token}`, { shareToken: token });
+  return buildStoryPublicView(story, story.publishedSlug || `u-${token}`, {
+    shareToken: token,
+    viewerUserId,
+  });
 }
 
 /**

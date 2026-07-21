@@ -15,7 +15,12 @@ import { getCachedAlignment, setCachedAlignment } from '../ssr/storyCache';
 import { logger } from '../utils/logger';
 import { ratingLimiter } from '../middleware/rateLimiter';
 import { optionalAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { buildChildModeControls } from '../services/childModeControlsService';
+import {
+  getPublishedStoryCharacterPreview,
+  saveCharacterFromPublishedStory,
+} from '../services/publicCharacterSharingService';
 
 const ratingBodySchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -200,6 +205,48 @@ router.post('/:slug/rating', optionalAuth, ratingLimiter, async (req: Request, r
   }
 });
 
+router.post(
+  '/:slug/characters/:characterId/save',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await saveCharacterFromPublishedStory({
+        lookup: { kind: 'public', value: req.params.slug },
+        characterId: req.params.characterId,
+        userId: req.user!.id,
+      });
+      if (!result) {
+        return res.status(404).json({ status: 'error', message: 'Character not available' });
+      }
+      return res.json({ status: 'success', ...result });
+    } catch (error) {
+      logger.error({ err: error, slug: req.params.slug }, 'Save shared character failed');
+      return res.status(500).json({ status: 'error', message: 'Failed to save character' });
+    }
+  }
+);
+
+router.get(
+  '/:slug/characters/:characterId/image',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const preview = await getPublishedStoryCharacterPreview({
+        lookup: { kind: 'public', value: req.params.slug },
+        characterId: req.params.characterId,
+      });
+      if (!preview) return res.status(404).end();
+      res.setHeader('Content-Type', preview.mimeType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.send(preview.buffer);
+    } catch (error) {
+      logger.warn({ err: error, slug: req.params.slug }, 'Shared character preview failed');
+      return res.status(404).end();
+    }
+  }
+);
+
 /**
  * GET /api/v1/public/stories/:slug
  * Get a published story by slug. 404 if not found or not public.
@@ -208,7 +255,7 @@ router.get('/:slug', optionalAuth, async (req: Request, res: Response) => {
   try {
     if (await rejectIfPublicStoriesDisabled(req, res)) return;
     const { slug } = req.params;
-    const story = await getPublicStoryBySlug(slug);
+    const story = await getPublicStoryBySlug(slug, req.user?.id);
 
     if (!story) {
       return res.status(404).json({

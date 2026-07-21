@@ -512,6 +512,8 @@
     "save_character": "Zu meinen Charakteren speichern",
     "character_saved": "Charakter gespeichert!",
     "character_save_error": "Charakter konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "publish_with_characters": "Mit Charakteren veröffentlichen",
+    "publish_with_characters_hint": "So können Sie die Charaktere mit anderen Lesern teilen.",
     "character_type_pet": "Tier",
     "character_type_friend": "Freund",
     "character_type_imaginary_friend": "Fantasiefreund",

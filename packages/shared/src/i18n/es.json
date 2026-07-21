@@ -1153,6 +1153,8 @@
     "save_character": "Guardar en mis personajes",
     "character_saved": "¡Personaje guardado!",
     "character_save_error": "No se pudo guardar el personaje. Inténtalo de nuevo.",
+    "publish_with_characters": "Publicar con personajes",
+    "publish_with_characters_hint": "Así podrás compartir los personajes con otros lectores.",
     "character_type_person": "Persona",
     "character_type_animal": "Animal",
     "character_type_pet": "Animal",

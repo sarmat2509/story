@@ -85,6 +85,7 @@ async function main(): Promise<void> {
       publishedSlug: null,
       shareToken: null,
       visibility: null,
+      publishCharacters: false,
       coverAssetId: null,
       audioMetadata: null,
       metadata: {},
@@ -234,6 +235,11 @@ async function main(): Promise<void> {
     assert.ok(publishOkBody.shareUrl);
     assert.equal(storiesById.get(storyId)?.isPublished, true);
     assert.equal(storiesById.get(storyId)?.visibility, 'unlisted');
+    assert.equal(
+      storiesById.get(storyId)?.publishCharacters,
+      true,
+      'character sharing defaults to enabled on publish'
+    );
     publishedStoriesCount = 1;
 
     const unpublishOk = await request('PATCH', `/api/v1/stories/${storyId}`, {
@@ -243,6 +249,7 @@ async function main(): Promise<void> {
     const unpublishOkBody = (await unpublishOk.json()) as any;
     assert.equal(unpublishOkBody.message, 'Story unpublished');
     assert.equal(storiesById.get(storyId)?.isPublished, false);
+    assert.equal(storiesById.get(storyId)?.publishCharacters, false);
 
     const reviewOk = await request('PATCH', `/api/v1/stories/${reviewStoryId}/parent-review`, {
       status: 'approved',

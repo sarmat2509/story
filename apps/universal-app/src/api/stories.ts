@@ -831,6 +831,7 @@ export function usePublishStory() {
       coverAssetId,
       childAuthorPseudonym,
       childAuthorAboutMe,
+      publishCharacters = true,
     }: {
       storyId: string;
       isPublished: boolean;
@@ -838,11 +839,13 @@ export function usePublishStory() {
       coverAssetId?: string | null;
       childAuthorPseudonym?: string;
       childAuthorAboutMe?: string;
+      publishCharacters?: boolean;
     }) => {
       const body: Record<string, unknown> = { isPublished, visibility };
       if (coverAssetId !== undefined) body.coverAssetId = coverAssetId;
       if (childAuthorPseudonym !== undefined) body.childAuthorPseudonym = childAuthorPseudonym;
       if (childAuthorAboutMe !== undefined) body.childAuthorAboutMe = childAuthorAboutMe;
+      body.publishCharacters = publishCharacters;
       const response = await apiClient.patch<{
         status: string;
         slug?: string;
@@ -959,9 +962,13 @@ export function usePublicAuthor(
 }
 
 // Get a published story by slug. Query identity follows the current route slug.
-export function usePublicStory(slug: string | undefined, enabled = true) {
+export function usePublicStory(
+  slug: string | undefined,
+  enabled = true,
+  authenticated = false
+) {
   return useQuery({
-    queryKey: ['public-story', slug],
+    queryKey: ['public-story', slug, authenticated ? 'authenticated' : 'anonymous'],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
@@ -976,9 +983,9 @@ export function usePublicStory(slug: string | undefined, enabled = true) {
 /**
  * Fetch a public story by share token (unlisted).
  */
-export function usePublicStoryByToken(token: string, enabled = true) {
+export function usePublicStoryByToken(token: string, enabled = true, authenticated = false) {
   return useQuery({
-    queryKey: ['public-story-token', token],
+    queryKey: ['public-story-token', token, authenticated ? 'authenticated' : 'anonymous'],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
@@ -987,6 +994,32 @@ export function usePublicStoryByToken(token: string, enabled = true) {
       return response.data.story;
     },
     enabled: !!token && enabled,
+  });
+}
+
+export function useSavePublicStoryCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      slugOrToken,
+      characterId,
+      isUnlisted,
+    }: {
+      slugOrToken: string;
+      characterId: string;
+      isUnlisted: boolean;
+    }) => {
+      const base = isUnlisted ? '/api/v1/public/u' : '/api/v1/public/stories';
+      const response = await apiClient.post<{ status: string; characterId: string; isSaved: true }>(
+        `${base}/${encodeURIComponent(slugOrToken)}/characters/${encodeURIComponent(characterId)}/save`
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
+      queryClient.invalidateQueries({ queryKey: ['public-story'] });
+      queryClient.invalidateQueries({ queryKey: ['public-story-token'] });
+    },
   });
 }
 
