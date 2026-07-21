@@ -99,7 +99,7 @@ function getVoiceId(provider: string, gender: 'male' | 'female'): string {
     },
     google: {
       male: 'Charon',
-      female: 'Kore',
+      female: 'Aoede',
     },
     openai: {
       male: 'cedar',

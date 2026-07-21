@@ -6,7 +6,7 @@
  * Does not import aiService (avoids db + process signal handlers from repository graph).
  *
  * Env (optional):
- *   DEFER_TTS_GOOGLE_VOICE  — Gemini-TTS voice id (default: Kore). App «Phoenix» = Charon.
+ *   DEFER_TTS_GOOGLE_VOICE  — Gemini-TTS voice id from the app catalog (default: Charon).
  *   DEFER_TTS_GROK_VOICE    — xAI voice id (default: eve)
  *   DEFER_TTS_LANGUAGE      — app locale, default en
  *
@@ -242,7 +242,7 @@ async function runOneProvider(
 ): Promise<void> {
   const voiceId =
     name === 'google'
-      ? (process.env.DEFER_TTS_GOOGLE_VOICE || 'Kore').trim()
+      ? (process.env.DEFER_TTS_GOOGLE_VOICE || 'Charon').trim()
       : (process.env.DEFER_TTS_GROK_VOICE || 'eve').trim();
 
   const provider = createTtsProvider(name);

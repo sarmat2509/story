@@ -8,7 +8,7 @@
  *
  * Usage:
  *   pnpm --filter wondertales-api exec tsx src/scripts/generateStoryAudioWithGeminiProTts.ts -- --slug=misyats-zagubiv-pozikhannya
- *   pnpm --filter wondertales-api exec tsx src/scripts/generateStoryAudioWithGeminiProTts.ts -- --slug=misyats-zagubiv-pozikhannya --voice=Kore --apply
+ *   pnpm --filter wondertales-api exec tsx src/scripts/generateStoryAudioWithGeminiProTts.ts -- --slug=misyats-zagubiv-pozikhannya --voice=Charon --apply
  *   pnpm --filter wondertales-api exec tsx src/scripts/generateStoryAudioWithGeminiProTts.ts -- --story-id=<uuid> --apply
  */
 
@@ -18,7 +18,7 @@ import type { StoryAudioMetadata } from '@wondertales/shared';
 
 const GEMINI_PRO_TTS_MODEL = 'gemini-2.5-pro-tts';
 const DEFAULT_STORY_SLUG = 'misyats-zagubiv-pozikhannya';
-const DEFAULT_GOOGLE_VOICE = 'Kore';
+const DEFAULT_GOOGLE_VOICE = 'Charon';
 
 type CliOptions = {
   storyId?: string;

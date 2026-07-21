@@ -38,10 +38,9 @@ export class GoogleTTSProvider extends BaseAudioProvider {
   }
 
   protected isValidVoiceId(voiceId: string): boolean {
-    // Google TTS accepts any valid voice name
-    // Validate against known catalog or allow any string
-    return GOOGLE_TTS_VOICE_CATALOG.some(v => v.providerVoiceId === voiceId) || 
-           /^[a-zA-Z]+$/.test(voiceId);
+    // The app exposes and seeds only this curated catalog. Reject arbitrary
+    // provider IDs so scripts cannot synthesize with an unlisted voice.
+    return GOOGLE_TTS_VOICE_CATALOG.some((voice) => voice.providerVoiceId === voiceId);
   }
 
   protected async performHealthCheck(): Promise<void> {
