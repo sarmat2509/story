@@ -30,6 +30,12 @@ export {
   normalizeGraphicNovelBubbleTextSizing,
 } from './bubbleTextSizing';
 export { buildGraphicNovelPageTextOverlay } from './textOverlay';
+export {
+  GRAPHIC_NOVEL_PAGE_DISPLAY_MAX_BYTES,
+  graphicNovelPageDisplayImageUrl,
+  optimizeGraphicNovelPageForDisplay,
+  type GraphicNovelPageDisplayImage,
+} from './pageImageOptimization';
 export type {
   BubbleGeometry,
   GraphicNovelBubbleTextSizing,

@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -112,6 +112,34 @@ export class GraphicNovelRepository {
         inArray(schema.graphicNovelPages.pageNumber, pageNumbers)
       ))
       .orderBy(asc(schema.graphicNovelPages.pageNumber));
+  }
+
+  async findCompletedPagesWithImages(): Promise<Array<{
+    page: schema.GraphicNovelPage;
+    storyId: string;
+    userId: string;
+  }>> {
+    const rows = await this.db
+      .select({
+        page: schema.graphicNovelPages,
+        storyId: schema.stories.id,
+        userId: schema.stories.userId,
+      })
+      .from(schema.graphicNovelPages)
+      .innerJoin(
+        schema.graphicNovelProjects,
+        eq(schema.graphicNovelPages.projectId, schema.graphicNovelProjects.id)
+      )
+      .innerJoin(schema.stories, eq(schema.graphicNovelProjects.storyId, schema.stories.id))
+      .where(
+        and(
+          eq(schema.graphicNovelPages.status, 'completed'),
+          isNotNull(schema.graphicNovelPages.imageAssetId)
+        )
+      )
+      .orderBy(asc(schema.graphicNovelPages.createdAt));
+
+    return rows;
   }
 
   async createPanels(

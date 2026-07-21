@@ -93,6 +93,8 @@ import {
   normalizeGraphicNovelPanelArtForTemplate,
   overlayGraphicNovelPanelFrames,
   overlayGraphicNovelBubblesOnly,
+  optimizeGraphicNovelPageForDisplay,
+  graphicNovelPageDisplayImageUrl,
   pageSizeForGraphicNovelPage,
   planGraphicNovelLayouts,
   type GraphicNovelPanelScript,
@@ -101,6 +103,7 @@ import {
   type GraphicNovelBubbleTextSizing,
   type GraphicNovelBubbleVisionAnalysis,
   type GraphicNovelBubbleVisionPanelImage,
+  type GraphicNovelPageDisplayImage,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
 import { imageMimeTypeFromPath } from '../utils/imageMimeType';
@@ -1480,6 +1483,158 @@ async function saveThumbnail(
   } catch (error) {
     logger.warn({ err: error, assetId }, 'Graphic novel page thumbnail generation failed');
   }
+}
+
+type GraphicNovelPageDisplayAsset = {
+  id: string;
+  storagePath: string;
+  storageUrl: string | null;
+  mimeType: 'image/webp';
+  fileSizeBytes: number;
+  width: number;
+  height: number;
+  quality: number;
+  scale: number;
+};
+
+async function createGraphicNovelPageDisplayAsset(params: {
+  storyId: string;
+  userId: string;
+  requestId: string;
+  pageNumber: number;
+  sourceAssetId: string;
+  sourceStoragePath: string;
+  sourceImageData: Buffer;
+  displayImage?: GraphicNovelPageDisplayImage;
+  storyFormat: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
+}): Promise<GraphicNovelPageDisplayAsset> {
+  const displayImage = params.displayImage ?? await optimizeGraphicNovelPageForDisplay(params.sourceImageData);
+  const assetStorage = getAssetStorageService();
+  const uploadResult = await assetStorage.uploadAsset({
+    data: displayImage.data,
+    mimeType: displayImage.mimeType,
+    userId: params.userId,
+    storyId: params.storyId,
+    assetType: 'image',
+  });
+  const asset = await getAssetRepository().create({
+    storyId: params.storyId,
+    sceneId: null,
+    assetType: 'image',
+    storagePath: uploadResult.storagePath,
+    storageUrl: uploadResult.storageUrl,
+    signedUrl: uploadResult.signedUrl,
+    signedUrlExpiresAt: uploadResult.signedUrlExpiresAt,
+    mimeType: displayImage.mimeType,
+    fileSizeBytes: uploadResult.fileSizeBytes,
+    generationParams: {
+      kind: 'graphic_novel_page_display',
+      pageNumber: params.pageNumber,
+      requestId: params.requestId,
+      storyFormat: params.storyFormat,
+      sourcePageAssetId: params.sourceAssetId,
+      sourcePageStoragePath: params.sourceStoragePath,
+      width: displayImage.width,
+      height: displayImage.height,
+      quality: displayImage.quality,
+      scale: displayImage.scale,
+    },
+    generationTimeMs: null,
+    status: 'completed',
+  });
+
+  return {
+    id: asset.id,
+    storagePath: uploadResult.storagePath,
+    storageUrl: uploadResult.storageUrl,
+    mimeType: displayImage.mimeType,
+    fileSizeBytes: uploadResult.fileSizeBytes,
+    width: displayImage.width,
+    height: displayImage.height,
+    quality: displayImage.quality,
+    scale: displayImage.scale,
+  };
+}
+
+function graphicNovelPageDisplayGenerationParams(display: GraphicNovelPageDisplayAsset) {
+  return {
+    displayImageAssetId: display.id,
+    displayImageStoragePath: display.storagePath,
+    displayImageUrl: display.storageUrl ?? display.storagePath,
+    displayImageMimeType: display.mimeType,
+    displayImageFileSizeBytes: display.fileSizeBytes,
+    displayImageWidth: display.width,
+    displayImageHeight: display.height,
+    displayImageQuality: display.quality,
+    displayImageScale: display.scale,
+  };
+}
+
+export async function ensureGraphicNovelPageDisplayImage(params: {
+  page: {
+    id: string;
+    pageNumber: number;
+    imageAssetId: string | null;
+    imageUrl: string | null;
+    generationParams: unknown;
+  };
+  storyId: string;
+  userId: string;
+  requestId: string;
+  storyFormat: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
+  dryRun?: boolean;
+  force?: boolean;
+}): Promise<{
+  outcome: 'created' | 'would_create' | 'skipped';
+  originalFileSizeBytes?: number;
+  displayFileSizeBytes?: number;
+  displayStoragePath?: string;
+}> {
+  const existingDisplayUrl = graphicNovelPageDisplayImageUrl(params.page);
+  if (!params.force && existingDisplayUrl && existingDisplayUrl !== params.page.imageUrl) {
+    return { outcome: 'skipped' };
+  }
+  if (!params.page.imageAssetId) {
+    return { outcome: 'skipped' };
+  }
+
+  const originalAsset = await getAssetRepository().findById(params.page.imageAssetId);
+  if (!originalAsset) {
+    throw new Error(`Graphic novel page ${params.page.id} original asset is missing`);
+  }
+  const originalImageData = await getAssetStorageService().getAssetByPath(originalAsset.storagePath);
+  const candidate = await optimizeGraphicNovelPageForDisplay(originalImageData);
+  if (params.dryRun) {
+    return {
+      outcome: 'would_create',
+      originalFileSizeBytes: originalImageData.length,
+      displayFileSizeBytes: candidate.fileSizeBytes,
+    };
+  }
+
+  const display = await createGraphicNovelPageDisplayAsset({
+    storyId: params.storyId,
+    userId: params.userId,
+    requestId: params.requestId,
+    pageNumber: params.page.pageNumber,
+    sourceAssetId: originalAsset.id,
+    sourceStoragePath: originalAsset.storagePath,
+    sourceImageData: originalImageData,
+    displayImage: candidate,
+    storyFormat: params.storyFormat,
+  });
+  await getGraphicNovelRepository().updatePage(params.page.id, {
+    generationParams: {
+      ...((params.page.generationParams as Record<string, unknown> | null) || {}),
+      ...graphicNovelPageDisplayGenerationParams(display),
+    },
+  });
+  return {
+    outcome: 'created',
+    originalFileSizeBytes: originalImageData.length,
+    displayFileSizeBytes: display.fileSizeBytes,
+    displayStoragePath: display.storagePath,
+  };
 }
 
 const STORY_CARD_ASPECT_RATIO = 16 / 9;
@@ -5798,6 +5953,25 @@ async function renderAndStorePage(params: {
   });
 
   await saveThumbnail(asset.id, uploadResult.storagePath, finalImage);
+  let displayGenerationParams: Record<string, unknown> = {};
+  try {
+    const display = await createGraphicNovelPageDisplayAsset({
+      storyId: params.storyId,
+      userId: params.userId,
+      requestId: params.requestId,
+      pageNumber: params.page.pageNumber,
+      sourceAssetId: asset.id,
+      sourceStoragePath: uploadResult.storagePath,
+      sourceImageData: finalImage,
+      storyFormat: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+    });
+    displayGenerationParams = graphicNovelPageDisplayGenerationParams(display);
+  } catch (error) {
+    logger.warn(
+      { err: error, storyId: params.storyId, pageNumber: params.page.pageNumber },
+      'Graphic novel page display optimization failed; preserving original page image'
+    );
+  }
   for (const attempt of artValidationAttempts) {
     if (!layoutValidation || attempt.result.attempt === layoutValidationAttempt) continue;
     const attemptStoragePath = await saveGraphicNovelValidationAttemptImage({
@@ -5843,6 +6017,7 @@ async function renderAndStorePage(params: {
     generationParams: {
       ...(params.page.generationParams as Record<string, unknown> | null),
       ...generationParams,
+      ...displayGenerationParams,
       assetId: asset.id,
       storagePath: uploadResult.storagePath,
       completedAt: new Date().toISOString(),
@@ -7939,6 +8114,25 @@ export async function repairGraphicNovelPagePanels(
     status: 'completed',
   });
   await saveThumbnail(pageAsset.id, finalUpload.storagePath, finalImage);
+  let displayGenerationParams: Record<string, unknown> = {};
+  try {
+    const display = await createGraphicNovelPageDisplayAsset({
+      storyId: params.storyId,
+      userId: story.userId,
+      requestId,
+      pageNumber: params.pageNumber,
+      sourceAssetId: pageAsset.id,
+      sourceStoragePath: finalUpload.storagePath,
+      sourceImageData: finalImage,
+      storyFormat: generationKind,
+    });
+    displayGenerationParams = graphicNovelPageDisplayGenerationParams(display);
+  } catch (error) {
+    logger.warn(
+      { err: error, storyId: params.storyId, pageNumber: params.pageNumber },
+      'Graphic novel repaired page display optimization failed; preserving original page image'
+    );
+  }
   await getGraphicNovelRepository().updatePage(pageRow.id, {
     imageAssetId: pageAsset.id,
     imageUrl: finalUpload.storageUrl,
@@ -7954,6 +8148,7 @@ export async function repairGraphicNovelPagePanels(
     errorMessage: null,
     generationParams: {
       ...nextGenerationParams,
+      ...displayGenerationParams,
       assetId: pageAsset.id,
       storagePath: finalUpload.storagePath,
     },
@@ -8321,7 +8516,7 @@ export async function getGraphicNovel(storyId: string, userId: string) {
     project,
     pages: pages.map((page) => ({
       ...page,
-      imageUrl: page.imageUrl || null,
+      imageUrl: graphicNovelPageDisplayImageUrl(page),
       textOverlay: textOverlayFromPageRow(page),
       panels: panelsByPageId.get(page.id) || [],
     })),
@@ -8403,7 +8598,7 @@ export function buildGraphicNovelGenerationStatus(params: {
     panelsNeedingRepair,
     pagesWithImages: readyPages.map((page) => ({
       pageNumber: page.pageNumber,
-      imageUrl: page.imageUrl,
+      imageUrl: graphicNovelPageDisplayImageUrl(page),
       assetId: page.imageAssetId,
       textOverlayMode: 'html_overlay',
     })),

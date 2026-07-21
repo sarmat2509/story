@@ -25,6 +25,9 @@ void (async function main() {
           pageRole: 'story',
           status: 'completed',
           imageUrl: 'development/author/story/comic/page-1.jpg',
+          generationParams: {
+            displayImageStoragePath: 'development/author/story/comic/page-1.webp',
+          },
           layoutJson: {
             internalPrompt: 'must not be public',
             panels: [
@@ -134,7 +137,7 @@ void (async function main() {
     assert.equal(story.comicPages?.length, 1);
     assert.equal(
       story.comicPages?.[0]?.imageUrl,
-      '/api/v1/assets/development/author/story/comic/page-1.jpg?shareToken=share-token'
+      '/api/v1/assets/development/author/story/comic/page-1.webp?shareToken=share-token'
     );
     assert.equal(story.comicPages?.[0]?.textOverlay?.items[0]?.text, 'We found the moon key!');
     assert.deepStrictEqual(story.comicPages?.[0]?.textOverlay?.items[0]?.rect, {

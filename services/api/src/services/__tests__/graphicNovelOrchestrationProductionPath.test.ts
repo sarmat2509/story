@@ -175,9 +175,10 @@ async function testProductionRendererConcurrencyRepairAndPersistence(): Promise<
   const validationRows: any[] = [];
   const stageRows: any[] = [];
   const storage = {
-    async uploadAsset(input: { data: Buffer | string }) {
+    async uploadAsset(input: { data: Buffer | string; mimeType?: string }) {
       const data = typeof input.data === 'string' ? Buffer.from(input.data, 'base64') : input.data;
-      const path = `mock/graphic-novel-${uploads.length + 1}.png`;
+      const extension = input.mimeType === 'image/webp' ? 'webp' : 'png';
+      const path = `mock/graphic-novel-${uploads.length + 1}.${extension}`;
       uploads.push({ path, data: Buffer.from(data) });
       return {
         storagePath: path,
@@ -286,6 +287,11 @@ async function testProductionRendererConcurrencyRepairAndPersistence(): Promise<
     assert.equal(finalPageUpdate.imageAssetId, result.pageAssetId);
     assert.equal(finalPageUpdate.generationParams.panelRepair.repairedPanelCount, 1);
     assert.equal(finalPageUpdate.generationParams.panelRepair.failedPanelCount, 0);
+    assert.equal(finalPageUpdate.generationParams.displayImageMimeType, 'image/webp');
+    assert.ok(
+      String(finalPageUpdate.generationParams.displayImageStoragePath).endsWith('.webp'),
+      'a compact WebP display image is persisted alongside the original page PNG'
+    );
     assert.deepEqual(finalPageUpdate.generationParams.panelRepair.failedPanels, []);
     assert.equal(
       finalPageUpdate.generationParams.bubblePlacement.mode,
@@ -564,7 +570,7 @@ async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaro
 
   installRepositoryTestOverrides({
     character: {
-      findById: async (characterId: string, userId: string) => {
+      findAccessibleById: async (characterId: string, userId: string) => {
         assert.equal(characterId, 'character-luma');
         assert.equal(userId, 'user-1');
         return {

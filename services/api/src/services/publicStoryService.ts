@@ -22,6 +22,7 @@ import { stripAllTags, stripCharacterIds } from '../utils/audioTags';
 import { config } from '../config';
 import { versionPublicIconAsset } from '../ssr/publicAssetUrls';
 import { buildGraphicNovelPageTextOverlay } from '../domain/graphicNovel/textOverlay';
+import { graphicNovelPageDisplayImageUrl } from '../domain/graphicNovel/pageImageOptimization';
 import type { PlannedGraphicNovelPage } from '../domain/graphicNovel';
 import { normalizeAssetStoragePath } from './entityAssetCleanupService';
 import {
@@ -221,7 +222,7 @@ async function loadPublicComicPages(
     pageNumber: page.pageNumber,
     pageRole: page.pageRole,
     status: page.status,
-    imageUrl: publicAssetUrl(page.imageUrl, shareToken),
+    imageUrl: publicAssetUrl(graphicNovelPageDisplayImageUrl(page), shareToken),
     textOverlay: pageOverlayFromRows(page),
     panelRects: publicPanelRects(page.layoutJson),
   }));

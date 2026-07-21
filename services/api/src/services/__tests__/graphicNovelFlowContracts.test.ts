@@ -65,7 +65,13 @@ function testGenerationStatusAfterFirstPage(): void {
     storyId: 'story-1',
     projectId: 'project-1',
     pages: [
-      { pageNumber: 1, status: 'completed', imageUrl: '/page-1.png', imageAssetId: 'asset-1' },
+      {
+        pageNumber: 1,
+        status: 'completed',
+        imageUrl: '/page-1.png',
+        imageAssetId: 'asset-1',
+        generationParams: { displayImageStoragePath: '/page-1.webp' },
+      },
       { pageNumber: 2, status: 'generating', imageUrl: null, imageAssetId: null },
       { pageNumber: 3, status: 'pending', imageUrl: null, imageAssetId: null },
     ],
@@ -78,7 +84,7 @@ function testGenerationStatusAfterFirstPage(): void {
   assert.deepEqual(status.pagesWithImages, [
     {
       pageNumber: 1,
-      imageUrl: '/page-1.png',
+      imageUrl: '/page-1.webp',
       assetId: 'asset-1',
       textOverlayMode: 'html_overlay',
     },
