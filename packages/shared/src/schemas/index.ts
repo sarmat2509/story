@@ -558,6 +558,10 @@ export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
     .optional()
 );
 
+export const RenameCharacterSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+});
+
 // Type exports
 export type CreateChildProfileInput = z.infer<typeof CreateChildProfileSchema>;
 export type UpdateChildProfileInput = z.infer<typeof UpdateChildProfileSchema>;
@@ -566,6 +570,7 @@ export type UpdateChildModeControlsInput = z.infer<typeof UpdateChildModeControl
 export type UpdateChildModeExitPasscodeInput = z.infer<typeof UpdateChildModeExitPasscodeSchema>;
 export type CreateCharacterInput = z.infer<typeof CreateCharacterSchema>;
 export type UpdateCharacterInput = z.infer<typeof UpdateCharacterSchema>;
+export type RenameCharacterInput = z.infer<typeof RenameCharacterSchema>;
 
 // ==========================================
 // Milestone 3: Story Generation

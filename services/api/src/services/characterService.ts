@@ -1,4 +1,8 @@
-import { getCharacterRepository, getDictionaryRepository } from '../repositories';
+import {
+  getCharacterRepository,
+  getChildProfileRepository,
+  getDictionaryRepository,
+} from '../repositories';
 import type { Character, NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
@@ -244,6 +248,43 @@ export async function updateCharacter(
   }
 
   return updated;
+}
+
+/**
+ * Rename only the character identity label and wait until every locale is persisted.
+ * Child-profile mirror characters keep the child profile as their source of truth.
+ */
+export async function renameCharacter(
+  id: string,
+  userId: string,
+  name: string
+): Promise<CharacterWithNameTranslations> {
+  const characterRepo = getCharacterRepository();
+  const existing = await characterRepo.findById(id, userId);
+  if (!existing) {
+    throw new Error('Character not found');
+  }
+
+  const normalizedName = name.trim();
+  if (existing.childProfileId && existing.type === 'person' && existing.subtype === 'child') {
+    const childProfileRepo = getChildProfileRepository();
+    const profile = await childProfileRepo.findById(existing.childProfileId, userId);
+    if (profile) {
+      await childProfileRepo.update(profile.id, userId, { name: normalizedName });
+    }
+  }
+
+  const updated = await characterRepo.update(id, userId, { name: normalizedName });
+  if (!updated) {
+    throw new Error('Failed to rename character');
+  }
+
+  const nameTranslations = await localizeCharacterNames(updated, {
+    onUsage: (usage) => recordUsage(usage, { userId, characterId: id }),
+  });
+
+  logger.info({ userId, characterId: id }, 'Renamed character and localized name');
+  return { ...updated, nameTranslations };
 }
 
 export async function deleteCharacter(id: string, userId: string): Promise<void> {

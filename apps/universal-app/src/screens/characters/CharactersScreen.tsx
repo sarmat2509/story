@@ -16,6 +16,7 @@ import { theme } from '@/theme';
 import { useCharacterGenerationUsage, useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
+import { CharacterRenameModal } from '@/components/CharacterRenameModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -249,13 +250,19 @@ export default function CharactersScreen() {
 
       {/* Character Form Modal */}
       <CharacterFormModal
-        visible={isModalVisible}
+        visible={isModalVisible && !editingCharacter}
         onClose={() => {
           setIsModalVisible(false);
           setEditingCharacter(undefined);
         }}
-        characterId={editingCharacter?.id}
-        initialData={editingCharacter}
+      />
+      <CharacterRenameModal
+        visible={isModalVisible && !!editingCharacter}
+        character={editingCharacter ?? null}
+        onClose={() => {
+          setIsModalVisible(false);
+          setEditingCharacter(undefined);
+        }}
       />
 
       {/* Confirm Delete Dialog */}

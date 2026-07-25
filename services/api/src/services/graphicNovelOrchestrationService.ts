@@ -4845,6 +4845,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       generationTimeMs: null,
       metadata: {
         storyFormat: GRAPHIC_NOVEL_KIND,
+        mergedCharacters: graphicNovelCharacters,
         graphicNovelTextMode: 'html_overlay',
         storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
         storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
@@ -5256,6 +5257,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       generationTimeMs: null,
       metadata: {
         storyFormat: MIXED_STORY_KIND,
+        mergedCharacters: mixedStoryCharacters,
         graphicNovelTextMode: 'html_overlay',
         mixedStoryVersion: 1,
         storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,

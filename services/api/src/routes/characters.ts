@@ -1,7 +1,11 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
-import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
+import {
+  CreateCharacterSchema,
+  RenameCharacterSchema,
+  UpdateCharacterSchema,
+} from '@wondertales/shared';
 import type { Character } from '../db/schema';
 import { logger } from '../utils/logger';
 import {
@@ -625,6 +629,37 @@ router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
       status: 'error',
       error: 'Failed to delete character'
     });
+  }
+});
+
+// PATCH /api/v1/characters/:id/name - Rename character only
+router.patch('/:id/name', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const validation = RenameCharacterSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Validation failed',
+        details: validation.error.format(),
+      });
+    }
+
+    const character = await characterService.renameCharacter(
+      req.params.id,
+      req.user!.id,
+      validation.data.name
+    );
+    return res.json({ status: 'success', character });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found')) {
+      return res.status(404).json({ status: 'error', error: 'Character not found' });
+    }
+    logger.error(
+      { error, userId: req.user?.id, characterId: req.params.id },
+      'Error renaming character'
+    );
+    return res.status(500).json({ status: 'error', error: 'Failed to rename character' });
   }
 });
 

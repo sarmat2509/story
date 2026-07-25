@@ -122,6 +122,10 @@ import {
   toPhoneticKey,
   crossScriptIdentityKey,
 } from '../utils/characterNormalization';
+import {
+  getStoryCharacterSnapshotName,
+  storyCharacterSnapshots,
+} from '../utils/storyCharacterSnapshot';
 import { loadReferenceImageData } from './referenceImageTracker';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
 import { collectSceneVisualCharacterNames } from './sceneVisualCharacterMentions';
@@ -6672,7 +6676,7 @@ async function fetchStoryChildren(
   storyRequestId: string | null,
   childProfileId: string | null,
   userId: string,
-  options: { excludeChildProfileIds?: Set<string> } = {}
+  options: { excludeChildProfileIds?: Set<string>; storyMetadata?: unknown } = {}
 ): Promise<
   Array<{
     id: string;
@@ -6716,6 +6720,7 @@ async function fetchStoryChildren(
     .filter((p): p is NonNullable<typeof p> => p != null);
 
   const assetStorage = getAssetStorageService();
+  const snapshots = storyCharacterSnapshots(options.storyMetadata);
 
   return Promise.all(
     orderedProfiles.map(async (child) => {
@@ -6745,7 +6750,11 @@ async function fetchStoryChildren(
 
       return {
         id: child.id,
-        name: child.name,
+        name:
+          getStoryCharacterSnapshotName(snapshots, {
+            id: child.id,
+            childProfileId: child.id,
+          }) ?? child.name,
         type: 'child',
         role: 'protagonist',
         isHidden: false,
@@ -6844,6 +6853,11 @@ export async function getStory(storyId: string, userId: string) {
   if (!story) {
     return null;
   }
+  const metadata =
+    story.metadata && typeof story.metadata === 'object'
+      ? (story.metadata as Record<string, unknown>)
+      : {};
+  const characterSnapshots = storyCharacterSnapshots(metadata);
 
   // Get linked characters with full details
   const linkedCharactersRaw = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
@@ -6880,11 +6894,12 @@ export async function getStory(storyId: string, userId: string) {
       }
 
       const nameTranslations = characterNameTranslations.get(char.id);
+      const snapshotName = getStoryCharacterSnapshotName(characterSnapshots, char);
       return {
         id: char.id,
-        name: char.name,
-        localizedName: nameTranslations?.[story.language] ?? null,
-        nameTranslations,
+        name: snapshotName ?? char.name,
+        localizedName: snapshotName ?? nameTranslations?.[story.language] ?? null,
+        nameTranslations: snapshotName ? undefined : nameTranslations,
         type: char.type,
         role: char.role,
         isHidden: char.isHidden,
@@ -6899,6 +6914,7 @@ export async function getStory(storyId: string, userId: string) {
     story.childProfileId,
     userId,
     {
+      storyMetadata: metadata,
       excludeChildProfileIds: new Set(
         linkedCharactersRaw
           .filter(
@@ -6908,11 +6924,6 @@ export async function getStory(storyId: string, userId: string) {
       ),
     }
   );
-  const metadata =
-    story.metadata && typeof story.metadata === 'object'
-      ? (story.metadata as Record<string, unknown>)
-      : {};
-
   return {
     id: story.id,
     childProfileId: story.childProfileId,
@@ -7337,6 +7348,7 @@ export async function getStoryManifest(storyId: string) {
 
   // Get linked characters with enrichment
   const linkedCharactersRaw = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
+  const characterSnapshots = storyCharacterSnapshots(story.metadata);
   const assetStorage = getAssetStorageService();
   const characterNameTranslations = await getLocalizedCharacterNameTranslations(
     linkedCharactersRaw.map((char) => char.id)
@@ -7553,6 +7565,7 @@ export async function getStoryManifest(storyId: string) {
     createdAt: story.createdAt,
     characters: [
       ...(await fetchStoryChildren(story.storyRequestId, story.childProfileId, story.userId, {
+        storyMetadata: story.metadata,
         excludeChildProfileIds: new Set(
           linkedCharactersRaw
             .filter(
@@ -7584,11 +7597,12 @@ export async function getStoryManifest(storyId: string) {
             }
           }
           const nameTranslations = characterNameTranslations.get(char.id);
+          const snapshotName = getStoryCharacterSnapshotName(characterSnapshots, char);
           return {
             id: char.id,
-            name: char.name,
-            localizedName: nameTranslations?.[story.language] ?? null,
-            nameTranslations,
+            name: snapshotName ?? char.name,
+            localizedName: snapshotName ?? nameTranslations?.[story.language] ?? null,
+            nameTranslations: snapshotName ? undefined : nameTranslations,
             type: char.type,
             role: char.role,
             isHidden: char.isHidden,

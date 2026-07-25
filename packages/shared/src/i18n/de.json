@@ -1215,6 +1215,7 @@
     "save_failed": "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "title_create": "Add Character",
     "title_edit": "Edit Character",
+    "title_rename": "Charakter umbenennen",
     "name_label": "Character Name",
     "name_placeholder": "Enter name",
     "type_label": "Character Type",

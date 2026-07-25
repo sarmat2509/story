@@ -47,6 +47,10 @@ jest.mock('@/components/CharacterFormModal', () => {
   };
 });
 
+jest.mock('@/components/CharacterRenameModal', () => ({
+  CharacterRenameModal: () => null,
+}));
+
 jest.mock('@/screens/characters/components/CharacterCard', () => ({ CharacterCard: () => null }));
 jest.mock('@/components/ConfirmDialog', () => ({ ConfirmDialog: () => null }));
 jest.mock('@/components/FeedbackModal', () => ({ FeedbackModal: () => null }));

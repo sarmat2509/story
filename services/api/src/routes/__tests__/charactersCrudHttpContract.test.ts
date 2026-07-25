@@ -4,7 +4,7 @@ import {
   createScriptedTransaction,
   createTransactionRunner,
 } from '../../testing/scriptedTransaction';
-import { MockImageProvider, mockGeneratedImage } from '../../testing/ai';
+import { MockImageProvider, MockTextProvider, mockGeneratedImage } from '../../testing/ai';
 
 const userId = 'd1111111-1111-4111-8111-111111111111';
 const sessionId = 'd2222222-2222-4222-8222-222222222222';
@@ -112,6 +112,7 @@ async function main(): Promise<void> {
   let softHidden = false;
   const turnaroundSheets: unknown[] = [];
   const savedTurnaroundCaches: Array<{ cacheId: string; size: number }> = [];
+  const savedNameTranslations: Array<{ locale: string; value: string }> = [];
 
   const subscription = {
     planId,
@@ -150,7 +151,34 @@ async function main(): Promise<void> {
     'image_generate',
     mockGeneratedImage()
   );
+  const renameTextProvider = new MockTextProvider()
+    .queueText(
+      'translation',
+      JSON.stringify({
+        uk: 'Ліхтарик',
+        ru: 'Фонарик',
+        en: 'Lantern',
+        es: 'Linterna',
+        fr: 'Lanterne',
+        de: 'Laterne',
+        pl: 'Latarnia',
+      })
+    )
+    .queueText('translation', 'A friendly red fox with a scarf.')
+    .queueText(
+      'translation',
+      JSON.stringify({
+        uk: 'Лис Ліхтарик',
+        ru: 'Лис Фонарик',
+        en: 'Lantern Fox',
+        es: 'Zorro Linterna',
+        fr: 'Renard Lanterne',
+        de: 'Laternenfuchs',
+        pl: 'Lis Latarnia',
+      })
+    );
   installAiServiceTestOverrides({
+    textProvider: renameTextProvider,
     llmTurnaroundImageProvider: imageProvider,
     embeddingGenerator: async () => {
       throw new Error('skip embedding for create contract');
@@ -196,6 +224,10 @@ async function main(): Promise<void> {
     } as any,
     dictionary: {
       findTranslationsForEntities: async () => [],
+      upsertTranslation: async (input: { locale: string; value: string }) => {
+        savedNameTranslations.push({ locale: input.locale, value: input.value });
+        return input;
+      },
     } as any,
     character: {
       transaction: quotaRunner.transaction,
@@ -204,6 +236,7 @@ async function main(): Promise<void> {
           if (type && character.type !== type) return false;
           return true;
         }),
+      findSavedCharacterIds: async () => new Set<string>(),
       findById: async (id: string, ownerId: string) => {
         const character = charactersById.get(id);
         return character && character.userId === ownerId ? character : null;
@@ -234,6 +267,10 @@ async function main(): Promise<void> {
         if (character) {
           character.turnaroundSheet = sheet;
         }
+      },
+      updateDescriptionEn: async (id: string, descriptionEn: string) => {
+        const character = charactersById.get(id);
+        if (character) character.descriptionEn = descriptionEn;
       },
       countStoriesUsingCharacter: async (id: string) => (id === usedCharacterId ? 2 : 0),
       countStoryRequestsUsingCharacter: async () => 0,
@@ -284,6 +321,19 @@ async function main(): Promise<void> {
     const patchOkBody = (await patchOk.json()) as any;
     assert.equal(patchOkBody.character.isHidden, true);
 
+    const renameOk = await request('PATCH', `/api/v1/characters/${characterId}/name`, {
+      name: 'Lantern',
+    });
+    assert.equal(renameOk.status, 200, 'rename returns 200');
+    const renameOkBody = (await renameOk.json()) as any;
+    assert.equal(renameOkBody.character.name, 'Lantern');
+    assert.equal(renameOkBody.character.nameTranslations.ru, 'Фонарик');
+    assert.equal(savedNameTranslations.length, 7, 'rename persists every supported locale');
+    const renameInvalid = await request('PATCH', `/api/v1/characters/${characterId}/name`, {
+      name: '   ',
+    });
+    assert.equal(renameInvalid.status, 400, 'blank rename returns 400');
+
     const deleteUnused = await request('DELETE', `/api/v1/characters/${characterId}`);
     assert.equal(deleteUnused.status, 204, 'unused delete returns 204');
     assert.equal(hardDeleted, true);
@@ -318,6 +368,7 @@ async function main(): Promise<void> {
     assert.equal(turnaroundSheets.length, 1);
     assert.equal(savedTurnaroundCaches.length >= 1, true);
     assert.equal(createQuotaTx.inserts.length, 1);
+    renameTextProvider.assertExhausted();
     assert.equal(
       (createQuotaTx.inserts[0].values as { eventType: string }).eventType,
       'character_generated'
@@ -342,7 +393,7 @@ async function main(): Promise<void> {
     await close(server);
   }
 
-  console.log('characters CRUD HTTP contract passed (9 input-output cases)');
+  console.log('characters CRUD HTTP contract passed (11 input-output cases)');
 }
 
 main().catch((error) => {

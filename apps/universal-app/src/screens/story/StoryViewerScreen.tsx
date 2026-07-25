@@ -1156,11 +1156,10 @@ export default function StoryViewerScreen() {
   }, [graphicNovel?.project]);
   const storyCharactersForSection = useMemo(() => {
     const storyCharacters = Array.isArray(story?.characters) ? story.characters : [];
-    return storyCharacters.length > 0
-      ? (storyCharacters as StoryCharacter[])
-      : hasGraphicNovelPages
-        ? graphicNovelManifestCharacters
-        : [];
+    if (hasGraphicNovelPages && graphicNovelManifestCharacters.length > 0) {
+      return graphicNovelManifestCharacters;
+    }
+    return storyCharacters as StoryCharacter[];
   }, [graphicNovelManifestCharacters, hasGraphicNovelPages, story?.characters]);
 
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(

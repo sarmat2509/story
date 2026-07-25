@@ -613,6 +613,7 @@
   "character_form": {
     "title_create": "Add Character",
     "title_edit": "Edit Character",
+    "title_rename": "Rename Character",
     "name_label": "Character Name",
     "name_placeholder": "Enter name",
     "type_label": "Character Type",

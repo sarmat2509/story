@@ -613,6 +613,7 @@
   "character_form": {
     "title_create": "Додати персонажа",
     "title_edit": "Редагувати персонажа",
+    "title_rename": "Перейменувати персонажа",
     "name_label": "Ім'я персонажа",
     "name_placeholder": "Введіть ім'я",
     "type_label": "Тип персонажа",

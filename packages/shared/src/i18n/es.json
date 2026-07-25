@@ -606,6 +606,7 @@
   "character_form": {
     "title_create": "Agregar personaje",
     "title_edit": "Editar personaje",
+    "title_rename": "Renombrar personaje",
     "name_label": "Nombre del personaje",
     "name_placeholder": "Ingrese el nombre",
     "type_label": "Tipo de personaje",

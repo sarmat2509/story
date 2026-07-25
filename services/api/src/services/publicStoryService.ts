@@ -29,6 +29,10 @@ import {
   buildPublicAuthorView,
   type PublicAuthorSource,
 } from '../utils/publicAuthorView';
+import {
+  getStoryCharacterSnapshotName,
+  storyCharacterSnapshots,
+} from '../utils/storyCharacterSnapshot';
 import type {
   AlignmentData,
   PublicGraphicNovelPage,
@@ -441,12 +445,13 @@ export async function buildStoryPublicView(
 }
 
 async function getSharedStoryCharacters(
-  story: { id: string; userId: string },
+  story: { id: string; userId: string; metadata?: unknown },
   viewerUserId: string,
   slugOrToken: string,
   isUnlisted: boolean
 ): Promise<PublicStoryCharacter[]> {
   const characters = await getStoryRepository().findLinkedCharactersByStoryId(story.id);
+  const snapshots = storyCharacterSnapshots(story.metadata);
   const savedIds = await getCharacterRepository().findSavedCharacterIds(
     viewerUserId,
     characters.map((character) => character.id)
@@ -459,7 +464,7 @@ async function getSharedStoryCharacters(
     const hasPreview = !!(turnaround?.frontUrl || turnaround?.url || photos[0]?.url);
     return {
       id: character.id,
-      name: character.name,
+      name: getStoryCharacterSnapshotName(snapshots, character) ?? character.name,
       type: character.type,
       description: character.description,
       ...(hasPreview ? {

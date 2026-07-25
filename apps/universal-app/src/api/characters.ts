@@ -109,6 +109,26 @@ export const useUpdateCharacter = () => {
   });
 };
 
+export const useRenameCharacter = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const response = await apiClient.patch<{ status: string; character: Character }>(
+        `/api/v1/characters/${id}/name`,
+        { name }
+      );
+      return response.data.character;
+    },
+    onSuccess: (character) => {
+      queryClient.setQueryData<Character[]>(['characters'], (current) =>
+        current?.map((item) => (item.id === character.id ? character : item))
+      );
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
+    },
+  });
+};
+
 // Delete character mutation
 export const useDeleteCharacter = () => {
   const queryClient = useQueryClient();
