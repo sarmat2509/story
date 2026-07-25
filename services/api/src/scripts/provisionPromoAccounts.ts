@@ -33,6 +33,16 @@ type PromoManifest = {
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const inputArg = args.find((arg) => arg.startsWith('--input='));
+const onlyArg = args.find((arg) => arg.startsWith('--only='));
+const onlyEmails = onlyArg
+  ? new Set(
+      onlyArg
+        .slice('--only='.length)
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  : null;
 
 function readManifest(): PromoManifest {
   if (!inputArg) {
@@ -127,7 +137,13 @@ async function provisionAccount(input: PromoAccountInput, fairyworldPlanId: stri
 
 async function main(): Promise<void> {
   const manifest = readManifest();
-  const accounts = manifest.accounts.map(validateAccount);
+  const validatedAccounts = manifest.accounts.map(validateAccount);
+  const accounts = onlyEmails
+    ? validatedAccounts.filter((account) => onlyEmails.has(account.email))
+    : validatedAccounts;
+  if (accounts.length === 0) {
+    throw new Error('No manifest accounts matched --only');
+  }
   const uniqueEmails = new Set(accounts.map((account) => account.email));
   if (uniqueEmails.size !== accounts.length) {
     throw new Error('Manifest contains duplicate email logins');
