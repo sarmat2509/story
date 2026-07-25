@@ -118,6 +118,7 @@ Defaults:
 - target: `root@167.172.102.75:/var/www/kazka`
 - backup cron: `15 2 * * *`
 - ops monitor cron: `*/30 * * * *`
+- independent log monitor cron: `*/10 * * * *`
 - admin alert cron: `10 * * * *`
 - backup env file: `/var/www/kazka/.env.production`
 - ops alert env file: `/etc/wondertales/ops-alert.env`
@@ -127,6 +128,7 @@ It uploads these tracked scripts to `/var/www/kazka/scripts`:
 
 - `check-production-ops.sh`
 - `monitor-production-ops.sh`
+- `monitor-production-logs.sh`
 - `run-production-backup-retention.sh`
 - `run-offsite-restore-drill.sh`
 - `configure-r2-rclone.sh`
@@ -157,3 +159,9 @@ pnpm launch:check-production-admin-alerts -- --test-alert --dry-run-alert
 It reads `/api/v1/admin/dashboard?days=7` and alerts for cost-control, queue, or quality-review findings. It can authenticate using `PROD_ADMIN_ALERT_TOKEN` or `PROD_ADMIN_ALERT_EMAIL`/`PROD_ADMIN_ALERT_PASSWORD`.
 
 Keep alert secrets in `/etc/wondertales/*.env` or another secret store, not in the repository or committed runbooks.
+
+The independent log monitor (`scripts/monitor-production-logs.sh`) reads Docker
+logs directly and sends alerts without calling the WonderTales API. It keeps a
+cursor in `logs/production-log-monitor.cursor`, so successful runs do not alert
+twice for the same interval. Its default sources are `api`, `worker`, `webapp`,
+and `shared-nginx-proxy`.

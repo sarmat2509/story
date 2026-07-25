@@ -28,6 +28,7 @@
     "launch:check-production-ops": "bash scripts/check-production-ops.sh",
     "launch:check-production-ops:backup-smoke": "bash scripts/check-production-ops.sh --backup-smoke",
     "launch:monitor-production-ops": "bash scripts/monitor-production-ops.sh",
+    "launch:monitor-production-logs": "bash scripts/monitor-production-logs.sh",
     "launch:run-production-backup-retention": "bash scripts/run-production-backup-retention.sh",
     "launch:run-offsite-restore-drill": "bash scripts/run-offsite-restore-drill.sh",
     "launch:configure-r2-rclone": "bash scripts/configure-r2-rclone.sh",
