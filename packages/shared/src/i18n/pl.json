@@ -287,6 +287,7 @@
     "no_profile": "Brak profilu",
     "create_child_profile": "Utwórz profil dziecka",
     "child_profile_required": "Najpierw utwórz lub wybierz profil dziecka",
+    "child_profile_required_hint": "Profil dziecka pomaga dopasować historię do odpowiedniego wieku.",
     "goal_label": "Moral historii (opcjonalnie)",
     "image_style_label": "Styl ilustracji (opcjonalnie)",
     "image_style_hint": "Wybierz styl lub zostaw puste pole, aby wybrac go automatycznie wedlug wieku",

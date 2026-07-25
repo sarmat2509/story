@@ -9,6 +9,7 @@ import {
 const userId = 'h0111111-1111-4111-8111-111111111111';
 const sessionId = 'h0222222-2222-4222-8222-222222222222';
 const planId = 'h0333333-3333-4333-8333-333333333333';
+const childProfileId = 'c0444444-4444-4444-8444-444444444444';
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -127,6 +128,12 @@ async function main(): Promise<void> {
         Array.from(featureValues, ([slug, value]) => ({ slug, value })),
       findFeatureValue: async (_planId: string, slug: string) => featureValues.get(slug) ?? null,
     } as any,
+    childProfile: {
+      findById: async (id: string, ownerId: string) =>
+        id === childProfileId && ownerId === userId
+          ? { id: childProfileId, userId, isActive: true }
+          : null,
+    } as any,
     story: {
       countActiveRequestsForUpdate: async () => 0,
       transaction: quotaRunner.transaction,
@@ -157,21 +164,32 @@ async function main(): Promise<void> {
     scenario_card_id: 'forest_path',
     image_style: 'soft_watercolor',
     user_notes: 'A calm lantern adventure.',
+    child_profile_id: childProfileId,
     selected_characters: [],
     selected_children: [],
   };
 
-  const post = (path: string) =>
+  const post = (path: string, body: Record<string, unknown> = validStoryInput) =>
     fetch(`${origin}${path}`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,
         'content-type': 'application/json',
       },
-      body: JSON.stringify(validStoryInput),
+      body: JSON.stringify(body),
     });
 
   try {
+    for (const path of ['/api/v1/stories', '/api/v1/graphic-novels', '/api/v1/mixed-stories']) {
+      const missingProfile = await post(path, {
+        ...validStoryInput,
+        child_profile_id: undefined,
+      });
+      assert.equal(missingProfile.status, 400, `${path} requires a child profile`);
+      const missingProfileBody = (await missingProfile.json()) as any;
+      assert.equal(missingProfileBody.code, 'CHILD_PROFILE_REQUIRED');
+    }
+
     const graphicExceeded = await post('/api/v1/graphic-novels');
     assert.equal(graphicExceeded.status, 403, 'graphic novel format quota returns 403');
     const graphicBody = (await graphicExceeded.json()) as any;

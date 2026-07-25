@@ -74,52 +74,84 @@ export function AdvancedSettingsForm({
       {showChildProfileSelector && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
-          <View style={styles.profileSelectorRow}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.profileChipsScroll}
-              contentContainerStyle={styles.profileChipsContent}
-            >
-              {children.map((child) => (
+          {children.length === 0 ? (
+            <View style={styles.profileRequiredNotice} testID="wizard-child-profile-required">
+              <View style={styles.profileRequiredIcon}>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+              </View>
+              <View style={styles.profileRequiredCopy}>
+                <Text style={styles.profileRequiredTitle}>{t('wizard.child_profile_required')}</Text>
+                <Text style={styles.profileRequiredDescription}>
+                  {t('wizard.child_profile_required_hint')}
+                </Text>
+              </View>
+              {onAddChild ? (
                 <TouchableOpacity
-                  key={child.id}
-                  style={[styles.chip, childProfileId === child.id && styles.chipSelected]}
-                  onPress={() => onChildProfileChange(child.id)}
-                  testID={`wizard-child-${child.id}`}
+                  onPress={onAddChild}
+                  style={styles.profileRequiredAction}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('wizard.create_child_profile')}
+                  testID="wizard-add-child"
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      childProfileId === child.id && styles.chipTextSelected,
-                    ]}
-                  >
-                    {child.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {onAddChild && (
-              <TouchableOpacity
-                onPress={onAddChild}
-                style={[
-                  styles.chip,
-                  styles.addProfileChip,
-                  compactAddChild && styles.addProfileChipCompact,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={t('wizard.create_child_profile')}
-                testID="wizard-add-child"
-              >
-                <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-                {!compactAddChild ? (
-                  <Text style={[styles.chipText, styles.addProfileChipText]}>
+                  <Ionicons name="add" size={18} color={theme.colors.text.inverse} />
+                  <Text style={styles.profileRequiredActionText}>
                     {t('wizard.create_child_profile')}
                   </Text>
-                ) : null}
-              </TouchableOpacity>
-            )}
-          </View>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.profileSelectorRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.profileChipsScroll}
+                contentContainerStyle={styles.profileChipsContent}
+              >
+                {children.map((child) => (
+                  <TouchableOpacity
+                    key={child.id}
+                    style={[styles.chip, childProfileId === child.id && styles.chipSelected]}
+                    onPress={() => onChildProfileChange(child.id)}
+                    testID={`wizard-child-${child.id}`}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        childProfileId === child.id && styles.chipTextSelected,
+                      ]}
+                    >
+                      {child.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              {onAddChild && (
+                <TouchableOpacity
+                  onPress={onAddChild}
+                  style={[
+                    styles.chip,
+                    styles.addProfileChip,
+                    compactAddChild && styles.addProfileChipCompact,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('wizard.create_child_profile')}
+                  testID="wizard-add-child"
+                >
+                  <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                  {!compactAddChild ? (
+                    <Text style={[styles.chipText, styles.addProfileChipText]}>
+                      {t('wizard.create_child_profile')}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -215,6 +247,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing[3],
     paddingRight: theme.spacing[1],
+  },
+  profileRequiredNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  profileRequiredIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borders.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+  },
+  profileRequiredCopy: {
+    flex: 1,
+    gap: theme.spacing[1],
+  },
+  profileRequiredTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  profileRequiredDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  profileRequiredAction: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  profileRequiredActionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
   sectionLabel: {
     fontSize: theme.typography.fontSize.base,

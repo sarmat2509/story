@@ -88,6 +88,10 @@ import {
   isImageStoryLimitError,
 } from '../services/imageStoryLimitService';
 import { setLegacyPublicStoriesDeprecationHeaders } from '../utils/deprecatedPublicStoryRoutes';
+import {
+  assertParentStoryChildProfile,
+  isStoryChildProfileRequirementError,
+} from '../services/storyChildProfileRequirementService';
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
 import { requireGenerationAvailable } from '../middleware/maintenanceMiddleware';
 import { generateMapTile } from '../services/mapTileGenerationService';
@@ -409,6 +413,16 @@ const GenerateMapTileSchema = z.object({
   includePrompt: z.boolean().optional(),
 });
 
+function sendStoryChildProfileRequirementError(res: Response, error: unknown): boolean {
+  if (!isStoryChildProfileRequirementError(error)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+  });
+  return true;
+}
+
 /**
  * POST /api/v1/stories
  * Create a new story request
@@ -425,6 +439,8 @@ router.post(
     try {
       // Validate request body
       const validatedData = CreateStoryRequestSchema.parse(req.body);
+
+      await assertParentStoryChildProfile(req.user!.id, validatedData.childProfileId);
 
       assertStoryPromptSafety({
         userId: req.user!.id,
@@ -477,6 +493,7 @@ router.post(
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
       if (sendStoryCharacterSelectionLimitError(res, error)) return;
+      if (sendStoryChildProfileRequirementError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create story request failed');
 

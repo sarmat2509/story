@@ -287,6 +287,7 @@
     "no_profile": "Sans profil",
     "create_child_profile": "Créer un profil enfant",
     "child_profile_required": "Créez ou choisissez d'abord un profil enfant",
+    "child_profile_required_hint": "Le profil enfant nous aide à adapter l'histoire au bon âge.",
     "goal_label": "Morale de l'histoire (optionnel)",
     "voice_narrator": "Voix du narrateur",
     "voice_hint": "Sélectionnez une voix pour la narration de l'histoire",

@@ -21,6 +21,10 @@ import {
 } from '../services/graphicNovelQuotaService';
 import { logger } from '../utils/logger';
 import { isStoryCharacterSelectionLimitError } from '../services/storyCharacterSelectionLimitService';
+import {
+  assertParentStoryChildProfile,
+  isStoryChildProfileRequirementError,
+} from '../services/storyChildProfileRequirementService';
 
 const router = Router();
 
@@ -114,6 +118,16 @@ function sendGraphicNovelQuotaError(res: Response, error: unknown): boolean {
   return true;
 }
 
+function sendStoryChildProfileRequirementError(res: Response, error: unknown): boolean {
+  if (!isStoryChildProfileRequirementError(error)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+  });
+  return true;
+}
+
 router.post(
   '/',
   requireAuth,
@@ -126,6 +140,8 @@ router.post(
 
     try {
       const validatedData = CreateStoryRequestSchema.parse(req.body);
+
+      await assertParentStoryChildProfile(req.user!.id, validatedData.childProfileId);
 
       try {
         await enforceUserJobLimit(req.user!.id);
@@ -170,6 +186,7 @@ router.post(
       if (sendStoryQuotaError(res, error)) return;
       if (sendStoryCharacterSelectionLimitError(res, error)) return;
       if (sendGraphicNovelQuotaError(res, error)) return;
+      if (sendStoryChildProfileRequirementError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create graphic novel request failed');
 

@@ -294,6 +294,7 @@
     "no_profile": "No Profile",
     "create_child_profile": "Create child profile",
     "child_profile_required": "Create or choose a child profile first",
+    "child_profile_required_hint": "A child profile helps us tailor the story to the right age.",
     "goal_label": "Story Moral (optional)",
     "image_style_label": "Illustration Style (optional)",
     "image_style_hint": "Choose a style or leave it empty for automatic age-based selection",
