@@ -30,6 +30,7 @@
     "generate:story-artifact-thumbnails": "tsx src/scripts/generateStoryArtifactThumbnails.ts",
     "generate:voice-samples": "tsx src/scripts/generateVoiceSamples.ts",
     "seed:test-accounts": "tsx src/scripts/seedQaTestAccounts.ts",
+    "provision:promo-accounts": "tsx src/scripts/provisionPromoAccounts.ts",
     "create:presentation-children": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 node dist/scripts/createPresentationChildProfiles.js",
     "create:presentation-characters": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 node dist/scripts/createPresentationCharacters.js",
     "configure:presentation-story-quota": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 node dist/scripts/configurePresentationStoryQuota.js",

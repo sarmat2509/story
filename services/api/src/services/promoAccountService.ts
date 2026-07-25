@@ -10,6 +10,7 @@ import {
   type User,
 } from '../db/schema';
 import { logger } from '../utils/logger';
+import { notifyPromoAccountActivated } from './promoAccountTelegramAlertService';
 
 export const PROMO_ACCOUNT_TYPE = 'promo';
 export const PROMO_EXPIRED_REASON = 'promo_expired';
@@ -80,7 +81,7 @@ export async function activatePromoAccountOnFirstAuthentication(
 ): Promise<{ startedAt: Date; expiresAt: Date } | null> {
   const period = getPromoAccessPeriod(now);
 
-  return db.transaction(async (tx) => {
+  const activation = await db.transaction(async (tx) => {
     const activatedAccounts = await tx
       .update(users)
       .set({
@@ -96,9 +97,10 @@ export async function activatePromoAccountOnFirstAuthentication(
           isNull(users.promoStartedAt)
         )
       )
-      .returning({ id: users.id });
+      .returning({ id: users.id, email: users.email, displayName: users.displayName });
 
-    if (activatedAccounts.length === 0) return null;
+    const [activatedAccount] = activatedAccounts;
+    if (!activatedAccount) return null;
 
     const [subscription] = await tx
       .select({ planId: userSubscriptions.planId })
@@ -150,12 +152,27 @@ export async function activatePromoAccountOnFirstAuthentication(
       createdAt: period.startedAt,
     });
 
-    logger.info(
-      { userId, storyPlanLimit, reservedStories, ...period },
-      'Started promo access on first authentication'
-    );
-    return period;
+    return { ...period, storyPlanLimit, reservedStories, account: activatedAccount };
   });
+
+  if (!activation) return null;
+
+  logger.info(
+    {
+      userId,
+      storyPlanLimit: activation.storyPlanLimit,
+      reservedStories: activation.reservedStories,
+      ...period,
+    },
+    'Started promo access on first authentication'
+  );
+  void notifyPromoAccountActivated({
+    email: activation.account.email,
+    displayName: activation.account.displayName,
+    expiresAt: activation.expiresAt,
+    reservedStories: activation.reservedStories,
+  });
+  return { startedAt: activation.startedAt, expiresAt: activation.expiresAt };
 }
 
 /**
