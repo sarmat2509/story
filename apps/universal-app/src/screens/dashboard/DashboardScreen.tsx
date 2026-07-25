@@ -284,21 +284,29 @@ export default function DashboardScreen() {
                   ) : null}
                 </View>
                 {!isChildSession ? (
-                  <Pressable
-                    onPress={() => navigation.navigate('Children')}
-                    style={styles.inlineProfilesAction}
-                  >
-                    <Ionicons
-                      name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
-                      size={18}
-                      color={theme.colors.primary[700]}
-                    />
-                    <Text style={styles.inlineProfilesActionText}>
-                      {canCreateMoreChildren
+                  <AppButton
+                    label={
+                      canCreateMoreChildren
                         ? t('dashboard.actions.add_child')
-                        : t('dashboard.actions.view_profiles')}
-                    </Text>
-                  </Pressable>
+                        : t('dashboard.actions.view_profiles')
+                    }
+                    onPress={() => navigation.navigate('Children')}
+                    accessibilityLabel={
+                      canCreateMoreChildren
+                        ? t('dashboard.actions.add_child')
+                        : t('dashboard.actions.view_profiles')
+                    }
+                    leading={
+                      <Ionicons
+                        name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
+                        size={20}
+                        color={theme.colors.primary[700]}
+                      />
+                    }
+                    variant="secondary"
+                    size="md"
+                    style={[styles.heroAction, styles.inlineProfilesAction]}
+                  />
                 ) : null}
                 <AppButton
                   label={t('dashboard.actions.create_story')}
@@ -307,7 +315,7 @@ export default function DashboardScreen() {
                   leading={
                     <Ionicons name="sparkles-outline" size={20} color={theme.colors.text.inverse} />
                   }
-                  style={styles.primaryHeroAction}
+                  style={[styles.heroAction, styles.primaryHeroAction]}
                   size="md"
                 />
               </View>
@@ -725,25 +733,16 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
   },
-  inlineProfilesAction: {
+  heroAction: {
     alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    marginTop: theme.spacing[4],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borders.radius.full,
-    backgroundColor: modernColors.surfaceMuted,
+    width: 272,
+    maxWidth: '100%',
   },
-  inlineProfilesActionText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary[700],
+  inlineProfilesAction: {
+    marginTop: theme.spacing[4],
   },
   primaryHeroAction: {
-    alignSelf: 'flex-start',
-    marginTop: theme.spacing[6],
+    marginTop: theme.spacing[3],
   },
   featuredColumn: {
     width: 420,
