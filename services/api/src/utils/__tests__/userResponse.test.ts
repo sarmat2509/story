@@ -10,6 +10,7 @@ const response = toUserResponse({
   childModeExitPasscodeSetAt: new Date('2026-05-04T12:00:00Z'),
   displayName: 'Parent',
   onboardingCompleted: true,
+  productTourCompleted: true,
   role: 'user',
   oauthProviders: [{ provider: 'google', providerEmail: 'parent@example.test' }],
 });
@@ -18,6 +19,7 @@ assert.equal(response.id, 'user-1');
 assert.equal(response.email, 'parent@example.test');
 assert.equal(response.displayName, 'Parent');
 assert.equal(response.onboardingCompleted, true);
+assert.equal(response.productTourCompleted, true);
 assert.equal(response.role, 'user');
 assert.equal(response.childModeExitPasscodeConfigured, true);
 assert.deepEqual(response.oauthProviders, [

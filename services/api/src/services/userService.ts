@@ -17,6 +17,7 @@ export interface UpdateUserInput {
   preferredLocale?: string;
   mode?: 'instant' | 'artisan';
   onboardingCompleted?: boolean;
+  productTourCompleted?: boolean;
   pseudonym?: string | null;
   aboutMe?: string | null;
   themePalette?: ThemePaletteId;

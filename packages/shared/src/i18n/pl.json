@@ -1911,5 +1911,21 @@
     "error": "Nie udało się przygotować zadań. Spróbuj ponownie.",
     "age_bucket": "Trudność: {{bucket}}",
     "reward_unlocked": "Nagroda odblokowana"
+  },
+  "product_tour": {
+    "skip": "Pomiń wprowadzenie", "restart": "Jak to działa", "previous": "Wstecz", "next": "Dalej", "finish": "Zaczynamy", "progress": "{{current}} z {{total}}", "background_label": "Wprowadzenie do aplikacji", "prompt_title": "Chcesz szybko poznać aplikację?", "prompt_body": "Pokażemy główne narzędzia i drogę do pierwszej historii. Wprowadzenie zawsze można ponownie otworzyć przyciskiem ze znakiem zapytania na pasku bocznym.", "prompt_accept": "Tak, pokaż", "prompt_decline": "Nie teraz",
+    "steps": {
+      "dashboard": { "title": "Rodzinny kącik czytania", "body": "Tutaj mieszkają ostatnie historie, szybka droga do nowej opowieści i ważne chwile rodziny. Wróć, by czytać dalej lub rozpocząć kolejną przygodę." },
+      "library": { "title": "Biblioteka waszych przygód", "body": "Wszystkie ukończone historie są przechowywane tutaj. Otwieraj ulubione rozdziały, przeglądaj tematy i obserwuj, jak rodzinna półka zmienia się w osobisty wszechświat." },
+      "artisan": { "title": "Stwórzcie historię razem", "body": "W pracowni wybierasz temat, język i format, dodajesz bohaterów oraz drobne szczegóły. Kolejne kroki pozwalają ustawić przesłanie, styl ilustracji i towarzyszy." },
+      "wizard_basics": { "title": "Zacznijcie od podstaw historii", "body": "Wybierzcie format, temat i język. Tutaj nadajecie kierunek przygodzie, zanim dodacie bardziej osobiste szczegóły." },
+      "wizard_details": { "title": "Nadajcie historii znaczenie", "body": "Tutaj można wybrać cel edukacyjny lub morał, styl ilustracji i szczególne wskazówki. Te detale pomagają dopasować opowieść do waszej rodziny." },
+      "wizard_characters": { "title": "Zaproście bohaterów", "body": "Dodajcie do przygody członków rodziny, przyjaciół lub wymyślonych towarzyszy. Każda wybrana postać może wpłynąć na sceny i uczynić historię bardziej osobistą." },
+      "instant": { "title": "Gdzie włączyć szybki tryb", "body": "Szybki tryb włącza się tutaj: Profil → Tryb tworzenia historii → Szybki. Zamienia kilka zdjęć, wiek, temat i język w osobistą historię z krótszą konfiguracją." },
+      "artifacts": { "title": "Kolekcja małych skarbów", "body": "Po historii bohater czasem otrzymuje wyjątkową pamiątkę. Takie znaleziska pojawiają się tutaj i zachowują związek z rozdziałem, w którym wydarzyła się magia." },
+      "map": { "title": "Mapa czytelniczego świata", "body": "Przeczytanie historii i krótki quiz odblokowują nowe kafelki. Buduj własny świat, przesuwaj kafelki po pasujących drogach i wysyłaj walker w podróż." },
+      "profile": { "title": "Ustawienia rodziny w jednym miejscu", "body": "Tutaj zaktualizujesz profil dorosłego, tryb tworzenia historii, język i wygląd. Wszystko, by WonderTales pasowało do waszej rodziny." },
+      "child": { "title": "Zacznijmy od profilu dziecka", "body": "Imię, wiek i język pomagają dopasować historie do tego dziecka. Utwórz pierwszy profil, a potem dodasz bohaterów, historie i całe światy." }
+    }
   }
 }

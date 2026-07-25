@@ -241,6 +241,7 @@ export default function DashboardScreen() {
             >
               <View
                 testID="dashboard-greeting-card"
+                nativeID="tour-dashboard"
                 style={[styles.heroColumn, isTabletHero && styles.heroColumnTablet]}
               >
                 <View style={styles.heroBadgeRow}>

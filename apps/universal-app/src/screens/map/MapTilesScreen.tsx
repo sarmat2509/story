@@ -1940,6 +1940,7 @@ export default function MapTilesScreen() {
       <View
         ref={boardRef}
         testID="map-tiles-board"
+        nativeID="tour-map-board"
         pointerEvents={isMapReady ? 'auto' : 'none'}
         style={[
           styles.board,

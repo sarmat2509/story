@@ -21,6 +21,8 @@ import { modernColors } from '@/theme/modernTheme';
 import { ChildAvatarImage, ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import type { RootStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { useProductTour } from '@/features/productTour/ProductTourProvider';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const LABEL_ANIMATION_DURATION = 250;
 const COLLAPSED_HIGHLIGHT_SIZE = 48; // icon 24 + padding 12 each side
@@ -154,6 +156,8 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   const { drawerContentStyle, drawerContentContainerStyle } = focusedOptions;
   const { buildHref } = useLinkBuilder();
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
+  const { start: startProductTour } = useProductTour();
+  const { isDesktop } = useResponsive();
   const handleAdminPress = () => {
     const rootNavigation = navigation.getParent<NavigationProp<RootStackParamList>>();
     rootNavigation?.navigate('Admin', { screen: 'AdminDashboard' });
@@ -293,6 +297,21 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
             <Text style={styles.devBadgeText}>DEV</Text>
           </View>
         ) : null}
+        {Platform.OS === 'web' && isDesktop && user && !isChildSession ? (
+          <View style={styles.productTourItem}>
+            <PlatformPressable
+              onPress={startProductTour}
+              role="button"
+              accessibilityLabel={t('product_tour.restart')}
+              pressColor={undefined}
+              pressOpacity={0.7}
+              style={styles.productTourButton}
+              testID="nav-drawer-product-tour"
+            >
+              <Ionicons name="help" size={17} color={theme.colors.interactive.primary} />
+            </PlatformPressable>
+          </View>
+        ) : null}
       </View>
     </DrawerContentScrollView>
   );
@@ -426,6 +445,20 @@ const styles = StyleSheet.create({
     backgroundColor: modernColors.surfaceMuted,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
+  },
+  productTourItem: {
+    alignSelf: 'center',
+    marginTop: theme.spacing[2],
+  },
+  productTourButton: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 17,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
   },
   devBadgeCollapsed: {
     alignSelf: 'center',

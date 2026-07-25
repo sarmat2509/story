@@ -9,6 +9,7 @@ import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import { getWebPathname } from '@/utils/webRuntime';
 import type { RootStackParamList } from '@/types/navigation';
+import { ProductTourProvider } from '@/features/productTour/ProductTourProvider';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -23,7 +24,10 @@ export default function RootNavigator() {
   // Parent-managed first-launch flow. Undefined means an older persisted user object:
   // do not force onboarding until the API explicitly returns false for new accounts.
   const needsModeSelection =
-    isAuthenticated && sessionMode !== 'child' && user?.onboardingCompleted === false;
+    isAuthenticated &&
+    sessionMode !== 'child' &&
+    user?.onboardingCompleted === false &&
+    user?.productTourCompleted !== false;
 
   // Show loading while auth state is being restored from storage
   if (isLoading) {
@@ -60,17 +64,19 @@ export default function RootNavigator() {
         : 'Main';
 
   return (
-    <Stack.Navigator
-      key={navigatorKey}
-      screenOptions={{ headerShown: false }}
-      initialRouteName={initialRoute}
-    >
-      <Stack.Screen name="OAuthCallback" component={OAuthCallbackScreen} />
-      <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
-      <Stack.Screen name="Main" component={MainNavigator} />
-      {!isChildSession && Platform.OS === 'web' ? (
-        <Stack.Screen name="Admin" component={AdminNavigator} />
-      ) : null}
-    </Stack.Navigator>
+    <ProductTourProvider>
+      <Stack.Navigator
+        key={navigatorKey}
+        screenOptions={{ headerShown: false }}
+        initialRouteName={initialRoute}
+      >
+        <Stack.Screen name="OAuthCallback" component={OAuthCallbackScreen} />
+        <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
+        <Stack.Screen name="Main" component={MainNavigator} />
+        {!isChildSession && Platform.OS === 'web' ? (
+          <Stack.Screen name="Admin" component={AdminNavigator} />
+        ) : null}
+      </Stack.Navigator>
+    </ProductTourProvider>
   );
 }

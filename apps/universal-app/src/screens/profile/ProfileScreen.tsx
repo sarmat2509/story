@@ -530,6 +530,7 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, isMobile && styles.contentMobile]}
         testID="profile-screen"
+        nativeID="tour-profile"
       >
         <AnimatedSection delay={0} trigger={enterKey}>
           <View style={[styles.header, isMobile && styles.headerMobile]}>

@@ -76,6 +76,7 @@ export interface User {
   preferred_billing_currency?: BillingCurrency;
   mode?: 'instant' | 'artisan';
   onboarding_completed?: boolean;
+  product_tour_completed?: boolean;
   pseudonym?: string | null;
   about_me?: string | null;
   role: 'user' | 'admin';

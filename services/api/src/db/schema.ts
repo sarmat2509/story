@@ -34,6 +34,8 @@ export const users = pgTable(
       .notNull(),
     mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
     onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+    /** Whether the parent has seen or explicitly dismissed the desktop product tour. */
+    productTourCompleted: boolean('product_tour_completed').notNull().default(false),
     stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
     /** Application role: 'user' | 'admin' */
     role: varchar('role', { length: 20 }).notNull().default('user'),

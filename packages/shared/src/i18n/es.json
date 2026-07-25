@@ -1911,5 +1911,21 @@
     "artisan_feature_2": "Children profiles",
     "artisan_feature_3": "Advanced settings",
     "can_change_later": "You can change this later in settings"
+  },
+  "product_tour": {
+    "skip": "Omitir introducción", "restart": "Cómo funciona", "previous": "Atrás", "next": "Siguiente", "finish": "Empezar", "progress": "{{current}} de {{total}}", "background_label": "Introducción a la aplicación", "prompt_title": "¿Quieres conocer la aplicación rápidamente?", "prompt_body": "Te mostraremos las herramientas principales y cómo crear una primera historia. Siempre puedes abrir el recorrido con el botón de interrogación de la barra lateral.", "prompt_accept": "Sí, mostrar", "prompt_decline": "Ahora no",
+    "steps": {
+      "dashboard": { "title": "El rincón de lectura de tu familia", "body": "Aquí viven las historias recientes, el acceso rápido a un cuento nuevo y los momentos importantes de la familia. Vuelve para seguir leyendo o iniciar una aventura." },
+      "library": { "title": "Tu biblioteca de aventuras", "body": "Todas las historias terminadas se guardan aquí. Abre capítulos favoritos, explora por temas y mira cómo la estantería familiar se convierte en un universo personal." },
+      "artisan": { "title": "Cread una historia juntos", "body": "En el taller eliges tema, idioma y formato, añades héroes y pequeños detalles. Después puedes ajustar el mensaje, el estilo de ilustración y los compañeros." },
+      "wizard_basics": { "title": "Empezad por la base de la historia", "body": "Elegid el formato, el tema y el idioma. Aquí definís la dirección de la aventura antes de añadir sus detalles más personales." },
+      "wizard_details": { "title": "Dad sentido a la historia", "body": "Aquí puedes elegir un objetivo educativo o moraleja, el estilo de ilustración y notas especiales. Estos detalles ayudan a que el cuento suene y se vea perfecto para vuestra familia." },
+      "wizard_characters": { "title": "Invitad a los héroes", "body": "Añadid familiares, amigos o compañeros imaginados a la aventura. Cada personaje elegido puede influir en las escenas y hacer la historia más personal." },
+      "instant": { "title": "Dónde activar el modo rápido", "body": "El modo rápido se activa aquí: Perfil → Modo de creación → Rápido. Convierte unas fotos, una edad, tema e idioma en una historia personal con una configuración más breve." },
+      "artifacts": { "title": "Colección de pequeños tesoros", "body": "Tras una historia, el héroe a veces recibe un recuerdo especial. Esos hallazgos aparecen aquí y conservan el vínculo con el capítulo donde ocurrió la magia." },
+      "map": { "title": "El mapa de vuestro mundo lector", "body": "Leer una historia y completar su pequeño quiz desbloquea nuevos tiles. Construid vuestro mundo, moved las piezas por caminos compatibles y enviad al walker a viajar." },
+      "profile": { "title": "Ajustes familiares en un lugar", "body": "Aquí puedes actualizar el perfil adulto, elegir el modo de creación, idioma y apariencia. Todo lo necesario para que WonderTales encaje con vuestra familia." },
+      "child": { "title": "Empecemos por el perfil infantil", "body": "El nombre, la edad y el idioma hacen que las historias sean adecuadas para este niño. Crea el primer perfil y después llegarán héroes, historias y mundos enteros." }
+    }
   }
 }

@@ -312,6 +312,7 @@ export const useUpdateMe = () => {
       avatarUrl?: string | null;
       preferredLocale?: string;
       mode?: 'instant' | 'artisan';
+      productTourCompleted?: boolean;
       pseudonym?: string | null;
       aboutMe?: string | null;
       themePalette?: ThemePaletteId;

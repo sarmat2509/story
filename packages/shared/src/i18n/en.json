@@ -1911,5 +1911,21 @@
     "walker_no_path": "No connected road from here",
     "inventory_collapse": "Collapse piece row",
     "inventory_expand": "Expand piece row"
+  },
+  "product_tour": {
+    "skip": "Skip tour", "restart": "How it works", "previous": "Back", "next": "Next", "finish": "Get started", "progress": "{{current}} of {{total}}", "background_label": "Product tour", "prompt_title": "Would you like a quick tour?", "prompt_body": "We’ll show you where the main tools live and how to create a first story. You can always reopen the tour with the question-mark button in the sidebar.", "prompt_accept": "Yes, show me", "prompt_decline": "Not now",
+    "steps": {
+      "dashboard": { "title": "Your family reading corner", "body": "This is home to recent stories, a quick path to a new tale, and your family highlights. Return here to keep reading or begin the next adventure." },
+      "library": { "title": "Your adventure library", "body": "Every finished story is kept here. Reopen favourite chapters, browse by theme, and watch your family shelf grow into a personal universe." },
+      "artisan": { "title": "Create a story together", "body": "In the workshop, choose a theme, language and format, then add heroes and small details. The next steps let you shape the message, illustration style and companions." },
+      "wizard_basics": { "title": "Start with the story’s foundation", "body": "Choose a format, then pick the theme and language of the story. This is where you set the direction of the adventure before adding its finer details." },
+      "wizard_details": { "title": "Give the story its meaning", "body": "Here you can choose an educational goal or moral, illustration style and any special notes. These details help the tale sound and feel just right for your family." },
+      "wizard_characters": { "title": "Invite the heroes", "body": "Add family members, friends or imagined companions to the adventure. Each selected character can influence the scenes and make the story feel more personal." },
+      "instant": { "title": "Where to enable Quick mode", "body": "Quick mode is switched on here: Profile → Story creation mode → Quick. It turns a few photos, an age, theme and language into a personal story with a shorter setup." },
+      "artifacts": { "title": "A collection of little treasures", "body": "A hero sometimes receives a special keepsake after a story. Those finds appear here and keep a link to the chapter where the small miracle happened." },
+      "map": { "title": "Your reading-world map", "body": "Reading a story and completing its short quiz unlocks new tiles. Build your own world, move tiles along matching roads, and send the walker across your universe." },
+      "profile": { "title": "Family settings in one place", "body": "Update the adult profile, choose a story-creation mode, language and appearance here. Everything that makes WonderTales feel right for your family." },
+      "child": { "title": "Let’s begin with a child profile", "body": "A name, age and language help make every story right for this child. Create the first profile, then add heroes, stories and entire worlds." }
+    }
   }
 }

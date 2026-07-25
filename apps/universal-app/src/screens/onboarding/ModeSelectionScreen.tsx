@@ -17,10 +17,16 @@ import { useTranslation } from 'react-i18next';
 import { APP_CONFIG } from '@/config/constants';
 import i18n from '@/config/i18n';
 import apiClient from '@/api/client';
-import { useCreateChild, useEnterChildMode, useUpdateChildModeControls } from '@/api/children';
+import {
+  useChildren,
+  useCreateChild,
+  useEnterChildMode,
+  useUpdateChildModeControls,
+} from '@/api/children';
 import { AppButton } from '@/components/AppButton';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuthStore } from '@/store/authStore';
+import { useProductTour } from '@/features/productTour/ProductTourProvider';
 import { getAnalytics } from '@/services/analytics';
 import { theme } from '@/theme';
 import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES } from '@wondertales/shared';
@@ -99,6 +105,8 @@ export default function ModeSelectionScreen() {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
   const { user, setUser, isAuthenticated } = useAuthStore();
+  const { isOpen: isProductTourOpen, keepChildProfileVisible } = useProductTour();
+  const { data: childrenData, isLoading: isChildrenLoading } = useChildren(isAuthenticated);
   const createChild = useCreateChild();
   const updateChildModeControls = useUpdateChildModeControls();
   const enterChildMode = useEnterChildMode();
@@ -115,6 +123,9 @@ export default function ModeSelectionScreen() {
   const [isCompleting, setIsCompleting] = useState(false);
 
   const isWide = width >= 820;
+  const hasExistingChildProfile = (childrenData?.children.length ?? 0) > 0;
+  const shouldKeepChildProfileVisible =
+    keepChildProfileVisible && (isChildrenLoading || !hasExistingChildProfile);
   const languageOptions = useMemo(
     () =>
       APP_CONFIG.supportedLanguages.map((code) => ({
@@ -145,10 +156,25 @@ export default function ModeSelectionScreen() {
       navigation.navigate('Main', { screen: 'Welcome' });
       return;
     }
-    if (user?.onboardingCompleted !== false && step === 'profile' && !createdChild) {
+    if (
+      user?.onboardingCompleted !== false &&
+      step === 'profile' &&
+      !createdChild &&
+      !isProductTourOpen &&
+      !shouldKeepChildProfileVisible
+    ) {
       navigation.navigate('Main', { screen: 'Dashboard' });
     }
-  }, [createdChild, isAuthenticated, navigation, step, user?.onboardingCompleted]);
+  }, [
+    createdChild,
+    isAuthenticated,
+    isChildrenLoading,
+    isProductTourOpen,
+    shouldKeepChildProfileVisible,
+    navigation,
+    step,
+    user?.onboardingCompleted,
+  ]);
 
   const completeOnboarding = async () => {
     if (user?.onboardingCompleted === true) return user;
@@ -271,7 +297,7 @@ export default function ModeSelectionScreen() {
         })}
       </Text>
 
-      <View style={styles.formGrid}>
+      <View style={styles.formGrid} nativeID="tour-child-profile">
         <View style={styles.field}>
           <Text style={styles.label}>
             {t('child_form.name_label', { defaultValue: "Child's name" })}

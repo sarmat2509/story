@@ -322,7 +322,11 @@ export default function InstantWizardScreen() {
 
   return (
     <LinearGradient colors={modernGradients.page} style={styles.page}>
-      <ScrollView contentContainerStyle={styles.container} testID="wizard-instant-screen">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        testID="wizard-instant-screen"
+        nativeID="tour-wizard-instant"
+      >
         <AnimatedSection delay={0} trigger={enterKey}>
           <View style={styles.heroPanel}>
             <View style={styles.heroIcon}>

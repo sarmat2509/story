@@ -38,6 +38,7 @@ export type MainDrawerParamList = {
     | {
         childId?: string;
         storyCreationMode?: 'instant' | 'artisan';
+        tourStep?: 0 | 1 | 2;
         scenarioCardId?: string;
         scenario?: string;
         theme?: string;

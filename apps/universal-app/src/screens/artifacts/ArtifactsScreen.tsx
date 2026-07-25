@@ -98,7 +98,7 @@ export default function ArtifactsScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} nativeID="tour-artifacts">
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
         <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
@@ -107,7 +107,7 @@ export default function ArtifactsScreen() {
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} nativeID="tour-artifacts">
         <Text style={styles.errorTitle}>{t('common.error')}</Text>
         <Text style={styles.errorMessage}>{(error as Error).message}</Text>
       </View>
@@ -116,7 +116,7 @@ export default function ArtifactsScreen() {
 
   if (artifacts.length === 0) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} nativeID="tour-artifacts">
         <Ionicons name="sparkles-outline" size={48} color={theme.colors.text.tertiary} />
         <Text style={styles.emptyTitle}>{t('artifacts.empty_title')}</Text>
         <Text style={styles.emptySubtext}>{t('artifacts.empty_subtitle')}</Text>
@@ -126,7 +126,11 @@ export default function ArtifactsScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.grid}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.grid}
+        nativeID="tour-artifacts"
+      >
         <View
           style={[
             styles.gridContainer,

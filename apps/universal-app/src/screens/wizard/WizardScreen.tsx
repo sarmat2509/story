@@ -442,6 +442,13 @@ export default function WizardScreen() {
         });
 
   useEffect(() => {
+    const tourStep = route.params?.tourStep;
+    if (tourStep !== undefined) {
+      setActiveStep(tourStep);
+    }
+  }, [route.params?.tourStep]);
+
+  useEffect(() => {
     if (activeStepScrollRef.current === activeStep) return;
     activeStepScrollRef.current = activeStep;
 
@@ -722,6 +729,7 @@ export default function WizardScreen() {
         <ScrollView
           ref={wizardScrollRef}
           testID="wizard-artisan-screen"
+          nativeID="tour-wizard-artisan"
           contentContainerStyle={[
             styles.content,
             isMobile && styles.contentMobile,
@@ -750,7 +758,10 @@ export default function WizardScreen() {
           <View style={[styles.workspace, isWide && styles.workspaceWide]}>
             <View style={[styles.mainColumn, isWide && styles.mainColumnWide]}>
               <AnimatedSection delay={80} trigger={enterKey}>
-                <View style={[styles.stepperCard, isMobile && styles.stepperCardMobile]}>
+                <View
+                  nativeID="tour-wizard-steps"
+                  style={[styles.stepperCard, isMobile && styles.stepperCardMobile]}
+                >
                   <Text style={styles.stepperEyebrow}>
                     {t('wizard.step_progress', {
                       current: activeStep + 1,
