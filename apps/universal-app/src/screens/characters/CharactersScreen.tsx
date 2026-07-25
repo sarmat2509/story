@@ -177,7 +177,7 @@ export default function CharactersScreen() {
                   <CharacterCard
                     character={character}
                     onPress={() => {
-                      if (canAddCharacter && character.isOwned !== false) {
+                      if (character.isOwned !== false) {
                         const canChildRename =
                           character.createdByMode === 'child' &&
                           character.createdByChildProfileId === activeChildProfileId;

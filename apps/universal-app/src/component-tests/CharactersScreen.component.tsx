@@ -4,11 +4,20 @@ import CharactersScreen from '@/screens/characters/CharactersScreen';
 
 const mockSetOptions = jest.fn();
 const mockUseCharacterGenerationUsage = jest.fn();
+let mockCharacters: Array<{
+  id: string;
+  name: string;
+  type: 'person' | 'animal' | 'imaginary';
+  childProfileId?: string | null;
+  createdByMode?: 'parent' | 'child';
+  createdByChildProfileId?: string | null;
+  isOwned?: boolean;
+}> = [];
 
 let mockAuthState: {
   sessionMode: 'parent' | 'child';
   user: { mode: 'instant' | 'artisan' };
-  activeChild: { storyCreationMode: 'instant' | 'artisan' } | null;
+  activeChild: { id?: string; storyCreationMode: 'instant' | 'artisan' } | null;
 };
 
 jest.mock('@react-navigation/native', () => ({
@@ -16,7 +25,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('@/api/characters', () => ({
-  useCharacters: () => ({ data: [], isLoading: false, error: null }),
+  useCharacters: () => ({ data: mockCharacters, isLoading: false, error: null }),
   useCharacterGenerationUsage: (enabled: boolean) => mockUseCharacterGenerationUsage(enabled),
   useDeleteCharacter: () => ({ mutate: jest.fn() }),
 }));
@@ -47,17 +56,39 @@ jest.mock('@/components/CharacterFormModal', () => {
   };
 });
 
-jest.mock('@/components/CharacterRenameModal', () => ({
-  CharacterRenameModal: () => null,
-}));
+jest.mock('@/components/CharacterRenameModal', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CharacterRenameModal: ({ visible }: { visible: boolean }) =>
+      visible ? React.createElement(View, { testID: 'character-rename-modal' }) : null,
+  };
+});
 
-jest.mock('@/screens/characters/components/CharacterCard', () => ({ CharacterCard: () => null }));
+jest.mock('@/screens/characters/components/CharacterCard', () => {
+  const React = require('react');
+  const { Pressable } = require('react-native');
+  return {
+    CharacterCard: ({
+      character,
+      onPress,
+    }: {
+      character: { id: string };
+      onPress: () => void;
+    }) =>
+      React.createElement(Pressable, {
+        testID: `character-card-button-${character.id}`,
+        onPress,
+      }),
+  };
+});
 jest.mock('@/components/ConfirmDialog', () => ({ ConfirmDialog: () => null }));
 jest.mock('@/components/FeedbackModal', () => ({ FeedbackModal: () => null }));
 jest.mock('@/components/FeedbackHeaderButton', () => ({ FeedbackHeaderButton: () => null }));
 
 describe('CharactersScreen story creation modes', () => {
   beforeEach(() => {
+    mockCharacters = [];
     mockAuthState = {
       sessionMode: 'parent',
       user: { mode: 'instant' },
@@ -84,6 +115,26 @@ describe('CharactersScreen story creation modes', () => {
     fireEvent.press(view.getByTestId('characters-add'));
 
     expect(view.getByTestId('character-form-modal')).toBeOnTheScreen();
+  });
+
+  it('lets an Instant parent open rename for a character created by a child', () => {
+    mockCharacters = [
+      {
+        id: 'child-character',
+        name: 'Milo',
+        type: 'animal',
+        childProfileId: 'child-profile',
+        createdByMode: 'child',
+        createdByChildProfileId: 'child-profile',
+        isOwned: true,
+      },
+    ];
+    const view = render(<CharactersScreen />);
+
+    expect(view.queryByTestId('characters-add')).toBeNull();
+    fireEvent.press(view.getByTestId('character-card-button-child-character'));
+
+    expect(view.getByTestId('character-rename-modal')).toBeOnTheScreen();
   });
 
   it('uses the active child mode instead of the parent account mode in a child session', () => {
