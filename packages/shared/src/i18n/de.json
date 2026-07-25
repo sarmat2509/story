@@ -618,6 +618,7 @@
     "tagline": "What magical story shall we create today?",
     "stats": {
       "stories": "Stories",
+      "audio_stories": "Geschichten mit Audio",
       "children": "Children"
     },
     "quick_actions": "Quick Actions",

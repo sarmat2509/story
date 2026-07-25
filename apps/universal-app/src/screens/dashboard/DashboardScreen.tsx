@@ -99,6 +99,7 @@ export default function DashboardScreen() {
     error: storiesError,
     refetch: refetchStories,
   } = useStories();
+  const { data: audioStoriesData } = useStories({ limit: 1, hasAudio: true });
   const { data: quizCandidate } = useStoryQuizCandidate(isChildSession && childQuizEnabled);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [greetingVariant, setGreetingVariant] = useState<DashboardGreetingVariant>('regular');
@@ -126,6 +127,7 @@ export default function DashboardScreen() {
   const children = childrenData?.children ?? [];
   const canCreateMoreChildren = childrenData?.canCreateMore ?? true;
   const storiesCount = Number(storiesData?.pagination?.total) || 0;
+  const audioStoriesCount = Number(audioStoriesData?.pagination?.total) || 0;
   const childrenCount = children.length;
   const featuredStory = stories[0];
   const featuredCover = featuredStory ? getStoryCover(featuredStory) : null;
@@ -276,6 +278,14 @@ export default function DashboardScreen() {
                     <Text style={styles.inlineMetricValue}>{storiesCount}</Text>
                     <Text style={styles.inlineMetricLabel}>{t('dashboard.stats.stories')}</Text>
                   </View>
+                  {audioStoriesCount > 0 ? (
+                    <View style={styles.inlineMetric}>
+                      <Text style={styles.inlineMetricValue}>{audioStoriesCount}</Text>
+                      <Text style={styles.inlineMetricLabel}>
+                        {t('dashboard.stats.audio_stories')}
+                      </Text>
+                    </View>
+                  ) : null}
                   {!isChildSession ? (
                     <View style={styles.inlineMetric}>
                       <Text style={styles.inlineMetricValue}>{childrenCount}</Text>

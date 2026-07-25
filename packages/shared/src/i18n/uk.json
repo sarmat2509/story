@@ -1348,6 +1348,7 @@
     "recent_stories_hint": "Добірка історій, які ваша родина відкривала останніми.",
     "stats": {
       "stories": "Історій",
+      "audio_stories": "Історій з аудіо",
       "children": "Дітей"
     },
     "quick_actions": "Швидкі дії",

@@ -1348,6 +1348,7 @@
     "recent_stories_hint": "A curated shelf of the stories your family opened most recently.",
     "stats": {
       "stories": "Stories",
+      "audio_stories": "Audio stories",
       "children": "Children"
     },
     "quick_actions": "Quick Actions",
