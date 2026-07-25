@@ -60,6 +60,7 @@ import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
 import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
 import { startOrphanStorageCleanupScheduler } from './jobs/orphanStorageCleanupSchedulerJob';
 import { startBillingReminderScheduler } from './jobs/billingReminderSchedulerJob';
+import { startPromoAccountExpiryScheduler } from './jobs/promoAccountExpirySchedulerJob';
 import { checkDatabaseHealth } from './db';
 import { logger } from './utils/logger';
 
@@ -268,6 +269,9 @@ const server = config.queue.runHttpServer
       // Start session cleanup job
       startSessionCleanupJob();
 
+      // Enforce promo-account expiry even when generation workers are disabled.
+      startPromoAccountExpiryScheduler();
+
       if (config.queue.runWorkers) {
         // Start all job queues (text, image, audio + legacy)
         startAllQueues();
@@ -288,6 +292,7 @@ const server = config.queue.runHttpServer
 
         // Send two-day renewal reminders and retry discount assignment emails.
         startBillingReminderScheduler();
+
       }
     })
   : null;

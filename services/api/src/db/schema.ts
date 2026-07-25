@@ -42,6 +42,10 @@ export const users = pgTable(
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
     suspendedReason: text('suspended_reason'),
     suspendedByUserId: uuid('suspended_by_user_id'),
+    /** Standard accounts persist until deleted; promo accounts lose all access at promoExpiresAt. */
+    accountType: varchar('account_type', { length: 20 }).notNull().default('standard'),
+    promoStartedAt: timestamp('promo_started_at', { withTimezone: true }),
+    promoExpiresAt: timestamp('promo_expires_at', { withTimezone: true }),
     /** Active UI theme palette id (see @wondertales/shared THEME_PALETTE_IDS) */
     themePalette: varchar('theme_palette', { length: 32 }).notNull().default('dusk_lavender'),
     childModeExitPasscodeHash: text('child_mode_exit_passcode_hash'),

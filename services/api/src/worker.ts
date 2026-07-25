@@ -5,6 +5,7 @@ import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
 import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
 import { startOrphanStorageCleanupScheduler } from './jobs/orphanStorageCleanupSchedulerJob';
 import { startBillingReminderScheduler } from './jobs/billingReminderSchedulerJob';
+import { startPromoAccountExpiryScheduler } from './jobs/promoAccountExpirySchedulerJob';
 import { logger } from './utils/logger';
 
 async function startWorker() {
@@ -20,6 +21,7 @@ async function startWorker() {
   startScheduledContinuationScheduler();
   startOrphanStorageCleanupScheduler();
   startBillingReminderScheduler();
+  startPromoAccountExpiryScheduler();
 
   logger.info('WonderTales worker started');
 }

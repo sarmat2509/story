@@ -3,6 +3,11 @@ import { getSessionRepository } from '../repositories';
 import type { Session, User, NewSession } from '../db/schema';
 import config from '../config';
 import { logger } from '../utils/logger';
+import {
+  activatePromoAccountOnFirstAuthentication,
+  isPromoAccountExpired,
+  suspendExpiredPromoAccount,
+} from './promoAccountService';
 
 export type SessionMode = 'parent' | 'child';
 
@@ -88,6 +93,7 @@ export function isSessionRecordActive(
 
 // Create new session
 export async function createSession(input: CreateSessionInput): Promise<SessionData> {
+  await activatePromoAccountOnFirstAuthentication(input.userId);
   const token = uuidv4();
   const mode = input.mode || 'parent';
   const expiresInMs = getSessionDurationMsForMode(mode);
@@ -137,6 +143,15 @@ export async function getSessionWithUser(
     logger.info(
       { sessionId, mode: result.session.mode, userId: result.user.id },
       'Session rejected by idle/expiry policy'
+    );
+    return null;
+  }
+
+  if (isPromoAccountExpired(result.user)) {
+    await suspendExpiredPromoAccount(result.user.id);
+    logger.info(
+      { sessionId, userId: result.user.id },
+      'Session rejected because the promo account has expired'
     );
     return null;
   }

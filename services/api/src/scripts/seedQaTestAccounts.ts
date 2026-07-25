@@ -22,6 +22,7 @@
  *   QA_TEST_EMAIL_PREFIX=qa
  *   QA_TEST_DEFAULT_PASSWORD='ChangeMe123!'
  *   QA_TEST_PAID_PLAN_SLUG=silver
+ *   QA_TEST_PROMO_PLAN_SLUG=fairyworld
  *   QA_TEST_LOCALE=ru
  */
 
@@ -43,7 +44,8 @@ type AccountCode =
   | 'PAID_AUDIO_USER'
   | 'PROFILE_EDIT_USER'
   | 'PUBLIC_AUTHOR_USER'
-  | 'STORE_REVIEW_PARENT';
+  | 'STORE_REVIEW_PARENT'
+  | 'PROMO_STORY_WORLD_14D';
 
 type AuthKind = 'password' | 'google' | 'apple';
 type PlanKind = 'free' | 'paid';
@@ -57,6 +59,8 @@ interface AccountSpec {
   displayName: string;
   pseudonym?: string | null;
   aboutMe?: string | null;
+  accountType?: 'standard' | 'promo';
+  promoDurationDays?: number;
   notes?: string[];
 }
 
@@ -74,6 +78,7 @@ const EMAIL_DOMAIN = process.env.QA_TEST_EMAIL_DOMAIN || 'wondertales.test';
 const EMAIL_PREFIX = process.env.QA_TEST_EMAIL_PREFIX || 'qa';
 const DEFAULT_LOCALE = process.env.QA_TEST_LOCALE || 'ru';
 const EXPLICIT_PAID_PLAN_SLUG = process.env.QA_TEST_PAID_PLAN_SLUG?.trim() || null;
+const PROMO_PLAN_SLUG = process.env.QA_TEST_PROMO_PLAN_SLUG?.trim() || 'fairyworld';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const ONLY_CODES = (() => {
@@ -181,6 +186,17 @@ const ACCOUNT_SPECS: AccountSpec[] = [
       'Prepared for store reviewers: parent account, child profile, character fixture, story setup, reporting, privacy, and plan screens',
     ],
   },
+  {
+    code: 'PROMO_STORY_WORLD_14D',
+    auth: 'password',
+    planKind: 'paid',
+    accountType: 'promo',
+    promoDurationDays: 14,
+    role: 'user',
+    mode: 'artisan',
+    displayName: 'Promo Story World — 14 days',
+    notes: ['One-time promo account: all access is permanently suspended after 14 days'],
+  },
 ];
 
 // Hardcoded QA baseline modeled after an existing real-world fixture, but stored
@@ -244,6 +260,7 @@ const ACCOUNT_CODES_WITH_LIBRARY_FIXTURES = new Set<AccountCode>([
   'FREE_ARTISAN_LIMIT_USER',
   'PAID_AUDIO_USER',
   'STORE_REVIEW_PARENT',
+  'PROMO_STORY_WORLD_14D',
 ]);
 
 function buildEmail(code: AccountCode): string {
@@ -266,6 +283,10 @@ function addOneMonth(date: Date): Date {
   const result = new Date(date);
   result.setMonth(result.getMonth() + 1);
   return result;
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 async function resolvePlanIds() {
@@ -296,9 +317,18 @@ async function resolvePlanIds() {
     throw new Error(`No paid active plan found. Active plans: ${available}`);
   }
 
+  const promoPlan = activePlans.find((plan) => plan.slug === PROMO_PLAN_SLUG);
+  if (!promoPlan) {
+    const available = activePlans.map((plan) => plan.slug).join(', ');
+    throw new Error(
+      `QA_TEST_PROMO_PLAN_SLUG="${PROMO_PLAN_SLUG}" not found. Active plans: ${available}`
+    );
+  }
+
   return {
     freePlan,
     paidPlan,
+    promoPlan,
   };
 }
 
@@ -307,7 +337,7 @@ async function upsertUser(spec: AccountSpec, passwordHash: string | null, email:
     where: (table, { eq: drizzleEq }) => drizzleEq(table.email, email),
   });
 
-  const stripeCustomerId = spec.planKind === 'paid'
+  const stripeCustomerId = spec.planKind === 'paid' && spec.accountType !== 'promo'
     ? buildSyntheticStripeCustomerId(spec.code)
     : null;
 
@@ -318,6 +348,13 @@ async function upsertUser(spec: AccountSpec, passwordHash: string | null, email:
     preferredLocale: DEFAULT_LOCALE,
     mode: spec.mode,
     role: spec.role,
+    accountType: spec.accountType ?? 'standard',
+    promoStartedAt: null,
+    promoExpiresAt: null,
+    status: 'active',
+    suspendedAt: null,
+    suspendedReason: null,
+    suspendedByUserId: null,
     pseudonym: spec.pseudonym ?? null,
     aboutMe: spec.aboutMe ?? null,
     stripeCustomerId,
@@ -451,7 +488,7 @@ async function upsertSubscription(
   });
 
   const now = new Date();
-  const currentPeriodEnd = addOneMonth(now);
+  const currentPeriodEnd = spec.accountType === 'promo' ? now : addOneMonth(now);
   const isPaid = spec.planKind === 'paid';
   const isCanceled = spec.code === 'CANCELED_USER';
 
@@ -464,12 +501,15 @@ async function upsertSubscription(
     resetAt: currentPeriodEnd,
     currentPeriodStart: now,
     currentPeriodEnd,
-    cancelAtPeriodEnd: isCanceled,
-    stripeSubscriptionId: isPaid ? buildSyntheticStripeSubscriptionId(spec.code) : null,
-    paymentProvider: isPaid ? 'stripe' : null,
+    cancelAtPeriodEnd: isCanceled || spec.accountType === 'promo',
+    stripeSubscriptionId: isPaid && spec.accountType !== 'promo'
+      ? buildSyntheticStripeSubscriptionId(spec.code)
+      : null,
+    paymentProvider: isPaid && spec.accountType !== 'promo' ? 'stripe' : null,
     metadata: {
       source: 'seedQaTestAccounts',
       code: spec.code,
+      accountType: spec.accountType ?? 'standard',
     },
     updatedAt: now,
   };
@@ -496,7 +536,7 @@ async function ensureStripeCustomerId(userId: string, spec: AccountSpec) {
   await db
     .update(users)
     .set({
-      stripeCustomerId: spec.planKind === 'paid'
+      stripeCustomerId: spec.planKind === 'paid' && spec.accountType !== 'promo'
         ? buildSyntheticStripeCustomerId(spec.code)
         : null,
       updatedAt: new Date(),
@@ -607,10 +647,16 @@ async function ensureAccountFixtures(userId: string, spec: AccountSpec): Promise
   return notes;
 }
 
-async function seedAccount(spec: AccountSpec, freePlanId: string, paidPlanId: string): Promise<SummaryRow> {
+async function seedAccount(
+  spec: AccountSpec,
+  freePlanId: string,
+  paidPlanId: string,
+  promoPlanId: string
+): Promise<SummaryRow> {
   const email = buildEmail(spec.code);
   const passwordHash = spec.auth === 'password' ? await bcrypt.hash(DEFAULT_PASSWORD, 12) : null;
-  const planId = spec.planKind === 'paid' ? paidPlanId : freePlanId;
+  const planId =
+    spec.accountType === 'promo' ? promoPlanId : spec.planKind === 'paid' ? paidPlanId : freePlanId;
 
   const { user, result } = await upsertUser(spec, passwordHash, email);
 
@@ -650,12 +696,17 @@ async function main() {
     throw new Error('No accounts selected. Check --only=CODE1,CODE2');
   }
 
-  const { freePlan, paidPlan } = await resolvePlanIds();
+  const { freePlan, paidPlan, promoPlan } = await resolvePlanIds();
   const summary: SummaryRow[] = [];
 
   for (const spec of selectedSpecs) {
-    const row = await seedAccount(spec, freePlan.id, paidPlan.id);
-    row.plan = spec.planKind === 'paid' ? paidPlan.slug : freePlan.slug;
+    const row = await seedAccount(spec, freePlan.id, paidPlan.id, promoPlan.id);
+    row.plan =
+      spec.accountType === 'promo'
+        ? `${promoPlan.slug} (promo ${spec.promoDurationDays ?? 14}d after first login)`
+        : spec.planKind === 'paid'
+          ? paidPlan.slug
+          : freePlan.slug;
     summary.push(row);
   }
 
@@ -663,6 +714,7 @@ async function main() {
   console.log('');
   console.log(`Free plan slug: ${freePlan.slug}`);
   console.log(`Paid plan slug: ${paidPlan.slug}`);
+  console.log(`Promo plan slug: ${promoPlan.slug}`);
   console.log(`Locale: ${DEFAULT_LOCALE}`);
   console.log(`Dry run: ${DRY_RUN ? 'yes' : 'no'}`);
 }

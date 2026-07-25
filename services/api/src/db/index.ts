@@ -202,6 +202,14 @@ async function gracefulShutdown(signal: string) {
       logger.warn({ err }, 'Failed to stop billing reminder scheduler during shutdown');
     }
 
+    // Stop promo account expiry scheduler
+    try {
+      const { stopPromoAccountExpiryScheduler } = await import('../jobs/promoAccountExpirySchedulerJob');
+      stopPromoAccountExpiryScheduler();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop promo account expiry scheduler during shutdown');
+    }
+
     // Stop rate limiter intervals
     try {
       const { stopAllRateLimiters } = await import('../services/aiService');
