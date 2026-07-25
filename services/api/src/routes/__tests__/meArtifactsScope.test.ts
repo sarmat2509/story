@@ -13,6 +13,10 @@ const clientSource = readFileSync(
   resolve(repoRoot, 'apps/universal-app/src/api/artifacts.ts'),
   'utf8'
 );
+const screenSource = readFileSync(
+  resolve(repoRoot, 'apps/universal-app/src/screens/artifacts/ArtifactsScreen.tsx'),
+  'utf8'
+);
 
 assert.match(
   routeSource,
@@ -30,9 +34,29 @@ assert.match(
   'authenticated artifact collections must not be cached by intermediaries'
 );
 assert.match(
+  routeSource,
+  /getChildProfileRepository\(\)\.findByUserId\(req\.user!\.id\)/,
+  'parent artifact view should resolve child profile names for family artifacts'
+);
+assert.match(
+  routeSource,
+  /collectedByChild: collectedByChild \?\? null/,
+  'artifact API should expose child attribution and keep parent-owned artifacts unattributed'
+);
+assert.match(
   clientSource,
   /searchParams\.set\('childProfileId', params\.childProfileId\)/,
   'artifact client should use the canonical API query parameter'
+);
+assert.match(
+  clientSource,
+  /collectedByChild:\s*\{[\s\S]*?id: string;[\s\S]*?name: string;[\s\S]*?\} \| null/,
+  'artifact client contract should carry child attribution'
+);
+assert.match(
+  screenSource,
+  /selectedArtifact\.collectedByChild[\s\S]*?artifacts\.obtained_in_story_by_child/,
+  'artifact details should identify the collecting child when attribution is present'
 );
 
 console.log('me artifacts scope tests passed');

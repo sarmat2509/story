@@ -23,6 +23,10 @@ export interface CollectedStoryArtifactApi {
   storyId: string;
   acquiredLabel: string | null;
   acquiredAt: string;
+  collectedByChild: {
+    id: string;
+    name: string;
+  } | null;
   artifact: StoryArtifactApi;
   story: {
     id: string;

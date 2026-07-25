@@ -1812,6 +1812,7 @@
     "empty_title": "Die Sammlung ist leer",
     "empty_subtitle": "Artefakte erscheinen hier nach Geschichten, in denen der Held ein Andenken erhält.",
     "obtained_in_story": "Erhalten in „{{title}}“",
+    "obtained_in_story_by_child": "Erhalten in „{{title}}“ · Gesammelt von {{childName}}",
     "open_story": "Geschichte öffnen"
   },
   "map_tiles": {

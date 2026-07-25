@@ -127,7 +127,7 @@ async function main(): Promise<void> {
       }),
     ],
   ]);
-  let hardDeleted = false;
+  const hardDeletedIds: string[] = [];
   let softHidden = false;
   const turnaroundSheets: unknown[] = [];
   const savedTurnaroundCaches: Array<{ cacheId: string; size: number }> = [];
@@ -193,6 +193,18 @@ async function main(): Promise<void> {
         fr: 'Petite Étincelle',
         de: 'Fünkchen',
         pl: 'Iskierka',
+      })
+    )
+    .queueText(
+      'translation',
+      JSON.stringify({
+        uk: 'Яскрава Іскринка',
+        ru: 'Яркая Искорка',
+        en: 'Bright Spark',
+        es: 'Chispa Brillante',
+        fr: 'Étincelle Vive',
+        de: 'Heller Funke',
+        pl: 'Jasna Iskierka',
       })
     )
     .queueText('translation', 'A friendly red fox with a scarf.')
@@ -312,7 +324,7 @@ async function main(): Promise<void> {
         const character = charactersById.get(id);
         if (!character || character.userId !== ownerId) return;
         charactersById.delete(id);
-        hardDeleted = true;
+        hardDeletedIds.push(id);
       },
     } as any,
   });
@@ -339,6 +351,10 @@ async function main(): Promise<void> {
     const listOkBody = (await listOk.json()) as any;
     assert.equal(listOkBody.status, 'success');
     assert.equal(listOkBody.characters.length, 3);
+    assert.ok(
+      listOkBody.characters.some((character: any) => character.id === childCreatedCharacterId),
+      'parent character library includes characters created by child profiles'
+    );
 
     const getOk = await request('GET', `/api/v1/characters/${characterId}`);
     assert.equal(getOk.status, 200, 'get character returns 200');
@@ -398,6 +414,32 @@ async function main(): Promise<void> {
     assert.equal(childRenameOwnCharacterBody.character.nameTranslations.ru, 'Искорка');
     assert.equal(savedNameTranslations.length, 14, 'child rename persists every supported locale');
 
+    const parentRenameChildCharacter = await request(
+      'PATCH',
+      `/api/v1/characters/${childCreatedCharacterId}/name`,
+      { name: 'Bright Spark' }
+    );
+    assert.equal(
+      parentRenameChildCharacter.status,
+      200,
+      'parent can rename a character created by a child profile'
+    );
+    const parentRenameChildCharacterBody = (await parentRenameChildCharacter.json()) as any;
+    assert.equal(parentRenameChildCharacterBody.character.name, 'Bright Spark');
+    assert.equal(parentRenameChildCharacterBody.character.nameTranslations.ru, 'Яркая Искорка');
+    assert.equal(savedNameTranslations.length, 21);
+
+    const parentDeleteChildCharacter = await request(
+      'DELETE',
+      `/api/v1/characters/${childCreatedCharacterId}`
+    );
+    assert.equal(
+      parentDeleteChildCharacter.status,
+      204,
+      'parent can delete a character created by a child profile'
+    );
+    assert.ok(hardDeletedIds.includes(childCreatedCharacterId));
+
     const renameInvalid = await request('PATCH', `/api/v1/characters/${characterId}/name`, {
       name: '   ',
     });
@@ -405,7 +447,7 @@ async function main(): Promise<void> {
 
     const deleteUnused = await request('DELETE', `/api/v1/characters/${characterId}`);
     assert.equal(deleteUnused.status, 204, 'unused delete returns 204');
-    assert.equal(hardDeleted, true);
+    assert.ok(hardDeletedIds.includes(characterId));
     assert.equal(charactersById.has(characterId), false);
 
     const deleteUsed = await request('DELETE', `/api/v1/characters/${usedCharacterId}`);
@@ -462,7 +504,7 @@ async function main(): Promise<void> {
     await close(server);
   }
 
-  console.log('characters CRUD HTTP contract passed (13 input-output cases)');
+  console.log('characters CRUD HTTP contract passed (15 input-output cases)');
 }
 
 main().catch((error) => {

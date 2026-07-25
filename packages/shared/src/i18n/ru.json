@@ -1885,6 +1885,7 @@
     "empty_title": "Коллекция пока пустая",
     "empty_subtitle": "Артефакты появятся здесь после историй, где герой получает памятный предмет.",
     "obtained_in_story": "Получен в истории «{{title}}»",
+    "obtained_in_story_by_child": "Получен в истории «{{title}}» · Получил(а): {{childName}}",
     "open_story": "Открыть историю"
   },
   "map_tiles": {

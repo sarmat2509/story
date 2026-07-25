@@ -200,7 +200,12 @@ export default function ArtifactsScreen() {
                 <Text style={styles.detailSource}>
                   {(() => {
                     const storyTitle = selectedArtifact.story.title;
-                    const sourceText = t('artifacts.obtained_in_story', { title: storyTitle });
+                    const sourceText = selectedArtifact.collectedByChild
+                      ? t('artifacts.obtained_in_story_by_child', {
+                          title: storyTitle,
+                          childName: selectedArtifact.collectedByChild.name,
+                        })
+                      : t('artifacts.obtained_in_story', { title: storyTitle });
                     const titleStart = sourceText.indexOf(storyTitle);
 
                     if (titleStart < 0) {

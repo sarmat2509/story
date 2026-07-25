@@ -1812,6 +1812,7 @@
     "empty_title": "La collection est vide",
     "empty_subtitle": "Les artefacts apparaîtront ici après les histoires où le héros reçoit un souvenir.",
     "obtained_in_story": "Obtenu dans « {{title}} »",
+    "obtained_in_story_by_child": "Obtenu dans « {{title}} » · Recueilli par {{childName}}",
     "open_story": "Ouvrir l’histoire"
   },
   "map_tiles": {

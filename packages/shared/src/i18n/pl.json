@@ -1853,6 +1853,7 @@
     "empty_title": "Kolekcja jest pusta",
     "empty_subtitle": "Artefakty pojawią się tutaj po historiach, w których bohater otrzyma pamiątkę.",
     "obtained_in_story": "Zdobyto w historii „{{title}}”",
+    "obtained_in_story_by_child": "Zdobyto w historii „{{title}}” · Zdobył(a): {{childName}}",
     "open_story": "Otwórz historię"
   },
   "map_tiles": {

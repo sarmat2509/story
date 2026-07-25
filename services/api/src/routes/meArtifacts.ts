@@ -79,7 +79,11 @@ async function resolveCollectionOwner(
   return { owner: { userId, childProfileId: requestedChildProfileId } };
 }
 
-async function mapCollectedArtifact(details: CollectedStoryArtifactDetails, locale: Locale) {
+async function mapCollectedArtifact(
+  details: CollectedStoryArtifactDetails,
+  locale: Locale,
+  collectedByChild?: { id: string; name: string } | null
+) {
   const { collection, artifact, story } = details;
   const localizedTitle = await resolveStoryArtifactTitle(artifact, locale);
   const image = storyArtifactImageUrls(artifact.imagePath);
@@ -92,6 +96,7 @@ async function mapCollectedArtifact(details: CollectedStoryArtifactDetails, loca
     storyId: collection.storyId,
     acquiredLabel: collection.acquiredLabel,
     acquiredAt: collection.acquiredAt,
+    collectedByChild: collectedByChild ?? null,
     artifact: {
       id: artifact.id,
       artifactCode: artifact.artifactCode,
@@ -138,7 +143,23 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       ? await repository.listForOwner(ownerResult.owner)
       : await repository.listForUser(req.user!.id);
     const locale = resolveArtifactLocale(req, parsed.data.locale);
-    const artifacts = await Promise.all(rows.map((row) => mapCollectedArtifact(row, locale)));
+    const childProfiles = req.sessionMode === 'child'
+      ? []
+      : await getChildProfileRepository().findByUserId(req.user!.id);
+    const childProfilesById = new Map(
+      childProfiles.map((profile) => [profile.id, { id: profile.id, name: profile.name }])
+    );
+    const artifacts = await Promise.all(
+      rows.map((row) =>
+        mapCollectedArtifact(
+          row,
+          locale,
+          row.collection.childProfileId
+            ? childProfilesById.get(row.collection.childProfileId) ?? null
+            : null
+        )
+      )
+    );
 
     // The collection is authenticated, user-specific data and must never be
     // reused by a browser intermediary or CDN for another session.

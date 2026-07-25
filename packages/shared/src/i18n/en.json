@@ -1885,6 +1885,7 @@
     "empty_title": "The collection is empty",
     "empty_subtitle": "Artifacts will appear here after stories where the hero receives a keepsake.",
     "obtained_in_story": "Obtained in “{{title}}”",
+    "obtained_in_story_by_child": "Obtained in “{{title}}” · Collected by {{childName}}",
     "open_story": "Open story"
   },
   "map_tiles": {
