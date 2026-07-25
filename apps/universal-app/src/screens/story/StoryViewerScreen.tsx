@@ -453,7 +453,9 @@ export default function StoryViewerScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const quizSectionRef = useRef<View | null>(null);
   const sceneRefs = useRef<Record<number, View | null>>({});
+  const sentenceRefs = useRef<Record<number, Text | null>>({});
   const graphicNovelPanelRefs = useRef<Record<string, View | null>>({});
+  const lastFollowedSceneIndexRef = useRef<number | null>(null);
   const lastPositionUpdateTime = useRef(0);
   const quizHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quizAutoScrollKeyRef = useRef<string | null>(null);
@@ -1640,12 +1642,26 @@ export default function StoryViewerScreen() {
     : null;
 
   const scrollTargetToViewportCenter = useCallback(
-    (targetElement: View | null, fallbackTopOffset = 100) => {
+    (targetElement: View | Text | null, fallbackTopOffset = 100) => {
       if (!targetElement) return;
 
       if (Platform.OS === 'web') {
         const element = targetElement as any;
-        if (element?.scrollIntoView) {
+        const scrollNode =
+          (scrollViewRef.current as any)?.getScrollableNode?.() ?? scrollViewRef.current;
+        if (element?.getBoundingClientRect && scrollNode?.getBoundingClientRect) {
+          const targetRect = element.getBoundingClientRect();
+          const scrollRect = scrollNode.getBoundingClientRect();
+          const visibleTop = Math.max(scrollRect.top, 0);
+          const visibleBottom = Math.min(scrollRect.bottom, window.innerHeight);
+          const visibleCenter = visibleTop + Math.max(visibleBottom - visibleTop, 0) / 2;
+          const targetCenter = targetRect.top + targetRect.height / 2;
+          const nextScrollTop = Math.max(
+            Number(scrollNode.scrollTop || 0) + targetCenter - visibleCenter,
+            0
+          );
+          scrollNode.scrollTo?.({ top: nextScrollTop, behavior: 'smooth' });
+        } else if (element?.scrollIntoView) {
           element.scrollIntoView({
             behavior: 'smooth',
             block: 'center',
@@ -1675,9 +1691,61 @@ export default function StoryViewerScreen() {
     [scrollViewportHeight]
   );
 
-  // M6: Auto-scroll active scene to center of viewport
+  const scrollActiveProseTarget = useCallback(
+    (
+      sceneElement: View | null,
+      sentenceElement: Text | null,
+      centerSceneWhenItFits: boolean
+    ) => {
+      if (!sceneElement) return;
+
+      if (Platform.OS === 'web') {
+        const sceneNode = sceneElement as any;
+        const scrollNode =
+          (scrollViewRef.current as any)?.getScrollableNode?.() ?? scrollViewRef.current;
+        if (!sceneNode?.getBoundingClientRect || !scrollNode?.getBoundingClientRect) {
+          if (centerSceneWhenItFits) scrollTargetToViewportCenter(sceneElement);
+          return;
+        }
+
+        const sceneRect = sceneNode.getBoundingClientRect();
+        const scrollRect = scrollNode.getBoundingClientRect();
+        const visibleTop = Math.max(scrollRect.top, 0);
+        const visibleBottom = Math.min(scrollRect.bottom, window.innerHeight);
+        const availableReadingHeight = Math.max(visibleBottom - visibleTop, 0);
+        if (sceneRect.height > availableReadingHeight && sentenceElement) {
+          scrollTargetToViewportCenter(sentenceElement);
+        } else if (centerSceneWhenItFits) {
+          scrollTargetToViewportCenter(sceneElement);
+        }
+        return;
+      }
+
+      sceneElement.measureLayout(
+        scrollViewRef.current as any,
+        (_x, _y, _width, sceneHeight) => {
+          if (
+            scrollViewportHeight > 0 &&
+            sceneHeight > scrollViewportHeight &&
+            sentenceElement
+          ) {
+            scrollTargetToViewportCenter(sentenceElement);
+          } else if (centerSceneWhenItFits) {
+            scrollTargetToViewportCenter(sceneElement);
+          }
+        },
+        () => {
+          if (centerSceneWhenItFits) scrollTargetToViewportCenter(sceneElement);
+        }
+      );
+    },
+    [scrollTargetToViewportCenter, scrollViewportHeight]
+  );
+
+  // M6: Follow the scene, or the active sentence when the scene exceeds the reading viewport.
   useEffect(() => {
     if (!effectiveHighlightEnabled || activeSceneIndex === null) {
+      lastFollowedSceneIndexRef.current = null;
       return;
     }
 
@@ -1689,13 +1757,21 @@ export default function StoryViewerScreen() {
       return;
     }
 
-    scrollTargetToViewportCenter(sceneRefs.current[activeSceneIndex]);
+    const sceneChanged = lastFollowedSceneIndexRef.current !== activeSceneIndex;
+    lastFollowedSceneIndexRef.current = activeSceneIndex;
+    scrollActiveProseTarget(
+      sceneRefs.current[activeSceneIndex],
+      activeSentenceIndex === null ? null : sentenceRefs.current[activeSentenceIndex],
+      sceneChanged
+    );
   }, [
     activeGraphicNovelPanelKey,
     activeGraphicNovelPageNumber,
     activeSceneIndex,
+    activeSentenceIndex,
     effectiveHighlightEnabled,
     hasGraphicNovelPages,
+    scrollActiveProseTarget,
     scrollTargetToViewportCenter,
   ]);
 
@@ -2522,6 +2598,9 @@ export default function StoryViewerScreen() {
         renderedText.push(
           <Text
             key={`sentence-${sentenceIndex}`}
+            ref={(ref: Text | null) => {
+              sentenceRefs.current[sentenceIndex] = ref;
+            }}
             style={[
               styles.sentenceText,
               isSentenceActive && styles.activeSentenceBackground,
