@@ -656,8 +656,12 @@ router.patch('/:id/name', requireAuth, requireParentOrScopedChildSession, async 
       if (!wasCreatedByActiveChild) {
         return res.status(existing ? 403 : 404).json({
           status: 'error',
-          code: existing ? 'PARENT_SESSION_REQUIRED' : 'CHARACTER_NOT_FOUND',
-          error: existing ? 'Parent session required' : 'Character not found',
+          code: existing
+            ? 'CHILD_CHARACTER_RENAME_REQUIRES_PARENT_PROFILE'
+            : 'CHARACTER_NOT_FOUND',
+          error: existing
+            ? 'Open the parent profile to rename this character'
+            : 'Character not found',
         });
       }
     }

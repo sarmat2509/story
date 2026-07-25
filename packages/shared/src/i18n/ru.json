@@ -350,6 +350,8 @@
     "add_character": "Создать персонажа",
     "character_quota_remaining": "Осталось генераций персонажей в этом месяце: {{remaining}}",
     "character_quota_exhausted": "Лимит персонажей на этот месяц исчерпан",
+    "rename_parent_profile_title": "Нужен родительский профиль",
+    "rename_parent_profile_message": "Этот персонаж создан не в текущем детском профиле. Чтобы переименовать его, откройте профиль родителя. Запрос на подтверждение не отправлялся.",
     "family_members": "Включить членов семьи",
     "select_characters": "Выберите персонажей (до {{count}})",
     "select_children_and_characters": "Выберите персонажей и детей (до {{count}})",
@@ -1824,6 +1826,7 @@
   "api_errors": {
     "authentication_required": "Войдите ещё раз, чтобы продолжить.",
     "parent_session_required": "Для этого действия нужно подтверждение взрослого.",
+    "child_character_rename_requires_parent_profile": "Чтобы переименовать этого персонажа, откройте профиль родителя. Запрос на подтверждение не отправлялся.",
     "oauth_only": "Войдите в этот аккаунт через Google или Apple.",
     "email_already_registered": "Этот email уже зарегистрирован.",
     "consent_required": "Подтвердите обязательные родительские и юридические согласия.",

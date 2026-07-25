@@ -377,7 +377,10 @@ async function main(): Promise<void> {
       'child cannot rename a parent-created character'
     );
     const childRenameParentCharacterBody = (await childRenameParentCharacter.json()) as any;
-    assert.equal(childRenameParentCharacterBody.code, 'PARENT_SESSION_REQUIRED');
+    assert.equal(
+      childRenameParentCharacterBody.code,
+      'CHILD_CHARACTER_RENAME_REQUIRES_PARENT_PROFILE'
+    );
 
     const childRenameOwnCharacter = await request(
       'PATCH',

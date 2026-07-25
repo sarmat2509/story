@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Alert,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -46,6 +47,7 @@ export default function CharactersScreen() {
   const activeChildStoryCreationMode = useAuthStore(
     (state) => state.activeChild?.storyCreationMode
   );
+  const activeChildProfileId = useAuthStore((state) => state.activeChild?.id);
   const isChildSession = sessionMode === 'child';
   const storyCreationMode =
     (isChildSession ? activeChildStoryCreationMode : undefined) ||
@@ -176,6 +178,16 @@ export default function CharactersScreen() {
                     character={character}
                     onPress={() => {
                       if (canAddCharacter && character.isOwned !== false) {
+                        const canChildRename =
+                          character.createdByMode === 'child' &&
+                          character.createdByChildProfileId === activeChildProfileId;
+                        if (isChildSession && !canChildRename) {
+                          Alert.alert(
+                            t('characters.rename_parent_profile_title'),
+                            t('characters.rename_parent_profile_message')
+                          );
+                          return;
+                        }
                         handleEditCharacter(character);
                       }
                     }}
