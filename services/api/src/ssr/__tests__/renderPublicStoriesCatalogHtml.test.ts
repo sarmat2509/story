@@ -24,7 +24,7 @@ const story: PublicStoryListItem = {
     },
   ],
   audioMetadata: { totalDuration: 123, alignment: { words: ['heavy payload'] } } as any,
-  hasAudio: false,
+  hasAudio: true,
   scenarioCardId: null,
   shareUrl: 'https://wondertales.art/stories/moonlit-garden',
 };
@@ -38,14 +38,16 @@ assert.match(ukHtml, /<link rel="manifest" href="\/manifest\.json(?:\?v=[^"]+)?"
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/stories\/moonlit-garden"/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/authors\/11111111-1111-4111-8111-111111111111"/);
 assert.match(ukHtml, /class="site-footer-language"/);
-assert.match(ukHtml, /\.read\{[^}]*transition:transform \.18s ease/);
-assert.match(ukHtml, /\.read:hover\{[^}]*transform:translateY\(-1px\)/);
+assert.match(ukHtml, /\.card-overlay\{[^}]*linear-gradient\(180deg,rgba\(10,14,30,0\) 25%,rgba\(10,14,30,\.78\) 100%\)/);
+assert.match(ukHtml, /\.card:hover\{[^}]*transform:translateY\(-3px\)/);
 assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/stories">English<\/option>/);
 assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories" selected>Українська<\/option>/);
 assert.doesNotMatch(ukHtml, /window\.__INITIAL_STORIES__/);
 assert.doesNotMatch(ukHtml, /<script\b[^>]*\bsrc=/i);
-assert.match(ukHtml, /A small child found a lantern in the moonlit garden\./);
+assert.doesNotMatch(ukHtml, /A small child found a lantern in the moonlit garden\./);
 assert.match(ukHtml, /class="format-badge">Історія<\/span>/);
+assert.match(ukHtml, /class="audio-badge" role="img" aria-label="Audio available"/);
+assert.doesNotMatch(ukHtml, /class="meta"/, 'catalog cards should not show age, duration, or language');
 assert.doesNotMatch(ukHtml, /heavy payload/, 'static catalog should not embed audio alignment metadata');
 assert.doesNotMatch(ukHtml, /noindex/);
 assert.doesNotMatch(ukHtml, /Приватні, приховані/);

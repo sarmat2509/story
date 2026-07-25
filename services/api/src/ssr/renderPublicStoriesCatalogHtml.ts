@@ -1,4 +1,4 @@
-import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
+import { escapeHtml } from '@wondertales/shared';
 import {
   PUBLIC_SEO_LOCALES,
   STORY_COMPLEXITY_AGE_GROUPS,
@@ -9,7 +9,7 @@ import {
 } from '@wondertales/shared';
 import type { PublicStoryFormat, PublicStoryListItem } from '@wondertales/shared';
 import { config } from '../config';
-import { formatLandingAgeGroup, formatLandingDuration } from './landingContent';
+import { formatLandingAgeGroup } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { renderStoriesCatalogStructuredData } from './publicStructuredData';
 import {
@@ -285,20 +285,20 @@ h1{font-size:42px;line-height:1.08;margin:0 0 14px;letter-spacing:0}
 .fallback-note{grid-column:1/-1;padding:24px;border:0;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 62%),radial-gradient(circle at 12% 18%,rgba(255,227,210,.34),transparent 30%),linear-gradient(135deg,#8068d8 0%,#a86aa6 48%,#d86559 100%);color:rgba(255,255,255,.88);box-shadow:0 14px 32px rgba(91,75,196,.18)}
 .fallback-note h2{margin:0 0 6px;font-size:22px;line-height:1.25;color:#fff}
 .fallback-note p{margin:0;font-size:14px;line-height:1.6}
-.card{background:#fff;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-height:100%;box-shadow:0 10px 24px rgba(15,23,42,.06)}
-.thumb{aspect-ratio:16/9;width:100%;object-fit:cover;background:#e2e8f0;display:block}
-.thumb-placeholder{aspect-ratio:16/9;background:linear-gradient(135deg,#e0f2fe,#fef3c7);display:flex;align-items:center;justify-content:center;color:#334155;font-weight:800}
-.card-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
-.badges{display:flex;flex-wrap:wrap;gap:6px}
-.format-badge{display:inline-flex;align-items:center;width:max-content;padding:5px 9px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:12px;font-weight:800}
-.card h2{font-size:19px;line-height:1.25;margin:0;color:#172033}
-.meta{display:flex;flex-wrap:wrap;gap:8px;margin:0;color:#64748b;font-size:13px}
-.meta span{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#f1f5f9}
-.author{margin:0;color:#475569;font-size:14px}
-.author a{text-decoration:underline;text-underline-offset:3px}
-.excerpt{margin:0;color:#475569;font-size:14px;line-height:1.6}
-.read{display:inline-flex;margin-top:auto;color:#5b4bc4;font-weight:800;font-size:14px;transition:transform .18s ease,color .18s ease}
-.read:hover{color:#463bb1;transform:translateY(-1px)}
+.card{position:relative;min-height:0;aspect-ratio:16/9;border-radius:26px;overflow:hidden;background:#e2e8f0;box-shadow:0 10px 24px rgba(15,23,42,.10);transition:transform .18s ease,box-shadow .18s ease}
+.card:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(15,23,42,.16)}
+.card-cover{position:absolute;inset:0;display:block}
+.thumb,.thumb-placeholder{width:100%;height:100%;object-fit:cover;background:#e2e8f0;display:block}
+.thumb-placeholder{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe,#fef3c7);color:#334155;font-weight:800}
+.card-overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:18px;background:linear-gradient(180deg,rgba(10,14,30,0) 25%,rgba(10,14,30,.78) 100%);color:#fff;pointer-events:none}
+.badges{position:absolute;top:14px;right:14px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto}
+.format-badge{display:inline-flex;align-items:center;width:max-content;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.94);color:#2e275d;font-size:12px;font-weight:800}
+.audio-badge{position:absolute;top:14px;left:14px;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background:rgba(255,255,255,.94);color:#5b4bc4;box-shadow:0 2px 10px rgba(15,23,42,.16)}
+.audio-badge svg{width:18px;height:18px;fill:currentColor}
+.card h2{margin:0;color:#fff;font-size:19px;line-height:1.25;text-shadow:0 1px 8px rgba(0,0,0,.48);pointer-events:auto}
+.card h2 a{color:#fff}
+.author{margin:0 0 5px;color:rgba(255,255,255,.86);font-size:13px;font-weight:600;line-height:1.2;text-shadow:0 1px 6px rgba(0,0,0,.4);pointer-events:auto}
+.author a{color:#fff;text-decoration:underline;text-underline-offset:3px}
 .empty{background:#fff;border:1px solid #dbe3ef;border-radius:8px;padding:30px;text-align:center;color:#475569}
 .empty h2{margin:0 0 8px;color:#172033}
 .empty a{display:inline-flex;margin-top:10px;color:#5b4bc4;font-weight:800;text-decoration:underline;text-underline-offset:3px}
@@ -321,12 +321,6 @@ function absoluteUrl(value: string | null | undefined, baseUrl: string): string 
   if (/^https?:\/\//i.test(value)) return value;
   const base = baseUrl.replace(/\/$/, '');
   return `${base}${value.startsWith('/') ? '' : '/'}${value}`;
-}
-
-function trimExcerpt(value: string | null | undefined, maxLength = 150): string {
-  const normalized = (value || '').replace(/\s+/g, ' ').trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength - 1).trim()}...`;
 }
 
 function getStoryImage(story: PublicStoryListItem, apiBase: string): string | null {
@@ -518,36 +512,29 @@ function renderStoryCard(
   story: PublicStoryListItem,
   locale: PublicSeoLocale,
   webAppUrl: string,
-  apiBase: string,
-  copy: typeof CATALOG_COPY[PublicSeoLocale]
+  apiBase: string
 ): string {
   const storyUrl = buildAbsoluteRouteUrl(webAppUrl, `/stories/${encodeURIComponent(story.publishedSlug)}`);
   const authorUrl = buildAbsoluteRouteUrl(webAppUrl, `/authors/${encodeURIComponent(story.authorId)}`);
   const imageUrl = getStoryImage(story, apiBase);
-  const readingTime = formatLandingDuration(locale, getReadingTimeMinutes(story.scenes));
-  const age = formatLandingAgeGroup(locale, story.ageGroup);
-  const language = getLanguageName(story.language, locale);
-  const excerpt = trimExcerpt(story.scenes[0]?.text || '');
-
+  const hasAudio = story.hasAudio ?? !!story.audioMetadata;
   return `<article class="card">
-    <a href="${escapeHtml(storyUrl)}" aria-label="${escapeHtml(story.title)}">
+    <a class="card-cover" href="${escapeHtml(storyUrl)}" aria-label="${escapeHtml(story.title)}">
       ${
         imageUrl
           ? `<img class="thumb" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">`
           : '<div class="thumb-placeholder">WonderTales</div>'
       }
     </a>
-    <div class="card-body">
+    <div class="card-overlay">
+      ${
+        hasAudio
+          ? '<span class="audio-badge" role="img" aria-label="Audio available" title="Audio available"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v4a3 3 0 0 0 3 3h1v-7H7v-1a5 5 0 0 1 10 0v1h-2v7h1a3 3 0 0 0 3-3v-4a7 7 0 0 0-7-7Zm-5 9h1v3H8a1 1 0 0 1-1-1v-2Zm10 3v-3h1v2a1 1 0 0 1-1 1Z"/></svg></span>'
+          : ''
+      }
       <div class="badges"><span class="format-badge">${escapeHtml(FORMAT_LABELS[locale][story.storyFormat ?? 'story'])}</span></div>
+      <p class="author"><a href="${escapeHtml(authorUrl)}">${escapeHtml(story.authorDisplayName)}</a></p>
       <h2><a href="${escapeHtml(storyUrl)}">${escapeHtml(story.title)}</a></h2>
-      <p class="meta">
-        <span>${escapeHtml(age)}</span>
-        <span>${escapeHtml(readingTime)}</span>
-        <span>${escapeHtml(language)}</span>
-      </p>
-      <p class="author">${escapeHtml(copy.authorLabel)} <a href="${escapeHtml(authorUrl)}">${escapeHtml(story.authorDisplayName)}</a></p>
-      ${excerpt ? `<p class="excerpt">${escapeHtml(excerpt)}</p>` : ''}
-      <a class="read" href="${escapeHtml(storyUrl)}">${escapeHtml(copy.readStory)}</a>
     </div>
   </article>`;
 }
@@ -590,7 +577,7 @@ export function renderPublicStoriesCatalogHtml(params: {
     const fallbackNote = fallbackStartIndex === index
       ? `<div class="fallback-note"><h2>${escapeHtml(copy.fallbackTitle)}</h2><p>${escapeHtml(copy.fallbackBody)}</p></div>`
       : '';
-    return `${fallbackNote}${renderStoryCard(story, locale, webAppUrl, apiBase, copy)}`;
+    return `${fallbackNote}${renderStoryCard(story, locale, webAppUrl, apiBase)}`;
   }).join('\n');
   const emptyContent = invalidPage
     ? `<section class="empty"><h2>${escapeHtml(filterCopy.invalidPageTitle)}</h2><p>${escapeHtml(filterCopy.invalidPageBody)}</p><a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesCatalogPath(locale, filters)))}">${escapeHtml(filterCopy.backToFirst)}</a></section>`

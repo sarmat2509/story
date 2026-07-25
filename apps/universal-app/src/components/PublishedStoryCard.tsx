@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { PublicStoryListItem, PublicStoryFormat } from '@wondertales/shared';
 import { emojiForAvg } from '@wondertales/shared';
 import { theme } from '@/theme';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Props {
@@ -47,28 +48,24 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
               <Text style={styles.placeholderIcon}>📖</Text>
             </View>
           )}
-          <View style={styles.formatBadge}>
-            <Text style={styles.formatBadgeText}>{formatLabel}</Text>
-          </View>
-          <View style={styles.gridContent}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.68)']}
+            locations={[0.24, 1]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.gridGradient}
+          />
+          <View style={styles.gridTitleBlock} pointerEvents="none">
+            <Text style={styles.gridAuthor} numberOfLines={1}>
+              {story.authorDisplayName || 'Anonymous'}
+            </Text>
             <Text style={styles.gridTitle} numberOfLines={2}>
               {story.title}
             </Text>
-            <View style={styles.gridMetaBlock}>
-              <Text style={styles.gridAuthor} numberOfLines={1}>
-                {story.authorDisplayName || 'Anonymous'}
-              </Text>
-              <Text
-                style={[
-                  styles.gridRating,
-                  !(story.rating && story.rating.count > 0) && styles.gridRatingPlaceholder,
-                ]}
-              >
-                {story.rating && story.rating.count > 0
-                  ? `${emojiForAvg(story.rating.avg)} ${story.rating.avg.toFixed(1)} (${story.rating.count})`
-                  : '00.0 (0)'}
-              </Text>
-            </View>
+          </View>
+          <View style={styles.formatBadge}>
+            <Text style={styles.formatBadgeText}>{formatLabel}</Text>
           </View>
         </TouchableOpacity>
         {hasAudio && (
@@ -123,59 +120,62 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
 
 const styles = StyleSheet.create({
   gridCard: {
-    backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.xl,
     overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
-    minHeight: 0,
+    aspectRatio: 16 / 9,
+    backgroundColor: theme.colors.background.tertiary,
   },
   gridCardTouchable: {
     height: '100%',
+    position: 'relative',
   },
   gridThumbnail: {
-    aspectRatio: 16 / 9,
+    ...StyleSheet.absoluteFillObject,
     width: '100%',
+    height: '100%',
   },
   gridPlaceholder: {
-    aspectRatio: 16 / 9,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: theme.colors.background.tertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gridContent: {
-    padding: theme.spacing[4],
-    minHeight: 132,
-    height: 132,
-    justifyContent: 'space-between',
+  gridGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '72%',
+  },
+  gridTitleBlock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing[5],
+    paddingTop: theme.spacing[6],
+    paddingBottom: theme.spacing[5],
   },
   gridTitle: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing[1],
-    lineHeight: 28,
-    minHeight: 56,
-  },
-  gridMetaBlock: {
-    minHeight: 44,
-    justifyContent: 'space-between',
+    color: theme.colors.text.inverse,
+    lineHeight: 24,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   gridAuthor: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-    lineHeight: 20,
-    minHeight: 20,
-  },
-  gridRating: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing[1],
-    lineHeight: 20,
-    minHeight: 20,
-  },
-  gridRatingPlaceholder: {
-    opacity: 0,
+    marginBottom: theme.spacing[1],
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: 'rgba(255,255,255,0.86)',
+    lineHeight: 18,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   audioBadge: {
     position: 'absolute',
