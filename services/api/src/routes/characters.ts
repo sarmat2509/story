@@ -633,7 +633,7 @@ router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
 });
 
 // PATCH /api/v1/characters/:id/name - Rename character only
-router.patch('/:id/name', requireAuth, requireParentSession, async (req, res) => {
+router.patch('/:id/name', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   try {
     const validation = RenameCharacterSchema.safeParse(req.body);
     if (!validation.success) {
@@ -642,6 +642,24 @@ router.patch('/:id/name', requireAuth, requireParentSession, async (req, res) =>
         error: 'Validation failed',
         details: validation.error.format(),
       });
+    }
+
+    if (req.sessionMode === 'child') {
+      const childProfileId = req.childProfileId!;
+      const existing = await characterService.getCharacterById(req.params.id, req.user!.id, {
+        accessibleByChildProfileId: childProfileId,
+      });
+      const wasCreatedByActiveChild =
+        existing?.createdByMode === 'child' &&
+        existing.createdByChildProfileId === childProfileId;
+
+      if (!wasCreatedByActiveChild) {
+        return res.status(existing ? 403 : 404).json({
+          status: 'error',
+          code: existing ? 'PARENT_SESSION_REQUIRED' : 'CHARACTER_NOT_FOUND',
+          error: existing ? 'Parent session required' : 'Character not found',
+        });
+      }
     }
 
     const character = await characterService.renameCharacter(

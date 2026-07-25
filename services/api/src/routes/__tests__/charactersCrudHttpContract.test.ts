@@ -8,9 +8,12 @@ import { MockImageProvider, MockTextProvider, mockGeneratedImage } from '../../t
 
 const userId = 'd1111111-1111-4111-8111-111111111111';
 const sessionId = 'd2222222-2222-4222-8222-222222222222';
+const childSessionId = 'd2222222-2222-4222-8222-222222222223';
+const childProfileId = 'd2222222-2222-4222-8222-222222222224';
 const characterId = 'd3333333-3333-4333-8333-333333333331';
 const usedCharacterId = 'd3333333-3333-4333-8333-333333333332';
 const createdCharacterId = 'd3333333-3333-4333-8333-333333333333';
+const childCreatedCharacterId = 'd3333333-3333-4333-8333-333333333334';
 const missingCharacterId = 'd9999999-9999-4999-8999-999999999999';
 const planId = 'd5555555-5555-4555-8555-555555555555';
 
@@ -79,6 +82,14 @@ async function main(): Promise<void> {
     expiresAt: new Date(now.getTime() + 60_000),
     revokedAt: null,
   } as any;
+  const childSession = {
+    ...session,
+    id: childSessionId,
+    mode: 'child',
+    childProfileId,
+    scopes: ['child_mode'],
+    token: 'characters-crud-child-token',
+  } as any;
 
   function makeCharacter(id: string, overrides: Record<string, unknown> = {}) {
     return {
@@ -107,6 +118,14 @@ async function main(): Promise<void> {
   const charactersById = new Map<string, any>([
     [characterId, makeCharacter(characterId)],
     [usedCharacterId, makeCharacter(usedCharacterId)],
+    [
+      childCreatedCharacterId,
+      makeCharacter(childCreatedCharacterId, {
+        name: 'Spark',
+        createdByMode: 'child',
+        createdByChildProfileId: childProfileId,
+      }),
+    ],
   ]);
   let hardDeleted = false;
   let softHidden = false;
@@ -164,6 +183,18 @@ async function main(): Promise<void> {
         pl: 'Latarnia',
       })
     )
+    .queueText(
+      'translation',
+      JSON.stringify({
+        uk: 'Іскринка',
+        ru: 'Искорка',
+        en: 'Little Spark',
+        es: 'Chispita',
+        fr: 'Petite Étincelle',
+        de: 'Fünkchen',
+        pl: 'Iskierka',
+      })
+    )
     .queueText('translation', 'A friendly red fox with a scarf.')
     .queueText(
       'translation',
@@ -205,7 +236,10 @@ async function main(): Promise<void> {
 
   installRepositoryTestOverrides({
     session: {
-      findValidByIdWithUser: async () => ({ session, user }),
+      findValidByIdWithUser: async (requestedSessionId: string) => ({
+        session: requestedSessionId === childSessionId ? childSession : session,
+        user,
+      }),
       updateLastActive: async () => undefined,
       revokeById: async () => undefined,
     } as any,
@@ -284,15 +318,16 @@ async function main(): Promise<void> {
   });
 
   const authorization = `Bearer ${generateToken({ userId, sessionId })}`;
+  const childAuthorization = `Bearer ${generateToken({ userId, sessionId: childSessionId })}`;
   const server = createServer(app);
   const port = await listen(server);
   const origin = `http://127.0.0.1:${port}`;
 
-  const request = (method: string, path: string, body?: unknown) =>
+  const request = (method: string, path: string, body?: unknown, auth = authorization) =>
     fetch(`${origin}${path}`, {
       method,
       headers: {
-        authorization,
+        authorization: auth,
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -303,7 +338,7 @@ async function main(): Promise<void> {
     assert.equal(listOk.status, 200, 'list characters returns 200');
     const listOkBody = (await listOk.json()) as any;
     assert.equal(listOkBody.status, 'success');
-    assert.equal(listOkBody.characters.length, 2);
+    assert.equal(listOkBody.characters.length, 3);
 
     const getOk = await request('GET', `/api/v1/characters/${characterId}`);
     assert.equal(getOk.status, 200, 'get character returns 200');
@@ -329,6 +364,37 @@ async function main(): Promise<void> {
     assert.equal(renameOkBody.character.name, 'Lantern');
     assert.equal(renameOkBody.character.nameTranslations.ru, 'Фонарик');
     assert.equal(savedNameTranslations.length, 7, 'rename persists every supported locale');
+
+    const childRenameParentCharacter = await request(
+      'PATCH',
+      `/api/v1/characters/${characterId}/name`,
+      { name: 'Not Allowed' },
+      childAuthorization
+    );
+    assert.equal(
+      childRenameParentCharacter.status,
+      403,
+      'child cannot rename a parent-created character'
+    );
+    const childRenameParentCharacterBody = (await childRenameParentCharacter.json()) as any;
+    assert.equal(childRenameParentCharacterBody.code, 'PARENT_SESSION_REQUIRED');
+
+    const childRenameOwnCharacter = await request(
+      'PATCH',
+      `/api/v1/characters/${childCreatedCharacterId}/name`,
+      { name: 'Little Spark' },
+      childAuthorization
+    );
+    assert.equal(
+      childRenameOwnCharacter.status,
+      200,
+      'child can rename a character created by the active child profile'
+    );
+    const childRenameOwnCharacterBody = (await childRenameOwnCharacter.json()) as any;
+    assert.equal(childRenameOwnCharacterBody.character.name, 'Little Spark');
+    assert.equal(childRenameOwnCharacterBody.character.nameTranslations.ru, 'Искорка');
+    assert.equal(savedNameTranslations.length, 14, 'child rename persists every supported locale');
+
     const renameInvalid = await request('PATCH', `/api/v1/characters/${characterId}/name`, {
       name: '   ',
     });
@@ -393,7 +459,7 @@ async function main(): Promise<void> {
     await close(server);
   }
 
-  console.log('characters CRUD HTTP contract passed (11 input-output cases)');
+  console.log('characters CRUD HTTP contract passed (13 input-output cases)');
 }
 
 main().catch((error) => {
