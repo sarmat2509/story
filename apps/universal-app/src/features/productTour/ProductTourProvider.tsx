@@ -86,6 +86,7 @@ const TOUR_STEPS: TourStep[] = [
 // Keep the pace comfortable without imposing a fixed pause: every word gets roughly 300 ms.
 const MS_PER_WORD = 300;
 const NAVIGATION_SETTLE_MS = 420;
+const SCROLL_SETTLE_MS = 600;
 
 type ProductTourContextValue = {
   start: () => void;
@@ -106,6 +107,10 @@ export function useProductTour(): ProductTourContextValue {
 function getReadingTimeMs(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return words * MS_PER_WORD;
+}
+
+function isOutsideViewport(rect: DOMRect, width: number, height: number): boolean {
+  return rect.top < 0 || rect.left < 0 || rect.bottom > height || rect.right > width;
 }
 
 function ProductTourPrompt({ onAccept, onDecline }: { onAccept: () => void; onDecline: () => void }) {
@@ -168,6 +173,8 @@ function ProductTourOverlay({
   useEffect(() => {
     let frame = 0;
     let attempts = 0;
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let hasScrolledToTarget = false;
     setTargetRect(null);
     const readTarget = () => {
       const target =
@@ -176,6 +183,15 @@ function ProductTourOverlay({
           : document.getElementById(step.targetId) ??
             document.querySelector<HTMLElement>(`[data-testid="${step.targetId}"]`);
       if (target) {
+        const rect = target.getBoundingClientRect();
+        if (!hasScrolledToTarget && isOutsideViewport(rect, width, height)) {
+          hasScrolledToTarget = true;
+          target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          scrollTimeout = setTimeout(() => {
+            frame = requestAnimationFrame(readTarget);
+          }, SCROLL_SETTLE_MS);
+          return;
+        }
         setTargetRect(target.getBoundingClientRect());
         return;
       }
@@ -187,6 +203,7 @@ function ProductTourOverlay({
     }, NAVIGATION_SETTLE_MS);
     return () => {
       clearTimeout(timeout);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       if (frame) cancelAnimationFrame(frame);
     };
   }, [step.targetId, stepIndex, width, height]);

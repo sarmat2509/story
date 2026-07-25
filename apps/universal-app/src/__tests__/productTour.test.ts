@@ -88,6 +88,21 @@ assert.match(
 );
 assert.match(
   tourSource,
+  /isOutsideViewport\(rect, width, height\)/,
+  'the tour should detect targets outside the current viewport'
+);
+assert.match(
+  tourSource,
+  /target\.scrollIntoView\(\{ behavior: 'smooth', block: 'center', inline: 'nearest' \}\)/,
+  'the tour should scroll an off-screen target into view before measuring its tooltip'
+);
+assert.match(
+  tourSource,
+  /SCROLL_SETTLE_MS/,
+  'the tour should wait for scrolling to settle before attaching the tooltip'
+);
+assert.match(
+  tourSource,
   /const placeRight =[\s\S]*target\.x \+ target\.width \+ tooltipWidth/,
   'sidebar targets should position their tooltip alongside the navigation button'
 );

@@ -116,7 +116,8 @@ export const useRenameCharacter = () => {
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
       const response = await apiClient.patch<{ status: string; character: Character }>(
         `/api/v1/characters/${id}/name`,
-        { name }
+        { name },
+        { timeout: 120000 }
       );
       return response.data.character;
     },
