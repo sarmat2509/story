@@ -100,6 +100,8 @@ import {
   PET_SIZES,
   PET_EYE_COLORS,
   PET_DISTINCTIVE_FEATURES,
+  CAT_BREEDS,
+  DOG_BREEDS,
   PET_PERSONALITY_TRAITS,
   PET_ACTIVITIES,
   PERSONALITY_TRAITS,
@@ -400,6 +402,11 @@ const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
   ],
 };
 
+const ANIMAL_BREEDS_BY_SUBTYPE: Partial<Record<CharacterSubtype, readonly string[]>> = {
+  cat: CAT_BREEDS,
+  dog: DOG_BREEDS,
+};
+
 export function CharacterFormModal({ visible, onClose, characterId, initialData }: Props) {
   const { t, i18n } = useTranslation();
   const createCharacter = useCreateCharacter();
@@ -414,7 +421,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     initialData?.turnaroundSheet?.url ??
     initialData?.referencePhotos?.[0]?.url ??
     null;
-
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   /** Full-screen second modal while create/update request runs (form modal hidden). */
   const [isSubmittingOverlay, setIsSubmittingOverlay] = useState(false);
@@ -428,6 +434,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const animalBreedOptions =
+    isAnimalType(type) && subtype ? ANIMAL_BREEDS_BY_SUBTYPE[subtype] : undefined;
 
   // Photos
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
@@ -514,6 +522,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         setName(initialData.name);
         setChildProfileId(initialData.childProfileId ?? null);
         setType(initialData.type);
+        setSubtype(initialData.subtype ?? null);
         setDescription(initialData.description || '');
         setDescriptionLanguage((initialData as any).descriptionLanguage || undefined);
 
@@ -617,6 +626,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         setName('');
         setChildProfileId(childOptions[0]?.id ?? null);
         setType('animal');
+        setSubtype(null);
         setDescription('');
         setDescriptionLanguage(undefined);
         setPhotos([]);
@@ -1028,7 +1038,13 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       )
                     )}
                     selected={subtype || ''}
-                    onSelect={(val) => setSubtype(val as CharacterSubtype)}
+                    onSelect={(val) => {
+                      const nextSubtype = val as CharacterSubtype;
+                      if (isAnimalType(type) && nextSubtype !== subtype) {
+                        setPetAppearance((current) => ({ ...current, breed: undefined }));
+                      }
+                      setSubtype(nextSubtype);
+                    }}
                     translationPrefix="characters.subtypes"
                     getTranslation={t}
                   />
@@ -1075,20 +1091,18 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 {/* Pet Appearance */}
                 {isAnimalType(type) && (
                   <View>
-                    {/* Breed - free text input */}
-                    <View style={styles.field}>
-                      <Text style={styles.label}>{t('character_form.breed')}</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={petAppearance.breed || ''}
-                        onChangeText={(val) =>
-                          setPetAppearance({ ...petAppearance, breed: val || undefined })
+                    {animalBreedOptions ? (
+                      <ChipSelector
+                        label={t('character_form.breed')}
+                        options={animalBreedOptions}
+                        selected={petAppearance.breed || ''}
+                        onSelect={(val) =>
+                          setPetAppearance({ ...petAppearance, breed: val as string })
                         }
-                        placeholder={t('character_form.breed_placeholder')}
-                        placeholderTextColor={theme.colors.text.disabled}
-                        testID="character-form-breed"
+                        translationPrefix="character_form.breeds"
+                        getTranslation={t}
                       />
-                    </View>
+                    ) : null}
 
                     <ChipSelector
                       label={t('character_form.fur_color')}

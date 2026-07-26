@@ -143,6 +143,32 @@ describe('character create and rename forms', () => {
     ).toHaveTextContent(/reading,drawing,painting,sports,football/);
   });
 
+  it('shows breed pills matching the selected animal subtype', () => {
+    const catView = render(
+      <CharacterFormModal
+        visible
+        characterId="cat-character"
+        initialData={{ name: 'Milo', type: 'animal', subtype: 'cat' }}
+        onClose={mockClose}
+      />
+    );
+    expect(catView.getByTestId('chip-selector-character_form.breed')).toHaveTextContent(
+      /mixed,persian,siamese,british_shorthair/
+    );
+
+    const dogView = render(
+      <CharacterFormModal
+        visible
+        characterId="dog-character"
+        initialData={{ name: 'Buddy', type: 'animal', subtype: 'dog' }}
+        onClose={mockClose}
+      />
+    );
+    expect(dogView.getByTestId('chip-selector-character_form.breed')).toHaveTextContent(
+      /mixed,labrador,german_shepherd,golden_retriever/
+    );
+  });
+
   it('renames a character with a name-only payload without any AI dependency', async () => {
     const view = render(
       <CharacterRenameModal
