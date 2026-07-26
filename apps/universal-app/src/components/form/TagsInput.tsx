@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 
@@ -101,12 +101,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({
 
       {/* Suggestions */}
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.suggestionsScroll}
-          contentContainerStyle={styles.suggestionsContainer}
-        >
+        <View style={styles.suggestionsContainer}>
           {filteredSuggestions.map((suggestion, index) => (
             <TouchableOpacity
               key={index}
@@ -116,7 +111,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({
               <Text style={styles.suggestionText}>{suggestion}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -177,12 +172,10 @@ const styles = StyleSheet.create({
   addButton: {
     marginLeft: theme.spacing[2],
   },
-  suggestionsScroll: {
-    marginTop: theme.spacing[2],
-    maxHeight: 40,
-  },
   suggestionsContainer: {
+    marginTop: theme.spacing[2],
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[2],
   },
   suggestion: {

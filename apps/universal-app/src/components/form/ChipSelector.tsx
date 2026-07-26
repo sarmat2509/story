@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { theme } from '@/theme';
 
 interface ChipSelectorProps {
@@ -58,11 +58,7 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
           {selectedArray.length} / {max}
         </Text>
       ) : null}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
-      >
+      <View style={styles.chipsContainer}>
         {options.map((option) => {
           const selected = isSelected(option);
           const disabled = isDisabled(option);
@@ -90,7 +86,7 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 };
