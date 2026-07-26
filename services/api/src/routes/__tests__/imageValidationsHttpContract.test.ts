@@ -34,6 +34,8 @@ async function main(): Promise<void> {
   const { generateToken } = await import('../../services/jwtService');
   const { clearRepositoryTestOverrides, installRepositoryTestOverrides } =
     await import('../../repositories');
+  const { installAssetStorageServiceTestOverride, clearAssetStorageServiceTestOverride } =
+    await import('../../services/assetStorageService');
 
   const now = new Date();
   const user = {
@@ -79,6 +81,8 @@ async function main(): Promise<void> {
     } as any,
     user: { findById: async () => user } as any,
     imageValidation: {
+      findById: async (requestedId: string) =>
+        requestedId === validation.id ? validation : null,
       listAll: async () => [validation],
       countAll: async () => 1,
       listByStoryId: async (requestedStoryId: string) =>
@@ -86,6 +90,13 @@ async function main(): Promise<void> {
       countByStoryId: async (requestedStoryId: string) => (requestedStoryId === storyId ? 1 : 0),
     } as any,
   });
+  const validationImage = Buffer.from('bbox-image-contract');
+  installAssetStorageServiceTestOverride({
+    getAssetByPath: async (storagePath: string) => {
+      assert.equal(storagePath, validation.imageStoragePath);
+      return validationImage;
+    },
+  } as any);
 
   const authorization = `Bearer ${generateToken({ userId, sessionId })}`;
   const server = createServer(app);
@@ -117,7 +128,18 @@ async function main(): Promise<void> {
     assert.equal(byStory.status, 200);
     const byStoryBody = (await byStory.json()) as any;
     assert.equal(byStoryBody.data.items[0].storyId, storyId);
+
+    // The BBox inspector in AdminValidationDetailScreen loads this exact protected endpoint.
+    // Keep the assertion binary so a JSON error payload cannot be mistaken for an image.
+    const bboxImage = await fetch(
+      `${origin}/api/v1/admin/image-validations/${validation.id}/image`,
+      { headers: { authorization } }
+    );
+    assert.equal(bboxImage.status, 200);
+    assert.match(bboxImage.headers.get('content-type') ?? '', /^image\/png\b/);
+    assert.deepEqual(Buffer.from(await bboxImage.arrayBuffer()), validationImage);
   } finally {
+    clearAssetStorageServiceTestOverride();
     clearRepositoryTestOverrides();
     await close(server);
   }
