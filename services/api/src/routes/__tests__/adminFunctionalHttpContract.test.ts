@@ -119,6 +119,46 @@ async function main(): Promise<void> {
     bundle: { findActiveBundles: async () => [] } as any,
     discount: { listAdminCodes: async () => [] } as any,
     appRelease: { listAdmin: async () => [] } as any,
+    imageValidation: {
+      listForCharacterRegenerationAnalytics: async () => [
+        {
+          storyId: graphicNovelStoryId,
+          sceneIndex: 1,
+          subjectType: 'scene_image',
+          pageNumber: null,
+          panelIndex: null,
+          panelId: null,
+          attempt: 1,
+          requestManifest: null,
+          result: { expectedCharacterCount: 1 },
+          createdAt: now,
+        },
+        {
+          storyId: graphicNovelStoryId,
+          sceneIndex: 2,
+          subjectType: 'scene_image',
+          pageNumber: null,
+          panelIndex: null,
+          panelId: null,
+          attempt: 1,
+          requestManifest: null,
+          result: { expectedCharacterCount: 2 },
+          createdAt: now,
+        },
+        {
+          storyId: graphicNovelStoryId,
+          sceneIndex: 2,
+          subjectType: 'scene_image',
+          pageNumber: null,
+          panelIndex: null,
+          panelId: null,
+          attempt: 2,
+          requestManifest: null,
+          result: { expectedCharacterCount: 2 },
+          createdAt: new Date(now.getTime() + 1),
+        },
+      ],
+    } as any,
   });
 
   const authorization = `Bearer ${generateToken({ userId, sessionId })}`;
@@ -161,6 +201,22 @@ async function main(): Promise<void> {
     const releases = await request('GET', '/api/v1/admin/app-releases');
     assert.equal(releases.status, 200);
     assert.deepEqual(((await releases.json()) as any).data, []);
+
+    const validationAnalytics = await request(
+      'GET',
+      '/api/v1/admin/image-validations/analytics/character-regenerations'
+    );
+    assert.equal(validationAnalytics.status, 200);
+    assert.deepEqual(((await validationAnalytics.json()) as any).data.totals, {
+      validationRows: 3,
+      imageTargets: 2,
+      excludedImageTargets: 0,
+      totalGenerations: 3,
+      totalRegenerations: 1,
+      retriedImageTargets: 1,
+      retryRate: 0.5,
+      pearsonCorrelation: 1,
+    });
 
     const repairPanels = await request(
       'POST',

@@ -38,6 +38,7 @@ import {
 import { listAdminModerationDecisionEvents } from '../services/moderationDecisionService';
 import { getOpsRuntimeStatus, setOpsRuntimeMode } from '../services/opsRuntimeService';
 import { getImageValidationById } from '../services/imageValidationQueryService';
+import { getImageValidationCharacterRegenerationAnalytics } from '../services/imageValidationAnalyticsService';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
@@ -1442,6 +1443,25 @@ router.get('/image-validations', async (req: Request, res: Response) => {
     });
   }
 });
+
+router.get(
+  '/image-validations/analytics/character-regenerations',
+  async (_req: Request, res: Response) => {
+    try {
+      const data = await getImageValidationCharacterRegenerationAnalytics();
+      return res.json({ status: 'success', data });
+    } catch (error) {
+      logger.error(
+        { err: error },
+        'Admin image validation character/regeneration analytics failed'
+      );
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to load image validation analytics',
+      });
+    }
+  }
+);
 
 router.get('/image-validations/:id/image', async (req: Request, res: Response) => {
   try {

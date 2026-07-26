@@ -327,6 +327,32 @@ export type AdminImageValidationDetail = AdminImageValidationItem & {
   usage: AdminImageValidationUsage | null;
 };
 
+export type AdminImageValidationCharacterRegenerationAnalytics = {
+  totals: {
+    validationRows: number;
+    imageTargets: number;
+    excludedImageTargets: number;
+    totalGenerations: number;
+    totalRegenerations: number;
+    retriedImageTargets: number;
+    retryRate: number;
+    pearsonCorrelation: number | null;
+  };
+  buckets: Array<{
+    characterCount: number;
+    imageTargets: number;
+    totalGenerations: number;
+    totalRegenerations: number;
+    averageRegenerations: number;
+    retryRate: number;
+  }>;
+  distribution: Array<{
+    characterCount: number;
+    regenerations: number;
+    imageTargets: number;
+  }>;
+};
+
 export type AdminSceneImageValidationCandidateComparison = {
   id: string;
   attempt: number;
@@ -1097,6 +1123,19 @@ export function useAdminImageValidations(params: { limit: number; offset: number
           params: { limit, offset },
         }
       );
+      return response.data.data;
+    },
+  });
+}
+
+export function useAdminImageValidationCharacterRegenerationAnalytics() {
+  return useQuery({
+    queryKey: ['admin', 'image-validations', 'analytics', 'character-regenerations'],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        data: AdminImageValidationCharacterRegenerationAnalytics;
+      }>('/api/v1/admin/image-validations/analytics/character-regenerations');
       return response.data.data;
     },
   });

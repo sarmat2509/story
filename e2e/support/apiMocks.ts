@@ -37,7 +37,8 @@ export type ApiMockScenario =
   | 'child-mode-switch-instant'
   | 'story-continuation-retry'
   | 'story-review-publish'
-  | 'admin-validation-bbox';
+  | 'admin-validation-bbox'
+  | 'admin-validation-analytics';
 
 type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -505,6 +506,80 @@ function staticDefinitions(): MockDefinition[] {
 }
 
 function scenarioDefinitions(scenario: ApiMockScenario): MockDefinition[] {
+  if (scenario === 'admin-validation-analytics') {
+    const adminUser = { ...testUser, role: 'admin' };
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/me',
+        responses: [response({ status: 'success', user: adminUser })],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/admin/image-validations?limit=20&offset=0',
+        responses: [
+          response({
+            status: 'success',
+            data: { items: [], meta: { limit: 20, offset: 0, total: 0 } },
+          }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: '/api/v1/admin/image-validations/analytics/character-regenerations',
+        responses: [
+          response({
+            status: 'success',
+            data: {
+              totals: {
+                validationRows: 12,
+                imageTargets: 4,
+                excludedImageTargets: 0,
+                totalGenerations: 8,
+                totalRegenerations: 4,
+                retriedImageTargets: 3,
+                retryRate: 0.75,
+                pearsonCorrelation: 0.8528,
+              },
+              buckets: [
+                {
+                  characterCount: 1,
+                  imageTargets: 1,
+                  totalGenerations: 1,
+                  totalRegenerations: 0,
+                  averageRegenerations: 0,
+                  retryRate: 0,
+                },
+                {
+                  characterCount: 2,
+                  imageTargets: 1,
+                  totalGenerations: 2,
+                  totalRegenerations: 1,
+                  averageRegenerations: 1,
+                  retryRate: 1,
+                },
+                {
+                  characterCount: 3,
+                  imageTargets: 2,
+                  totalGenerations: 5,
+                  totalRegenerations: 3,
+                  averageRegenerations: 1.5,
+                  retryRate: 1,
+                },
+              ],
+              distribution: [
+                { characterCount: 1, regenerations: 0, imageTargets: 1 },
+                { characterCount: 2, regenerations: 1, imageTargets: 1 },
+                { characterCount: 3, regenerations: 1, imageTargets: 1 },
+                { characterCount: 3, regenerations: 2, imageTargets: 1 },
+              ],
+            },
+          }),
+        ],
+      },
+    ];
+  }
+
   if (scenario === 'admin-validation-bbox') {
     const validationId = '1588b77c-aace-416a-9adf-9dfd3ff3f495';
     const adminUser = { ...testUser, role: 'admin' };

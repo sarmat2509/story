@@ -108,6 +108,23 @@ export class ImageValidationRepository {
     return row?.n ?? 0;
   }
 
+  async listForCharacterRegenerationAnalytics() {
+    return this.db
+      .select({
+        storyId: schema.imageValidationResults.storyId,
+        sceneIndex: schema.imageValidationResults.sceneIndex,
+        subjectType: schema.imageValidationResults.subjectType,
+        pageNumber: schema.imageValidationResults.pageNumber,
+        panelIndex: schema.imageValidationResults.panelIndex,
+        panelId: schema.imageValidationResults.panelId,
+        attempt: schema.imageValidationResults.attempt,
+        requestManifest: schema.imageValidationResults.requestManifest,
+        result: schema.imageValidationResults.result,
+        createdAt: schema.imageValidationResults.createdAt,
+      })
+      .from(schema.imageValidationResults);
+  }
+
   async findById(id: string): Promise<schema.ImageValidationResultRow | null> {
     const [row] = await this.db
       .select()

@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { Text, TouchableOpacity } from 'react-native';
-import { useAdminImageValidations } from '@/admin/api/admin';
+import {
+  useAdminImageValidationCharacterRegenerationAnalytics,
+  useAdminImageValidations,
+} from '@/admin/api/admin';
+import { AdminCharacterRegenerationChart } from '@/admin/components/AdminCharacterRegenerationChart';
 import { AdminPagination } from '@/admin/components/AdminControls';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
@@ -20,6 +24,7 @@ export default function AdminValidationsScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [offset, setOffset] = useState(0);
   const { data, isLoading, error } = useAdminImageValidations({ limit: PAGE_SIZE, offset });
+  const analytics = useAdminImageValidationCharacterRegenerationAnalytics();
 
   const rows = (data?.items ?? []).map((item) => [
     item.storyId,
@@ -41,6 +46,9 @@ export default function AdminValidationsScreen() {
 
   return (
     <AdminLayout navigation={navigation} activeRoute="AdminValidations" title="Admin / Validations">
+      {analytics.isLoading ? <AdminLoadingState /> : null}
+      {analytics.error ? <AdminErrorState message={(analytics.error as Error).message} /> : null}
+      {analytics.data ? <AdminCharacterRegenerationChart data={analytics.data} /> : null}
       {isLoading ? <AdminLoadingState /> : null}
       {error ? <AdminErrorState message={(error as Error).message} /> : null}
       {!isLoading && !error ? (
