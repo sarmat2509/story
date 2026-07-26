@@ -4,7 +4,7 @@ import {
   getFeedbackCategoryForTopic,
   isContentReportTopic,
 } from '@wondertales/shared';
-import { REPORTED_SCREENS, isFeedbackTopicAllowedForSession } from '../feedback';
+import { REPORTED_SCREENS } from '../feedback';
 
 assert.ok(
   REPORTED_SCREENS.includes('published_story'),
@@ -37,21 +37,5 @@ assert.equal(isContentReportTopic('unsafe_image'), true);
 assert.equal(isContentReportTopic('unsafe_text'), true);
 assert.equal(isContentReportTopic('privacy_concern'), true);
 assert.equal(isContentReportTopic('billing'), false);
-
-assert.equal(
-  isFeedbackTopicAllowedForSession('child', 'billing'),
-  false,
-  'child sessions cannot submit ordinary support feedback'
-);
-assert.equal(
-  isFeedbackTopicAllowedForSession('child', 'unsafe_image'),
-  true,
-  'child sessions can report unsafe generated content'
-);
-assert.equal(
-  isFeedbackTopicAllowedForSession('parent', 'billing'),
-  true,
-  'parent sessions can submit support feedback'
-);
 
 console.log('feedbackReportedScreens and support topic tests passed');

@@ -57,13 +57,6 @@ function getClientIp(req: Request): string {
   return req.ip || 'unknown';
 }
 
-export function isFeedbackTopicAllowedForSession(
-  sessionMode: Request['sessionMode'],
-  supportTopic: typeof FEEDBACK_TOPICS[number]
-): boolean {
-  return sessionMode !== 'child' || isContentReportTopic(supportTopic);
-}
-
 // 5 submissions per hour per IP (or per userId when logged in)
 const feedbackLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -114,14 +107,6 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       ? getFeedbackCategoryForTopic(parsed.data.supportTopic)
       : (parsed.data.category ?? 'other');
     const isContentReport = isContentReportTopic(supportTopic);
-
-    if (!isFeedbackTopicAllowedForSession(req.sessionMode, supportTopic)) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Parent session required',
-        code: 'PARENT_SESSION_REQUIRED',
-      });
-    }
 
     const userId = req.user?.id;
     if (!userId && !email && !isContentReport) {

@@ -164,14 +164,17 @@ async function main(): Promise<void> {
     assert.equal((createdFeedback.at(-1) as any).email, 'guest@example.test');
 
     activeSession = childSession;
-    const childBlocked = await post(childAuth, {
+    const childReport = await post(childAuth, {
       supportTopic: 'bug',
-      message: 'Child mode should not submit general bug reports.',
+      message: 'Child mode should be able to submit general bug reports.',
       reportedScreen: 'story_viewer',
     });
-    assert.equal(childBlocked.status, 403);
-    const childBlockedBody = (await childBlocked.json()) as any;
-    assert.equal(childBlockedBody.code, 'PARENT_SESSION_REQUIRED');
+    assert.equal(childReport.status, 201, 'child mode can report an app problem');
+    assert.equal((createdFeedback.at(-1) as any).userId, parentUserId);
+    assert.equal((createdFeedback.at(-1) as any).context.reportedScreen, 'story_viewer');
+    assert.equal((createdFeedback.at(-1) as any).context.supportTopic, 'bug');
+    assert.equal((createdFeedback.at(-1) as any).context.reporterSessionMode, 'child');
+    assert.equal((createdFeedback.at(-1) as any).context.reporterChildProfileId, childProfileId);
   } finally {
     clearRepositoryTestOverrides();
     await close(server);
