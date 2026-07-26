@@ -137,7 +137,6 @@ import {
   HumanDistinctiveFeature,
 } from '@wondertales/shared';
 import { ChipSelector } from './form/ChipSelector';
-import { TagsInput } from './form/TagsInput';
 import { PhotoUploadGrid } from './form/PhotoUploadGrid';
 import { ExpandableCard } from './ExpandableCard';
 
@@ -1326,29 +1325,27 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       getTranslation={t}
                     />
 
-                    <TagsInput
+                    <ChipSelector
                       label={t('character_form.size')}
-                      tags={imaginaryAppearance.size ? [imaginaryAppearance.size] : []}
-                      onTagsChange={(tags) =>
-                        setImaginaryAppearance({ ...imaginaryAppearance, size: tags[0] || '' })
+                      options={SIZE_SUGGESTIONS}
+                      selected={imaginaryAppearance.size}
+                      onSelect={(val) =>
+                        setImaginaryAppearance({ ...imaginaryAppearance, size: val as string })
                       }
-                      suggestions={SIZE_SUGGESTIONS}
-                      max={1}
-                      placeholder={t('character_form.size_placeholder')}
                     />
 
-                    <TagsInput
+                    <ChipSelector
                       label={t('character_form.magical_features')}
-                      tags={imaginaryAppearance.magicalFeatures}
-                      onTagsChange={(tags) =>
+                      options={MAGICAL_FEATURES_SUGGESTIONS}
+                      selected={imaginaryAppearance.magicalFeatures}
+                      onSelect={(val) =>
                         setImaginaryAppearance({
                           ...imaginaryAppearance,
-                          magicalFeatures: tags,
+                          magicalFeatures: val as string[],
                         })
                       }
-                      suggestions={MAGICAL_FEATURES_SUGGESTIONS}
+                      multiple
                       max={10}
-                      placeholder={t('character_form.magical_features_placeholder')}
                     />
                   </View>
                 )}

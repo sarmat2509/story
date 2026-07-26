@@ -117,6 +117,19 @@ describe('character create and rename forms', () => {
     expect(view.queryByText(/toy,drawing,imaginary_friend/)).toBeNull();
   });
 
+  it('uses selectable pills for imaginary character size and magical features', () => {
+    const view = render(<CharacterFormModal visible onClose={mockClose} />);
+
+    fireEvent.press(view.getByTestId('character-form-type-imaginary'));
+
+    expect(view.getByTestId('chip-selector-character_form.size')).toHaveTextContent(
+      /tiny,small,medium,large,giant/
+    );
+    expect(view.getByTestId('chip-selector-character_form.magical_features')).toHaveTextContent(
+      /wings,horns,tail,sparkles,glow/
+    );
+  });
+
   it('uses selectable personality pills for a person character', () => {
     const view = render(<CharacterFormModal visible onClose={mockClose} />);
 
