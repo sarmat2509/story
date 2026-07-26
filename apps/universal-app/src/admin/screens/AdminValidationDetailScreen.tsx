@@ -25,6 +25,7 @@ import { API_BASE_URL } from '@/config/constants';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { authenticatedFetch } from '@/utils/authenticatedFetch';
 import { storage } from '@/utils/storage';
 
 function toLabel(key: string): string {
@@ -423,11 +424,9 @@ function AuthenticatedAdminImagePreview({
 
     const load = async () => {
       try {
-        const token = await storage.getAuthToken();
-        const response = await fetch(url, {
+        const response = await authenticatedFetch(url, {
           cache: 'no-store',
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!response.ok) {
           throw new Error(`Image request failed: ${response.status}`);

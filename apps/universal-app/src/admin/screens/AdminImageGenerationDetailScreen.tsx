@@ -21,7 +21,7 @@ import { API_BASE_URL } from '@/config/constants';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
-import { storage } from '@/utils/storage';
+import { authenticatedFetch } from '@/utils/authenticatedFetch';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -187,10 +187,8 @@ function AuthenticatedAdminImagePreview({
 
     const load = async () => {
       try {
-        const token = await storage.getAuthToken();
-        const response = await fetch(url, {
+        const response = await authenticatedFetch(url, {
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
         const blob = await response.blob();
