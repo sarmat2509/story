@@ -1355,6 +1355,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       onSelect={(val) =>
                         setImaginaryAppearance({ ...imaginaryAppearance, size: val as string })
                       }
+                      translationPrefix="character_form.imaginary_sizes"
+                      getTranslation={t}
                     />
 
                     <ChipSelector
@@ -1369,6 +1371,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       }
                       multiple
                       max={10}
+                      translationPrefix="character_form.magical_feature_options"
+                      getTranslation={t}
                     />
                   </View>
                 )}
