@@ -35,7 +35,15 @@ jest.mock('@/components/form/PhotoUploadGrid', () => ({
 }));
 
 jest.mock('@/components/form/ChipSelector', () => ({
-  ChipSelector: () => null,
+  ChipSelector: ({ label, options }: { label: string; options: string[] }) => {
+    const React = require('react');
+    const { Text, View } = require('react-native');
+    return React.createElement(
+      View,
+      { testID: label === 'character_form.subtype_label' ? 'character-form-subtype-selector' : undefined },
+      React.createElement(Text, null, options.join(','))
+    );
+  },
 }));
 
 jest.mock('@/components/form/TagsInput', () => ({
@@ -83,6 +91,14 @@ describe('character create and rename forms', () => {
       })
     );
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders every subtype in one selector instead of repeating its label', () => {
+    const view = render(<CharacterFormModal visible onClose={mockClose} />);
+
+    expect(view.getAllByTestId('character-form-subtype-selector')).toHaveLength(1);
+    expect(view.getByText('dog,cat,hamster,parrot,rabbit,turtle,fish,goat,cow,horse,other_animal'))
+      .toBeOnTheScreen();
   });
 
   it('renames a character with a name-only payload without any AI dependency', async () => {

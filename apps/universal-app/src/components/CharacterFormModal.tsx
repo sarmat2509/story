@@ -1020,40 +1020,20 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
               </View>
               {/* Subtype selection */}
               <View style={styles.field}>
-                <ScrollView
-                  style={styles.subtypeList}
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                >
-                  {SUBTYPE_OPTIONS[type].map((section, index) => {
-                    // Extract options for this section
-                    const sectionItems = section.items || [section];
-                    const options = sectionItems
-                      .filter((item) => item.value && item.key)
-                      .map((item) => item.value!);
-
-                    // Create label with section prefix if exists
-                    const label = section.section
-                      ? `${t('character_form.subtype_label')} (${t(`characters.subtype_sections.${section.section}`)})`
-                      : t('character_form.subtype_label');
-
-                    return (
-                      <View
-                        key={section.section || `section-${index}`}
-                        style={styles.subtypeChipGroup}
-                      >
-                        <ChipSelector
-                          label={label}
-                          options={options}
-                          selected={subtype || ''}
-                          onSelect={(val) => setSubtype(val as CharacterSubtype)}
-                          translationPrefix="characters.subtypes"
-                          getTranslation={t}
-                        />
-                      </View>
-                    );
-                  })}
-                </ScrollView>
+                <View style={styles.subtypeChipGroup}>
+                  <ChipSelector
+                    label={t('character_form.subtype_label')}
+                    options={SUBTYPE_OPTIONS[type].flatMap((section) =>
+                      (section.items ?? [section]).flatMap((item) =>
+                        item.value && item.key ? [item.value] : []
+                      )
+                    )}
+                    selected={subtype || ''}
+                    onSelect={(val) => setSubtype(val as CharacterSubtype)}
+                    translationPrefix="characters.subtypes"
+                    getTranslation={t}
+                  />
+                </View>
               </View>
 
               {/* Description */}
@@ -1758,9 +1738,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
-  },
-  subtypeList: {
-    maxHeight: 200,
   },
   subtypeChipGroup: {
     marginBottom: theme.spacing[3],
