@@ -29,6 +29,7 @@ import {
   buildAdminImageGenerationAttempts,
   type AdminImageGenerationAttempt,
 } from '@/admin/utils/imageGenerationAttempts';
+import { groupTextValidationAttempts } from '@/admin/utils/textValidationAttempts';
 import {
   ALL_COST_CATEGORY_IDS,
   COST_BREAKDOWN_CATEGORIES,
@@ -605,6 +606,7 @@ function TextValidationPanel({
   }
 
   const attempts = Array.isArray(validation.attempts) ? validation.attempts : [];
+  const attemptGroups = groupTextValidationAttempts(attempts);
   const failedSceneIds = Array.isArray(validation.failedSceneIds) ? validation.failedSceneIds : [];
   const passedSceneIds = Array.isArray(validation.passedSceneIds) ? validation.passedSceneIds : [];
   const score =
@@ -635,8 +637,8 @@ function TextValidationPanel({
           <Text style={styles.valueText}>{validation.sceneCount ?? 'n/a'}</Text>
         </View>
         <View style={styles.textValidationSummaryPill}>
-          <Text style={styles.valueKey}>ATTEMPTS</Text>
-          <Text style={styles.valueText}>{validation.attemptCount ?? attempts.length}</Text>
+          <Text style={styles.valueKey}>VALIDATION RUNS</Text>
+          <Text style={styles.valueText}>{attemptGroups.length}</Text>
         </View>
         <View style={styles.textValidationSummaryPill}>
           <Text style={styles.valueKey}>DURATION</Text>
@@ -647,21 +649,23 @@ function TextValidationPanel({
         Passed scenes: {passedSceneIds.length ? passedSceneIds.join(', ') : 'n/a'} · Failed scenes:{' '}
         {failedSceneIds.length ? failedSceneIds.join(', ') : 'none'}
       </Text>
-      {attempts.length > 0 ? (
+      {attemptGroups.length > 0 ? (
         <View style={styles.textValidationAttemptList}>
-          {attempts.map((attempt, index) => (
+          {attemptGroups.map((attemptGroup, index) => (
             <View
-              key={`${attempt.sceneId}-${attempt.attempt}-${attempt.phase}-${index}`}
+              key={`${attemptGroup.sceneIds.join(',')}-${attemptGroup.attempt}-${attemptGroup.phase}-${index}`}
               style={styles.textValidationAttemptCard}
             >
               <View style={styles.sceneCardHeader}>
                 <View>
                   <Text style={styles.costBreakdownOperation}>
-                    Scene {attempt.sceneId} · {attempt.phase} attempt {attempt.attempt}
+                    {attemptGroup.isBatch
+                      ? `All scenes · ${attemptGroup.phase} attempt ${attemptGroup.attempt}`
+                      : `Scene ${attemptGroup.sceneIds[0]} · ${attemptGroup.phase} attempt ${attemptGroup.attempt}`}
                   </Text>
                   <Text style={styles.costBreakdownMeta}>
-                    {attempt.isValid ? 'passed' : 'failed'} · {attempt.score}/100 ·{' '}
-                    {formatDurationMs(attempt.durationMs)}
+                    {attemptGroup.failedSceneIds.length === 0 ? 'passed' : 'failed'} ·{' '}
+                    {attemptGroup.score}/100 · {formatDurationMs(attemptGroup.durationMs)}
                   </Text>
                 </View>
               </View>
@@ -671,7 +675,7 @@ function TextValidationPanel({
                   <ScrollView style={styles.textValidationJsonBox} nestedScrollEnabled>
                     <ScrollView horizontal contentContainerStyle={styles.textValidationJsonContent}>
                       <Text selectable style={styles.textValidationJsonText}>
-                        {formatJsonBlock(attempt.rawManifest)}
+                        {formatJsonBlock(attemptGroup.rawManifest)}
                       </Text>
                     </ScrollView>
                   </ScrollView>
@@ -682,8 +686,17 @@ function TextValidationPanel({
                     <ScrollView horizontal contentContainerStyle={styles.textValidationJsonContent}>
                       <Text selectable style={styles.textValidationJsonText}>
                         {formatJsonBlock({
-                          normalized: attempt.result,
-                          raw: attempt.rawResult,
+                          sceneIds: attemptGroup.sceneIds,
+                          passedSceneIds: attemptGroup.attempts
+                            .filter((attempt) => attempt.isValid)
+                            .map((attempt) => attempt.sceneId),
+                          failedScenes: attemptGroup.attempts
+                            .filter((attempt) => !attempt.isValid)
+                            .map((attempt) => ({
+                              sceneId: attempt.sceneId,
+                              result: attempt.result,
+                              raw: attempt.rawResult,
+                            })),
                         })}
                       </Text>
                     </ScrollView>
