@@ -379,6 +379,12 @@ const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
         { value: 'fairy', key: 'fairy' },
         { value: 'elf', key: 'elf' },
         { value: 'gnome', key: 'gnome' },
+        { value: 'mermaid', key: 'mermaid' },
+        { value: 'phoenix', key: 'phoenix' },
+        { value: 'griffin', key: 'griffin' },
+        { value: 'centaur', key: 'centaur' },
+        { value: 'troll', key: 'troll' },
+        { value: 'monster', key: 'monster' },
       ],
     },
     {
@@ -391,15 +397,7 @@ const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
         { value: 'alien', key: 'alien' },
       ],
     },
-    {
-      section: 'animated',
-      items: [
-        { value: 'toy', key: 'toy' },
-        { value: 'drawing', key: 'drawing' },
-        { value: 'imaginary_friend', key: 'imaginary_friend' },
-        { value: 'other_creature', key: 'other_creature' },
-      ],
-    },
+    { value: 'other_creature', key: 'other_creature' },
   ],
 };
 

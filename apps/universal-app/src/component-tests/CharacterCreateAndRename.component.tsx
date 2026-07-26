@@ -106,6 +106,17 @@ describe('character create and rename forms', () => {
       .toBeOnTheScreen();
   });
 
+  it('excludes non-visual imaginary subtypes from the selector', () => {
+    const view = render(<CharacterFormModal visible onClose={mockClose} />);
+
+    fireEvent.press(view.getByTestId('character-form-type-imaginary'));
+
+    expect(view.getByTestId('character-form-subtype-selector')).toHaveTextContent(
+      'dragon,unicorn,fairy,elf,gnome,mermaid,phoenix,griffin,centaur,troll,monster,wizard,witch,ghost,robot,alien,other_creature'
+    );
+    expect(view.queryByText(/toy,drawing,imaginary_friend/)).toBeNull();
+  });
+
   it('uses selectable personality pills for a person character', () => {
     const view = render(<CharacterFormModal visible onClose={mockClose} />);
 
