@@ -288,6 +288,64 @@ function testQaRosterKeepsOneEntryPerStructuralIdentity() {
   assert.equal(out[0].name, 'Eyedragon');
 }
 
+function testQaRosterExcludesKnownCharactersOutsideSceneVisual() {
+  const emiliaRef = '97bab407-4906-41fa-8dd6-9554c574ef33';
+  const sparkyRef = 'c9e5b476-2fd8-4ab6-8148-d336be03821a';
+  const offscreenRef = '6684bfd1-efcc-486a-964d-c3b24f516a6e';
+  const scene: SceneData = {
+    sceneId: 8,
+    text: 'The full story text mentions Offscreen Dragon elsewhere.',
+    sceneVisual: {
+      setting: 'Sparky lights the path beside Emilia.',
+      lighting: 'Warm evening light.',
+      cameraComposition: {
+        shot: 'Medium shot of Emilia.',
+        characters: [
+          {
+            name: 'Emilia',
+            characterRef: emiliaRef,
+            description: 'walking at center',
+          },
+        ],
+      },
+    },
+  };
+  const chars = [
+    {
+      id: emiliaRef,
+      characterRef: emiliaRef,
+      name: 'Емілія',
+      nameInStory: 'Emilia',
+      nameAliases: ['Емілія', 'Emilia'],
+      type: 'person',
+    },
+    {
+      id: sparkyRef,
+      characterRef: sparkyRef,
+      name: 'Сяйвик',
+      nameInStory: 'Sparky',
+      nameAliases: ['Сяйвик', 'Sparky'],
+      type: 'imaginary',
+    },
+    {
+      id: offscreenRef,
+      characterRef: offscreenRef,
+      name: 'Offscreen Dragon',
+      type: 'imaginary',
+    },
+  ] as unknown as CharacterData[];
+
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+
+  assert.deepEqual(
+    out.map(({ name, characterRef }) => ({ name, characterRef })),
+    [
+      { name: 'Emilia', characterRef: emiliaRef },
+      { name: 'Sparky', characterRef: sparkyRef },
+    ]
+  );
+}
+
 testHumanMapping();
 testChildMapping();
 testLlmGeneratedHumanDoesNotValidateOutfit();
@@ -300,4 +358,5 @@ testNfcNfdNameMatching();
 testLocalizedAliasesDoNotBecomeDuplicateQaCharacters();
 testAliasMentionOutsideCameraRosterUsesSceneVisualNameAndIdentity();
 testQaRosterKeepsOneEntryPerStructuralIdentity();
+testQaRosterExcludesKnownCharactersOutsideSceneVisual();
 console.log('buildExpectedCharactersForValidation tests passed');

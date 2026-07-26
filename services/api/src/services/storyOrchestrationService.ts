@@ -6398,6 +6398,7 @@ async function buildValidationReferenceImages(params: {
   }>;
 }): Promise<
   Array<{
+    characterRef?: string;
     characterName: string;
     imageData?: string;
     fileUri?: string;
@@ -6407,6 +6408,7 @@ async function buildValidationReferenceImages(params: {
   }>
 > {
   const refs: Array<{
+    characterRef?: string;
     characterName: string;
     imageData?: string;
     fileUri?: string;
@@ -6462,7 +6464,9 @@ async function buildValidationReferenceImages(params: {
             ? 'dressed_turnaround'
             : 'turnaround';
         refs.push({
-          characterName: generatedIdentityRef.characterName || resolvedName,
+          ...(expected.characterRef ? { characterRef: expected.characterRef } : {}),
+          // QA names are aliases from sceneVisual; stable identity lives in characterRef.
+          characterName: expected.name,
           ...(generatedIdentityRef.fileUri ? { fileUri: generatedIdentityRef.fileUri } : {}),
           ...(imageData ? { imageData } : {}),
           mimeType: generatedIdentityRef.mimeType,

@@ -823,6 +823,148 @@ async function testSegmentedValidationIgnoresLegacyNonStringStagingDescription()
   primary.assertExhausted();
 }
 
+async function testSegmentedValidationNormalizesRosterToUniqueSceneVisualCharacters() {
+  const dragonRef = '07207caa-3601-428d-b3d4-71e2a69d454e';
+  const sparkyRef = 'c9e5b476-2fd8-4ab6-8148-d336be03821a';
+  const offscreenRef = '6684bfd1-efcc-486a-964d-c3b24f516a6e';
+  const sceneQa = {
+    ...segmentedLayoutResult(),
+    characterBoundingBoxes: segmentedLayoutResult().characterBoundingBoxes.map((box) => ({
+      ...box,
+      name: box.name === 'Lera' ? 'Eyedragon' : 'Sparky',
+    })),
+  };
+  const eyedragonResult = {
+    ...validResult().characters[1],
+    name: 'Eyedragon',
+  };
+  const sparkyResult = {
+    ...validResult().characters[1],
+    name: 'Sparky',
+  };
+  const primary = new MockTextProvider()
+    .queueStructured('image_validation_segmented_scene_qa', sceneQa)
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      segmentedCharacterResult(eyedragonResult)
+    )
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      segmentedCharacterResult(sparkyResult)
+    );
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      imageData: TINY_PNG,
+      mimeType: 'image/png',
+      expectedCharacters: [
+        {
+          characterRef: dragonRef,
+          name: 'Айдрагон',
+          characterKind: 'imaginary',
+        },
+        {
+          characterRef: dragonRef,
+          name: 'Eyedragon',
+          characterKind: 'imaginary',
+        },
+        {
+          characterRef: sparkyRef,
+          name: 'Sparky',
+          characterKind: 'imaginary',
+        },
+        {
+          characterRef: offscreenRef,
+          name: 'Offscreen Dragon',
+          characterKind: 'imaginary',
+        },
+      ],
+      sceneVisual: {
+        setting: 'Eyedragon presents the gift while Sparky shines nearby.',
+        lighting: 'Cool starlight.',
+        cameraComposition: {
+          shot: 'Medium shot with Eyedragon and Sparky.',
+          characters: [
+            {
+              characterRef: dragonRef,
+              name: 'Eyedragon',
+              description: 'right of center',
+            },
+            {
+              characterRef: sparkyRef,
+              name: 'Sparky',
+              description: 'hovering at left',
+            },
+          ],
+        },
+      },
+      referenceImages: [
+        {
+          characterRef: dragonRef,
+          characterName: 'Айдрагон',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+        },
+        {
+          characterRef: sparkyRef,
+          characterName: 'Сяйвик',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+        },
+        {
+          characterName: 'Offscreen Dragon',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+        },
+      ],
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  assert.equal(result.expectedCharacterCount, 2);
+  assert.deepEqual(
+    result.characters.map((character) => character.name),
+    ['Eyedragon', 'Sparky']
+  );
+  assert.equal(new Set(result.characters.map((character) => character.name)).size, 2);
+  assert.equal(primary.structuredRequests.length, 3);
+
+  const sceneQaRequest = primary.structuredRequests.find((request) =>
+    request.prompt.includes('validate expected cast and global image quality')
+  );
+  assert.ok(sceneQaRequest);
+  assert.match(sceneQaRequest.prompt, /- Eyedragon \(imaginary/);
+  assert.match(sceneQaRequest.prompt, /- Sparky \(imaginary/);
+  assert.doesNotMatch(sceneQaRequest.prompt, /Айдрагон|Offscreen Dragon/);
+
+  const manifest = result.requestManifest as {
+    expectedCharacters: Array<{ characterRef?: string; name: string }>;
+    references: Array<{ characterRef?: string; characterName: string }>;
+  };
+  assert.deepEqual(
+    manifest.expectedCharacters.map((character) => ({
+      characterRef: character.characterRef,
+      name: character.name,
+    })),
+    [
+      { characterRef: dragonRef, name: 'Eyedragon' },
+      { characterRef: sparkyRef, name: 'Sparky' },
+    ]
+  );
+  assert.deepEqual(
+    manifest.references.map((reference) => ({
+      characterRef: reference.characterRef,
+      characterName: reference.characterName,
+    })),
+    [
+      { characterRef: dragonRef, characterName: 'Eyedragon' },
+      { characterRef: sparkyRef, characterName: 'Sparky' },
+    ]
+  );
+  primary.assertExhausted();
+}
+
 async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
   const leraResponse = segmentedCharacterResult({
     name: 'Lera',
@@ -1438,6 +1580,7 @@ async function main() {
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
   await testSegmentedValidationRunsLayoutAndPerCharacterPasses();
   await testSegmentedValidationIgnoresLegacyNonStringStagingDescription();
+  await testSegmentedValidationNormalizesRosterToUniqueSceneVisualCharacters();
   await testSceneQaDuplicateEvidenceOverridesSingleCropResult();
   await testSceneQaMissingCharacterSkipsCropValidation();
   await testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth();

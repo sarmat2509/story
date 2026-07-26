@@ -641,6 +641,7 @@ export class ImageDomainService {
     imageData: Buffer;
     mimeType: string;
     expectedCharacters: Array<{
+      characterRef?: string;
       name: string;
       characterKind: 'human' | 'animal' | 'imaginary';
       speciesSubtype?: string;
@@ -649,6 +650,7 @@ export class ImageDomainService {
     }>;
     sceneVisual: SceneVisual;
     referenceImages?: Array<{
+      characterRef?: string;
       characterName: string;
       imageData?: string;
       fileUri?: string;

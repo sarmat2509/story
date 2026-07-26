@@ -24,12 +24,14 @@ import {
   hashModerationSubject,
   recordModerationDecision,
 } from '../../services/moderationDecisionService';
+import { crossScriptIdentityKey } from '../../utils/characterNormalization';
 import { logger } from '../../utils/logger';
 
 export type ProductImageValidationInput = {
   imageData: Buffer;
   mimeType: string;
   expectedCharacters: Array<{
+    characterRef?: string;
     name: string;
     characterKind: ImageValidationCharacterKind;
     speciesSubtype?: string;
@@ -38,6 +40,7 @@ export type ProductImageValidationInput = {
   }>;
   sceneVisual: SceneVisual;
   referenceImages?: Array<{
+    characterRef?: string;
     characterName: string;
     imageData?: string;
     fileUri?: string;
@@ -482,6 +485,91 @@ function validationNamesMatch(a: string, b: string): boolean {
   const na = stripCharacterIdFromName(a).trim().toLowerCase();
   const nb = stripCharacterIdFromName(b).trim().toLowerCase();
   return na === nb || a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function validationSceneVisualText(sceneVisual: SceneVisual): string {
+  const composition = sceneVisual.cameraComposition;
+  const compositionText =
+    typeof composition === 'string'
+      ? composition
+      : [
+          composition.shot,
+          ...composition.characters.flatMap((character) => [
+            character.name,
+            typeof character.description === 'string' ? character.description : '',
+          ]),
+        ].join('\n');
+  return [sceneVisual.setting, compositionText, sceneVisual.lighting].filter(Boolean).join('\n');
+}
+
+function validationSceneMentionsName(sceneText: string, name: string): boolean {
+  const clean = stripCharacterIdFromName(name).trim();
+  if (!clean) return false;
+  const escaped = escapeRegExp(clean);
+  return new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu').test(sceneText);
+}
+
+function expectedCharacterIdentityKey(
+  character: ProductImageValidationInput['expectedCharacters'][number]
+): string {
+  const characterRef = character.characterRef?.trim().toLowerCase();
+  if (characterRef) return `ref:${characterRef}`;
+  const cleanName = stripCharacterIdFromName(character.name).trim();
+  return `name:${crossScriptIdentityKey(cleanName) || cleanName.toLocaleLowerCase()}`;
+}
+
+/**
+ * QA must validate the cast of the current visual scene, not every known story character.
+ * Stable characterRef is the primary identity; localized names are only competing labels for
+ * that identity. The label actually present in sceneVisual wins.
+ */
+export function normalizeExpectedCharactersForSceneVisual(
+  expectedCharacters: ProductImageValidationInput['expectedCharacters'],
+  sceneVisual: SceneVisual
+): ProductImageValidationInput['expectedCharacters'] {
+  const composition = sceneVisual.cameraComposition;
+  const structuredCharacters =
+    typeof composition === 'string' ? null : (composition.characters ?? []);
+  const sceneText = validationSceneVisualText(sceneVisual);
+  const selected = new Map<
+    string,
+    {
+      character: ProductImageValidationInput['expectedCharacters'][number];
+      score: number;
+    }
+  >();
+
+  for (const character of expectedCharacters) {
+    const directCameraNameMatch =
+      structuredCharacters?.some((row) => validationNamesMatch(row.name, character.name)) ?? false;
+    const directCameraRefMatch =
+      !!character.characterRef &&
+      (structuredCharacters?.some(
+        (row) => row.characterRef?.trim() === character.characterRef?.trim()
+      ) ??
+        false);
+    const directTextMatch = validationSceneMentionsName(sceneText, character.name);
+
+    // Structured sceneVisual is authoritative. Legacy string composition cannot reliably expose
+    // its full cast, so it only receives identity deduplication without filtering.
+    if (
+      structuredCharacters &&
+      !directCameraNameMatch &&
+      !directCameraRefMatch &&
+      !directTextMatch
+    ) {
+      continue;
+    }
+
+    const score = directCameraNameMatch ? 3 : directTextMatch ? 2 : directCameraRefMatch ? 1 : 0;
+    const identityKey = expectedCharacterIdentityKey(character);
+    const existing = selected.get(identityKey);
+    if (!existing || score > existing.score) {
+      selected.set(identityKey, { character, score });
+    }
+  }
+
+  return Array.from(selected.values(), ({ character }) => character);
 }
 
 export function findExpectedForValidationChar(
@@ -1764,14 +1852,17 @@ function summarizeValidationInputParts(
 }
 
 function findReferenceForCharacter(
-  characterName: string,
+  character: ProductImageValidationInput['expectedCharacters'][number],
   refs: PreparedValidationReferenceImage[] | undefined,
   referenceKind: ImageValidationReferenceKind
 ): PreparedValidationReferenceImage | undefined {
   return refs?.find(
     (ref) =>
       (ref.referenceKind ?? 'identity') === referenceKind &&
-      validationNamesMatch(ref.characterName, characterName)
+      ((character.characterRef &&
+        ref.characterRef &&
+        character.characterRef.trim() === ref.characterRef.trim()) ||
+        validationNamesMatch(ref.characterName, character.name))
   );
 }
 
@@ -2172,9 +2263,34 @@ function buildCharacterCropUnavailableResult(
 
 export async function runSegmentedProductImageValidation(
   textProvider: ITextProvider,
-  input: ProductImageValidationInput,
+  rawInput: ProductImageValidationInput,
   options: ProductImageValidationOptions = {}
 ): Promise<ImageValidationResult> {
+  const normalizedExpectedCharacters = normalizeExpectedCharactersForSceneVisual(
+    rawInput.expectedCharacters,
+    rawInput.sceneVisual
+  );
+  const input: ProductImageValidationInput = {
+    ...rawInput,
+    expectedCharacters: normalizedExpectedCharacters,
+  };
+  if (normalizedExpectedCharacters.length !== rawInput.expectedCharacters.length) {
+    logger.warn(
+      {
+        ...rawInput.logContext,
+        receivedRoster: rawInput.expectedCharacters.map((character) => ({
+          characterRef: character.characterRef,
+          name: character.name,
+        })),
+        normalizedRoster: normalizedExpectedCharacters.map((character) => ({
+          characterRef: character.characterRef,
+          name: character.name,
+        })),
+      },
+      'Normalized image validation roster to unique characters present in sceneVisual'
+    );
+  }
+
   const visionModel = options.visionModel;
   const operation = options.operation ?? 'image_validation_segmented';
 
@@ -2213,10 +2329,29 @@ export async function runSegmentedProductImageValidation(
     undefined;
   const characterReferences =
     preparedReferenceImages?.filter((ref) => ref.referenceKind !== 'layout_template') ?? [];
-  const manifestReferenceImages = input.expectedCharacters
-    .map((character) => findReferenceForCharacter(character.name, characterReferences, 'identity'))
-    .filter((ref): ref is PreparedValidationReferenceImage => !!ref)
-    .filter((ref, index, refs) => refs.indexOf(ref) === index);
+  const manifestReferenceImages: PreparedValidationReferenceImage[] = input.expectedCharacters
+    .flatMap((character): PreparedValidationReferenceImage[] => {
+      const reference = findReferenceForCharacter(character, characterReferences, 'identity');
+      return reference
+        ? [
+            {
+              ...reference,
+              characterRef: character.characterRef ?? reference.characterRef,
+              // Names are technical labels in QA. Always use the alias from sceneVisual.
+              characterName: character.name,
+            },
+          ]
+        : [];
+    })
+    .filter(
+      (ref, index, refs) =>
+        refs.findIndex((candidate) => {
+          if (ref.characterRef && candidate.characterRef) {
+            return ref.characterRef === candidate.characterRef;
+          }
+          return validationNamesMatch(ref.characterName, candidate.characterName);
+        }) === index
+    );
   const sceneQaReferenceImages = input.expectedCharacters.length > 1 ? manifestReferenceImages : [];
   const includeBubbleChecks = input.includeBubbleChecks !== false;
   const includeWardrobeChecks = input.includeWardrobeChecks !== false;
@@ -2238,6 +2373,11 @@ export async function runSegmentedProductImageValidation(
     includeBubbleChecks,
     includeWardrobeChecks,
     imageOrder,
+    expectedCharacters: input.expectedCharacters.map((character) => ({
+      characterRef: character.characterRef,
+      name: character.name,
+      characterKind: character.characterKind,
+    })),
     generatedImage: {
       role: 'generated_scene',
       mimeType: preparedGeneratedImage.mimeType,
@@ -2250,6 +2390,7 @@ export async function runSegmentedProductImageValidation(
     },
     references: manifestReferenceImages.map((r, i) => ({
       imageIndex: i + 2,
+      characterRef: r.characterRef,
       characterName: r.characterName,
       referenceKind: r.referenceKind ?? 'identity',
       identitySource: r.identitySource,
@@ -2268,6 +2409,7 @@ export async function runSegmentedProductImageValidation(
       mode: 'segmented_parallel',
       expectedCharacterCount: input.expectedCharacters.length,
       expectedRoster: input.expectedCharacters.map((c) => ({
+        characterRef: c.characterRef,
         name: c.name,
         characterKind: c.characterKind,
         speciesSubtype: c.speciesSubtype,
@@ -2330,11 +2472,18 @@ export async function runSegmentedProductImageValidation(
   const characterCropManifest = requestManifest.characterCrops as Array<Record<string, unknown>>;
 
   const characterPromises = input.expectedCharacters.map(async (character) => {
-    const identityReference = findReferenceForCharacter(
-      character.name,
+    const identityReferenceRaw = findReferenceForCharacter(
+      character,
       characterReferences,
       'identity'
     );
+    const identityReference: PreparedValidationReferenceImage | undefined = identityReferenceRaw
+      ? {
+          ...identityReferenceRaw,
+          characterRef: character.characterRef ?? identityReferenceRaw.characterRef,
+          characterName: character.name,
+        }
+      : undefined;
     const characterBox = findCharacterBoundingBox(character.name, characterBoxes);
     if (sceneQaProviderBlocked) {
       return {
