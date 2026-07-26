@@ -12,6 +12,7 @@ import {
   runProductImageValidation,
   runSegmentedProductImageValidation,
   deriveExplicitSceneAnchorConstraints,
+  normalizeImageValidationResult,
   requiresCelestialSubjectInsideWindow,
   type GraphicNovelPanelImageValidationResult,
 } from '../imageValidationRun';
@@ -104,6 +105,39 @@ function validLayoutResult(): ImageValidationResult {
     layoutFeedback: 'ok',
   };
 }
+
+const anonymizedVisibleSubject = normalizeImageValidationResult(
+  {
+    ...validResult(),
+    characters: [
+      {
+        ...validResult().characters[0],
+        name: 'Emilia',
+        found: false,
+        actualVisibleDescription: 'Emilia with a single long braid instead of a high ponytail',
+      },
+    ],
+  },
+  [
+    {
+      name: 'Emilia',
+      characterKind: 'human',
+      description: 'A cheerful young girl with rainbow hair.',
+      validateOutfit: false,
+    },
+  ],
+  undefined
+);
+
+assert.equal(
+  anonymizedVisibleSubject.characters[0].actualVisibleDescription,
+  'young girl with a single long braid',
+  'repair descriptions must identify a visible subject visually, never by its roster name'
+);
+assert.doesNotMatch(
+  anonymizedVisibleSubject.characters[0].actualVisibleDescription ?? '',
+  /Emilia/i
+);
 
 function segmentedLayoutResult() {
   return {

@@ -101,7 +101,7 @@ Without reference images:
 	- characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster.
 	- If a character row has WARDROBE_CHECK=disabled, set matchesOutfit=true for that character.
 	- Because this run has no reference images, set faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference to null; omit sameOverallDesignRead and silhouetteDriftSeverity. Evaluate roster-description fidelity through found, recognizableScore, matchesColors, matchesOutfit, and issue.
-- actualVisibleDescription is not a problem statement. When the expected character is missing or replaced by a wrong visible subject, describe the subject you actually see in Image 1 as a short concrete noun phrase, e.g. "small green person with a blue flower", "yellow chicken-like creature holding a twig", "girl with one thick side braid". Do not write what is missing, what should change, or how it differs from the reference; put those problems in issue / identityComparisonSummary.
+- actualVisibleDescription is not a problem statement. When the expected character is missing or replaced by a wrong visible subject, describe the subject you actually see in Image 1 as a short concrete noun phrase, e.g. "small green person with a blue flower", "yellow chicken-like creature holding a twig", "girl with one thick side braid". Never include a character name, expected-roster name, or reference label; use a visual noun such as "girl", "boy", "child", "animal", or "creature" instead. Do not write what is missing, what should change, or how it differs from the reference; put those problems in issue / identityComparisonSummary.
 - issue should list concrete observed problems separated by semicolons when needed.
 - Report observable checks only. No aggregate pass/fail field. Return JSON only.`,
     };
@@ -167,7 +167,7 @@ Output JSON rules:
 - Clothing mismatch belongs in matchesOutfit / issue, and missing visible reference clothing/accessory anchors can also make sameOverallDesignRead=false.
 - sameOverallDesignRead is true only when the reference visual-anchor checklist and overall dressed character read are preserved; set it false when important anchors from the reference are missing or visibly changed.
 - silhouetteDriftSeverity is one of none | mild | moderate | severe.
-- actualVisibleDescription is not a problem statement. When the expected character is missing or replaced by a wrong visible subject, describe the subject you actually see in Image 1 as a short concrete noun phrase, e.g. "small green person with a blue flower", "yellow chicken-like creature holding a twig", "girl with one thick side braid". Do not write what is missing, what should change, or how it differs from the reference; put those problems in issue / identityComparisonSummary.
+- actualVisibleDescription is not a problem statement. When the expected character is missing or replaced by a wrong visible subject, describe the subject you actually see in Image 1 as a short concrete noun phrase, e.g. "small green person with a blue flower", "yellow chicken-like creature holding a twig", "girl with one thick side braid". Never include a character name, expected-roster name, or reference label; use a visual noun such as "girl", "boy", "child", "animal", or "creature" instead. Do not write what is missing, what should change, or how it differs from the reference; put those problems in issue / identityComparisonSummary.
 - Report observable checks only. No aggregate pass/fail field. Return JSON only.`,
   };
 }
@@ -266,7 +266,7 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
     params.sceneContext ? `AUTHORITATIVE DESIGNER SCENE BRIEF:\n${params.sceneContext}` : '',
     `IMAGE ORDER:\n${imageOrder}`,
     `VALIDATION MAPPING:\n${validationMapping}`,
-    'ACTUAL VISIBLE DESCRIPTION CONTRACT: actualVisibleDescription must describe the visible substitute/candidate currently in Image 1, not the validation problem. Use concrete visual words only. Good: "small green person with a blue flower". Bad: "missing leaf collar", "hair does not match", "wrong outfit", "should be the reference character".',
+    'ACTUAL VISIBLE DESCRIPTION CONTRACT: actualVisibleDescription must describe the visible substitute/candidate currently in Image 1, not the validation problem. Use concrete visual words only and never include a character name, roster name, or REF_* label. Good: "small green person with a blue flower", "girl with one long braid". Bad: "Emilia with one braid", "missing leaf collar", "hair does not match", "wrong outfit", "should be the reference character".',
     layoutChecks,
   ]
     .filter(Boolean)

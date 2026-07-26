@@ -340,4 +340,26 @@ assert.match(
 );
 assert.doesNotMatch(sceneSlotFallbackPrompt, /Replace the entire matching visible subject/);
 
+const duplicateMissingSubjectPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'identity',
+    issues: [{ kind: 'presence', note: 'Expected subject is missing.' }],
+    subjectReplacements: [
+      { found: false },
+      { found: false },
+    ],
+  },
+});
+
+assert.equal(
+  Array.from(
+    duplicateMissingSubjectPrompt.matchAll(
+      /Add the full character from the matching attached reference image to the expected scene slot\./g
+    )
+  ).length,
+  1,
+  'identical replacement actions must be emitted once'
+);
+
 console.log('imageEditPrompt tests passed');

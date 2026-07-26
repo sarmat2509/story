@@ -232,8 +232,31 @@ function optionalTrimmedString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function normalizeActualVisibleDescription(value: string | null | undefined): string | null {
-  const text = compactWhitespace(String(value ?? ''));
+function visibleSubjectLabel(
+  expected: ProductImageValidationInput['expectedCharacters'][number] | undefined
+): string {
+  const description = compactWhitespace(expected?.description ?? '');
+  const humanLabel = description.match(
+    /\b(?:young|little)?\s*(girl|boy|child|woman|man|person|human)\b/i
+  )?.[0];
+  if (humanLabel) return humanLabel;
+  if (expected?.characterKind === 'human') return 'child';
+  if (expected?.speciesSubtype?.trim()) return `${expected.speciesSubtype.trim()}-like creature`;
+  return expected?.characterKind === 'animal' ? 'animal' : 'creature';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeActualVisibleDescription(
+  value: string | null | undefined,
+  expectedCharacters: ProductImageValidationInput['expectedCharacters'],
+  targetExpected: ProductImageValidationInput['expectedCharacters'][number] | undefined
+): string | null {
+  const text = compactWhitespace(
+    String(value ?? '').replace(/\s+\b(?:instead of|rather than)\b[\s\S]*$/i, '')
+  );
   if (!text) return null;
   const lower = text.toLowerCase();
   const startsLikeProblem =
@@ -244,7 +267,26 @@ function normalizeActualVisibleDescription(value: string | null | undefined): st
     /\b(missing|mismatch|does not match|doesn't match|differs from|should be|needs to|validator|reference|signature|not visible|not present)\b/.test(
       lower
     );
-  return startsLikeProblem || containsProblem ? null : text;
+  if (startsLikeProblem || containsProblem) return null;
+
+  let anonymized = text;
+  for (const expected of expectedCharacters) {
+    const name = stripCharacterIdFromName(expected.name).trim();
+    if (!name) continue;
+    const targetName = targetExpected
+      ? stripCharacterIdFromName(targetExpected.name).trim().toLowerCase()
+      : '';
+    const replacement = name.toLowerCase() === targetName
+      ? visibleSubjectLabel(targetExpected)
+      : `another ${visibleSubjectLabel(expected)}`;
+    const namedCharacter = new RegExp(
+      `(^|[^\\p{L}\\p{N}_])${escapeRegExp(name)}(?=$|[^\\p{L}\\p{N}_])`,
+      'giu'
+    );
+    anonymized = anonymized.replace(namedCharacter, (_match, prefix: string) => `${prefix}${replacement}`);
+  }
+
+  return compactWhitespace(anonymized) || null;
 }
 
 function truncateText(text: string, maxChars: number): string {
@@ -534,8 +576,12 @@ export function normalizeImageValidationResult(
   }
 
   for (const c of out.characters) {
-    c.actualVisibleDescription = normalizeActualVisibleDescription(c.actualVisibleDescription);
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
+    c.actualVisibleDescription = normalizeActualVisibleDescription(
+      c.actualVisibleDescription,
+      expectedCharacters,
+      exp
+    );
     const expectedKind = exp?.characterKind ?? null;
     const hasIdentityReference = charHasIdentityReference(c.name, referenceImages);
     normalizeOutfitVerdictForExpectedCharacter(c, exp);
@@ -688,7 +734,7 @@ function buildSegmentedCharacterSchema(): JsonSchema {
           actualVisibleDescription: {
             type: ['string', 'null'],
             description:
-              'Short concrete noun phrase describing the visible substitute/candidate currently in Image 1, not the problem. Example: "small green person with a blue flower". Do not write missing/differs/should-change text.',
+              'Short concrete noun phrase describing the visible substitute/candidate currently in Image 1, not the problem. Example: "small green person with a blue flower" or "girl with one long braid". Never include a character/roster name or REF_* label. Do not write missing/differs/should-change text.',
           },
           sameOverallDesignRead: { type: ['boolean', 'null'] },
           silhouetteDriftSeverity: {

@@ -78,9 +78,13 @@ function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string
     manifest.issues.length > 0
       ? manifest.issues
       : [{ kind: 'generic' as const, note: 'Visual mismatch with the selected reference.' }];
-  const replacementActions = (manifest.subjectReplacements ?? [])
-    .map(buildSubjectReplacementAction)
-    .filter((action): action is string => !!action);
+  const replacementActions = Array.from(
+    new Set(
+      (manifest.subjectReplacements ?? [])
+        .map(buildSubjectReplacementAction)
+        .filter((action): action is string => !!action)
+    )
+  );
   const repairActions =
     replacementActions.length > 0
       ? [...replacementActions, ...buildNonSubjectEditActionsForIssues(issues)]
