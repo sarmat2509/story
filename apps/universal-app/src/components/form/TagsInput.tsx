@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  Pressable,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 
@@ -22,6 +29,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null);
 
   const filteredSuggestions = suggestions.filter(
     (s) => !tags.includes(s) && s.toLowerCase().includes(inputValue.toLowerCase())
@@ -103,13 +111,21 @@ export const TagsInput: React.FC<TagsInputProps> = ({
       {showSuggestions && filteredSuggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
           {filteredSuggestions.map((suggestion, index) => (
-            <TouchableOpacity
+            <Pressable
               key={index}
               onPress={() => addTag(suggestion)}
-              style={styles.suggestion}
+              onHoverIn={() => setHoveredSuggestion(suggestion)}
+              onHoverOut={() =>
+                setHoveredSuggestion((current) => (current === suggestion ? null : current))
+              }
+              testID={`tags-input-suggestion-${suggestion}`}
+              style={[
+                styles.suggestion,
+                hoveredSuggestion === suggestion && styles.suggestionHovered,
+              ]}
             >
               <Text style={styles.suggestionText}>{suggestion}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
       )}
@@ -186,6 +202,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.medium,
     backgroundColor: theme.colors.background.secondary,
     marginRight: theme.spacing[2],
+  },
+  suggestionHovered: {
+    backgroundColor: theme.colors.interactive.secondaryHover,
+    borderColor: theme.colors.interactive.primaryHover,
   },
   suggestionText: {
     fontSize: theme.typography.fontSize.sm,

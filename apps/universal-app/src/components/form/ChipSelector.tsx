@@ -1,5 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { theme } from '@/theme';
 
 interface ChipSelectorProps {
@@ -24,6 +29,7 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
   getTranslation,
 }) => {
   const selectedArray = Array.isArray(selected) ? selected : selected ? [selected] : [];
+  const [hoveredOption, setHoveredOption] = useState<string | null>(null);
 
   const handlePress = (value: string) => {
     if (multiple) {
@@ -64,13 +70,18 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
           const disabled = isDisabled(option);
 
           return (
-            <TouchableOpacity
+            <Pressable
               key={option}
               onPress={() => handlePress(option)}
+              onHoverIn={() => !disabled && setHoveredOption(option)}
+              onHoverOut={() => setHoveredOption((current) => (current === option ? null : current))}
               disabled={disabled}
+              testID={`chip-selector-option-${option}`}
               style={[
                 styles.chip,
                 selected && styles.chipSelected,
+                hoveredOption === option && !disabled && styles.chipHovered,
+                hoveredOption === option && selected && styles.chipSelectedHovered,
                 disabled && styles.chipDisabled,
               ]}
             >
@@ -83,7 +94,7 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
               >
                 {getLabel(option)}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </View>
@@ -124,6 +135,14 @@ const styles = StyleSheet.create({
   chipSelected: {
     backgroundColor: theme.colors.interactive.primary,
     borderColor: theme.colors.interactive.primary,
+  },
+  chipHovered: {
+    backgroundColor: theme.colors.interactive.secondaryHover,
+    borderColor: theme.colors.interactive.primaryHover,
+  },
+  chipSelectedHovered: {
+    backgroundColor: theme.colors.interactive.primaryHover,
+    borderColor: theme.colors.interactive.primaryHover,
   },
   chipDisabled: {
     opacity: 0.4,
