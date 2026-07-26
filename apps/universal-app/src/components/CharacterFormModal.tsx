@@ -405,6 +405,15 @@ const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
 const ANIMAL_BREEDS_BY_SUBTYPE: Partial<Record<CharacterSubtype, readonly string[]>> = {
   cat: CAT_BREEDS,
   dog: DOG_BREEDS,
+  hamster: ['syrian_hamster', 'dwarf_hamster', 'roborovski_hamster'],
+  parrot: ['budgerigar', 'cockatiel', 'macaw', 'african_grey'],
+  rabbit: ['dwarf_rabbit', 'lop_rabbit', 'rex_rabbit', 'angora_rabbit'],
+  turtle: ['red_eared_slider', 'box_turtle', 'tortoise'],
+  fish: ['goldfish', 'betta', 'guppy', 'koi'],
+  goat: ['pygmy_goat', 'alpine_goat', 'nubian_goat'],
+  cow: ['holstein', 'jersey', 'highland'],
+  horse: ['arabian', 'pony', 'mustang', 'clydesdale'],
+  other_animal: ['mixed', 'other_breed'],
 };
 
 export function CharacterFormModal({ visible, onClose, characterId, initialData }: Props) {

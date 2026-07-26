@@ -167,6 +167,32 @@ describe('character create and rename forms', () => {
     expect(dogView.getByTestId('chip-selector-character_form.breed')).toHaveTextContent(
       /mixed,labrador,german_shepherd,golden_retriever/
     );
+
+    const additionalAnimalSubtypes = [
+      ['hamster', 'syrian_hamster,dwarf_hamster,roborovski_hamster'],
+      ['parrot', 'budgerigar,cockatiel,macaw,african_grey'],
+      ['rabbit', 'dwarf_rabbit,lop_rabbit,rex_rabbit,angora_rabbit'],
+      ['turtle', 'red_eared_slider,box_turtle,tortoise'],
+      ['fish', 'goldfish,betta,guppy,koi'],
+      ['goat', 'pygmy_goat,alpine_goat,nubian_goat'],
+      ['cow', 'holstein,jersey,highland'],
+      ['horse', 'arabian,pony,mustang,clydesdale'],
+      ['other_animal', 'mixed,other_breed'],
+    ] as const;
+
+    for (const [subtype, expectedOptions] of additionalAnimalSubtypes) {
+      const view = render(
+        <CharacterFormModal
+          visible
+          characterId={`${subtype}-character`}
+          initialData={{ name: subtype, type: 'animal', subtype }}
+          onClose={mockClose}
+        />
+      );
+      expect(view.getByTestId('chip-selector-character_form.breed')).toHaveTextContent(
+        expectedOptions
+      );
+    }
   });
 
   it('renames a character with a name-only payload without any AI dependency', async () => {
