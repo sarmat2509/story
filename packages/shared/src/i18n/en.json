@@ -1624,7 +1624,7 @@
     "recovery_request_sent": "A recovery link was sent to the parent email. It works for 30 minutes.",
     "recovery_request_failed": "Could not send the recovery link. Try again in a moment.",
     "recovery_complete_title": "Opening parent area",
-    "recovery_complete_body": "Checking the secure link from the parent email.",
+    "recovery_complete_body": "Continue to securely restore parent access from this email link.",
     "recovery_complete_success_title": "Parent area unlocked",
     "recovery_complete_success_body": "Parent access is restored. Choose a new Child Mode exit password below.",
     "recovery_complete_error_title": "Recovery link did not work",

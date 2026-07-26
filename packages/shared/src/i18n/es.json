@@ -1544,7 +1544,7 @@
     "recovery_request_sent": "Se envió un enlace de recuperación al email del padre. Funciona durante 30 minutos.",
     "recovery_request_failed": "No se pudo enviar el enlace. Inténtalo de nuevo en un momento.",
     "recovery_complete_title": "Abriendo el área de padres",
-    "recovery_complete_body": "Comprobando el enlace seguro del email del padre.",
+    "recovery_complete_body": "Continúa para restaurar de forma segura el acceso parental con este enlace.",
     "recovery_complete_success_title": "Área de padres desbloqueada",
     "recovery_complete_success_body": "Se ha restaurado el acceso de padres. Crea abajo una nueva contraseña de salida del modo infantil.",
     "recovery_complete_error_title": "El enlace de recuperación no funcionó",

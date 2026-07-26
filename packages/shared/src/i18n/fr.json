@@ -894,7 +894,7 @@
     "recovery_request_sent": "Un lien de récupération a été envoyé à l'email du parent. Il fonctionne pendant 30 minutes.",
     "recovery_request_failed": "Impossible d'envoyer le lien. Réessayez dans un instant.",
     "recovery_complete_title": "Ouverture de l'espace parent",
-    "recovery_complete_body": "Vérification du lien sécurisé reçu par email parent.",
+    "recovery_complete_body": "Continuez pour rétablir en toute sécurité l’accès parent avec ce lien.",
     "recovery_complete_success_title": "Espace parent déverrouillé",
     "recovery_complete_success_body": "L’accès parent est rétabli. Crée ci-dessous un nouveau mot de passe de sortie du mode enfant.",
     "recovery_complete_error_title": "Le lien de récupération n'a pas fonctionné",

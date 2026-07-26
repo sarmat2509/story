@@ -76,12 +76,10 @@ export default function ChildModeRecoveryScreen() {
   const [newPasscode, setNewPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [passcodeResetError, setPasscodeResetError] = useState<string | null>(null);
-  const [submittedToken, setSubmittedToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token || submittedToken === token) return;
+  const handleContinue = () => {
+    if (!token || recovery.isPending) return;
 
-    setSubmittedToken(token);
     setError(null);
     recovery.mutate(token, {
       onSuccess: (data) => {
@@ -91,7 +89,7 @@ export default function ChildModeRecoveryScreen() {
       onError: (err) =>
         setError(getLocalizedApiError(t, err, 'child_mode.recovery_complete_error')),
     });
-  }, [recovery, submittedToken, t, token]);
+  };
 
   const trimmedNewPasscode = newPasscode.trim();
   const canResetPasscode =
@@ -167,6 +165,15 @@ export default function ChildModeRecoveryScreen() {
         ) : null}
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.body}>{body}</Text>
+        {token && !completed && !error ? (
+          <AppButton
+            label={t('common.next')}
+            onPress={handleContinue}
+            loading={recovery.isPending}
+            style={styles.action}
+            testID="child-mode-recovery-continue"
+          />
+        ) : null}
         {completed && passcodeResetToken && !passcodeResetCompleted ? (
           <View style={styles.resetForm} testID="child-mode-recovery-reset-form">
             <Text style={styles.label}>{t('profile.child_mode_exit_passcode_new')}</Text>

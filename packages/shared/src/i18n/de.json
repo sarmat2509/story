@@ -894,7 +894,7 @@
     "recovery_request_sent": "Ein Wiederherstellungslink wurde an die Eltern-E-Mail gesendet. Er ist 30 Minuten gültig.",
     "recovery_request_failed": "Der Link konnte nicht gesendet werden. Bitte versuchen Sie es gleich erneut.",
     "recovery_complete_title": "Elternbereich wird geöffnet",
-    "recovery_complete_body": "Der sichere Link aus der Eltern-E-Mail wird geprüft.",
+    "recovery_complete_body": "Fahre fort, um den Elternzugang mit diesem Link sicher wiederherzustellen.",
     "recovery_complete_success_title": "Elternbereich entsperrt",
     "recovery_complete_success_body": "Der Elternzugang wurde wiederhergestellt. Lege unten ein neues Ausgangspasswort für den Kindermodus fest.",
     "recovery_complete_error_title": "Der Wiederherstellungslink hat nicht funktioniert",

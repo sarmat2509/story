@@ -1575,7 +1575,7 @@
     "recovery_request_sent": "Link odzyskiwania zostal wyslany na email rodzica. Dziala przez 30 minut.",
     "recovery_request_failed": "Nie udalo sie wyslac linku. Sprobuj ponownie za chwile.",
     "recovery_complete_title": "Otwieramy obszar rodzica",
-    "recovery_complete_body": "Sprawdzamy bezpieczny link z emaila rodzica.",
+    "recovery_complete_body": "Kontynuuj, aby bezpiecznie przywrócić dostęp rodzica za pomocą tego linku.",
     "recovery_complete_success_title": "Obszar rodzica odblokowany",
     "recovery_complete_success_body": "Dostęp rodzica został przywrócony. Ustaw poniżej nowe hasło wyjścia z trybu dziecka.",
     "recovery_complete_error_title": "Link odzyskiwania nie zadzialal",
