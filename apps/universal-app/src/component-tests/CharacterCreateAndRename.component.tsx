@@ -40,7 +40,12 @@ jest.mock('@/components/form/ChipSelector', () => ({
     const { Text, View } = require('react-native');
     return React.createElement(
       View,
-      { testID: label === 'character_form.subtype_label' ? 'character-form-subtype-selector' : undefined },
+      {
+        testID:
+          label === 'character_form.subtype_label'
+            ? 'character-form-subtype-selector'
+            : `chip-selector-${label}`,
+      },
       React.createElement(Text, null, options.join(','))
     );
   },
@@ -99,6 +104,19 @@ describe('character create and rename forms', () => {
     expect(view.getAllByTestId('character-form-subtype-selector')).toHaveLength(1);
     expect(view.getByText('dog,cat,hamster,parrot,rabbit,turtle,fish,goat,cow,horse,other_animal'))
       .toBeOnTheScreen();
+  });
+
+  it('uses selectable personality pills for a person character', () => {
+    const view = render(<CharacterFormModal visible onClose={mockClose} />);
+
+    fireEvent.press(view.getByTestId('character-form-type-person'));
+
+    expect(view.getByTestId('chip-selector-character_form.personality_traits')).toHaveTextContent(
+      /curious,brave,shy,energetic,calm/
+    );
+    expect(
+      view.getByTestId('chip-selector-character_form.favorite_activities')
+    ).toHaveTextContent(/reading,drawing,painting,sports,football/);
   });
 
   it('renames a character with a name-only payload without any AI dependency', async () => {

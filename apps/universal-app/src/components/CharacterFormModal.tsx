@@ -102,6 +102,8 @@ import {
   PET_DISTINCTIVE_FEATURES,
   PET_PERSONALITY_TRAITS,
   PET_ACTIVITIES,
+  PERSONALITY_TRAITS,
+  FAVORITE_ACTIVITIES,
   AGE_RANGES,
   HUMAN_HAIR_COLORS,
   HUMAN_HAIR_LENGTHS,
@@ -1389,22 +1391,33 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   </View>
                 ) : (
                   <View>
-                    <TagsInput
+                    <ChipSelector
                       label={t('character_form.personality_traits')}
-                      tags={personality.traits}
-                      onTagsChange={(tags) => setPersonality({ ...personality, traits: tags })}
+                      options={PERSONALITY_TRAITS}
+                      selected={personality.traits}
+                      onSelect={(val) =>
+                        setPersonality({ ...personality, traits: val as string[] })
+                      }
+                      multiple
                       max={5}
-                      placeholder={t('character_form.personality_trait_placeholder')}
+                      translationPrefix="child_form.traits"
+                      getTranslation={t}
                     />
 
-                    <TagsInput
+                    <ChipSelector
                       label={t('character_form.favorite_activities')}
-                      tags={personality.favoriteActivities}
-                      onTagsChange={(tags) =>
-                        setPersonality({ ...personality, favoriteActivities: tags })
+                      options={FAVORITE_ACTIVITIES}
+                      selected={personality.favoriteActivities}
+                      onSelect={(val) =>
+                        setPersonality({
+                          ...personality,
+                          favoriteActivities: val as string[],
+                        })
                       }
+                      multiple
                       max={5}
-                      placeholder={t('character_form.favorite_activity_placeholder')}
+                      translationPrefix="child_form.activities"
+                      getTranslation={t}
                     />
                   </View>
                 )}
