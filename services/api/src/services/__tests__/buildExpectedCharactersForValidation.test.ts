@@ -150,6 +150,144 @@ function testNfcNfdNameMatching() {
   assert.strictEqual(out[0].speciesSubtype, 'hamster');
 }
 
+function testLocalizedAliasesDoNotBecomeDuplicateQaCharacters() {
+  const dragonRef = '07207caa-3601-428d-b3d4-71e2a69d454e';
+  const sparkyRef = 'c9e5b476-2fd8-4ab6-8148-d336be03821a';
+  const scene: SceneData = {
+    sceneId: 11,
+    text: 't',
+    sceneVisual: {
+      setting: 'Eyedragon presents the gift while Sparky shines nearby.',
+      lighting: 'Cool starlight.',
+      cameraComposition: {
+        shot: 'Medium shot with Eyedragon and Sparky.',
+        characters: [
+          {
+            name: 'Eyedragon',
+            characterRef: dragonRef,
+            description: 'right of center',
+          },
+          {
+            name: 'Sparky',
+            characterRef: sparkyRef,
+            description: 'hovering at left',
+          },
+        ],
+      },
+    },
+  };
+  const chars = [
+    {
+      id: dragonRef,
+      characterRef: dragonRef,
+      name: 'Айдрагон',
+      canonicalName: 'Айдрагон',
+      nameInStory: 'Eyedragon',
+      nameAliases: ['Айдрагон', 'Eyedragon'],
+      type: 'imaginary',
+      subtype: 'dragon',
+    },
+    {
+      id: sparkyRef,
+      characterRef: sparkyRef,
+      name: 'Сяйвик',
+      canonicalName: 'Сяйвик',
+      nameInStory: 'Sparky',
+      nameAliases: ['Сяйвик', 'Sparky'],
+      type: 'imaginary',
+      subtype: 'imaginary_friend',
+    },
+  ] as unknown as CharacterData[];
+
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+
+  assert.deepEqual(
+    out.map(({ name, characterRef }) => ({ name, characterRef })),
+    [
+      { name: 'Eyedragon', characterRef: dragonRef },
+      { name: 'Sparky', characterRef: sparkyRef },
+    ]
+  );
+}
+
+function testAliasMentionOutsideCameraRosterUsesSceneVisualNameAndIdentity() {
+  const emiliaRef = '97bab407-4906-41fa-8dd6-9554c574ef33';
+  const sparkyRef = 'c9e5b476-2fd8-4ab6-8148-d336be03821a';
+  const scene: SceneData = {
+    sceneId: 7,
+    text: 't',
+    sceneVisual: {
+      setting: 'Sparky traces a light pattern beside the ship window.',
+      lighting: 'Cool ship light.',
+      cameraComposition: {
+        shot: 'Medium shot of Emilia.',
+        characters: [
+          {
+            name: 'Emilia',
+            characterRef: emiliaRef,
+            description: 'inside the ship',
+          },
+        ],
+      },
+    },
+  };
+  const chars = [
+    {
+      id: emiliaRef,
+      characterRef: emiliaRef,
+      name: 'Емілія',
+      nameInStory: 'Emilia',
+      nameAliases: ['Емілія', 'Emilia'],
+      type: 'person',
+      source: 'child_profile',
+    },
+    {
+      id: sparkyRef,
+      characterRef: sparkyRef,
+      name: 'Сяйвик',
+      nameInStory: 'Sparky',
+      nameAliases: ['Сяйвик', 'Sparky'],
+      type: 'imaginary',
+      subtype: 'imaginary_friend',
+    },
+  ] as unknown as CharacterData[];
+
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+
+  assert.deepEqual(
+    out.map(({ name, characterRef }) => ({ name, characterRef })),
+    [
+      { name: 'Emilia', characterRef: emiliaRef },
+      { name: 'Sparky', characterRef: sparkyRef },
+    ]
+  );
+}
+
+function testQaRosterKeepsOneEntryPerStructuralIdentity() {
+  const dragonRef = '07207caa-3601-428d-b3d4-71e2a69d454e';
+  const scene = sceneWith(['Eyedragon', 'Айдрагон']);
+  const composition = scene.sceneVisual!.cameraComposition;
+  if (typeof composition === 'string') throw new Error('Expected structured composition');
+  composition.characters[0].characterRef = dragonRef;
+  composition.characters[1].characterRef = dragonRef;
+  const chars = [
+    {
+      id: dragonRef,
+      characterRef: dragonRef,
+      name: 'Айдрагон',
+      nameInStory: 'Eyedragon',
+      nameAliases: ['Айдрагон', 'Eyedragon'],
+      type: 'imaginary',
+    },
+  ] as unknown as CharacterData[];
+
+  const out = buildExpectedCharactersForValidation(scene, chars, []);
+
+  assert.strictEqual(out.length, 1);
+  assert.equal(out[0].characterRef, dragonRef);
+  assert.equal(out[0].name, 'Eyedragon');
+}
+
 testHumanMapping();
 testChildMapping();
 testLlmGeneratedHumanDoesNotValidateOutfit();
@@ -159,4 +297,7 @@ testUnknownTypeFallbacks();
 testIdSuffixInCompositionMatches();
 testValidationDescriptionStripsWardrobeText();
 testNfcNfdNameMatching();
+testLocalizedAliasesDoNotBecomeDuplicateQaCharacters();
+testAliasMentionOutsideCameraRosterUsesSceneVisualNameAndIdentity();
+testQaRosterKeepsOneEntryPerStructuralIdentity();
 console.log('buildExpectedCharactersForValidation tests passed');

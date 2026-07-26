@@ -6277,22 +6277,25 @@ export function buildExpectedCharactersForValidation(
     }
   }
 
-  const roster = sceneCharacterNames.map((name) => {
+  const roster: Array<{
+    characterRef?: string;
+    name: string;
+    characterKind: 'human' | 'animal' | 'imaginary';
+    speciesSubtype?: string;
+    description?: string;
+    validateOutfit: boolean;
+  }> = [];
+  const seenIdentities = new Set<string>();
+
+  for (const name of sceneCharacterNames) {
     const baseLower = stripCharacterIdFromName(name).trim().toLowerCase();
     const cameraCharacter = cameraCharacters.find(
       (candidate) => sameCharacterIdentity(candidate.name, name)
     );
-    const characterRef = cameraCharacter?.characterRef?.trim();
-    const charData =
-      (characterRef
-        ? characters.find((character) =>
-            [character.characterRef, character.id].filter(Boolean).includes(characterRef)
-          )
-        : undefined) ||
-      characters.find((c) => {
-        if (!c?.name) return false;
-        return sameCharacterIdentity(c.name, name);
-      });
+    const cameraCharacterRef = cameraCharacter?.characterRef?.trim();
+    const charData = findCharacterForValidationName(name, characters, cameraCharacterRef);
+    const characterRef =
+      cameraCharacterRef || charData?.characterRef?.trim() || charData?.id?.trim();
 
     const t = charData?.type;
     const refSource = refSourceByName.get(baseLower);
@@ -6312,15 +6315,21 @@ export function buildExpectedCharactersForValidation(
       typeof subtypeRaw === 'string' && subtypeRaw.trim() ? subtypeRaw.trim() : undefined;
     const validateOutfit = shouldValidateOutfitForExpectedCharacter(characterKind, charData);
 
-    return {
+    const identityKey = characterRef
+      ? `ref:${characterRef}`
+      : `name:${crossScriptIdentityKey(name) || baseLower}`;
+    if (seenIdentities.has(identityKey)) continue;
+    seenIdentities.add(identityKey);
+
+    roster.push({
       ...(characterRef ? { characterRef } : {}),
       name,
       characterKind,
       speciesSubtype,
       description: validationCharacterDescription(charData, name),
       validateOutfit,
-    };
-  });
+    });
+  }
 
   logger.debug(
     {
@@ -6355,11 +6364,19 @@ function findCharacterForValidationName(
   }
   const normalizedSceneName = stripCharacterIdFromName(sceneName).trim().toLowerCase();
   return characters.find((char) => {
-    const charName = stripCharacterIdFromName(char.name).trim().toLowerCase();
-    return (
-      charName === normalizedSceneName ||
-      char.name.trim().toLowerCase() === sceneName.trim().toLowerCase()
-    );
+    const aliases = [
+      char.name,
+      char.canonicalName,
+      (char as any).nameInStory,
+      ...(Array.isArray(char.nameAliases) ? char.nameAliases : []),
+    ].filter((name): name is string => typeof name === 'string' && !!name.trim());
+    return aliases.some((alias) => {
+      const normalizedAlias = stripCharacterIdFromName(alias).trim().toLowerCase();
+      return (
+        normalizedAlias === normalizedSceneName ||
+        sameCharacterIdentity(alias, sceneName)
+      );
+    });
   });
 }
 

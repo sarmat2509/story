@@ -23,6 +23,12 @@ function normalizedName(value: string): string {
   return cleanName(value)?.normalize('NFC').toLocaleLowerCase() ?? '';
 }
 
+function isKnownAlias(value: string, aliases: string[]): boolean {
+  const normalizedValue = normalizedName(value);
+  if (!normalizedValue) return false;
+  return aliases.some((alias) => normalizedName(alias) === normalizedValue);
+}
+
 function containsName(text: string, name: string): boolean {
   const clean = cleanName(name);
   if (!clean) return false;
@@ -76,17 +82,24 @@ export function collectSceneVisualCharacterNames(
   if (!visualText) return names;
 
   for (const character of knownCharacters) {
-    const canonicalName = cleanName(character.name);
-    if (!canonicalName) continue;
     const aliases = [
       character.name,
       character.canonicalName,
       character.nameInStory,
       ...(Array.isArray(character.nameAliases) ? character.nameAliases : []),
-    ].filter((name): name is string => typeof name === 'string');
-    if (aliases.some((alias) => containsName(visualText, alias))) {
-      push(canonicalName);
-    }
+    ]
+      .map(cleanName)
+      .filter((name): name is string => !!name);
+    const mentionedAlias = aliases.find((alias) => containsName(visualText, alias));
+    if (!mentionedAlias) continue;
+
+    // The camera roster may use an English story name while character.name is localized.
+    // They are aliases of one entity, not two visible characters.
+    if (names.some((name) => isKnownAlias(name, aliases))) continue;
+
+    // Preserve the alias actually used by sceneVisual so the technical image plan remains
+    // internally consistent instead of introducing a localized display name into its roster.
+    push(mentionedAlias, true);
   }
 
   return names;
