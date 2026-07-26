@@ -182,6 +182,13 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
           : null,
     },
     { label: 'Quarantined story', value: item.context.quarantinedStoryId },
+    {
+      label: 'Reported by',
+      value:
+        item.context.reporterSessionMode === 'child'
+          ? `Child — ${item.context.reporterChildName ?? item.context.reporterChildProfileId ?? 'unknown'}`
+          : null,
+    },
     { label: 'Platform', value: item.context.platform },
     { label: 'URL', value: item.context.url },
     { label: 'User ID', value: item.userId },

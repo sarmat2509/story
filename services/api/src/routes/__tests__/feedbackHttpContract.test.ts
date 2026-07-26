@@ -107,6 +107,9 @@ async function main(): Promise<void> {
         contextUpdates.push({ id, context });
       },
     } as any,
+    childProfile: {
+      findById: async () => ({ id: childProfileId, name: 'Mia' }),
+    } as any,
   });
 
   const server = createServer(app);
@@ -175,6 +178,7 @@ async function main(): Promise<void> {
     assert.equal((createdFeedback.at(-1) as any).context.supportTopic, 'bug');
     assert.equal((createdFeedback.at(-1) as any).context.reporterSessionMode, 'child');
     assert.equal((createdFeedback.at(-1) as any).context.reporterChildProfileId, childProfileId);
+    assert.equal((createdFeedback.at(-1) as any).context.reporterChildName, 'Mia');
   } finally {
     clearRepositoryTestOverrides();
     await close(server);

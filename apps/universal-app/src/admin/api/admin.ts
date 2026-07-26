@@ -223,6 +223,9 @@ export type AdminFeedbackListItem = {
     contentReviewQueued: boolean | null;
     contentQuarantined: boolean | null;
     quarantinedStoryId: string | null;
+    reporterSessionMode: string | null;
+    reporterChildProfileId: string | null;
+    reporterChildName: string | null;
   };
   createdAt: string;
 };

@@ -13,6 +13,7 @@ import { createRateLimitHandler } from '../middleware/rateLimiter';
 import rateLimit from 'express-rate-limit';
 import { CaptchaVerificationError, requireCaptcha } from '../services/captchaService';
 import { queueReportedContentReview } from '../services/reportedContentReviewService';
+import { getChildProfileRepository } from '../repositories';
 
 const router = Router();
 
@@ -121,6 +122,10 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
     const platform = (req.headers['x-platform'] as string) || parsed.data.platform || 'web';
     const userAgent = req.headers['user-agent'] || undefined;
     const url = parsed.data.url;
+    const childReporter =
+      req.sessionMode === 'child' && req.user && req.childProfileId
+        ? await getChildProfileRepository().findById(req.childProfileId, req.user.id)
+        : null;
 
     const result = await createFeedback({
       userId,
@@ -143,6 +148,7 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
         ...(req.sessionMode === 'child' && {
           reporterSessionMode: 'child',
           reporterChildProfileId: req.childProfileId ?? null,
+          ...(childReporter?.name && { reporterChildName: childReporter.name }),
         }),
       },
     });

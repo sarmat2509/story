@@ -943,6 +943,14 @@ export async function listAdminFeedback(params: {
               typeof context.contentQuarantined === 'boolean' ? context.contentQuarantined : null,
             quarantinedStoryId:
               typeof context.quarantinedStoryId === 'string' ? context.quarantinedStoryId : null,
+            reporterSessionMode:
+              typeof context.reporterSessionMode === 'string' ? context.reporterSessionMode : null,
+            reporterChildProfileId:
+              typeof context.reporterChildProfileId === 'string'
+                ? context.reporterChildProfileId
+                : null,
+            reporterChildName:
+              typeof context.reporterChildName === 'string' ? context.reporterChildName : null,
           },
           createdAt: item.createdAt.toISOString(),
         };
