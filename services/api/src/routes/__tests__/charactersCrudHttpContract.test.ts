@@ -198,6 +198,18 @@ async function main(): Promise<void> {
     .queueText(
       'translation',
       JSON.stringify({
+        uk: 'Руда Іскринка',
+        ru: 'Рыжая Искорка',
+        en: 'Red Spark',
+        es: 'Chispa Roja',
+        fr: 'Étincelle Rousse',
+        de: 'Roter Funke',
+        pl: 'Ruda Iskierka',
+      })
+    )
+    .queueText(
+      'translation',
+      JSON.stringify({
         uk: 'Яскрава Іскринка',
         ru: 'Яркая Искорка',
         en: 'Bright Spark',
@@ -414,6 +426,47 @@ async function main(): Promise<void> {
     assert.equal(childRenameOwnCharacterBody.character.nameTranslations.ru, 'Искорка');
     assert.equal(savedNameTranslations.length, 14, 'child rename persists every supported locale');
 
+    const childEditParentCharacter = await request(
+      'PATCH',
+      `/api/v1/characters/${characterId}`,
+      { type: 'animal', appearanceTraits: { furColor: 'red' } },
+      childAuthorization
+    );
+    assert.equal(
+      childEditParentCharacter.status,
+      403,
+      'child cannot fully edit a parent-created character'
+    );
+    const childEditParentCharacterBody = (await childEditParentCharacter.json()) as any;
+    assert.equal(
+      childEditParentCharacterBody.code,
+      'CHILD_CHARACTER_EDIT_REQUIRES_PARENT_PROFILE'
+    );
+
+    const childEditOwnCharacter = await request(
+      'PATCH',
+      `/api/v1/characters/${childCreatedCharacterId}`,
+      {
+        name: 'Red Spark',
+        type: 'animal',
+        appearanceTraits: { furColor: 'red' },
+      },
+      childAuthorization
+    );
+    assert.equal(
+      childEditOwnCharacter.status,
+      200,
+      'child can fully edit a character created by the active child profile'
+    );
+    const childEditOwnCharacterBody = (await childEditOwnCharacter.json()) as any;
+    assert.equal(childEditOwnCharacterBody.character.name, 'Red Spark');
+    assert.equal(childEditOwnCharacterBody.character.appearanceTraits.furColor, 'red');
+    assert.equal(
+      savedNameTranslations.length,
+      21,
+      'full child edit persists every supported locale when the name changes'
+    );
+
     const parentRenameChildCharacter = await request(
       'PATCH',
       `/api/v1/characters/${childCreatedCharacterId}/name`,
@@ -427,7 +480,7 @@ async function main(): Promise<void> {
     const parentRenameChildCharacterBody = (await parentRenameChildCharacter.json()) as any;
     assert.equal(parentRenameChildCharacterBody.character.name, 'Bright Spark');
     assert.equal(parentRenameChildCharacterBody.character.nameTranslations.ru, 'Яркая Искорка');
-    assert.equal(savedNameTranslations.length, 21);
+    assert.equal(savedNameTranslations.length, 28);
 
     const parentDeleteChildCharacter = await request(
       'DELETE',
@@ -504,7 +557,7 @@ async function main(): Promise<void> {
     await close(server);
   }
 
-  console.log('characters CRUD HTTP contract passed (15 input-output cases)');
+  console.log('characters CRUD HTTP contract passed (17 input-output cases)');
 }
 
 main().catch((error) => {

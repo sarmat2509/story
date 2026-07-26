@@ -686,7 +686,7 @@ router.patch('/:id/name', requireAuth, requireParentOrScopedChildSession, async 
 });
 
 // PATCH /api/v1/characters/:id - Update character
-router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
+router.patch('/:id', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   let quotaReservationId: string | null = null;
   let quotaReservationChildProfileId: string | null = null;
 
@@ -694,37 +694,56 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     const userId = req.user!.id;
     const { id } = req.params;
     
-    // Support simple isHidden toggle + optional description (e.g. from "Save to my characters" button)
-    const keys = Object.keys(req.body);
-    const hasIsHidden = typeof req.body.isHidden === 'boolean';
-    const hasDescription = req.body.description !== undefined && (typeof req.body.description === 'string' || req.body.description === null);
-    const isSimpleUpdate = hasIsHidden && (keys.length === 1 || (keys.length === 2 && hasDescription));
-    if (isSimpleUpdate) {
-      const data: { isHidden: boolean; description?: string | null } = { isHidden: req.body.isHidden };
-      if (req.body.description !== undefined) {
-        data.description = req.body.description;
-      }
-      const character = await characterService.updateCharacter(id, userId, data as any);
-      return res.json({ status: 'success', character });
-    }
-    
-    // Validate input for full character updates
-    const validation = UpdateCharacterSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Validation failed',
-        details: validation.error.format()
-      });
-    }
-    
-    const data = validation.data;
     const existing = await characterService.getCharacterById(id, userId);
     if (!existing) {
       return res.status(404).json({
         status: 'error',
-        error: 'Character not found'
+        error: 'Character not found',
       });
+    }
+
+    if (req.sessionMode === 'child') {
+      const childProfileId = req.childProfileId!;
+      const wasCreatedByActiveChild =
+        existing.createdByMode === 'child' &&
+        existing.createdByChildProfileId === childProfileId;
+
+      if (!wasCreatedByActiveChild) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'CHILD_CHARACTER_EDIT_REQUIRES_PARENT_PROFILE',
+          error: 'Open the parent profile to edit this character',
+        });
+      }
+    }
+
+    // Support the isHidden toggle used by "Save to my characters".
+    // A simultaneous description change is handled below so it can regenerate the turnaround.
+    const keys = Object.keys(req.body);
+    const hasIsHidden = typeof req.body.isHidden === 'boolean';
+    const hasDescription =
+      req.body.description !== undefined &&
+      (typeof req.body.description === 'string' || req.body.description === null);
+    const isSimpleUpdate = hasIsHidden && keys.length === 1;
+    if (isSimpleUpdate) {
+      const data = { isHidden: req.body.isHidden };
+      const character = await characterService.updateCharacter(id, userId, data as any);
+      return res.json({ status: 'success', character });
+    }
+
+    let data: any;
+    if (hasIsHidden && keys.length === 2 && hasDescription) {
+      data = { isHidden: req.body.isHidden, description: req.body.description };
+    } else {
+      const validation = UpdateCharacterSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          status: 'error',
+          error: 'Validation failed',
+          details: validation.error.format(),
+        });
+      }
+      data = validation.data;
     }
 
     const incomingReferencePhotos = (data as { referencePhotos?: unknown }).referencePhotos;
@@ -749,10 +768,10 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     const shouldRegenerateTurnaround = modelGenerationInputsChanged(existing, data as any);
 
     if (shouldRegenerateTurnaround) {
-      quotaReservationChildProfileId = existing.childProfileId ?? null;
+      quotaReservationChildProfileId = existing.childProfileId ?? req.childProfileId ?? null;
       const quotaReservation = await reserveManualCharacterQuota(userId, {
         childProfileId: quotaReservationChildProfileId,
-        source: 'parent',
+        source: req.sessionMode === 'child' ? 'child' : 'parent',
         characterName: data.name ?? existing.name,
         characterType: data.type ?? existing.type,
       });

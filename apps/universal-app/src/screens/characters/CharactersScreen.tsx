@@ -17,7 +17,6 @@ import { theme } from '@/theme';
 import { useCharacterGenerationUsage, useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
-import { CharacterRenameModal } from '@/components/CharacterRenameModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -178,10 +177,10 @@ export default function CharactersScreen() {
                     character={character}
                     onPress={() => {
                       if (character.isOwned !== false) {
-                        const canChildRename =
+                        const canChildEdit =
                           character.createdByMode === 'child' &&
                           character.createdByChildProfileId === activeChildProfileId;
-                        if (isChildSession && !canChildRename) {
+                        if (isChildSession && !canChildEdit) {
                           Alert.alert(
                             t('characters.rename_parent_profile_title'),
                             t('characters.rename_parent_profile_message')
@@ -262,15 +261,9 @@ export default function CharactersScreen() {
 
       {/* Character Form Modal */}
       <CharacterFormModal
-        visible={isModalVisible && !editingCharacter}
-        onClose={() => {
-          setIsModalVisible(false);
-          setEditingCharacter(undefined);
-        }}
-      />
-      <CharacterRenameModal
-        visible={isModalVisible && !!editingCharacter}
-        character={editingCharacter ?? null}
+        visible={isModalVisible}
+        characterId={editingCharacter?.id}
+        initialData={editingCharacter}
         onClose={() => {
           setIsModalVisible(false);
           setEditingCharacter(undefined);

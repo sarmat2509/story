@@ -39,6 +39,8 @@ const API_ERROR_KEY_BY_CODE: Record<string, string> = {
   CHILD_PROFILE_LIMIT_EXCEEDED: 'child_profile_limit_exceeded',
   CHILD_CHARACTER_RENAME_REQUIRES_PARENT_PROFILE:
     'child_character_rename_requires_parent_profile',
+  CHILD_CHARACTER_EDIT_REQUIRES_PARENT_PROFILE:
+    'child_character_rename_requires_parent_profile',
   CHILD_PHOTO_REQUIRES_HUMAN: 'child_photo_requires_human',
   EXPENSIVE_GENERATION_RATE_LIMITED: 'expensive_generation_rate_limited',
   CHILD_DATA_CONSENT_REQUIRED: 'child_data_consent_required',

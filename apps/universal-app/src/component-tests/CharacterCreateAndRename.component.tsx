@@ -1,16 +1,18 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { CharacterRenameModal } from '@/components/CharacterRenameModal';
 
 const mockCreate = jest.fn();
+const mockUpdate = jest.fn();
 const mockRename = jest.fn();
 const mockClose = jest.fn();
 const mockChildrenData = { children: [] };
 
 jest.mock('@/api/characters', () => ({
   useCreateCharacter: () => ({ mutateAsync: mockCreate, isPending: false }),
-  useUpdateCharacter: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useUpdateCharacter: () => ({ mutateAsync: mockUpdate, isPending: false }),
   useRenameCharacter: () => ({ mutateAsync: mockRename, isPending: false }),
   useAnalyzeCharacter: () => ({ mutate: jest.fn(), isPending: false }),
 }));
@@ -54,6 +56,7 @@ jest.mock('@/components/FeedbackModal', () => ({ FeedbackModal: () => null }));
 describe('character create and rename forms', () => {
   beforeEach(() => {
     mockCreate.mockReset().mockResolvedValue({ id: 'created-character' });
+    mockUpdate.mockReset().mockResolvedValue({ id: 'character-1' });
     mockRename.mockReset().mockResolvedValue({ id: 'character-1', name: 'New Name' });
     mockClose.mockReset();
   });
@@ -101,5 +104,90 @@ describe('character create and rename forms', () => {
       });
     });
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for confirmation before a description edit regenerates the turnaround', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    const view = render(
+      <CharacterFormModal
+        visible
+        characterId="character-1"
+        initialData={{
+          name: 'Milo',
+          type: 'animal',
+          description: 'A small friendly explorer.',
+          referencePhotos: [],
+        }}
+        onClose={mockClose}
+      />
+    );
+
+    fireEvent.changeText(
+      view.getByTestId('character-form-description'),
+      'A small friendly explorer wearing a red scarf.'
+    );
+    fireEvent.press(view.getByTestId('character-form-save'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        'character_form.regeneration_confirm_title',
+        'character_form.regeneration_confirm_message',
+        expect.any(Array)
+      );
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    const actions = alertSpy.mock.calls[0]?.[2] as
+      | Array<{ onPress?: () => void }>
+      | undefined;
+    await act(async () => {
+      actions?.[1]?.onPress?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'character-1',
+          data: expect.objectContaining({
+            description: 'A small friendly explorer wearing a red scarf.',
+          }),
+        })
+      );
+    });
+
+    alertSpy.mockRestore();
+  });
+
+  it('saves a name-only edit without a turnaround regeneration confirmation', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    const view = render(
+      <CharacterFormModal
+        visible
+        characterId="character-1"
+        initialData={{
+          name: 'Milo',
+          type: 'animal',
+          description: 'A small friendly explorer.',
+          referencePhotos: [],
+        }}
+        onClose={mockClose}
+      />
+    );
+
+    fireEvent.changeText(view.getByTestId('character-form-name'), 'Milo the Explorer');
+    fireEvent.press(view.getByTestId('character-form-save'));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'character-1',
+          data: expect.objectContaining({ name: 'Milo the Explorer' }),
+        })
+      );
+    });
+    expect(alertSpy).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
   });
 });

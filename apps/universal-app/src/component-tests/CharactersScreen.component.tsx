@@ -4,6 +4,7 @@ import CharactersScreen from '@/screens/characters/CharactersScreen';
 
 const mockSetOptions = jest.fn();
 const mockUseCharacterGenerationUsage = jest.fn();
+const mockCharacterFormModal = jest.fn();
 let mockCharacters: Array<{
   id: string;
   name: string;
@@ -51,19 +52,13 @@ jest.mock('@/components/CharacterFormModal', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    CharacterFormModal: ({ visible }: { visible: boolean }) =>
-      visible ? React.createElement(View, { testID: 'character-form-modal' }) : null,
+    CharacterFormModal: (props: { visible: boolean; characterId?: string; initialData?: unknown }) => {
+      mockCharacterFormModal(props);
+      return props.visible ? React.createElement(View, { testID: 'character-form-modal' }) : null;
+    },
   };
 });
 
-jest.mock('@/components/CharacterRenameModal', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return {
-    CharacterRenameModal: ({ visible }: { visible: boolean }) =>
-      visible ? React.createElement(View, { testID: 'character-rename-modal' }) : null,
-  };
-});
 
 jest.mock('@/screens/characters/components/CharacterCard', () => {
   const React = require('react');
@@ -89,6 +84,7 @@ jest.mock('@/components/FeedbackHeaderButton', () => ({ FeedbackHeaderButton: ()
 describe('CharactersScreen story creation modes', () => {
   beforeEach(() => {
     mockCharacters = [];
+    mockCharacterFormModal.mockReset();
     mockAuthState = {
       sessionMode: 'parent',
       user: { mode: 'instant' },
@@ -117,7 +113,7 @@ describe('CharactersScreen story creation modes', () => {
     expect(view.getByTestId('character-form-modal')).toBeOnTheScreen();
   });
 
-  it('lets an Instant parent open rename for a character created by a child', () => {
+  it('lets an Instant parent open the full editor for a character created by a child', () => {
     mockCharacters = [
       {
         id: 'child-character',
@@ -134,7 +130,14 @@ describe('CharactersScreen story creation modes', () => {
     expect(view.queryByTestId('characters-add')).toBeNull();
     fireEvent.press(view.getByTestId('character-card-button-child-character'));
 
-    expect(view.getByTestId('character-rename-modal')).toBeOnTheScreen();
+    expect(view.getByTestId('character-form-modal')).toBeOnTheScreen();
+    expect(mockCharacterFormModal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        visible: true,
+        characterId: 'child-character',
+        initialData: expect.objectContaining({ name: 'Milo' }),
+      })
+    );
   });
 
   it('uses the active child mode instead of the parent account mode in a child session', () => {
@@ -164,5 +167,36 @@ describe('CharactersScreen story creation modes', () => {
     fireEvent.press(view.getByTestId('characters-add'));
 
     expect(view.getByTestId('character-form-modal')).toBeOnTheScreen();
+  });
+
+  it('lets a child open the full editor for a character they created', () => {
+    mockAuthState = {
+      sessionMode: 'child',
+      user: { mode: 'artisan' },
+      activeChild: { id: 'child-profile', storyCreationMode: 'artisan' },
+    };
+    mockCharacters = [
+      {
+        id: 'child-character',
+        name: 'Milo',
+        type: 'animal',
+        childProfileId: 'child-profile',
+        createdByMode: 'child',
+        createdByChildProfileId: 'child-profile',
+        isOwned: true,
+      },
+    ];
+
+    const view = render(<CharactersScreen />);
+    fireEvent.press(view.getByTestId('character-card-button-child-character'));
+
+    expect(view.getByTestId('character-form-modal')).toBeOnTheScreen();
+    expect(mockCharacterFormModal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        visible: true,
+        characterId: 'child-character',
+        initialData: expect.objectContaining({ name: 'Milo' }),
+      })
+    );
   });
 });

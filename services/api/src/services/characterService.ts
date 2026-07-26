@@ -39,14 +39,18 @@ function triggerDescriptionTranslation(character: Character): void {
  * Trigger async localization of character names for every story language.
  * Non-blocking: story generation falls back to the canonical DB name if a locale is missing.
  */
-function triggerNameLocalization(character: Character): void {
+async function localizeCharacterName(character: Character): Promise<void> {
   if (!character.name?.trim()) return;
 
   const usageContext = { userId: character.userId, characterId: character.id };
-  localizeCharacterNames(character, {
+  await localizeCharacterNames(character, {
     onUsage: (u) => recordUsage(u, usageContext),
     sourceLocale: character.descriptionLanguage,
-  }).catch((err) => {
+  });
+}
+
+function triggerNameLocalization(character: Character): void {
+  void localizeCharacterName(character).catch((err) => {
     logger.error(
       { err, characterId: character.id, characterName: character.name },
       'Character name localization failed'
@@ -222,6 +226,7 @@ export async function updateCharacter(
     throw new Error('Character not found');
   }
 
+  const nameChanged = Boolean(data.name && data.name !== existing.name);
   const finalCharacter = {
     ...existing,
     ...data,
@@ -243,8 +248,10 @@ export async function updateCharacter(
     triggerDescriptionTranslation(updated);
   }
 
-  if (data.name && data.name !== existing.name) {
-    triggerNameLocalization(updated);
+  if (nameChanged) {
+    // A form edit can change several fields at once. Persist every name locale before
+    // responding so stories never have to use a stale localized character name.
+    await localizeCharacterName(updated);
   }
 
   return updated;

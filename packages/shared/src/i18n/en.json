@@ -351,7 +351,7 @@
     "character_quota_remaining": "Character generations left this month: {{remaining}}",
     "character_quota_exhausted": "Monthly character limit reached",
     "rename_parent_profile_title": "Parent profile required",
-    "rename_parent_profile_message": "This character was not created in the current child profile. Open the parent profile to rename it. No approval request was sent.",
+    "rename_parent_profile_message": "This character was not created in the current child profile. Open the parent profile to edit it. No approval request was sent.",
     "family_members": "Include Family Members",
     "select_characters": "Select Characters (up to {{count}})",
     "select_children_and_characters": "Select characters and children (up to {{count}})",
@@ -1842,7 +1842,7 @@
   "api_errors": {
     "authentication_required": "Please sign in again to continue.",
     "parent_session_required": "Parent confirmation is required for this action.",
-    "child_character_rename_requires_parent_profile": "Open the parent profile to rename this character. No approval request was sent.",
+    "child_character_rename_requires_parent_profile": "Open the parent profile to edit this character. No approval request was sent.",
     "oauth_only": "Sign in with Google or Apple for this account.",
     "email_already_registered": "This email is already registered.",
     "consent_required": "Please confirm the required parent and legal consents.",
