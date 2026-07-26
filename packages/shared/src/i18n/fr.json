@@ -1316,6 +1316,24 @@
       "large": "Large",
       "giant": "Giant"
     },
+    "color_suggestions": {
+      "rainbow": "Arc-en-ciel",
+      "gold": "Doré",
+      "silver": "Argenté",
+      "sparkly": "Étincelant",
+      "transparent": "Transparent",
+      "glowing": "Lumineux",
+      "changing": "Changeant",
+      "purple": "Violet",
+      "pink": "Rose",
+      "blue": "Bleu",
+      "green": "Vert",
+      "red": "Rouge",
+      "yellow": "Jaune",
+      "orange": "Orange",
+      "multicolor": "Multicolore",
+      "pastel": "Pastel"
+    },
     "eye_colors": {
       "blue": "Blue",
       "light_blue": "Light Blue",

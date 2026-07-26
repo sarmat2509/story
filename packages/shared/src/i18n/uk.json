@@ -735,6 +735,24 @@
       "large": "Великий",
       "giant": "Гігантський"
     },
+    "color_suggestions": {
+      "rainbow": "Веселковий",
+      "gold": "Золотий",
+      "silver": "Срібний",
+      "sparkly": "Блискучий",
+      "transparent": "Прозорий",
+      "glowing": "Сяючий",
+      "changing": "Мінливий",
+      "purple": "Фіолетовий",
+      "pink": "Рожевий",
+      "blue": "Синій",
+      "green": "Зелений",
+      "red": "Червоний",
+      "yellow": "Жовтий",
+      "orange": "Помаранчевий",
+      "multicolor": "Різнокольоровий",
+      "pastel": "Пастельний"
+    },
     "eye_colors": {
       "blue": "Блакитні",
       "light_blue": "Світло-блакитні",

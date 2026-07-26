@@ -717,6 +717,24 @@
       "large": "Grande",
       "giant": "Gigante"
     },
+    "color_suggestions": {
+      "rainbow": "Arcoíris",
+      "gold": "Dorado",
+      "silver": "Plateado",
+      "sparkly": "Brillante",
+      "transparent": "Transparente",
+      "glowing": "Resplandeciente",
+      "changing": "Cambiante",
+      "purple": "Morado",
+      "pink": "Rosa",
+      "blue": "Azul",
+      "green": "Verde",
+      "red": "Rojo",
+      "yellow": "Amarillo",
+      "orange": "Naranja",
+      "multicolor": "Multicolor",
+      "pastel": "Pastel"
+    },
     "eye_colors": {
       "blue": "Azules",
       "light_blue": "Azul claro",

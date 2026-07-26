@@ -735,6 +735,24 @@
       "large": "Большой",
       "giant": "Гигантский"
     },
+    "color_suggestions": {
+      "rainbow": "Радужный",
+      "gold": "Золотой",
+      "silver": "Серебряный",
+      "sparkly": "Блестящий",
+      "transparent": "Прозрачный",
+      "glowing": "Светящийся",
+      "changing": "Меняющийся",
+      "purple": "Фиолетовый",
+      "pink": "Розовый",
+      "blue": "Синий",
+      "green": "Зелёный",
+      "red": "Красный",
+      "yellow": "Жёлтый",
+      "orange": "Оранжевый",
+      "multicolor": "Разноцветный",
+      "pastel": "Пастельный"
+    },
     "eye_colors": {
       "blue": "Голубые",
       "light_blue": "Светло-голубые",

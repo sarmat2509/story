@@ -728,6 +728,24 @@
       "large": "Duzy",
       "giant": "Ogromny"
     },
+    "color_suggestions": {
+      "rainbow": "Tęczowy",
+      "gold": "Złoty",
+      "silver": "Srebrny",
+      "sparkly": "Błyszczący",
+      "transparent": "Przezroczysty",
+      "glowing": "Świetlisty",
+      "changing": "Zmienny",
+      "purple": "Fioletowy",
+      "pink": "Różowy",
+      "blue": "Niebieski",
+      "green": "Zielony",
+      "red": "Czerwony",
+      "yellow": "Żółty",
+      "orange": "Pomarańczowy",
+      "multicolor": "Wielokolorowy",
+      "pastel": "Pastelowy"
+    },
     "eye_colors": {
       "blue": "Niebieskie",
       "light_blue": "Jasnoniebieskie",
