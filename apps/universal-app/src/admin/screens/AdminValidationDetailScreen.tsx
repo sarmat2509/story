@@ -26,7 +26,6 @@ import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { authenticatedFetch } from '@/utils/authenticatedFetch';
-import { storage } from '@/utils/storage';
 
 function toLabel(key: string): string {
   return key
@@ -506,11 +505,9 @@ function CharacterBBoxModal({
 
     const load = async () => {
       try {
-        const token = await storage.getAuthToken();
-        const response = await fetch(imageUrl, {
+        const response = await authenticatedFetch(imageUrl, {
           cache: 'no-store',
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!response.ok) {
           throw new Error(`Image request failed: ${response.status}`);
@@ -570,7 +567,7 @@ function CharacterBBoxModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.bboxModalBackdrop}>
+      <View style={styles.bboxModalBackdrop} testID="validation-bbox-modal">
         <View style={styles.bboxModalCard}>
           <View style={styles.bboxModalHeader}>
             <View style={styles.cardHeaderLeft}>
@@ -578,7 +575,9 @@ function CharacterBBoxModal({
               <View style={styles.cardTitleBlock}>
                 <Text style={styles.cardTitle}>{target?.characterName ?? 'BBox'}</Text>
                 <Text style={styles.cardSummary}>
-                  {target?.source === 'result' ? 'stored on character row' : 'from request manifest'}
+                  {target?.source === 'result'
+                    ? 'stored on character row'
+                    : 'from request manifest'}
                 </Text>
               </View>
             </View>
@@ -591,6 +590,7 @@ function CharacterBBoxModal({
             {resolvedUrl && target && bboxStyle ? (
               <>
                 <Image
+                  testID="validation-bbox-image"
                   source={{ uri: resolvedUrl }}
                   style={StyleSheet.absoluteFillObject}
                   resizeMode="contain"
@@ -618,7 +618,12 @@ function CharacterBBoxModal({
                 </View>
               </>
             ) : (
-              <View style={styles.previewImageEmpty}>
+              <View
+                style={styles.previewImageEmpty}
+                testID={
+                  failed ? 'validation-bbox-image-unavailable' : 'validation-bbox-image-loading'
+                }
+              >
                 <Ionicons
                   name={failed ? 'alert-circle-outline' : 'image-outline'}
                   size={28}
@@ -712,6 +717,7 @@ function renderCharacterCards(
               </Text>
               {bboxTarget ? (
                 <TouchableOpacity
+                  testID={`validation-bbox-button-${keyPrefix}-${index}`}
                   style={styles.bboxButton}
                   activeOpacity={0.82}
                   onPress={() => bboxContext?.onOpenBBox(bboxTarget)}

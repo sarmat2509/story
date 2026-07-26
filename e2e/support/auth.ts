@@ -8,11 +8,13 @@ type ParentLoginOptions = {
   mode?: 'instant' | 'artisan';
   onboardingCompleted?: boolean;
   childModeExitPasscodeConfigured?: boolean;
+  role?: 'user' | 'admin';
 };
 
 export async function loginAsParent(page: Page, options: ParentLoginOptions = {}) {
   const user = {
     ...testUser,
+    role: options.role ?? testUser.role,
     mode: options.mode ?? 'artisan',
     onboardingCompleted: options.onboardingCompleted ?? testUser.onboardingCompleted,
     childModeExitPasscodeConfigured:
@@ -43,6 +45,10 @@ export async function loginAsParent(page: Page, options: ParentLoginOptions = {}
     },
     { user, token: authToken }
   );
+}
+
+export async function loginAsAdmin(page: Page) {
+  await loginAsParent(page, { role: 'admin' });
 }
 
 type ChildLoginOptions = {

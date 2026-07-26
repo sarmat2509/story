@@ -1,12 +1,13 @@
 import { test as base, expect } from '@playwright/test';
 import { installApiMocks, type ApiMockScenario } from './apiMocks';
-import { loginAsChild, loginAsParent } from './auth';
+import { loginAsAdmin, loginAsChild, loginAsParent } from './auth';
 
 type WonderTalesFixtures = {
   apiScenario: ApiMockScenario;
   browserDefaults: void;
   mockApi: void;
   authenticatedParent: void;
+  authenticatedAdmin: void;
   authenticatedChild: void;
 };
 
@@ -32,6 +33,10 @@ export const test = base.extend<WonderTalesFixtures>({
   ],
   authenticatedParent: async ({ page }, use) => {
     await loginAsParent(page);
+    await use();
+  },
+  authenticatedAdmin: async ({ page }, use) => {
+    await loginAsAdmin(page);
     await use();
   },
   authenticatedChild: async ({ page }, use) => {

@@ -51,6 +51,7 @@
     "test:e2e": "playwright test",
     "test:e2e:artisan-wizard": "playwright test e2e/artisan-wizard.spec.ts",
     "test:e2e:auth-onboarding": "playwright test e2e/auth-onboarding.spec.ts",
+    "test:e2e:admin-validation-bbox": "playwright test e2e/admin-validation-bbox.spec.ts",
     "test:e2e:billing": "playwright test e2e/billing.spec.ts",
     "test:e2e:catalog-filters": "playwright test e2e/catalog-filters.spec.ts",
     "test:e2e:characters": "playwright test e2e/characters.spec.ts",

@@ -36,13 +36,16 @@ export type ApiMockScenario =
   | 'parent-mode-switch-instant'
   | 'child-mode-switch-instant'
   | 'story-continuation-retry'
-  | 'story-review-publish';
+  | 'story-review-publish'
+  | 'admin-validation-bbox';
 
 type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 type MockResponse = {
   status?: number;
   body: unknown;
+  contentType?: 'application/json' | 'image/png';
+  requiredAuthorization?: string;
 };
 
 type MockDefinition = {
@@ -112,6 +115,14 @@ function clone<T>(value: T): T {
 
 function response(body: unknown, status = 200): MockResponse {
   return { body, status };
+}
+
+function pngResponse(requiredAuthorization?: string): MockResponse {
+  return {
+    body: transparentPng,
+    contentType: 'image/png',
+    requiredAuthorization,
+  };
 }
 
 function normalizedTarget(target: string): string {
@@ -494,6 +505,73 @@ function staticDefinitions(): MockDefinition[] {
 }
 
 function scenarioDefinitions(scenario: ApiMockScenario): MockDefinition[] {
+  if (scenario === 'admin-validation-bbox') {
+    const validationId = '1588b77c-aace-416a-9adf-9dfd3ff3f495';
+    const adminUser = { ...testUser, role: 'admin' };
+    return [
+      {
+        method: 'GET',
+        target: '/api/v1/me',
+        responses: [response({ status: 'success', user: adminUser })],
+      },
+      {
+        method: 'GET',
+        target: `/api/v1/admin/image-validations/${validationId}`,
+        responses: [
+          response({
+            status: 'success',
+            data: {
+              id: validationId,
+              storyId: 'story-e2e-validation',
+              sceneIndex: 1,
+              attempt: 1,
+              imageStoragePath: 'stories/story-e2e-validation/scene-1.png',
+              imageUrl: `/api/v1/admin/image-validations/${validationId}/image`,
+              validationScore: 92,
+              validationStatus: 'passed',
+              visionModel: 'gemini-image',
+              requestManifest: {},
+              providerError: null,
+              result: {
+                layoutFeedback: 'expected composition',
+                characters: [
+                  {
+                    name: 'Emilia',
+                    found: true,
+                    duplicated: false,
+                    characterBoundingBox: {
+                      found: true,
+                      xMin: 110,
+                      yMin: 150,
+                      xMax: 375,
+                      yMax: 620,
+                      confidence: 100,
+                      visibility: 'partial_body',
+                      notes: 'A girl is leaning out of the ship hatch.',
+                    },
+                    characterCropRect: {
+                      left: 112,
+                      top: 85,
+                      width: 272,
+                      height: 270,
+                    },
+                  },
+                ],
+              },
+              usage: null,
+              createdAt: '2026-07-26T10:00:00.000Z',
+            },
+          }),
+        ],
+      },
+      {
+        method: 'GET',
+        target: `/api/v1/admin/image-validations/${validationId}/image`,
+        responses: [pngResponse('Bearer e2e-parent-token')],
+      },
+    ];
+  }
+
   if (scenario === 'onboarding') {
     return [
       {
@@ -916,12 +994,32 @@ async function fulfillJson(route: Route, mockResponse: MockResponse) {
   });
 }
 
-async function fulfillPng(route: Route) {
+async function fulfillPng(route: Route, mockResponse?: MockResponse) {
   await route.fulfill({
-    status: 200,
+    status: mockResponse?.status ?? 200,
     contentType: 'image/png',
-    body: transparentPng,
+    body: Buffer.isBuffer(mockResponse?.body) ? mockResponse.body : transparentPng,
   });
+}
+
+async function fulfillMockResponse(route: Route, mockResponse: MockResponse) {
+  if (
+    mockResponse.requiredAuthorization &&
+    route.request().headers().authorization !== mockResponse.requiredAuthorization
+  ) {
+    await fulfillJson(
+      route,
+      response({ status: 'error', message: 'Invalid E2E authorization token' }, 401)
+    );
+    return;
+  }
+
+  if (mockResponse.contentType === 'image/png') {
+    await fulfillPng(route, mockResponse);
+    return;
+  }
+
+  await fulfillJson(route, mockResponse);
 }
 
 export async function installApiMocks(
@@ -964,7 +1062,7 @@ export async function installApiMocks(
 
     const callIndex = callCounts.get(requestKey) ?? 0;
     callCounts.set(requestKey, callIndex + 1);
-    await fulfillJson(route, responses[Math.min(callIndex, responses.length - 1)]);
+    await fulfillMockResponse(route, responses[Math.min(callIndex, responses.length - 1)]);
   });
 
   return {

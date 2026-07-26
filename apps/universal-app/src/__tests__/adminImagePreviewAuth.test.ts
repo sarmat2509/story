@@ -23,10 +23,20 @@ for (const screen of previewScreens) {
   );
   assert.doesNotMatch(
     source,
-    /const token = await storage\.getAuthToken\(\);\s*const response = await fetch\(url,/,
+    /const token = await storage\.getAuthToken\(\);[\s\S]{0,200}?fetch\(/,
     `${screen} must not bypass the active auth-store token in its image preview`
   );
 }
+
+const validationDetail = readFileSync(
+  resolve(process.cwd(), 'src/admin/screens/AdminValidationDetailScreen.tsx'),
+  'utf8'
+);
+assert.match(
+  validationDetail,
+  /authenticatedFetch\(imageUrl, \{[\s\S]{0,120}?credentials: 'include'/,
+  'the validation BBox modal must load its image with the active auth-store token'
+);
 
 const helper = readFileSync(resolve(process.cwd(), 'src/utils/authenticatedFetch.ts'), 'utf8');
 assert.match(
