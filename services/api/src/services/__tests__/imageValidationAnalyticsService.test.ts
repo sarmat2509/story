@@ -129,4 +129,61 @@ assert.deepEqual(analytics.distribution, [
   { characterCount: 3, regenerations: 2, imageTargets: 1 },
 ]);
 
+const repeatedComicCharacters = buildImageValidationCharacterRegenerationAnalytics([
+  row({
+    sceneIndex: 10,
+    attempt: 1,
+    result: {
+      expectedCharacterCount: 6,
+      characters: [
+        { name: 'Dogihunt', panelId: 'p1' },
+        { name: 'Tick', panelId: 'p1' },
+        { name: 'Dogihunt', panelId: 'p2' },
+        { name: 'Tick', panelId: 'p2' },
+        { name: 'Dogihunt', panelId: 'p3' },
+        { name: 'Tick', panelId: 'p3' },
+      ],
+    },
+    requestManifest: {
+      panels: [
+        {
+          panelId: 'p1',
+          expectedCharacters: [{ name: 'Dogihunt' }, { name: 'Tick' }],
+        },
+        {
+          panelId: 'p2',
+          expectedCharacters: [{ name: 'Dogihunt' }, { name: 'Tick' }],
+        },
+        {
+          panelId: 'p3',
+          expectedCharacters: [{ name: 'Dogihunt' }, { name: 'Tick' }],
+        },
+      ],
+    },
+  }),
+  row({
+    sceneIndex: 11,
+    attempt: 1,
+    result: { expectedCharacterCount: 3 },
+    requestManifest: {
+      expectedCharacters: [
+        { characterRef: 'character-emilia', name: 'Emilia' },
+        { characterRef: 'character-emilia', name: 'Емілія' },
+        { characterRef: 'character-sparky', name: 'Sparky' },
+      ],
+    },
+  }),
+]);
+
+assert.deepEqual(repeatedComicCharacters.buckets, [
+  {
+    characterCount: 2,
+    imageTargets: 2,
+    totalGenerations: 2,
+    totalRegenerations: 0,
+    averageRegenerations: 0,
+    retryRate: 0,
+  },
+]);
+
 console.log('image validation character/regeneration analytics tests passed');

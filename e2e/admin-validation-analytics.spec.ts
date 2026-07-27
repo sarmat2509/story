@@ -17,5 +17,6 @@ test('shows character-count correlation for individual image generations', async
   await expect(analytics.getByText('4', { exact: true }).first()).toBeVisible();
   await expect(analytics.getByText('8', { exact: true })).toBeVisible();
   await expect(analytics.getByText('75%', { exact: true })).toBeVisible();
+  await expect(analytics.getByText('Unique characters in image')).toBeVisible();
   await expect(page.getByTestId('character-regeneration-scatter-chart')).toBeVisible();
 });

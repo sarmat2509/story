@@ -71,10 +71,11 @@ export function AdminCharacterRegenerationChart({
     <View style={styles.card} testID="character-regeneration-correlation">
       <View style={styles.header}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title}>Characters vs image regenerations</Text>
+          <Text style={styles.title}>Unique characters vs image regenerations</Text>
           <Text style={styles.subtitle}>
-            Each sample is one scene or comic-panel image target. Duplicate validation rows for the
-            same attempt count as one generated image.
+            Each sample is one scene, comic page, or comic-panel image target. Characters are
+            counted once by identity even when they appear in multiple panels. Duplicate validation
+            rows for the same attempt count as one generated image.
           </Text>
         </View>
         <View style={styles.correlationBadge}>
@@ -208,7 +209,7 @@ export function AdminCharacterRegenerationChart({
                 fontWeight="600"
                 fill={theme.colors.text.secondary}
               >
-                Characters in visual scene
+                Unique characters in image
               </SvgText>
               <SvgText
                 x={14}
@@ -241,7 +242,7 @@ export function AdminCharacterRegenerationChart({
       {data.buckets.length > 0 ? (
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
-            <Text style={[styles.tableCell, styles.tableHeaderText]}>Characters</Text>
+            <Text style={[styles.tableCell, styles.tableHeaderText]}>Unique characters</Text>
             <Text style={[styles.tableCell, styles.tableHeaderText]}>Images</Text>
             <Text style={[styles.tableCell, styles.tableHeaderText]}>Avg retries</Text>
             <Text style={[styles.tableCell, styles.tableHeaderText]}>Retry rate</Text>

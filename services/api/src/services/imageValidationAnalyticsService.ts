@@ -58,19 +58,73 @@ function finiteNonNegativeInteger(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
 }
 
-function expectedCharacterCount(row: ImageValidationAnalyticsRow): number | null {
-  const result = asRecord(row.result);
-  const direct = finiteNonNegativeInteger(result?.expectedCharacterCount);
-  if (direct != null) return direct;
+function normalizedIdentityPart(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLocaleLowerCase('en-US');
+  return normalized.length > 0 ? normalized : null;
+}
 
-  const manifest = asRecord(row.requestManifest);
-  if (Array.isArray(manifest?.expectedCharacters)) {
-    return manifest.expectedCharacters.length;
+function uniqueCharacterCount(value: unknown): number | null {
+  if (!Array.isArray(value)) return null;
+
+  const identities = new Set<string>();
+  value.forEach((candidate, index) => {
+    const character = asRecord(candidate);
+    const stableIdentity =
+      normalizedIdentityPart(character?.characterRef) ??
+      normalizedIdentityPart(character?.characterId) ??
+      normalizedIdentityPart(character?.id);
+    const name =
+      normalizedIdentityPart(character?.name) ??
+      normalizedIdentityPart(character?.displayName) ??
+      normalizedIdentityPart(character?.englishName);
+
+    if (stableIdentity) {
+      identities.add(`id:${stableIdentity}`);
+    } else if (name) {
+      identities.add(`name:${name}`);
+    } else {
+      // Old validation payloads did not always retain identity metadata.
+      identities.add(`anonymous:${index}`);
+    }
+  });
+
+  return identities.size;
+}
+
+function manifestExpectedCharacterCount(manifest: Record<string, unknown> | null): number | null {
+  if (!manifest) return null;
+
+  if (Array.isArray(manifest.expectedCharacters) && manifest.expectedCharacters.length > 0) {
+    return uniqueCharacterCount(manifest.expectedCharacters);
   }
-  if (Array.isArray(result?.characters)) {
-    return result.characters.length;
+
+  if (Array.isArray(manifest.panels)) {
+    const panelCharacters = manifest.panels.flatMap((panel) => {
+      const panelRecord = asRecord(panel);
+      return Array.isArray(panelRecord?.expectedCharacters) ? panelRecord.expectedCharacters : [];
+    });
+    if (panelCharacters.length > 0) {
+      return uniqueCharacterCount(panelCharacters);
+    }
   }
+
   return null;
+}
+
+function expectedCharacterCount(row: ImageValidationAnalyticsRow): number | null {
+  const manifest = asRecord(row.requestManifest);
+  const manifestCount = manifestExpectedCharacterCount(manifest);
+  if (manifestCount != null) return manifestCount;
+
+  const result = asRecord(row.result);
+  if (Array.isArray(result?.characters) && result.characters.length > 0) {
+    return uniqueCharacterCount(result.characters);
+  }
+
+  // expectedCharacterCount can represent repeated appearances across comic panels, so only trust
+  // this scalar when neither the expected roster nor the validation character list was retained.
+  return finiteNonNegativeInteger(result?.expectedCharacterCount);
 }
 
 function imageTargetKey(row: ImageValidationAnalyticsRow): string {
