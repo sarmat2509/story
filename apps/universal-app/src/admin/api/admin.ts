@@ -1434,6 +1434,23 @@ export type AdminStoryAudioPayload = {
   chunks: AdminStoryAudioChunkPayload[];
 };
 
+export type AdminGenerationStageEvent = {
+  id: string;
+  generationKind: string;
+  pipelinePhase: string;
+  operation: string;
+  targetType: string | null;
+  targetKey: string | null;
+  sceneIndex: number | null;
+  pageNumber: number | null;
+  status: string;
+  attempt: number;
+  cacheStatus: string | null;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+};
+
 export type AdminMapTileAssetPayload = {
   id: string;
   imageUrl: string;
@@ -1483,6 +1500,7 @@ export function useAdminDirectorScenes(storyId?: string) {
           environments: AdminEnvironmentItem[];
           outfits: AdminOutfitItem[];
           audio: AdminStoryAudioPayload;
+          generationTimeline: AdminGenerationStageEvent[];
           meta: { total: number };
         };
       }>(`/api/v1/admin/stories/${storyId}/director-scenes`);

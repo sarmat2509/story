@@ -24,6 +24,7 @@ import {
   useAdminResetStoryAudio,
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
+import { AdminGenerationTimeline } from '@/admin/components/AdminGenerationTimeline';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import {
   buildAdminImageGenerationAttempts,
@@ -1890,6 +1891,12 @@ export default function AdminScenesScreen() {
             Per-scene «STORY TEXT» is the writer manuscript (prose). Inline `[…]` TTS prosody
             markup, when the pipeline stores it, appears only above under AUDIO → «Synthesis text».
           </Text>
+        ) : null}
+        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
+          <AdminGenerationTimeline
+            events={scenesQuery.data?.generationTimeline ?? []}
+            textValidation={textValidation}
+          />
         ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
           <View style={styles.sceneCard}>

@@ -11,6 +11,7 @@ import {
   getSceneRepository,
   getStoryDirectorSceneRepository,
   getStoryEnvironmentCacheRepository,
+  getStoryGenerationStageEventRepository,
   getStoryOutfitPlateCacheRepository,
   getStoryRepository,
   getUserRepository,
@@ -485,6 +486,76 @@ function sanitizeAdminManifest(value: unknown): unknown {
     sanitized[key] = sanitizeAdminManifest(child);
   }
   return sanitized;
+}
+
+type AdminImageReferencePathLookup = {
+  environmentStoragePathById: ReadonlyMap<string, string>;
+  characterStoragePathByName: ReadonlyMap<string, string>;
+};
+
+function adminReferenceNameKey(value: unknown): string | null {
+  const name = stringOrNull(value);
+  return name ? name.toLocaleLowerCase().replace(/\s+/g, ' ').trim() : null;
+}
+
+/**
+ * Old scene manifests may contain only base64 transport metadata even though the source asset
+ * is still stored. Enrich those rows for the admin UI without exposing the binary payload.
+ */
+export function enrichAdminImageReferencePaths(
+  value: unknown,
+  lookup: AdminImageReferencePathLookup
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => enrichAdminImageReferencePaths(item, lookup));
+  }
+  const record = objectOrNull(value);
+  if (!record) return value;
+
+  const enriched = Object.fromEntries(
+    Object.entries(record).map(([key, child]) => [
+      key,
+      enrichAdminImageReferencePaths(child, lookup),
+    ])
+  ) as Record<string, unknown>;
+
+  const existingUrl = stringOrNull(enriched.url);
+  const existingStoragePath =
+    normalizeAssetPath(enriched.storagePath) ??
+    (existingUrl &&
+    !existingUrl.startsWith('http://') &&
+    !existingUrl.startsWith('https://')
+      ? normalizeAssetPath(existingUrl)
+      : null);
+  if (existingStoragePath) {
+    enriched.storagePath = existingStoragePath;
+    enriched.url =
+      existingUrl?.startsWith('http://') || existingUrl?.startsWith('https://')
+        ? existingUrl
+        : publicAssetUrl(existingStoragePath);
+    return enriched;
+  }
+  if (existingUrl?.startsWith('http://') || existingUrl?.startsWith('https://')) {
+    return enriched;
+  }
+
+  const environmentId =
+    stringOrNull(enriched.referenceEnvironmentId) ?? stringOrNull(enriched.environmentId);
+  const characterNameKey = adminReferenceNameKey(enriched.characterName ?? enriched.name);
+  const source = stringOrNull(enriched.source);
+  const referenceKind = stringOrNull(enriched.referenceKind);
+  const resolvedStoragePath =
+    (environmentId && (source === 'environment' || referenceKind === 'object')
+      ? lookup.environmentStoragePathById.get(environmentId)
+      : null) ??
+    (characterNameKey ? lookup.characterStoragePathByName.get(characterNameKey) : null) ??
+    null;
+
+  if (resolvedStoragePath) {
+    enriched.storagePath = resolvedStoragePath;
+    enriched.url = publicAssetUrl(resolvedStoragePath);
+  }
+  return enriched;
 }
 
 function buildAdminImageRequestManifest(
@@ -1281,6 +1352,8 @@ export async function listAdminDirectorScenes(storyId: string) {
     mapTileAssetById,
     latestMapTileAsset,
     completedSceneImages,
+    linkedCharacters,
+    generationStageEvents,
   ] = await Promise.all([
     getStoryDirectorSceneRepository().listByStoryId(storyId),
     getStoryEnvironmentCacheRepository().listByStoryId(storyId),
@@ -1294,6 +1367,8 @@ export async function listAdminDirectorScenes(storyId: string) {
     mapTileAssetId ? assetRepo.findById(mapTileAssetId) : Promise.resolve(null),
     assetRepo.findLatestCompletedMapTileByStoryId(storyId),
     assetRepo.findCompletedSceneImagesByStoryId(storyId),
+    getStoryRepository().findLinkedCharactersByStoryId(storyId),
+    getStoryGenerationStageEventRepository().listByStoryId(storyId),
   ]);
   const mapTileAsset =
     mapTileAssetById?.storyId === storyId ? mapTileAssetById : latestMapTileAsset;
@@ -1306,12 +1381,28 @@ export async function listAdminDirectorScenes(storyId: string) {
   ]);
 
   const environmentImageUrlById = new Map<string, string>();
+  const environmentStoragePathById = new Map<string, string>();
   const environmentCacheById = new Map(environmentCaches.map((item) => [item.id, item]));
   for (const mapping of storyEnvironmentMappings) {
     const cache = environmentCacheById.get(mapping.cacheId);
     if (!cache || environmentImageUrlById.has(mapping.storyEnvironmentId)) continue;
     environmentImageUrlById.set(mapping.storyEnvironmentId, `/api/v1/assets/${cache.storagePath}`);
+    environmentStoragePathById.set(mapping.storyEnvironmentId, cache.storagePath);
   }
+
+  const characterStoragePathByName = new Map<string, string>();
+  for (const character of linkedCharacters) {
+    const turnaround = objectOrNull(character.turnaroundSheet);
+    const storagePath = normalizeAssetPath(turnaround?.url);
+    const nameKey = adminReferenceNameKey(character.name);
+    if (storagePath && nameKey && !characterStoragePathByName.has(nameKey)) {
+      characterStoragePathByName.set(nameKey, storagePath);
+    }
+  }
+  const imageReferencePathLookup: AdminImageReferencePathLookup = {
+    environmentStoragePathById,
+    characterStoragePathByName,
+  };
 
   const outfitImageByKey = new Map<
     string,
@@ -1526,10 +1617,14 @@ export async function listAdminDirectorScenes(storyId: string) {
         const imageUrl = sceneImage
           ? `/api/v1/assets/${sceneImage.storagePath}`
           : stringOrNull(graphicNovelPage?.imageUrl);
-        const imageRequestManifest = buildAdminImageRequestManifest(
+        const rawImageRequestManifest = buildAdminImageRequestManifest(
           sceneImage?.generationParams ?? graphicNovelPage?.generationParams,
           imageStoragePath,
           graphicNovelPage?.layoutJson
+        );
+        const imageRequestManifest = enrichAdminImageReferencePaths(
+          rawImageRequestManifest,
+          imageReferencePathLookup
         );
         return {
           sceneIndex,
@@ -1657,6 +1752,22 @@ export async function listAdminDirectorScenes(storyId: string) {
         generationTimeMs: c.generationTimeMs,
       })),
     },
+    generationTimeline: generationStageEvents.map((event) => ({
+      id: event.id,
+      generationKind: event.generationKind,
+      pipelinePhase: event.pipelinePhase,
+      operation: event.operation,
+      targetType: event.targetType,
+      targetKey: event.targetKey,
+      sceneIndex: event.sceneIndex,
+      pageNumber: event.pageNumber,
+      status: event.status,
+      attempt: event.attempt,
+      cacheStatus: event.cacheStatus,
+      startedAt: event.startedAt.toISOString(),
+      completedAt: event.completedAt.toISOString(),
+      durationMs: event.durationMs,
+    })),
     meta: { total: items.length },
   };
 }

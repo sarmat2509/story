@@ -122,6 +122,13 @@ function isDisplayableReference(row: Record<string, unknown>): boolean {
 }
 
 function referenceDedupKey(row: Record<string, unknown>, fallbackIndex: number): string {
+  if (hasReferenceText(row.referenceBindingId)) {
+    return `binding:${String(row.referenceBindingId)}`;
+  }
+  const imageIndex = row.imageIndex ?? row.index;
+  if (imageIndex != null && String(imageIndex).trim()) {
+    return `index:${String(imageIndex)}`;
+  }
   return [
     row.storagePath,
     row.url,
@@ -264,7 +271,7 @@ function SummaryPill({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-function ReferenceList({ references }: { references: Record<string, unknown>[] }) {
+export function ReferenceList({ references }: { references: Record<string, unknown>[] }) {
   const [activeReferenceKey, setActiveReferenceKey] = useState<string | null>(null);
 
   if (references.length === 0) {
@@ -284,6 +291,9 @@ function ReferenceList({ references }: { references: Record<string, unknown>[] }
             style={[styles.referenceAnchor, isActive ? styles.referenceAnchorActive : null]}
           >
             <TouchableOpacity
+              testID={`admin-reference-row-${index}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${referenceLabel(reference, index)}`}
               style={[
                 styles.referenceRow,
                 previewUrl && isActive ? styles.referenceRowActive : null,
@@ -309,7 +319,10 @@ function ReferenceList({ references }: { references: Record<string, unknown>[] }
               ) : null}
             </TouchableOpacity>
             {previewUrl && isActive ? (
-              <View style={styles.referencePreviewTooltip}>
+              <View
+                testID={`admin-reference-preview-${index}`}
+                style={styles.referencePreviewTooltip}
+              >
                 <AuthenticatedAdminImagePreview
                   url={previewUrl}
                   style={styles.referencePreviewImage}
