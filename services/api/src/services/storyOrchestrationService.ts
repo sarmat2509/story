@@ -362,19 +362,38 @@ async function runWithConcurrencyLimit<T>(
   fn: (item: T, index: number) => Promise<void>
 ): Promise<void> {
   if (items.length === 0) return;
-  const limit = Math.max(1, concurrency);
-  const executing: Promise<void>[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const p = fn(item, i).finally(() => {
-      executing.splice(executing.indexOf(p), 1);
-    });
-    executing.push(p);
-    if (executing.length >= limit) {
-      await Promise.race(executing);
+
+  const workerCount = Math.min(items.length, Math.max(1, concurrency));
+  let nextIndex = 0;
+  let hasError = false;
+  let firstError: unknown;
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (!hasError) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+
+      try {
+        await fn(items[index], index);
+      } catch (error) {
+        if (!hasError) {
+          hasError = true;
+          firstError = error;
+        }
+        return;
+      }
     }
+  });
+
+  // Drain every task that was already started before surfacing the failure.
+  // Durable queue retries can then observe any sibling scene images persisted by
+  // the failed attempt instead of starting duplicate generations for them.
+  await Promise.all(workers);
+
+  if (hasError) {
+    throw firstError;
   }
-  await Promise.all(executing);
 }
 
 /**
@@ -1894,6 +1913,7 @@ async function buildCharacterReferenceDataArray(
     type: string;
     isTurnaround: boolean;
     url: string;
+    storagePath: string;
     index: number;
   }>
 > {
@@ -1922,6 +1942,7 @@ async function buildCharacterReferenceDataArray(
           type,
           isTurnaround,
           url,
+          storagePath: url,
           index: index + 1,
         };
       }
@@ -1939,6 +1960,7 @@ async function buildCharacterReferenceDataArray(
         type,
         isTurnaround,
         url,
+        storagePath: url,
         index: index + 1,
       };
     })
@@ -1974,54 +1996,64 @@ async function prepareFilesApiAndSystemInstruction(params: {
     logger.info('Files API enabled — pre-uploading character reference assets');
 
     const dedupe = new Set<string>();
-    for (const char of targetCharacters) {
+    const uniqueTargetCharacters = targetCharacters.filter((char) => {
       const key = (char.id as string | undefined) || char.name;
-      if (dedupe.has(key)) continue;
+      if (dedupe.has(key)) return false;
       dedupe.add(key);
+      return true;
+    });
 
-      const turnaround = (char as any).turnaroundSheet as { url?: string } | null | undefined;
-      const storagePath = turnaround?.url ? extractStoragePath(turnaround.url) : null;
+    await runWithConcurrencyLimit(
+      uniqueTargetCharacters,
+      config.image.parallelStreams,
+      async (char) => {
+        const turnaround = (char as any).turnaroundSheet as
+          | { url?: string }
+          | null
+          | undefined;
+        const storagePath = turnaround?.url ? extractStoragePath(turnaround.url) : null;
 
-      if (!storagePath) continue;
+        if (!storagePath) return;
 
-      try {
-        const buffer = await assetStorage.getAssetByPath(storagePath);
-        if (!buffer) {
+        try {
+          const buffer = await assetStorage.getAssetByPath(storagePath);
+          if (!buffer) {
+            logger.warn(
+              { characterName: char.name, storagePath },
+              'Asset not found for Files API upload'
+            );
+            return;
+          }
+
+          const mimeType = storagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          const displayName = `turnaround_${char.name}`;
+
+          const uploaded = await imageDomain.uploadReferenceFile(
+            buffer,
+            mimeType,
+            displayName,
+            storagePath
+          );
+          if (uploaded) {
+            uploadedFileMap.set(char.name, uploaded);
+            logger.info(
+              {
+                characterName: char.name,
+                charType: (char as any).type,
+                fileUri: uploaded.uri,
+                fileName: uploaded.name,
+              },
+              'Character reference uploaded to Files API'
+            );
+          }
+        } catch (err) {
           logger.warn(
-            { characterName: char.name, storagePath },
-            'Asset not found for Files API upload'
-          );
-          continue;
-        }
-
-        const mimeType = storagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
-        const displayName = `turnaround_${char.name}`;
-
-        const uploaded = await imageDomain.uploadReferenceFile(
-          buffer,
-          mimeType,
-          displayName,
-          storagePath
-        );
-        if (uploaded) {
-          uploadedFileMap.set(char.name, uploaded);
-          logger.info(
-            {
-              characterName: char.name,
-              charType: (char as any).type,
-              fileUri: uploaded.uri,
-              fileName: uploaded.name,
-            },
-            'Character reference uploaded to Files API'
+            { characterName: char.name, error: err },
+            'Failed to upload character asset to Files API — will use inline base64'
           );
         }
-      } catch (err) {
-        logger.warn(
-          { characterName: char.name, error: err },
-          'Failed to upload character asset to Files API — will use inline base64'
-        );
       }
-    }
+    );
 
     logger.info({ uploadedCount: uploadedFileMap.size }, 'Files API pre-upload complete');
   }
@@ -2803,6 +2835,8 @@ export async function processStoryImages(
                   type: 'environment_reference',
                   characterName: currentEnvironment?.name || currentEnvironmentId,
                   referenceEnvironmentId: currentEnvironmentId,
+                  storagePath: envImageData.storagePath,
+                  url: `/api/v1/assets/${envImageData.storagePath}`,
                   imageIndex: 1,
                 },
               ]
@@ -4373,7 +4407,9 @@ export function computeValidationScore(
       }
     }
   }
-  if (validation.hasTextOrLetters) score -= p.textPenalty;
+  if (config.image.validationCheckTextOrSymbols && validation.hasTextOrLetters) {
+    score -= p.textPenalty;
+  }
   if (validation.hasSceneCompositionMismatch) score -= p.artifactsPenalty;
   if (validation.hasUnexpectedCharacters) score -= p.unexpectedCharsPenalty;
   if (validation.hasRenderingArtifacts) score -= p.artifactsPenalty;
@@ -4388,7 +4424,10 @@ export function computeValidationScore(
  * This includes leaked reference-sheet titles/identifiers reported through hasTextOrLetters.
  */
 export function hasBlockingUnwantedImageText(validation: ImageValidationResult): boolean {
-  return validation.hasTextOrLetters === true;
+  return (
+    config.image.validationCheckTextOrSymbols &&
+    validation.hasTextOrLetters === true
+  );
 }
 
 /** Explicit scene-structure violations must be repaired even when identity scoring is high. */
@@ -4396,8 +4435,23 @@ export function hasBlockingSceneCompositionMismatch(validation: ImageValidationR
   return validation.hasSceneCompositionMismatch === true;
 }
 
+/** Clearly broken character anatomy must trigger retry/repair even when identity still matches. */
+export function hasBlockingCharacterAnatomyArtifact(
+  validation: ImageValidationResult
+): boolean {
+  return validation.characters.some(
+    (character) =>
+      character.anatomyArtifactSeverity === 'moderate' ||
+      character.anatomyArtifactSeverity === 'severe'
+  );
+}
+
 export function hasBlockingImageValidationIssue(validation: ImageValidationResult): boolean {
-  return hasBlockingUnwantedImageText(validation) || hasBlockingSceneCompositionMismatch(validation);
+  return (
+    hasBlockingUnwantedImageText(validation) ||
+    hasBlockingSceneCompositionMismatch(validation) ||
+    hasBlockingCharacterAnatomyArtifact(validation)
+  );
 }
 
 interface ScoredAttempt {
@@ -4513,6 +4567,8 @@ function validationCharacterNeedsIdentityRepair(
     c.proportionsMatchReference === false ||
     c.sameOverallDesignRead === false ||
     (c.silhouetteDriftSeverity !== undefined && c.silhouetteDriftSeverity !== 'none') ||
+    c.anatomyArtifactSeverity === 'moderate' ||
+    c.anatomyArtifactSeverity === 'severe' ||
     c.recognizableScore < config.image.validationScoring.humanLowRecognizableThreshold ||
     c.matchesColors === false
   );
@@ -4624,6 +4680,19 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
       issues.push(makeRepairIssue('age', note || 'Age read mismatch.'));
     if (c.proportionsMatchReference === false)
       issues.push(makeRepairIssue('body', note || 'Body proportion mismatch.'));
+    if (
+      c.anatomyArtifactSeverity === 'moderate' ||
+      c.anatomyArtifactSeverity === 'severe'
+    ) {
+      issues.push(
+        makeRepairIssue(
+          'body',
+          compactValidationText(c.anatomyArtifactNotes) ||
+            note ||
+            'Repair malformed, fused, missing, extra, or implausibly attached limbs.'
+        )
+      );
+    }
     if (c.sameOverallDesignRead === false)
       issues.push(makeRepairIssue('design', note || 'Overall design mismatch.'));
     if (shouldIncludeSilhouetteRepairIssue(c)) {
@@ -4645,7 +4714,7 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
       )
     );
   }
-  if (validation.hasTextOrLetters)
+  if (config.image.validationCheckTextOrSymbols && validation.hasTextOrLetters)
     issues.push(
       makeRepairIssue(
         'text',
@@ -5192,6 +5261,7 @@ async function generateSceneImageWithReference(
       isTurnaround?: boolean;
       sceneId?: number;
       url?: string;
+      storagePath?: string;
       imageIndex?: number;
       referenceEnvironmentId?: string;
     }>;
@@ -5320,7 +5390,12 @@ async function generateSceneImageWithReference(
         environmentId: (ref as any).environmentId,
         referenceEnvironmentId: (ref as any).referenceEnvironmentId,
         outfitId: (ref as any).outfitId,
-        storagePath: (ref as any).storagePath,
+        storagePath: (ref as any).storagePath ?? ref.url,
+        url:
+          (ref as any).url ??
+          ((ref as any).storagePath
+            ? `/api/v1/assets/${(ref as any).storagePath}`
+            : undefined),
         referenceKind: refSource === 'environment' ? ('object' as const) : ('character' as const),
       };
     });
@@ -5714,6 +5789,8 @@ async function generateSceneImageWithReference(
                   proportionsMatchReference: c.proportionsMatchReference,
                   identityComparisonSummary: c.identityComparisonSummary,
                   duplicated: c.duplicated,
+                  anatomyArtifactSeverity: c.anatomyArtifactSeverity,
+                  anatomyArtifactNotes: c.anatomyArtifactNotes,
                   matchesColors: c.matchesColors,
                   matchesOutfit: c.matchesOutfit,
                 })
@@ -6167,6 +6244,7 @@ async function generateSceneImageWithReference(
 /** Test-only access to the production scene-image orchestration path. */
 export const storyOrchestrationTestSeams = {
   generateSceneImageWithReference,
+  runWithConcurrencyLimit,
 };
 
 /**
@@ -8024,6 +8102,10 @@ export async function regenerateSceneImage(
           fileUri: envImageData.fileUri,
           source: 'environment',
           type: 'environment_reference',
+          characterName: currentEnvironment?.name || currentEnvironmentId,
+          referenceEnvironmentId: currentEnvironmentId,
+          storagePath: envImageData.storagePath,
+          url: `/api/v1/assets/${envImageData.storagePath}`,
           imageIndex: 1,
         },
       ]

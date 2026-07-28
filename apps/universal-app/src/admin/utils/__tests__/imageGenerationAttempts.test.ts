@@ -124,4 +124,43 @@ assert.equal(repairedAttempts[0].validationMissingReason, null);
 assert.equal(repairedAttempts[1].label, 'Page 1 · Panel 1 · Regenerate attempt 2');
 assert.equal(repairedAttempts[1].validation?.id, 'validation-2');
 
+const referenceMergeAttempts = buildAdminImageGenerationAttempts({
+  sceneIndex: 10,
+  manifest: {
+    references: [
+      {
+        index: 1,
+        imageIndex: 1,
+        characterName: 'Ukraispa',
+        storagePath: 'character_turnarounds/ukraispa.png',
+        url: '/api/v1/assets/character_turnarounds/ukraispa.png',
+      },
+    ],
+    requests: [
+      {
+        operation: 'image_generate',
+        referenceImages: [
+          {
+            index: 1,
+            imageIndex: 1,
+            referenceBindingId: 'REF_CH_UKRAISPA_477B29',
+            characterName: 'Ukraispa',
+            storagePath: null,
+            url: null,
+            hasBase64Data: true,
+          },
+        ],
+      },
+    ],
+  },
+  validations: [],
+});
+
+const mergedReference = (
+  referenceMergeAttempts[0].rawManifest.references as Array<Record<string, unknown>>
+)[0];
+assert.equal(mergedReference.storagePath, 'character_turnarounds/ukraispa.png');
+assert.equal(mergedReference.url, '/api/v1/assets/character_turnarounds/ukraispa.png');
+assert.equal(mergedReference.hasBase64Data, true);
+
 console.log('admin image generation attempt grouping guards passed');

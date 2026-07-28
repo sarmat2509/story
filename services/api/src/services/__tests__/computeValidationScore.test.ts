@@ -14,6 +14,7 @@ import {
   computeValidationScore,
   evaluateGeneratedImageSafety,
   hasBlockingImageValidationIssue,
+  hasBlockingCharacterAnatomyArtifact,
   hasBlockingSceneCompositionMismatch,
   hasBlockingUnwantedImageText,
 } from '../storyOrchestrationService';
@@ -83,11 +84,15 @@ function testUnwantedTextIsBlockingEvenWhenScoreWouldPass() {
   const result = makeResult({}, { hasTextOrLetters: true });
   const score = computeValidationScore(result, { scoringOverride: baseScoring });
 
-  assert.strictEqual(score, 95, 'Text keeps its configured score penalty');
+  assert.strictEqual(
+    score,
+    config.image.validationCheckTextOrSymbols ? 95 : 100,
+    'Text penalty must follow IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS'
+  );
   assert.strictEqual(
     hasBlockingUnwantedImageText(result),
-    true,
-    'Visible text/reference labels must force repair even above the normal acceptance threshold'
+    config.image.validationCheckTextOrSymbols,
+    'Visible text/reference labels must only force repair when the check is enabled'
   );
 }
 
@@ -106,6 +111,31 @@ function testSceneCompositionMismatchIsBlockingEvenWhenScoreWouldPass() {
     true,
     'Unified hard-blocker must include scene composition mismatches'
   );
+}
+
+function testModerateCharacterAnatomyArtifactIsBlockingEvenWhenIdentityMatches() {
+  const result = makeResult({
+    recognizableScore: 1,
+    proportionsMatchReference: true,
+    anatomyArtifactSeverity: 'moderate',
+    anatomyArtifactNotes: 'The right leg is fused into the torso.',
+  });
+
+  assert.strictEqual(hasBlockingCharacterAnatomyArtifact(result), true);
+  assert.strictEqual(
+    hasBlockingImageValidationIssue(result),
+    true,
+    'obvious malformed anatomy must force retry/repair independently of identity score'
+  );
+}
+
+function testMildCharacterAnatomyArtifactIsNotBlocking() {
+  const result = makeResult({
+    anatomyArtifactSeverity: 'mild',
+    anatomyArtifactNotes: 'Minor fingertip deformation.',
+  });
+
+  assert.strictEqual(hasBlockingCharacterAnatomyArtifact(result), false);
 }
 
 function testKindMismatchUsesConfigurablePenalty() {
@@ -562,6 +592,8 @@ function testGeneratedImageSafetyAllowsProviderBlockedValidation() {
 testBaselineCleanResult();
 testUnwantedTextIsBlockingEvenWhenScoreWouldPass();
 testSceneCompositionMismatchIsBlockingEvenWhenScoreWouldPass();
+testModerateCharacterAnatomyArtifactIsBlockingEvenWhenIdentityMatches();
+testMildCharacterAnatomyArtifactIsNotBlocking();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();

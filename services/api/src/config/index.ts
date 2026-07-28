@@ -262,6 +262,9 @@ export const config = {
     queueTimeoutMs: parseInt(process.env.IMAGE_QUEUE_TIMEOUT_MS || '300000', 10), // 5 minutes max wait in queue
     // Post-generation validation (Gemini Vision)
     enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
+    /** Controls both no-text image prompt rules and validation/repair of visible text or symbols. */
+    validationCheckTextOrSymbols:
+      process.env.IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS !== 'false',
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
     /** When validation fails, use one image-edit repair pass instead of full regeneration. */
     validationUseEditRepair: process.env.IMAGE_VALIDATION_USE_EDIT_REPAIR === 'true',

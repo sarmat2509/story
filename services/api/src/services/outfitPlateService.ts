@@ -24,7 +24,7 @@ import type { ReferenceImage } from '../providers/base/IImageProvider';
 import { isNaturalAppearanceOutfit } from '../utils/characterOutfits';
 import { inferOutfitCatalogFilters } from './outfitCatalogTags';
 import { referenceBindingIdFor } from './referenceBinding';
-import { NO_VISIBLE_TEXT_OR_REFERENCE_LABELS_RULE } from '../prompts/image';
+import { optionalNoVisibleTextRule } from '../prompts/image';
 
 export type OutfitPlateImageResult =
   | {
@@ -332,7 +332,7 @@ export async function getOrCreateCharacterOutfitTurnaroundImage(params: {
     const result = await provider.generateImage({
       prompt,
       aspectRatio: '16:9',
-      systemInstruction: NO_VISIBLE_TEXT_OR_REFERENCE_LABELS_RULE,
+      systemInstruction: optionalNoVisibleTextRule() || undefined,
       referenceImages: [
         {
           ...params.identityReference,

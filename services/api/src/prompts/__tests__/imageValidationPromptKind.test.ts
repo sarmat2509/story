@@ -12,10 +12,21 @@ import {
   IMAGE_VALIDATION_CACHE_KEY_FULL,
   IMAGE_VALIDATION_CACHE_KEY_LITE,
 } from '../image/ImageValidationPrompt';
+import { shouldCheckImageTextOrSymbols } from '../image/ImageTextPolicy';
 
 function testCacheKeysBumped() {
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v19');
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v7');
+  assert.strictEqual(
+    IMAGE_VALIDATION_CACHE_KEY_FULL,
+    `image_validation_rules_full_v23_${
+      shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored'
+    }`
+  );
+  assert.strictEqual(
+    IMAGE_VALIDATION_CACHE_KEY_LITE,
+    `image_validation_rules_lite_v11_${
+      shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored'
+    }`
+  );
 
   const full = getImageValidationCachedPrefix(true);
   const lite = getImageValidationCachedPrefix(false);

@@ -7,7 +7,7 @@ import {
   MAP_TILE_MASK_VARIANTS,
   selectMapTileMask,
 } from '../domain/story/mapTileMasks';
-import { buildMapTilePromptParts } from '../prompts/image';
+import { buildMapTilePromptParts, optionalNoVisibleTextRule } from '../prompts/image';
 import { getMapTileImageDomainService } from './aiService';
 import { getAssetStorageService } from './assetStorageService';
 import { recordUsage, USAGE_OP_IMAGE_MAP_TILE } from './aiUsageService';
@@ -226,9 +226,11 @@ function storyReferenceInstruction(ref: ResolvedMapTileReferenceAsset, index: nu
     'Use it for landmark appearance, materials, colors, texture language, and story-specific visual consistency.',
     'Do not copy its camera angle, horizon, sky, framing, foreground/background depth, character staging, or scene composition.',
     'Flatten any referenced landmark into a top-down board-game map symbol or surface texture that follows Image 1.',
-    'Convert readable writing, book titles, screen text, symbols, and labels into abstract decorative marks.',
+    optionalNoVisibleTextRule()
+      ? 'Convert readable writing, book titles, screen text, symbols, and labels into abstract decorative marks.'
+      : '',
     'Image 1 remains the geometry map and the only source for layout, route positions, and camera perspective.',
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 export async function generateMapTile(

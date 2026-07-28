@@ -1,3 +1,5 @@
+import { optionalNoVisibleTextRule } from './ImageTextPolicy';
+
 /**
  * Map tile image prompt rules.
  *
@@ -198,7 +200,7 @@ Style the tile according to the tile brief and story reference images.
 Represent waterfall, cave, grotto, ledge, cliff, and valley words from the tile brief as flat plan-view map landmarks locked to Image 1.
 Represent a cave, tunnel, or portal as a flat dark entrance mark at the route contact point, not as a front-facing hole in a mountainside.
 Represent cliffs, slopes, ledges, and mountains as contour bands, rock patches, ridge marks, or shaded surface regions seen from above, not as side-view walls.
-Route labels, edge names, arrows, and words in the prompt are instructions only; the tile image uses unlabeled natural scenery.
+${optionalNoVisibleTextRule()}
 
 Camera: strict orthographic top-down board-game map tile.
 The route geometry is a flat plan-view footprint in the square canvas.

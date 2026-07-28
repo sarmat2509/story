@@ -25,12 +25,10 @@ import {
   deriveExplicitSceneAnchorConstraints,
   requiresCelestialSubjectInsideWindow,
 } from '../../domain/image/imageValidationRun';
+import { optionalNoVisibleTextRule } from './ImageTextPolicy';
 
 export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v3_color';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
-export const NO_VISIBLE_TEXT_OR_REFERENCE_LABELS_RULE =
-  'MUST AVOID any kind of text.';
-
 function resolveCharacterImageIndex(
   characterName: string,
   imageIndexMap?: Map<string, number>,
@@ -833,7 +831,13 @@ export function buildOutfitPlatePrompt(params: {
 
   return [
     `Children's book illustration, ${params.imageStyle}: one smooth display mannequin stands in the center, full length, facing forward, blank smooth head, wearing ${spec}. The mannequin is a clean clothing display only: smooth continuous limbs, no visible mechanical hinge joints, no peg joints, no segmented elbows, no segmented knees, no articulated wrists or ankles.`,
-    'Plain soft background. No letters or words in the image. Only this one mannequin. Keep the mannequin neutral and non-mechanical so the image reads as wardrobe reference only.',
+    [
+      'Plain soft background.',
+      optionalNoVisibleTextRule(),
+      'Only this one mannequin. Keep the mannequin neutral and non-mechanical so the image reads as wardrobe reference only.',
+    ]
+      .filter(Boolean)
+      .join(' '),
     safetyAdditions,
   ]
     .filter(Boolean)
@@ -874,7 +878,13 @@ export function buildImageSystemInstruction(params: {
 
   // Format rules
   sections.push(
-    `FORMAT: Single full-bleed illustration filling the frame edge-to-edge. ${NO_VISIBLE_TEXT_OR_REFERENCE_LABELS_RULE} Pure visual storytelling only.`,
+    [
+      'FORMAT: Single full-bleed illustration filling the frame edge-to-edge.',
+      optionalNoVisibleTextRule(),
+      'Pure visual storytelling only.',
+    ]
+      .filter(Boolean)
+      .join(' '),
   );
   sections.push(`SAFETY: ${imagePolicy.imageSafetyAdditions}.`);
 

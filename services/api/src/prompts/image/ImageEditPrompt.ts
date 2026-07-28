@@ -6,6 +6,10 @@
  */
 
 import type { ImageValidationResult } from '../../ai/types';
+import {
+  optionalNoVisibleTextRule,
+  shouldCheckImageTextOrSymbols,
+} from './ImageTextPolicy';
 
 export type ImageEditRepairReferenceMode = 'identity' | 'outfit' | 'identity_and_outfit' | 'none';
 export type ImageEditRepairIssueKind =
@@ -67,10 +71,10 @@ export function buildImageEditSystemInstruction(): string {
     "You edit children's book illustrations with precise, minimal changes.",
     'Follow the numbered edit instructions exactly.',
     'Use REF_* only to match attached reference images; never draw REF_* tokens.',
-    'MUST AVOID any kind of text.',
+    optionalNoVisibleTextRule(),
     'Never create or duplicate architecture, openings, backgrounds, or celestial bodies merely to place a repaired subject; use the existing scene anchor when the instruction names one.',
     'Preserve composition, background, lighting, pose intent, style, and all unmentioned subjects.',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string {
@@ -355,7 +359,7 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
       '- There are UNEXPECTED characters in the image that should not be there. Remove any characters not in the expected list.'
     );
   }
-  if (validationResult.hasTextOrLetters) {
+  if (shouldCheckImageTextOrSymbols() && validationResult.hasTextOrLetters) {
     issues.push(
       '- The image contains TEXT, LETTERS, or WRITING. Remove all text and lettering from the illustration.'
     );

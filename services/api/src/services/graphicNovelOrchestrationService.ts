@@ -3276,9 +3276,11 @@ function buildGraphicNovelPanelCompositeValidation(params: {
     hasUnexpectedCharacters: params.panelValidations.some(
       (panelValidation) => panelValidation.validation.hasUnexpectedCharacters
     ),
-    hasTextOrLetters: params.panelValidations.some(
-      (panelValidation) => panelValidation.validation.hasTextOrLetters
-    ),
+    hasTextOrLetters:
+      config.image.validationCheckTextOrSymbols &&
+      params.panelValidations.some(
+        (panelValidation) => panelValidation.validation.hasTextOrLetters
+      ),
     hasRenderingArtifacts: params.panelValidations.some(
       (panelValidation) => panelValidation.validation.hasRenderingArtifacts
     ),

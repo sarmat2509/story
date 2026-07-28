@@ -87,6 +87,10 @@ export interface ImageValidationResult {
     sameOverallDesignRead?: boolean;
     /** When set: how much silhouette/body-type drift vs reference. Used for animal + imaginary identity. */
     silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe';
+    /** Intrinsic anatomy/rendering defect, independent of whether the character identity is recognizable. */
+    anatomyArtifactSeverity?: 'none' | 'mild' | 'moderate' | 'severe';
+    /** Concrete visible anatomy defect, or null when anatomy is coherent. */
+    anatomyArtifactNotes?: string | null;
     /** Optional comic-panel source for panel-local validation/repair feedback. */
     panelNumber?: number;
     /** Optional comic-panel id for panel-local validation/repair feedback. */
@@ -102,8 +106,14 @@ export interface ImageValidationResult {
       visibility: 'full_body' | 'partial_body' | 'head_only' | 'not_visible';
       /** Full-image scene QA duplicate evidence for the expected identity. */
       duplicated?: boolean;
-      /** Number of visible copies of this expected identity in the whole validated image/panel. */
+      /** Number of separate physical copies of this identity; reflections and depictions excluded. */
       duplicateCount?: number;
+      /** Number of separate physical bodies/torsos in scene space. Reflections and depictions excluded. */
+      visiblePhysicalBodyCount?: number;
+      /** Recognizable copies visible only in mirrors, water, or other reflective surfaces. */
+      visibleReflectionCount?: number;
+      /** Recognizable copies visible only in drawings, screens, photos, posters, signs, or toys. */
+      visibleDepictionCount?: number;
       /** Short location/visual notes for duplicate copies, when present. */
       duplicateNotes?: string | null;
       notes?: string | null;

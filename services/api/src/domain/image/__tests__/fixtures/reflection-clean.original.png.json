@@ -1,0 +1,17 @@
+{
+  "source": "user-supplied original image",
+  "mimeType": "image/png",
+  "width": 1376,
+  "height": 768,
+  "expected": {
+    "visiblePhysicalBodyCount": 1,
+    "minimumVisibleReflectionCount": 1,
+    "duplicated": false,
+    "anatomyArtifactSeverity": [
+      "none"
+    ],
+    "hasRenderingArtifacts": false,
+    "hasBlockingCharacterAnatomyArtifact": false,
+    "hasSceneCompositionMismatch": false
+  }
+}

@@ -206,6 +206,49 @@ function requestReferences(requests: Record<string, unknown>[]): Record<string, 
   return requests.flatMap((request) => arrayOfRecords(request.referenceImages));
 }
 
+function referenceManifestIdentity(
+  reference: Record<string, unknown>,
+  fallbackIndex: number
+): string {
+  const bindingId = stringValue(reference.referenceBindingId);
+  if (bindingId) return `binding:${bindingId}`;
+  return `index:${
+    numericValue(reference.imageIndex) ?? numericValue(reference.index) ?? fallbackIndex + 1
+  }`;
+}
+
+function mergeReferenceManifests(
+  scopedReferences: Record<string, unknown>[],
+  rootReferences: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  const merged = new Map<string, Record<string, unknown>>();
+  const keyByImageIndex = new Map<number, string>();
+  rootReferences.forEach((reference, index) => {
+    const key = referenceManifestIdentity(reference, index);
+    merged.set(key, reference);
+    const imageIndex =
+      numericValue(reference.imageIndex) ?? numericValue(reference.index) ?? index + 1;
+    keyByImageIndex.set(imageIndex, key);
+  });
+  scopedReferences.forEach((reference, index) => {
+    const imageIndex =
+      numericValue(reference.imageIndex) ?? numericValue(reference.index) ?? index + 1;
+    const requestedKey = referenceManifestIdentity(reference, index);
+    const key = merged.has(requestedKey)
+      ? requestedKey
+      : (keyByImageIndex.get(imageIndex) ?? requestedKey);
+    const existing = merged.get(key) ?? {};
+    merged.set(key, {
+      ...existing,
+      ...Object.fromEntries(
+        Object.entries(reference).filter(([, value]) => value !== null && value !== undefined)
+      ),
+    });
+    keyByImageIndex.set(imageIndex, key);
+  });
+  return Array.from(merged.values());
+}
+
 function assetUrlForStoragePath(storagePath: string | null): string | null {
   if (!storagePath) return null;
   if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) return storagePath;
@@ -355,6 +398,10 @@ function buildAttempt(params: {
   const panelImageStoragePath = isPanelAttempt ? requestPanelImageStoragePath(firstRequest) : null;
   const panelImageUrl = isPanelAttempt ? requestPanelImageUrl(firstRequest) : null;
   const scopedReferences = requestReferences(params.requests);
+  const mergedReferences = mergeReferenceManifests(
+    scopedReferences,
+    arrayOfRecords(params.root.references)
+  );
   const imageStoragePath =
     panelImageStoragePath ??
     params.validation?.imageStoragePath ??
@@ -390,10 +437,7 @@ function buildAttempt(params: {
       panelId: params.panelId,
       cropRect: params.cropRect,
       panelImageGeneration: panelImageGenerationForPanel(params.root, params.panelIndex),
-      references:
-        scopedReferences.length > 0 || params.requests.length > 0
-          ? scopedReferences
-          : arrayOfRecords(params.root.references),
+      references: mergedReferences,
     }),
     modelRawManifest: buildModelRawManifest(params.requests, params.kind),
     validationRawManifest: recordOrNull(params.validation?.requestManifest),

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { buildMapTilePromptParts, MAP_TILE_STRUCTURE_SYSTEM_PROMPT } from '../image';
+import {
+  buildMapTilePromptParts,
+  MAP_TILE_STRUCTURE_SYSTEM_PROMPT,
+  shouldCheckImageTextOrSymbols,
+} from '../image';
 
 function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   const { prompt, systemInstruction } = buildMapTilePromptParts({
@@ -42,7 +46,10 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent waterfall, cave, grotto, ledge, cliff, and valley words from the tile brief as flat plan-view map landmarks locked to Image 1.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent a cave, tunnel, or portal as a flat dark entrance mark at the route contact point'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent cliffs, slopes, ledges, and mountains as contour bands'));
-  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Route labels, edge names, arrows, and words in the prompt are instructions only; the tile image uses unlabeled natural scenery.'));
+  assert.strictEqual(
+    MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('MUST AVOID any kind of text'),
+    shouldCheckImageTextOrSymbols()
+  );
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Camera: strict orthographic top-down board-game map tile.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('The route geometry is a flat plan-view footprint in the square canvas.'));
   assert.ok(!prompt.includes('Create one square 1:1 illustrated board-game map tile.'));

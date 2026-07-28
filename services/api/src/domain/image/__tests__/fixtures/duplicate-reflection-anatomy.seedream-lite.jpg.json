@@ -1,0 +1,20 @@
+{
+  "generatedBy": "seedream-5-0-lite-260128",
+  "operation": "image_validation_golden_fixture_edit",
+  "sourceFileName": "codex-clipboard-3b5639ee-0bc1-4252-8bfa-580ab22ecd37.png",
+  "mimeType": "image/jpeg",
+  "width": 2560,
+  "height": 1440,
+  "expected": {
+    "visiblePhysicalBodyCount": 2,
+    "minimumVisibleReflectionCount": 1,
+    "duplicated": true,
+    "anatomyArtifactSeverity": [
+      "moderate",
+      "severe"
+    ],
+    "hasRenderingArtifacts": true,
+    "hasBlockingCharacterAnatomyArtifact": true,
+    "hasSceneCompositionMismatch": true
+  }
+}

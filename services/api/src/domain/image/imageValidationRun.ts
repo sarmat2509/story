@@ -18,6 +18,10 @@ import {
   type ImageValidationIdentitySource,
   type ImageValidationReferenceKind,
 } from '../../prompts/image/ImageValidationPrompt';
+import {
+  imageTextValidationPromptLines,
+  shouldCheckImageTextOrSymbols,
+} from '../../prompts/image/ImageTextPolicy';
 import { buildImageValidationSchema } from '../story/schemas';
 import { type SceneVisual } from '../../services/types';
 import {
@@ -111,6 +115,9 @@ type SegmentedCharacterBoundingBox = {
   visibility: 'full_body' | 'partial_body' | 'head_only' | 'not_visible';
   duplicated?: boolean;
   duplicateCount?: number;
+  visiblePhysicalBodyCount?: number;
+  visibleReflectionCount?: number;
+  visibleDepictionCount?: number;
   duplicateNotes?: string | null;
   notes?: string | null;
 };
@@ -748,6 +755,9 @@ function summarizeValidationIssues(
     parts.push(`lowRecognizable(${(c.recognizableScore ?? 0).toFixed(2)})`);
   if (!c.matchesColors) parts.push('colors');
   if (exp?.validateOutfit === true && !c.matchesOutfit) parts.push('outfit');
+  if (c.anatomyArtifactSeverity && c.anatomyArtifactSeverity !== 'none') {
+    parts.push(`anatomy:${c.anatomyArtifactSeverity}`);
+  }
   const hasRef = charHasIdentityReference(c.name, referenceImages);
   const humanWithRef = exp?.characterKind === 'human' && c.characterKind === 'human' && hasRef;
   if (humanWithRef) {
@@ -796,6 +806,8 @@ function buildSegmentedCharacterSchema(): JsonSchema {
           'actualVisibleDescription',
           'sameOverallDesignRead',
           'silhouetteDriftSeverity',
+          'anatomyArtifactSeverity',
+          'anatomyArtifactNotes',
           'identityComparisonSummary',
           'issue',
         ],
@@ -829,6 +841,13 @@ function buildSegmentedCharacterSchema(): JsonSchema {
             type: ['string', 'null'],
             enum: ['none', 'mild', 'moderate', 'severe', null],
           },
+          anatomyArtifactSeverity: {
+            type: 'string',
+            enum: ['none', 'mild', 'moderate', 'severe'],
+            description:
+              'Intrinsic visible anatomy/rendering quality. This is independent of whether the identity, colors, or outfit match.',
+          },
+          anatomyArtifactNotes: { type: ['string', 'null'] },
           identityComparisonSummary: { type: 'string' },
           issue: { type: ['string', 'null'] },
         },
@@ -886,6 +905,9 @@ function buildSegmentedSceneQaSchema(
             'visibility',
             'duplicated',
             'duplicateCount',
+            'visiblePhysicalBodyCount',
+            'visibleReflectionCount',
+            'visibleDepictionCount',
             'duplicateNotes',
             'notes',
           ],
@@ -903,6 +925,9 @@ function buildSegmentedSceneQaSchema(
             },
             duplicated: { type: 'boolean' },
             duplicateCount: { type: 'integer', minimum: 0, maximum: 10 },
+            visiblePhysicalBodyCount: { type: 'integer', minimum: 0, maximum: 10 },
+            visibleReflectionCount: { type: 'integer', minimum: 0, maximum: 10 },
+            visibleDepictionCount: { type: 'integer', minimum: 0, maximum: 10 },
             duplicateNotes: { type: ['string', 'null'] },
             notes: { type: ['string', 'null'] },
           },
@@ -1193,9 +1218,7 @@ function buildGraphicNovelPanelValidationPrompt(params: {
     'Page-level rules:',
     '- detectedPanelCount is the number of visible physical comic panel boxes/regions.',
     '- hasExtraPanelStructure=true if visible physical panels do not match expectedPanelCount, or if there are fake gutters, inset panels, split panels, or merged story beats.',
-    '- hasTextOrLetters=true for unwanted readable text/letters that are part of the generated artwork.',
-    '- A reference-sheet title, label, filename, watermark, or identifier copied into Image 1 is always unwanted text. Explicitly scan for REF_* identifiers such as REF_CH_* and set hasTextOrLetters=true when any are visible.',
-    '- Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the panel brief are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
+    ...imageTextValidationPromptLines('panel brief'),
     '- hasRenderingArtifacts=true for severe broken anatomy, corrupt objects, incoherent artifacts, or unusable rendering.',
     '',
     `PAGE NUMBER: ${params.pageNumber}`,
@@ -1332,14 +1355,17 @@ function buildSegmentedHumanCharacterPrompt(params: {
   const sceneBrief = buildSegmentedCharacterSceneBrief(character.name, params.sceneVisual);
   const lines = [
     'Task: validate exactly ONE expected HUMAN character in Image 1.',
-    'Image 1 is a crop from the generated scene/panel, centered on the candidate character found by the full-image QA pass.',
+    'Image 1 is a padded crop from the generated scene/panel, centered on the candidate character found by the full-image QA pass. Inspect nearby disconnected or malformed parts inside the padding when they visually belong to this character.',
     characterReferenceIntro({ identityReference: params.identityReference, includeWardrobeChecks }),
     params.identityReference
       ? 'Use the expected name and KIND only as output labels. Compare Image 1 against Image 2 only.'
       : '',
     sceneBrief,
     'Validate this human only: face/head design, hairstyle, apparent age read, body proportions/silhouette, stable marks, and matchesOutfit as specified below.',
-    'Do not decide duplicate copies in this crop pass; the full-image QA pass handles duplicate detection.',
+    'Run a separate anatomy-integrity audit even when identity matches: first inventory the visible limbs from pixels, then trace every visible arm and leg from body attachment through joints to hand/foot. Do not assume the requested limb count is what was rendered. Flag extra, missing, fused, disconnected, melted, intersecting, abruptly truncated, duplicated, branching, or implausibly attached limbs. Do not excuse a defect because the face, colors, outfit, or pose intent match.',
+    'Treat ordinary occlusion, perspective shortening, and deliberately stylized anatomy already established by Image 2 as valid. Judge only visible contradictions or broken rendering.',
+    'Audit duplicates inside this crop too: if it visibly contains more than one separate physical body of this expected character, set duplicated=true even when the full-image QA pass grouped them into one crop.',
+    'A mirror reflection, water reflection, shadow, portrait, drawing, screen image, photo, toy, or printed depiction is not another physical body and must not set duplicated=true.',
     'Decision order:',
     '1. Inspect the cropped candidate in Image 1. Do not search outside this crop.',
     '2. If Image 2 exists, decide whether this cropped candidate is the same stable human design. Generic child/adult substitutes or different stable designs are not the named character.',
@@ -1373,10 +1399,13 @@ function buildSegmentedHumanCharacterPrompt(params: {
     '- name must equal the expected character name.',
     '- characterKind must equal "human".',
     '- found=true only when the cropped candidate is actually this expected character identity. If the crop shows a wrong substitute, set found=false and describe the substitute in actualVisibleDescription.',
-    '- duplicated must be false in this crop pass; full-image QA supplies duplicate evidence.',
+    '- duplicated must be true when this crop visibly contains two or more separate physical bodies of the expected character; otherwise false. Count bodies/torsos, not heads, faces, limbs, or appendages. A single multi-headed character with one shared body is one instance.',
+    '- Reflections in mirrors or water and non-physical depictions in drawings, screens, photos, posters, or toys do not count as duplicates.',
     '- hairMatchesReference, ageReadMatchesReference, proportionsMatchReference, and sameOverallDesignRead must be booleans when Image 2 exists; otherwise use null for reference-only fields.',
     '- faceMatchesReference must be true/false only when the face/head is visible enough to compare, otherwise null.',
     '- sameOverallDesignRead is true only when the reference visual-anchor checklist and first-glance whole-character read are preserved; use null when no identity reference exists.',
+    '- anatomyArtifactSeverity is independent of identity. Use none for coherent visible anatomy; mild for a small cosmetic deformation; moderate for one clearly malformed/fused/missing/extra limb or implausible joint; severe for multiple broken limbs, disconnected body parts, or anatomy that makes the character unusable.',
+    '- anatomyArtifactNotes must name the concrete visible defect and location when severity is not none; otherwise null.',
     outfitFieldRule,
     '- actualVisibleDescription must describe what is actually visible instead when this expected character is missing or replaced by a wrong design. Be concrete and visual, e.g. "different blond child", "spotted chicken-like creature with a beak", "small green mushroom creature". When found=true but any identity/design field is false, actualVisibleDescription must be non-null. Use null only when the expected character is clearly correct or no substitute/candidate is visible. This phrase may be sent directly to image editing as the thing to replace, so describe what is currently visible, not what it should become.',
     '- issue should be null when there is no concrete problem; otherwise list concise observed problems. A hidden, turned-away, cropped, or occluded face is not a problem by itself.',
@@ -1431,14 +1460,21 @@ function buildSegmentedNonHumanCharacterPrompt(params: {
 
   const lines = [
     `Task: validate exactly ONE expected ${targetKindLabel} character in Image 1.`,
-    'Image 1 is a crop from the generated scene/panel, centered on the candidate character found by the full-image QA pass.',
+    'Image 1 is a padded crop from the generated scene/panel, centered on the candidate character found by the full-image QA pass. Inspect nearby disconnected or malformed parts inside the padding when they visually belong to this character.',
     characterReferenceIntro({ identityReference: params.identityReference, includeWardrobeChecks }),
     params.identityReference
       ? 'Use the expected name and KIND only as output labels. Compare Image 1 against Image 2 only.'
       : '',
     sceneBrief,
     `Validate this ${targetKindLabel.toLowerCase()} only: species/subtype read, body type/mass, head shape, appendages, proportions, silhouette, stable markings/colors, and matchesOutfit as specified below.`,
-    'Do not decide duplicate copies in this crop pass; the full-image QA pass handles duplicate detection.',
+    params.identityReference
+      ? 'Run a separate anatomy-integrity audit even when identity anchors match. First infer the intended limb/appendage inventory from Image 2, then inventory the limbs actually visible in Image 1 from pixels and trace every visible limb from its body attachment through joints to its endpoint.'
+      : 'Run a separate anatomy-integrity audit even when the expected species/subtype matches. Infer the intended limb/appendage inventory from SUBTYPE and DESCRIPTION, then inventory the limbs actually visible in Image 1 from pixels and trace every visible limb from its body attachment through joints to its endpoint. Do not assume the requested inventory is what was rendered.',
+    'Flag extra, missing, fused, disconnected, melted, intersecting, abruptly truncated, duplicated, or implausibly attached limbs; mixed limb types not supported by Image 2 (for example human arms/hands replacing claws or crab legs); limbs emerging from the wrong body region; and load-bearing legs that do not form a coherent body-to-ground structure.',
+    'Do not excuse broken anatomy because the heads, colors, central pattern, outfit, or overall pose match. A recognizable character can still have a moderate or severe anatomy artifact.',
+    'Treat ordinary occlusion, perspective shortening, deliberate multi-headed anatomy, and stylized limb structure established by Image 2 as valid. A hidden limb is unobservable, not missing.',
+    'Audit duplicates inside this crop too: if it visibly contains more than one separate physical body of this expected character, set duplicated=true even when the full-image QA pass grouped them into one crop.',
+    'A mirror reflection, water reflection, shadow, portrait, drawing, screen image, photo, toy, or printed depiction is not another physical body and must not set duplicated=true.',
     'Decision order:',
     '1. Inspect the cropped candidate in Image 1. Do not search outside this crop.',
     '2. If Image 2 exists, decide whether this cropped candidate is the same stable creature/animal design. Generic substitutes or different stable designs are not the named character.',
@@ -1469,11 +1505,14 @@ function buildSegmentedNonHumanCharacterPrompt(params: {
     '- name must equal the expected character name.',
     `- characterKind must equal "${character.characterKind}".`,
     '- found=true only when the cropped candidate is actually this expected character identity. If the crop shows a wrong substitute, set found=false and describe the substitute in actualVisibleDescription.',
-    '- duplicated must be false in this crop pass; full-image QA supplies duplicate evidence.',
+    '- duplicated must be true when this crop visibly contains two or more separate physical bodies of the expected character; otherwise false. Count bodies/torsos, not heads, faces, limbs, or appendages. A single multi-headed creature with one shared body is one instance.',
+    '- Reflections in mirrors or water and non-physical depictions in drawings, screens, photos, posters, or toys do not count as duplicates.',
     '- Set faceMatchesReference=null, hairMatchesReference=null, and ageReadMatchesReference=null. These fields are not used for this character type.',
     '- proportionsMatchReference must be boolean when Image 2 exists; otherwise null.',
     '- sameOverallDesignRead is true only when the reference visual-anchor checklist and first-glance whole-character read are preserved; use null when no identity reference exists.',
     '- silhouetteDriftSeverity must be "none", "mild", "moderate", or "severe" when Image 2 exists; use null when no identity reference exists.',
+    '- anatomyArtifactSeverity is independent of identity. Use none for coherent visible anatomy; mild for a small cosmetic deformation; moderate for one clearly malformed/fused/missing/extra/wrong-type limb or implausible attachment; severe for multiple broken limbs, disconnected parts, or anatomy that makes the character unusable.',
+    '- anatomyArtifactNotes must name the concrete visible defect and location when severity is not none; otherwise null.',
     outfitFieldRule,
     '- actualVisibleDescription must describe what is actually visible instead when this expected character is missing or replaced by a wrong design. Be concrete and visual, e.g. "spotted chicken-like creature with a beak", "small green mushroom creature", "different dog-like fairy with rainbow wings". When found=true but any identity/design field is false, actualVisibleDescription must be non-null. Use null only when the expected character is clearly correct or no substitute/candidate is visible. This phrase may be sent directly to image editing as the thing to replace, so describe what is currently visible, not what it should become.',
     '- issue should be null when there is no concrete problem; otherwise list concise observed problems.',
@@ -1568,20 +1607,26 @@ function buildSegmentedSceneQaPrompt(params: {
     'Return characterBoundingBoxes for every expected roster character, in the same coordinate system for Image 1.',
     'Use normalized integer coordinates 0..1000: xMin,yMin,xMax,yMax. These are fractions of the whole Image 1 width/height, not pixels.',
     'For each expected roster character, scan the whole Image 1 for ALL visible copies or candidate subjects for that roster slot before choosing the bbox.',
+    'The expected roster and singular wording in the brief describe what SHOULD have been generated; they are not evidence for what Image 1 ACTUALLY contains. Never force the visible count to one just because one character was requested.',
     'found=true in characterBoundingBoxes means there is a visible subject/crop candidate to validate for that roster character. It is not the final identity score; the crop validator checks that next.',
     'If no visible subject or plausible role candidate exists for that roster character, set found=false, visibility=not_visible, confidence=0, coordinates to 0, and include the name in missingExpectedCharacters.',
-    'Return the bbox for the clearest/primary visible copy, but set duplicated=true and duplicateCount to the number of visible copies when the same expected character appears more than once.',
-    'A duplicate copy can be full-body, partial, tiny, or in a different image region. Do not ignore it because the primary bbox is already found.',
-    'Do not count reflections, portraits, signs, toys, or printed pictures as duplicates; mention any real duplicate locations in duplicateNotes.',
+    'For each roster character, count physically separate bodies/torsos before deciding duplication. Multiple heads, faces, arms, tails, or other appendages attached to one shared body are one physical instance.',
+    'Mandatory visual inventory: before setting any count, sweep Image 1 left-to-right and classify every candidate as PHYSICAL BODY, REFLECTION, or DEPICTION. Two matching bodies side-by-side in the same scene space are two physical bodies, even when they touch or hold hands.',
+    'Set visiblePhysicalBodyCount to the number of separate physical bodies of this expected character in the scene. Set duplicated=true exactly when visiblePhysicalBodyCount > 1, and set duplicateCount equal to visiblePhysicalBodyCount.',
+    'Return the bbox for the clearest/primary physical body. A duplicate physical body can be full-body, partial, tiny, overlapping, directly above/below another copy, or in a different image region. Do not merge two separate torsos into one character merely because they touch, overlap, share colors, or belong to a multi-headed design.',
+    'Separately set visibleReflectionCount for recognizable copies visible only as mirror reflections, water reflections, or other clearly reflective optical images.',
+    'Separately set visibleDepictionCount for recognizable copies visible only in portraits, drawings, photographs, screens, posters, signs, toys, or printed pictures.',
+    'Reflections and non-physical depictions are context, not physical duplicate bodies: do not include them in visiblePhysicalBodyCount or duplicateCount, and do not set duplicated=true because of them.',
+    'Use reflection cues such as a mirror/water boundary, reversed pose, matching geometry, reduced contrast, glare, ripples, or surface distortion. If a second subject occupies ordinary scene space with its own body, contact, occlusion, or grounding, count it as a physical body rather than calling it a reflection.',
+    'An upside-down or vertically mirrored copy embedded below a visible reflective ice/water boundary, especially with ripples, lower contrast, translucency, or edge cropping, is a REFLECTION even when it is recognizable and not pixel-identical to the source body. It has no independent upright placement in scene space and must not be counted as a physical body.',
+    'Mention physical duplicate locations plus any excluded reflections/depictions in duplicateNotes when they could otherwise be confused.',
     'For each visible character, box only the visible character artwork/body. Exclude printed labels, captions, names, reference IDs, speech bubbles, and bottom text.',
     'The box must stay inside 0..1000 with xMax > xMin and yMax > yMin. If the character is not visible, set found=false, visibility=not_visible, confidence=0, and all coordinates to 0.',
     'Set visibility to full_body, partial_body, head_only, or not_visible based on the visible character artwork inside the bbox.',
     'Set hasUnexpectedCharacters=true when an extra named or character-like subject appears outside the expected roster.',
     'Set unexpectedCharacterNotes to a concise visual description of extra character-like subjects, or null when none are visible.',
-    'Set hasTextOrLetters=true for unwanted visible text/letters inside the artwork.',
-    'Explicitly scan the entire Image 1, including top/bottom margins and corners, for leaked reference-sheet titles, labels, filenames, watermarks, or identifiers. Any visible REF_* token such as REF_CH_* requires hasTextOrLetters=true.',
-    'Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF are visual motifs, not unwanted text. Still flag readable words, captions, labels, subtitles, and alphanumeric strings.',
-    'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts.',
+    ...imageTextValidationPromptLines('PAGE BRIEF'),
+    'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts. Inspect every physical copy, including duplicates, rather than only the primary bbox candidate.',
     'Set hasSceneCompositionMismatch=true only when Image 1 changes a clearly specified, countable scene anchor in PAGE BRIEF or COMPOSITION: for example it adds, duplicates, or omits a window, door, portal, mirror, framed opening, sky view, or celestial subject. Treat every EXACT COUNT CONSTRAINT above as a hard visual count: if it says exactly 1 window or Moon and Image 1 shows two, set this field true even if one copy looks like reused environment decoration. Enforce any CELESTIAL PLACEMENT CONSTRAINT too: a Moon/Sun outside its required existing window, including inside a separate sky cloud/portal, is a mismatch. When the brief says "the window" or "the Moon" in singular, preserve exactly one unless plural/repetition is explicit. Do not treat multiple views printed on an identity turnaround sheet as multiple scene subjects. Do not flag incidental background details that the brief did not make a constraint.',
     params.includeLayoutChecks ? 'Also validate layout/panel structure using the rules below.' : '',
     params.includeLayoutChecks
@@ -1692,10 +1737,20 @@ function normalizedCharacterBoxToPixelCrop(
   const values = [box.xMin, box.yMin, box.xMax, box.yMax];
   if (!values.every((value) => Number.isFinite(value))) return null;
 
-  const xMin = clampNumber(Math.round(box.xMin), 0, 1000);
-  const yMin = clampNumber(Math.round(box.yMin), 0, 1000);
-  const xMax = clampNumber(Math.round(box.xMax), 0, 1000);
-  const yMax = clampNumber(Math.round(box.yMax), 0, 1000);
+  const rawXMin = clampNumber(Math.round(box.xMin), 0, 1000);
+  const rawYMin = clampNumber(Math.round(box.yMin), 0, 1000);
+  const rawXMax = clampNumber(Math.round(box.xMax), 0, 1000);
+  const rawYMax = clampNumber(Math.round(box.yMax), 0, 1000);
+  const rawWidth = rawXMax - rawXMin;
+  const rawHeight = rawYMax - rawYMin;
+  // Scene-QA boxes often hug the recognizable torso and omit malformed or
+  // disconnected limbs just outside it. Preserve context for the anatomy pass.
+  const xPadding = Math.round(rawWidth * 0.2);
+  const yPadding = Math.round(rawHeight * 0.35);
+  const xMin = clampNumber(rawXMin - xPadding, 0, 1000);
+  const yMin = clampNumber(rawYMin - yPadding, 0, 1000);
+  const xMax = clampNumber(rawXMax + xPadding, 0, 1000);
+  const yMax = clampNumber(rawYMax + yPadding, 0, 1000);
   if (xMax <= xMin || yMax <= yMin) return null;
 
   const left = clampNumber(Math.floor((xMin / 1000) * imageWidth), 0, Math.max(0, imageWidth - 1));
@@ -1714,6 +1769,7 @@ function characterBoundingBoxForResult(
   box: SegmentedCharacterBoundingBox | undefined
 ): CharacterValidationLocalization['characterBoundingBox'] {
   if (!box) return null;
+  const physicalBodyCount = sceneQaPhysicalBodyCount(box);
   return {
     found: box.found,
     xMin: box.xMin,
@@ -1722,8 +1778,19 @@ function characterBoundingBoxForResult(
     yMax: box.yMax,
     confidence: box.confidence,
     visibility: box.visibility,
-    duplicated: box.duplicated ?? false,
-    duplicateCount: Number.isFinite(box.duplicateCount) ? box.duplicateCount : box.found ? 1 : 0,
+    duplicated: physicalBodyCount > 1,
+    duplicateCount: physicalBodyCount,
+    visiblePhysicalBodyCount: Number.isFinite(box.visiblePhysicalBodyCount)
+      ? box.visiblePhysicalBodyCount
+      : box.found
+        ? 1
+        : 0,
+    visibleReflectionCount: Number.isFinite(box.visibleReflectionCount)
+      ? box.visibleReflectionCount
+      : 0,
+    visibleDepictionCount: Number.isFinite(box.visibleDepictionCount)
+      ? box.visibleDepictionCount
+      : 0,
     duplicateNotes: box.duplicateNotes ?? null,
     notes: box.notes ?? null,
   };
@@ -1754,8 +1821,22 @@ function withCharacterValidationLocalization(
 
 function hasSceneQaDuplicateEvidence(box: SegmentedCharacterBoundingBox | undefined): boolean {
   if (!box?.found) return false;
+  if (Number.isFinite(box.visiblePhysicalBodyCount)) {
+    return (box.visiblePhysicalBodyCount ?? 0) > 1;
+  }
   if (box.duplicated === true) return true;
   return Number.isFinite(box.duplicateCount) && (box.duplicateCount ?? 0) > 1;
+}
+
+function sceneQaPhysicalBodyCount(box: SegmentedCharacterBoundingBox | undefined): number {
+  if (!box?.found) return 0;
+  if (Number.isFinite(box.visiblePhysicalBodyCount)) {
+    return clampNumber(Math.round(box.visiblePhysicalBodyCount ?? 1), 1, 10);
+  }
+  if (hasSceneQaDuplicateEvidence(box)) {
+    return clampNumber(Math.round(box.duplicateCount ?? 2), 2, 10);
+  }
+  return 1;
 }
 
 function expectedCharacterInstanceCount(
@@ -1763,25 +1844,43 @@ function expectedCharacterInstanceCount(
   box: SegmentedCharacterBoundingBox | undefined
 ): number {
   if (!character.found) return 0;
-  if (!hasSceneQaDuplicateEvidence(box)) return 1;
-  return clampNumber(Math.round(box?.duplicateCount ?? 2), 2, 10);
+  if (character.duplicated && !hasSceneQaDuplicateEvidence(box)) return 2;
+  return sceneQaPhysicalBodyCount(box);
 }
 
 function withSceneQaDuplicateEvidence(
   character: ImageValidationResult['characters'][number],
   box: SegmentedCharacterBoundingBox | undefined
 ): ImageValidationResult['characters'][number] {
-  if (!hasSceneQaDuplicateEvidence(box)) return character;
-  const duplicateCount = clampNumber(Math.round(box?.duplicateCount ?? 2), 2, 10);
-  const duplicateNotes = box?.duplicateNotes?.trim() || box?.notes?.trim() || null;
+  const sceneQaDetectedDuplicate = hasSceneQaDuplicateEvidence(box);
+  const cropDetectedDuplicate = character.duplicated === true;
+  if (!sceneQaDetectedDuplicate && !cropDetectedDuplicate) return character;
+
+  const duplicateCount = sceneQaDetectedDuplicate ? sceneQaPhysicalBodyCount(box) : 2;
+  const duplicateNotes =
+    box?.duplicateNotes?.trim() ||
+    box?.notes?.trim() ||
+    (cropDetectedDuplicate ? character.issue?.trim() : null) ||
+    null;
   const duplicateIssue = duplicateNotes
     ? `Duplicate visible copies detected (${duplicateCount}): ${duplicateNotes}`
     : `Duplicate visible copies detected (${duplicateCount}).`;
   return {
     ...character,
     duplicated: true,
+    characterBoundingBox: character.characterBoundingBox
+      ? {
+          ...character.characterBoundingBox,
+          duplicated: true,
+          duplicateCount,
+          visiblePhysicalBodyCount: duplicateCount,
+          duplicateNotes,
+        }
+      : character.characterBoundingBox,
     issue: character.issue?.trim()
-      ? `${character.issue.trim()}; ${duplicateIssue}`
+      ? character.issue.includes('Duplicate visible copies detected')
+        ? character.issue
+        : `${character.issue.trim()}; ${duplicateIssue}`
       : duplicateIssue,
   };
 }
@@ -1879,12 +1978,21 @@ function compactSegmentedCharacterResult(
   expectedCharacter: ProductImageValidationInput['expectedCharacters'][number],
   references: ProductImageValidationInput['referenceImages']
 ): ImageValidationResult['characters'][0] {
+  const anatomyArtifactSeverity = raw.character.anatomyArtifactSeverity ?? 'none';
+  const anatomyArtifactNotes = raw.character.anatomyArtifactNotes?.trim() || null;
+  const anatomyIssue =
+    anatomyArtifactSeverity === 'moderate' || anatomyArtifactSeverity === 'severe'
+      ? anatomyArtifactNotes ||
+        `${anatomyArtifactSeverity} visible anatomy/rendering defect.`
+      : null;
   const character = {
     ...raw.character,
     name: expectedCharacter.name,
     characterKind: expectedCharacter.characterKind,
-    duplicated: false,
-    issue: raw.character.issue ?? undefined,
+    duplicated: raw.character.duplicated === true,
+    anatomyArtifactSeverity,
+    anatomyArtifactNotes,
+    issue: [raw.character.issue?.trim(), anatomyIssue].filter(Boolean).join(' ') || undefined,
   };
   if (character.sameOverallDesignRead == null) {
     delete character.sameOverallDesignRead;
@@ -2658,8 +2766,15 @@ export async function runSegmentedProductImageValidation(
     hasUnexpectedCharacters: sceneQa?.hasUnexpectedCharacters ?? false,
     missingExpectedCharacters,
     unexpectedCharacterNotes: sceneQa?.unexpectedCharacterNotes ?? null,
-    hasTextOrLetters: sceneQa?.hasTextOrLetters ?? false,
-    hasRenderingArtifacts: sceneQa?.hasRenderingArtifacts ?? false,
+    hasTextOrLetters:
+      shouldCheckImageTextOrSymbols() && (sceneQa?.hasTextOrLetters ?? false),
+    hasRenderingArtifacts:
+      (sceneQa?.hasRenderingArtifacts ?? false) ||
+      characters.some(
+        (character) =>
+          character.anatomyArtifactSeverity === 'moderate' ||
+          character.anatomyArtifactSeverity === 'severe'
+      ),
     hasSceneCompositionMismatch: sceneQa?.hasSceneCompositionMismatch ?? false,
     overallFeedback:
       overallParts.length > 0 ? overallParts.join(' ') : 'Segmented validation completed.',
@@ -2968,6 +3083,9 @@ export async function runGraphicNovelPanelImageValidation(
     pageNumber: pass.result.pageNumber || input.pageNumber,
     expectedPanelCount: pass.result.expectedPanelCount || input.panels.length,
   };
+  if (!shouldCheckImageTextOrSymbols()) {
+    result.hasTextOrLetters = false;
+  }
   normalizeGraphicNovelPanelOutfitVerdicts(result, input.panels);
 
   logger.info(
@@ -3246,6 +3364,9 @@ export async function runProductImageValidation(
       result.validationAttemptKind = attemptKind;
       result.validationModelUsed = attemptSpec.model;
       result.requestManifest = requestManifest;
+      if (!shouldCheckImageTextOrSymbols()) {
+        result.hasTextOrLetters = false;
+      }
       attemptManifest.outcome = 'completed';
 
       const issueSummaries = result.characters

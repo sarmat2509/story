@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../../ai/types';
 import { MockTextProvider } from '../../../testing/ai/MockTextProvider';
+import { shouldCheckImageTextOrSymbols } from '../../../prompts/image/ImageTextPolicy';
 import {
   runGraphicNovelPanelImageValidation,
   runProductImageValidation,
@@ -152,6 +153,12 @@ function segmentedLayoutResult() {
         yMax: 1000,
         confidence: 100,
         visibility: 'full_body',
+        duplicated: false,
+        duplicateCount: 1,
+        visiblePhysicalBodyCount: 1,
+        visibleReflectionCount: 0,
+        visibleDepictionCount: 0,
+        duplicateNotes: null,
         notes: 'Lera occupies the tiny mock image.',
       },
       {
@@ -163,6 +170,12 @@ function segmentedLayoutResult() {
         yMax: 1000,
         confidence: 100,
         visibility: 'full_body',
+        duplicated: false,
+        duplicateCount: 1,
+        visiblePhysicalBodyCount: 1,
+        visibleReflectionCount: 0,
+        visibleDepictionCount: 0,
+        duplicateNotes: null,
         notes: 'Druzhok occupies the tiny mock image.',
       },
     ],
@@ -186,16 +199,46 @@ function segmentedLayoutResultWithDruzhokDuplicate() {
       box.name === 'Druzhok'
         ? {
             ...box,
-            duplicated: true,
-            duplicateCount: 2,
+            // Deliberately inconsistent legacy booleans: the physical-body count is
+            // now the authoritative duplicate signal.
+            duplicated: false,
+            duplicateCount: 1,
+            visiblePhysicalBodyCount: 2,
+            visibleReflectionCount: 0,
+            visibleDepictionCount: 0,
             duplicateNotes: 'One copy is visible near the top and another copy is lower left.',
           }
         : {
             ...box,
             duplicated: false,
             duplicateCount: box.found ? 1 : 0,
+            visiblePhysicalBodyCount: box.found ? 1 : 0,
+            visibleReflectionCount: 0,
+            visibleDepictionCount: 0,
             duplicateNotes: null,
           }
+    ),
+  };
+}
+
+function segmentedLayoutResultWithDruzhokReflection() {
+  const result = segmentedLayoutResult();
+  return {
+    ...result,
+    characterBoundingBoxes: result.characterBoundingBoxes.map((box) =>
+      box.name === 'Druzhok'
+        ? {
+            ...box,
+            // Deliberately inconsistent provider verdict: a reflection must not
+            // become a physical duplicate when the body audit says there is one.
+            duplicated: true,
+            duplicateCount: 2,
+            visiblePhysicalBodyCount: 1,
+            visibleReflectionCount: 1,
+            visibleDepictionCount: 0,
+            duplicateNotes: 'One physical body plus one mirror reflection.',
+          }
+        : box
     ),
   };
 }
@@ -218,6 +261,9 @@ function segmentedLayoutResultWithDruzhokNotVisible() {
             visibility: 'not_visible',
             duplicated: false,
             duplicateCount: 0,
+            visiblePhysicalBodyCount: 0,
+            visibleReflectionCount: 0,
+            visibleDepictionCount: 0,
             duplicateNotes: null,
             notes: 'No visible Druzhok candidate exists in the image.',
           }
@@ -225,6 +271,9 @@ function segmentedLayoutResultWithDruzhokNotVisible() {
             ...box,
             duplicated: false,
             duplicateCount: box.found ? 1 : 0,
+            visiblePhysicalBodyCount: box.found ? 1 : 0,
+            visibleReflectionCount: 0,
+            visibleDepictionCount: 0,
             duplicateNotes: null,
           }
     ),
@@ -235,11 +284,77 @@ function segmentedCharacterResult(
   character: ImageValidationResult['characters'][number]
 ): Record<string, unknown> {
   return {
-    character,
+    character: {
+      anatomyArtifactSeverity: 'none',
+      anatomyArtifactNotes: null,
+      ...character,
+    },
     hasUnexpectedCharacters: false,
     hasRenderingArtifacts: false,
     notes: character.issue || character.identityComparisonSummary,
   };
+}
+
+function validSegmentedLeraResult(): Record<string, unknown> {
+  return segmentedCharacterResult({
+    name: 'Lera',
+    characterKind: 'human',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: true,
+    hairMatchesReference: true,
+    ageReadMatchesReference: true,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'Matches the reference child.',
+  });
+}
+
+function validSegmentedDruzhokResult(duplicated = false): Record<string, unknown> {
+  return segmentedCharacterResult({
+    name: 'Druzhok',
+    characterKind: 'imaginary',
+    found: true,
+    duplicated,
+    recognizableScore: 1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    identityComparisonSummary: 'The cropped creature matches the reference.',
+    ...(duplicated && { issue: 'Two separate physical bodies are visible inside the crop.' }),
+  });
+}
+
+function malformedSegmentedDruzhokResult(): Record<string, unknown> {
+  return segmentedCharacterResult({
+    name: 'Druzhok',
+    characterKind: 'imaginary',
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: null,
+    hairMatchesReference: null,
+    ageReadMatchesReference: null,
+    proportionsMatchReference: true,
+    matchesColors: true,
+    matchesOutfit: true,
+    sameOverallDesignRead: true,
+    silhouetteDriftSeverity: 'none',
+    anatomyArtifactSeverity: 'severe',
+    anatomyArtifactNotes:
+      'Human hands replace the expected claws and several load-bearing legs fuse into the torso.',
+    identityComparisonSummary:
+      'The two heads, central pattern, and colors match, but the visible limbs are malformed.',
+  });
 }
 
 function validGraphicNovelPanelResult(): GraphicNovelPanelImageValidationResult {
@@ -327,6 +442,29 @@ const validationInput = {
   ],
 };
 
+const druzhokOnlyValidationInput = {
+  ...validationInput,
+  expectedCharacters: [validationInput.expectedCharacters[1]],
+  sceneVisual: {
+    ...validationInput.sceneVisual,
+    cameraComposition: {
+      ...validationInput.sceneVisual.cameraComposition,
+      characters: [validationInput.sceneVisual.cameraComposition.characters[1]],
+    },
+  },
+  referenceImages: [validationInput.referenceImages[1]],
+};
+
+function segmentedDruzhokOnlyLayoutResult() {
+  const result = segmentedLayoutResult();
+  return {
+    ...result,
+    characterBoundingBoxes: result.characterBoundingBoxes.filter(
+      (box) => box.name === 'Druzhok'
+    ),
+  };
+}
+
 async function testFallbackAfterPrimaryBlocked() {
   const primary = new MockTextProvider()
     .queueError(
@@ -361,6 +499,22 @@ async function testFallbackAfterPrimaryBlocked() {
   assert.ok(result.requestManifest);
   primary.assertExhausted();
   fallback.assertExhausted();
+}
+
+async function testDisabledTextCheckNormalizesProviderVerdictToFalse() {
+  if (shouldCheckImageTextOrSymbols()) return;
+
+  const providerResult = validResult();
+  providerResult.hasTextOrLetters = true;
+  const primary = new MockTextProvider().queueStructured('image_validation', providerResult);
+
+  const result = await runProductImageValidation(primary, validationInput, {
+    visionModel: 'gemini-test',
+    recordModeration: false,
+  });
+
+  assert.strictEqual(result.hasTextOrLetters, false);
+  primary.assertExhausted();
 }
 
 async function testAllBlockedReturnsProviderBlocked() {
@@ -670,6 +824,9 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
     visibility: 'full_body',
     duplicated: false,
     duplicateCount: 1,
+    visiblePhysicalBodyCount: 1,
+    visibleReflectionCount: 0,
+    visibleDepictionCount: 0,
     duplicateNotes: null,
     notes: 'Lera occupies the tiny mock image.',
   });
@@ -700,16 +857,37 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.match(layoutCall.prompt, /EXPECTED CHARACTER STAGING HINTS/);
   assert.match(layoutCall.prompt, /trust the stable visual identity from the reference image/);
   assert.match(layoutCall.prompt, /scan the whole Image 1 for ALL visible copies/);
-  assert.match(
-    layoutCall.prompt,
-    /Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF/
-  );
-  assert.match(layoutCall.prompt, /REF_\* token such as REF_CH_\*/);
+  assert.match(layoutCall.prompt, /not evidence for what Image 1 ACTUALLY contains/);
+  assert.match(layoutCall.prompt, /Mandatory visual inventory/);
+  assert.match(layoutCall.prompt, /Two matching bodies side-by-side/);
+  assert.match(layoutCall.prompt, /count physically separate bodies\/torsos/);
+  assert.match(layoutCall.prompt, /Multiple heads, faces, arms, tails/);
+  assert.match(layoutCall.prompt, /visiblePhysicalBodyCount > 1/);
+  assert.match(layoutCall.prompt, /mirror reflections, water reflections/);
+  assert.match(layoutCall.prompt, /ordinary scene space with its own body/);
+  assert.match(layoutCall.prompt, /upside-down or vertically mirrored copy/);
+  assert.match(layoutCall.prompt, /must not be counted as a physical body/);
+  if (shouldCheckImageTextOrSymbols()) {
+    assert.match(
+      layoutCall.prompt,
+      /Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF/
+    );
+    assert.match(layoutCall.prompt, /REF_\* identifiers such as REF_CH_\*/);
+  } else {
+    assert.match(layoutCall.prompt, /Always set hasTextOrLetters=false/);
+    assert.doesNotMatch(layoutCall.prompt, /Explicitly scan for REF_\*/);
+  }
   assert.match(layoutCall.prompt, /dog-like fairy as a chicken-like creature/);
   assert.match(layoutCall.prompt, /Lera \(human; identity reference=Image 2\)/);
   assert.match(layoutCall.prompt, /Druzhok \(imaginary; identity reference=Image 3\)/);
   assert.match(leraCall.prompt, /validate exactly ONE expected HUMAN character/);
-  assert.match(leraCall.prompt, /full-image QA pass handles duplicate detection/);
+  assert.match(leraCall.prompt, /Audit duplicates inside this crop too/);
+  assert.match(leraCall.prompt, /inventory the visible limbs from pixels/);
+  assert.match(leraCall.prompt, /padded crop/);
+  assert.match(leraCall.prompt, /nearby disconnected or malformed parts/);
+  assert.match(leraCall.prompt, /separate physical bodies/);
+  assert.match(leraCall.prompt, /mirror reflection, water reflection/);
+  assert.match(leraCall.prompt, /Count bodies\/torsos, not heads/);
   assert.match(leraCall.prompt, /Do not search outside this crop/);
   assert.match(leraCall.prompt, /found=true only when the cropped candidate/);
   assert.doesNotMatch(leraCall.prompt, /Search Image 1/);
@@ -736,7 +914,14 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.match(druzhokCall.prompt, /matching hat\/wing\/prop alone never proves identity/);
   assert.match(druzhokCall.prompt, /cap recognizableScore at 0\.6/);
   assert.match(druzhokCall.prompt, /cap recognizableScore at 0\.55/);
-  assert.match(druzhokCall.prompt, /full-image QA pass handles duplicate detection/);
+  assert.match(druzhokCall.prompt, /Audit duplicates inside this crop too/);
+  assert.match(druzhokCall.prompt, /separate physical bodies/);
+  assert.match(druzhokCall.prompt, /single multi-headed creature with one shared body/);
+  assert.match(druzhokCall.prompt, /Reflections in mirrors or water/);
+  assert.match(druzhokCall.prompt, /separate anatomy-integrity audit/);
+  assert.match(druzhokCall.prompt, /human arms\/hands replacing claws or crab legs/);
+  assert.match(druzhokCall.prompt, /load-bearing legs/);
+  assert.match(druzhokCall.prompt, /recognizable character can still have/);
   assert.match(druzhokCall.prompt, /Do not search outside this crop/);
   assert.match(druzhokCall.prompt, /found=true only when the cropped candidate/);
   assert.doesNotMatch(druzhokCall.prompt, /Search Image 1/);
@@ -1027,11 +1212,137 @@ async function testSceneQaDuplicateEvidenceOverridesSingleCropResult() {
   assert.match(druzhok.issue ?? '', /Duplicate visible copies detected \(2\)/);
 
   const manifest = result.requestManifest as {
-    characterBoundingBoxes: Array<{ name: string; duplicated?: boolean; duplicateCount?: number }>;
+    characterBoundingBoxes: Array<{
+      name: string;
+      duplicated?: boolean;
+      duplicateCount?: number;
+      visiblePhysicalBodyCount?: number;
+    }>;
   };
   const druzhokBox = manifest.characterBoundingBoxes.find((box) => box.name === 'Druzhok');
-  assert.strictEqual(druzhokBox?.duplicated, true);
-  assert.strictEqual(druzhokBox?.duplicateCount, 2);
+  assert.strictEqual(druzhokBox?.duplicated, false);
+  assert.strictEqual(druzhokBox?.duplicateCount, 1);
+  assert.strictEqual(druzhokBox?.visiblePhysicalBodyCount, 2);
+  primary.assertExhausted();
+}
+
+async function testPhysicalBodyAuditIgnoresReflectionProviderFalsePositive() {
+  const primary = new MockTextProvider()
+    .queueStructured(
+      'image_validation_segmented_scene_qa',
+      segmentedLayoutResultWithDruzhokReflection()
+    )
+    .queueStructured('image_validation_segmented_character_identity', validSegmentedLeraResult())
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      validSegmentedDruzhokResult()
+    );
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      includeLayoutChecks: false,
+      includeBubbleChecks: false,
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  const druzhok = result.characters.find((character) => character.name === 'Druzhok');
+  assert.ok(druzhok, 'Druzhok validation should be present');
+  assert.strictEqual(
+    druzhok.duplicated,
+    false,
+    'one physical body plus its reflection must not be treated as a duplicate'
+  );
+  assert.strictEqual(result.characterCount, 2);
+  assert.deepStrictEqual(
+    {
+      duplicated: druzhok.characterBoundingBox?.duplicated,
+      duplicateCount: druzhok.characterBoundingBox?.duplicateCount,
+      visiblePhysicalBodyCount: druzhok.characterBoundingBox?.visiblePhysicalBodyCount,
+      visibleReflectionCount: druzhok.characterBoundingBox?.visibleReflectionCount,
+    },
+    {
+      duplicated: false,
+      duplicateCount: 1,
+      visiblePhysicalBodyCount: 1,
+      visibleReflectionCount: 1,
+    }
+  );
+  primary.assertExhausted();
+}
+
+async function testCharacterCropCanRecoverMissedPhysicalDuplicate() {
+  const primary = new MockTextProvider()
+    .queueStructured(
+      'image_validation_segmented_scene_qa',
+      segmentedDruzhokOnlyLayoutResult()
+    )
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      validSegmentedDruzhokResult(true)
+    );
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...druzhokOnlyValidationInput,
+      includeLayoutChecks: false,
+      includeBubbleChecks: false,
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  const druzhok = result.characters.find((character) => character.name === 'Druzhok');
+  assert.ok(druzhok, 'Druzhok validation should be present');
+  assert.strictEqual(
+    druzhok.duplicated,
+    true,
+    'crop identity pass must be allowed to recover a physical duplicate missed by scene QA'
+  );
+  assert.strictEqual(result.characterCount, 2);
+  assert.strictEqual(druzhok.characterBoundingBox?.visiblePhysicalBodyCount, 2);
+  assert.strictEqual(druzhok.characterBoundingBox?.duplicateCount, 2);
+  assert.strictEqual(druzhok.characterBoundingBox?.duplicated, true);
+  assert.match(druzhok.issue ?? '', /Two separate physical bodies/);
+  primary.assertExhausted();
+}
+
+async function testCharacterAnatomyArtifactOverridesMatchingIdentityAnchors() {
+  const primary = new MockTextProvider()
+    .queueStructured(
+      'image_validation_segmented_scene_qa',
+      segmentedDruzhokOnlyLayoutResult()
+    )
+    .queueStructured(
+      'image_validation_segmented_character_identity',
+      malformedSegmentedDruzhokResult()
+    );
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...druzhokOnlyValidationInput,
+      includeLayoutChecks: false,
+      includeBubbleChecks: false,
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  const druzhok = result.characters.find((character) => character.name === 'Druzhok');
+  assert.ok(druzhok, 'Druzhok validation should be present');
+  assert.strictEqual(druzhok.recognizableScore, 1, 'identity may still be recognizable');
+  assert.strictEqual(druzhok.sameOverallDesignRead, true, 'identity anchors may still match');
+  assert.strictEqual(druzhok.anatomyArtifactSeverity, 'severe');
+  assert.match(druzhok.anatomyArtifactNotes ?? '', /Human hands replace/);
+  assert.match(druzhok.issue ?? '', /Human hands replace/);
+  assert.strictEqual(
+    result.hasRenderingArtifacts,
+    true,
+    'moderate/severe crop anatomy defects must propagate to the scene verdict'
+  );
+  assert.match(result.overallFeedback, /Human hands replace/);
   primary.assertExhausted();
 }
 
@@ -1112,6 +1423,9 @@ async function testSceneQaMissingCharacterSkipsCropValidation() {
     visibility: 'full_body',
     duplicated: false,
     duplicateCount: 1,
+    visiblePhysicalBodyCount: 1,
+    visibleReflectionCount: 0,
+    visibleDepictionCount: 0,
     duplicateNotes: null,
     notes: 'Lera occupies the tiny mock image.',
   });
@@ -1135,6 +1449,9 @@ async function testSceneQaMissingCharacterSkipsCropValidation() {
       visibility: 'not_visible',
       duplicated: false,
       duplicateCount: 0,
+      visiblePhysicalBodyCount: 0,
+      visibleReflectionCount: 0,
+      visibleDepictionCount: 0,
       duplicateNotes: null,
       notes: 'No visible Druzhok candidate exists in the image.',
     },
@@ -1556,7 +1873,12 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
     /Image 2: turnaround identity reference for "Lera"/
   );
   assert.match(primary.structuredRequests[0].prompt, /- Lera \(human; reference=Image 2\)/);
-  assert.match(primary.structuredRequests[0].prompt, /REF_\* identifiers such as REF_CH_\*/);
+  if (shouldCheckImageTextOrSymbols()) {
+    assert.match(primary.structuredRequests[0].prompt, /REF_\* identifiers such as REF_CH_\*/);
+  } else {
+    assert.match(primary.structuredRequests[0].prompt, /Always set hasTextOrLetters=false/);
+    assert.doesNotMatch(primary.structuredRequests[0].prompt, /Explicitly scan for REF_\*/);
+  }
   assert.doesNotMatch(primary.structuredRequests[0].prompt, /Lera \(human; description=/);
   assert.doesNotMatch(primary.structuredRequests[0].prompt, /Young girl beside the starry chest/);
   assert.match(
@@ -1573,6 +1895,7 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
 
 async function main() {
   await testFallbackAfterPrimaryBlocked();
+  await testDisabledTextCheckNormalizesProviderVerdictToFalse();
   await testAllBlockedReturnsProviderBlocked();
   await testLayoutChecksSchemaAndPromptAreFlagged();
   await testLayoutTemplateReferenceIsIgnoredForValidation();
@@ -1582,6 +1905,9 @@ async function main() {
   await testSegmentedValidationIgnoresLegacyNonStringStagingDescription();
   await testSegmentedValidationNormalizesRosterToUniqueSceneVisualCharacters();
   await testSceneQaDuplicateEvidenceOverridesSingleCropResult();
+  await testPhysicalBodyAuditIgnoresReflectionProviderFalsePositive();
+  await testCharacterCropCanRecoverMissedPhysicalDuplicate();
+  await testCharacterAnatomyArtifactOverridesMatchingIdentityAnchors();
   await testSceneQaMissingCharacterSkipsCropValidation();
   await testSegmentedValidationUsesDressedReferenceAsWardrobeGroundTruth();
   await testSegmentedCharacterWithoutReferenceKeepsDescriptionFallback();
