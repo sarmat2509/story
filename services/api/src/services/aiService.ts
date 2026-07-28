@@ -212,7 +212,11 @@ export function getLlmTurnaroundImageDomainService(): ImageDomainService {
   if (!llmTurnaroundImageDomainService) {
     const provider =
       testOverrides?.llmTurnaroundImageProvider ??
-      new NanoBananaProProvider(config.google.apiKey, config.image.simpleModel);
+      createConfiguredImageProvider({
+        provider: config.image.simpleProvider || 'nanobananapro',
+        modelOverride: config.image.simpleModel,
+        role: 'simple',
+      });
     llmTurnaroundImageDomainService = new ImageDomainService(provider);
   }
   return llmTurnaroundImageDomainService;
@@ -531,7 +535,7 @@ function createConfiguredImageProvider(params: {
       return new OpenAIImageProvider(config.ai.openaiApiKey);
     case 'seedream':
       // BytePlus ModelArk Seedream via OpenAI-compatible Images API
-      return new SeedreamImageProvider(config.seedream.apiKey);
+      return new SeedreamImageProvider(config.seedream.apiKey, params.modelOverride);
     case 'gemini':
       return new NanoBananaProProvider(
         config.google.apiKey,
@@ -554,14 +558,11 @@ export function getEnvironmentImageProvider(): IImageProvider {
     return testOverrides.environmentImageProvider;
   }
   if (!environmentImageProvider) {
-    logger.info(
-      { model: config.image.simpleModel },
-      'Initializing environment image provider',
-    );
-    environmentImageProvider = new NanoBananaProProvider(
-      config.google.apiKey,
-      config.image.simpleModel,
-    );
+    environmentImageProvider = createConfiguredImageProvider({
+      provider: config.image.simpleProvider || 'nanobananapro',
+      modelOverride: config.image.simpleModel,
+      role: 'simple',
+    });
   }
   return environmentImageProvider;
 }

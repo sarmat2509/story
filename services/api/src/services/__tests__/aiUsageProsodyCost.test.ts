@@ -240,12 +240,51 @@ function testEnvironmentImageUsesFlashLiteImagePricing() {
   assert.ok(Math.abs(cost! - 0.03385) < 0.00001, String(cost));
 }
 
+function testSeedreamFlatPerOutputImagePricing() {
+  for (const model of ['seedream-5-0-lite-260128', 'seedream-5-0-260128']) {
+    for (const operation of ['image_generate', 'image_edit', 'image_character_reference']) {
+      const cost = estimateUsageCostUsd({
+        provider: 'seedream',
+        operation,
+        model,
+        inputUnits: 1,
+        outputUnits: 14_400,
+        imageTokens: 1,
+      });
+      assert.ok(cost != null && Math.abs(cost - 0.035) < 1e-10, `${model}: ${cost}`);
+    }
+  }
+
+  const batchCost = estimateStoredUsageCostUsd({
+    provider: 'seedream',
+    operation: 'image_generate',
+    model: 'seedream-5-0-lite-260128',
+    inputUnits: 1,
+    outputUnits: 14_400,
+    metadata: { imageTokens: 3 },
+  });
+  assert.ok(batchCost != null && Math.abs(batchCost - 0.105) < 1e-10, String(batchCost));
+
+  assert.strictEqual(
+    estimateUsageCostUsd({
+      provider: 'seedream',
+      operation: 'image_generate',
+      model: 'unpriced-seedream-model',
+      inputUnits: 1,
+      imageTokens: 1,
+    }),
+    null,
+    'Unknown Seedream models must not silently use the generic $0.04 fallback'
+  );
+}
+
 void (async () => {
   testProsodyTagsPricedLikeTextGemini();
   testProsodyTagsUnknownModelFallsBackLikeText();
   testHistoricalUnpricedOperationsArePriced();
   testStoredUsageUsesEffectiveUnitsAndImageMetadata();
   testEnvironmentImageUsesFlashLiteImagePricing();
+  testSeedreamFlatPerOutputImagePricing();
   console.log('aiUsageProsodyCost tests OK');
 })().catch((e) => {
   console.error(e);

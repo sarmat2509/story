@@ -58,7 +58,7 @@ export class SeedreamImageProvider implements IImageProvider {
   private watermark: boolean;
   private optimizePromptMode: string;
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, modelOverride?: string) {
     const key = apiKey || config.seedream?.apiKey || '';
 
     if (!key) {
@@ -70,7 +70,7 @@ export class SeedreamImageProvider implements IImageProvider {
       baseURL: config.seedream?.baseUrl || 'https://ark.ap-southeast.bytepluses.com/api/v3',
       timeout: config.seedream?.timeoutMs || 180000,
     });
-    this.model = config.seedream?.model || 'seedream-5-0-260128';
+    this.model = modelOverride || config.seedream?.model || 'seedream-5-0-260128';
     this.sizeOverride = config.seedream?.size || '';
     this.outputFormat = this.normalizeOutputFormat(config.seedream?.outputFormat);
     this.responseFormat = this.normalizeResponseFormat(config.seedream?.responseFormat);

@@ -135,12 +135,19 @@ function calculateCost(usage: UsageMetadata): number | null {
       }
     }
 
-    if (isImageGenerationPricedOperation(operation)) {
+    // Seedream provider callbacks are emitted only after a successful image output.
+    // Treat every Seedream operation label as image generation so new/diagnostic operation
+    // names do not silently fall through without cost tracking.
+    if (provider === 'seedream' || isImageGenerationPricedOperation(operation)) {
       const imageConfig = AI_COST_CONFIG.image[modelKey];
       if (typeof imageConfig === 'number') {
         return imageConfig;
       }
       if (imageConfig && typeof imageConfig === 'object') {
+        if ('outputPerImage' in imageConfig) {
+          const outputImageCount = Math.max(0, usage.imageTokens ?? 1);
+          return outputImageCount * imageConfig.outputPerImage;
+        }
         const imgConfig = imageConfig as {
           imageRatePer1M: number;
           inputPer1M?: number;
@@ -159,7 +166,9 @@ function calculateCost(usage: UsageMetadata): number | null {
           : 0;
         return inputCost + imageCost + thinkingCost;
       }
-      return 0.04;
+      // Unknown Seedream models can have resolution- and reference-dependent tariffs.
+      // Returning null is safer than silently applying the generic image fallback.
+      return provider === 'seedream' ? null : 0.04;
     }
 
     if (operation === 'audio_synthesize') {

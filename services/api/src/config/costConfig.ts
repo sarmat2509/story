@@ -20,6 +20,11 @@ export interface ImageTokenCostConfig {
   thinkingRatePer1M?: number;
 }
 
+export interface ImagePerOutputCostConfig {
+  /** Flat provider price for each successfully returned image. */
+  outputPerImage: number;
+}
+
 export interface AudioTokenCostConfig {
   inputPer1M: number;
   outputPer1M: number;
@@ -75,8 +80,23 @@ export const AI_COST_CONFIG = {
       inputPer1M: 0.25,
       thinkingRatePer1M: 1.5,
     } as ImageTokenCostConfig,
+    // BytePlus ModelArk Seedream — input/reference images are free for these models.
+    // Billing is per successfully returned output image.
+    'seedream-5-0-lite-260128': {
+      outputPerImage: 0.035,
+    } as ImagePerOutputCostConfig,
+    // BytePlus accepts this compatibility ID for the same Seedream 5.0 Lite model.
+    'seedream-5-0-260128': {
+      outputPerImage: 0.035,
+    } as ImagePerOutputCostConfig,
+    'seedream-4-5-251128': {
+      outputPerImage: 0.04,
+    } as ImagePerOutputCostConfig,
+    'seedream-4-0-250828': {
+      outputPerImage: 0.03,
+    } as ImagePerOutputCostConfig,
     'openai-gpt-image': 0.08 as number,
-  } as Record<string, number | ImageTokenCostConfig>,
+  } as Record<string, number | ImageTokenCostConfig | ImagePerOutputCostConfig>,
 
   audio: {
     'elevenlabs-eleven_v3': 0.00012,
