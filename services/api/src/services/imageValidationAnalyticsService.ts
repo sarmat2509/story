@@ -275,7 +275,13 @@ export function buildImageValidationCharacterRegenerationAnalytics(
   };
 }
 
-export async function getImageValidationCharacterRegenerationAnalytics() {
-  const rows = await getImageValidationRepository().listForCharacterRegenerationAnalytics();
+export async function getImageValidationCharacterRegenerationAnalytics(days?: number) {
+  const createdSince =
+    typeof days === 'number' && Number.isFinite(days)
+      ? new Date(Date.now() - Math.max(0, days) * 24 * 60 * 60 * 1000)
+      : undefined;
+  const rows = await getImageValidationRepository().listForCharacterRegenerationAnalytics(
+    createdSince
+  );
   return buildImageValidationCharacterRegenerationAnalytics(rows);
 }

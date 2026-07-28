@@ -3,6 +3,7 @@ import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   useAdminDashboard,
+  useAdminImageValidationCharacterRegenerationAnalytics,
   type AdminDashboardBreakdownItem,
   type AdminDashboardCostControls,
   type AdminDashboardDailyPoint,
@@ -13,6 +14,7 @@ import {
   type AdminDashboardStatus,
   type AdminDashboardTimingPercentile,
 } from '@/admin/api/admin';
+import { AdminCharacterRegenerationChart } from '@/admin/components/AdminCharacterRegenerationChart';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import { theme } from '@/theme';
@@ -550,6 +552,7 @@ export default function AdminDashboardScreen() {
     unit: 'days',
   });
   const { data, isLoading, error } = useAdminDashboard(days);
+  const characterRegenerationAnalytics = useAdminImageValidationCharacterRegenerationAnalytics(days);
 
   const rangeAmount = Number(rangeValue);
   const requestedRangeDays = getRangeDays(rangeAmount, rangeUnit);
@@ -829,6 +832,14 @@ export default function AdminDashboardScreen() {
               <StoryReadinessHistogram items={data.storyReadinessHistogram} />
             </SectionCard>
           </View>
+
+          {characterRegenerationAnalytics.isLoading ? <AdminLoadingState /> : null}
+          {characterRegenerationAnalytics.error ? (
+            <AdminErrorState message={(characterRegenerationAnalytics.error as Error).message} />
+          ) : null}
+          {characterRegenerationAnalytics.data ? (
+            <AdminCharacterRegenerationChart data={characterRegenerationAnalytics.data} />
+          ) : null}
 
           <View style={styles.sectionGrid}>
             <SectionCard

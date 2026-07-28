@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     await import('../../jobs/storyJobProcessor');
 
   const now = new Date();
+  let characterRegenerationAnalyticsSince: Date | undefined;
   const user = {
     id: userId,
     email: 'admin-functional@example.test',
@@ -120,44 +121,47 @@ async function main(): Promise<void> {
     discount: { listAdminCodes: async () => [] } as any,
     appRelease: { listAdmin: async () => [] } as any,
     imageValidation: {
-      listForCharacterRegenerationAnalytics: async () => [
-        {
-          storyId: graphicNovelStoryId,
-          sceneIndex: 1,
-          subjectType: 'scene_image',
-          pageNumber: null,
-          panelIndex: null,
-          panelId: null,
-          attempt: 1,
-          requestManifest: null,
-          result: { expectedCharacterCount: 1 },
-          createdAt: now,
-        },
-        {
-          storyId: graphicNovelStoryId,
-          sceneIndex: 2,
-          subjectType: 'scene_image',
-          pageNumber: null,
-          panelIndex: null,
-          panelId: null,
-          attempt: 1,
-          requestManifest: null,
-          result: { expectedCharacterCount: 2 },
-          createdAt: now,
-        },
-        {
-          storyId: graphicNovelStoryId,
-          sceneIndex: 2,
-          subjectType: 'scene_image',
-          pageNumber: null,
-          panelIndex: null,
-          panelId: null,
-          attempt: 2,
-          requestManifest: null,
-          result: { expectedCharacterCount: 2 },
-          createdAt: new Date(now.getTime() + 1),
-        },
-      ],
+      listForCharacterRegenerationAnalytics: async (createdSince?: Date) => {
+        characterRegenerationAnalyticsSince = createdSince;
+        return [
+          {
+            storyId: graphicNovelStoryId,
+            sceneIndex: 1,
+            subjectType: 'scene_image',
+            pageNumber: null,
+            panelIndex: null,
+            panelId: null,
+            attempt: 1,
+            requestManifest: null,
+            result: { expectedCharacterCount: 1 },
+            createdAt: now,
+          },
+          {
+            storyId: graphicNovelStoryId,
+            sceneIndex: 2,
+            subjectType: 'scene_image',
+            pageNumber: null,
+            panelIndex: null,
+            panelId: null,
+            attempt: 1,
+            requestManifest: null,
+            result: { expectedCharacterCount: 2 },
+            createdAt: now,
+          },
+          {
+            storyId: graphicNovelStoryId,
+            sceneIndex: 2,
+            subjectType: 'scene_image',
+            pageNumber: null,
+            panelIndex: null,
+            panelId: null,
+            attempt: 2,
+            requestManifest: null,
+            result: { expectedCharacterCount: 2 },
+            createdAt: new Date(now.getTime() + 1),
+          },
+        ];
+      },
     } as any,
   });
 
@@ -204,9 +208,15 @@ async function main(): Promise<void> {
 
     const validationAnalytics = await request(
       'GET',
-      '/api/v1/admin/image-validations/analytics/character-regenerations'
+      '/api/v1/admin/image-validations/analytics/character-regenerations?days=7'
     );
     assert.equal(validationAnalytics.status, 200);
+    assert.ok(characterRegenerationAnalyticsSince instanceof Date);
+    assert.ok(
+      Math.abs(Date.now() - characterRegenerationAnalyticsSince.getTime() - 7 * 24 * 60 * 60 * 1000) <
+        1000,
+      'analytics query uses the requested dashboard time range'
+    );
     assert.deepEqual(((await validationAnalytics.json()) as any).data.totals, {
       validationRows: 3,
       imageTargets: 2,

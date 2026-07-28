@@ -1446,9 +1446,18 @@ router.get('/image-validations', async (req: Request, res: Response) => {
 
 router.get(
   '/image-validations/analytics/character-regenerations',
-  async (_req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
-      const data = await getImageValidationCharacterRegenerationAnalytics();
+      const parsed = DashboardQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid query',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const data = await getImageValidationCharacterRegenerationAnalytics(parsed.data.days);
       return res.json({ status: 'success', data });
     } catch (error) {
       logger.error(

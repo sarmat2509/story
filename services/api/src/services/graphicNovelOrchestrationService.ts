@@ -2387,70 +2387,77 @@ async function ensureGraphicNovelEnvironmentImages(params: {
   generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
 }): Promise<Array<{ environmentId: string; storagePath: string; mimeType: string }>> {
   const assetStorage = getAssetStorageService();
-  const results: Array<{ environmentId: string; storagePath: string; mimeType: string }> = [];
-
-  for (const environment of params.environments) {
-    const startedAt = new Date();
-    let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
-    try {
-      image = await getOrCreateEnvironmentImage({
-        storyId: params.storyId,
-        userId: params.userId,
-        storyEnvironmentId: environment.id,
-        environment,
-        assetStorage,
-        scenarioCardId: params.scenarioCardId,
-      });
-      await recordStageTiming({
-        storyId: params.storyId,
-        storyRequestId: params.storyRequestId,
-        userId: params.userId,
-        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
-        pipelinePhase: 'asset_generation',
-        operation: 'environment_image',
-        targetType: 'environment',
-        targetKey: environment.id,
-        status: image ? 'completed' : 'skipped',
-        startedAt,
-        completedAt: new Date(),
-        metadata: {
-          source: 'graphic_novel_preload',
-          environmentName: environment.name,
+  const uniqueEnvironments = [
+    ...new Map(params.environments.map((environment) => [environment.id, environment])).values(),
+  ];
+  const results = await Promise.all(
+    uniqueEnvironments.map(async (environment) => {
+      const startedAt = new Date();
+      let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
+      try {
+        image = await getOrCreateEnvironmentImage({
+          storyId: params.storyId,
+          userId: params.userId,
+          storyEnvironmentId: environment.id,
+          environment,
+          assetStorage,
           scenarioCardId: params.scenarioCardId,
-          hasImage: !!image,
-        },
-      });
-    } catch (error) {
-      await recordStageTiming({
-        storyId: params.storyId,
-        storyRequestId: params.storyRequestId,
-        userId: params.userId,
-        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
-        pipelinePhase: 'asset_generation',
-        operation: 'environment_image',
-        targetType: 'environment',
-        targetKey: environment.id,
-        status: 'failed',
-        startedAt,
-        completedAt: new Date(),
-        metadata: {
-          source: 'graphic_novel_preload',
-          environmentName: environment.name,
-          errorMessage: error instanceof Error ? error.message : String(error),
-        },
-      });
-      throw error;
-    }
-    if (image) {
-      results.push({
-        environmentId: environment.id,
-        storagePath: image.storagePath,
-        mimeType: image.mimeType,
-      });
-    }
-  }
+        });
+        await recordStageTiming({
+          storyId: params.storyId,
+          storyRequestId: params.storyRequestId,
+          userId: params.userId,
+          generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+          pipelinePhase: 'asset_generation',
+          operation: 'environment_image',
+          targetType: 'environment',
+          targetKey: environment.id,
+          status: image ? 'completed' : 'skipped',
+          startedAt,
+          completedAt: new Date(),
+          metadata: {
+            source: 'graphic_novel_preload',
+            environmentName: environment.name,
+            scenarioCardId: params.scenarioCardId,
+            hasImage: !!image,
+          },
+        });
+      } catch (error) {
+        await recordStageTiming({
+          storyId: params.storyId,
+          storyRequestId: params.storyRequestId,
+          userId: params.userId,
+          generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+          pipelinePhase: 'asset_generation',
+          operation: 'environment_image',
+          targetType: 'environment',
+          targetKey: environment.id,
+          status: 'failed',
+          startedAt,
+          completedAt: new Date(),
+          metadata: {
+            source: 'graphic_novel_preload',
+            environmentName: environment.name,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        });
+        throw error;
+      }
+      return image
+        ? {
+            environmentId: environment.id,
+            storagePath: image.storagePath,
+            mimeType: image.mimeType,
+          }
+        : null;
+    })
+  );
 
-  return results;
+  return results.filter(
+    (
+      result
+    ): result is { environmentId: string; storagePath: string; mimeType: string } => !!result
+  );
 }
 
 async function buildPageEnvironmentReferenceImages(params: {
@@ -2465,78 +2472,83 @@ async function buildPageEnvironmentReferenceImages(params: {
   if (pageEnvironmentMap.size === 0) return [];
 
   const assetStorage = getAssetStorageService();
-  const references: GraphicNovelReferenceImage[] = [];
-  for (const environment of pageEnvironmentMap.values()) {
-    const startedAt = new Date();
-    let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
-    try {
-      image = await getOrCreateEnvironmentImage({
-        storyId: params.storyId,
-        userId: params.userId,
-        storyEnvironmentId: environment.id,
-        environment,
-        assetStorage,
-      });
-      await recordStageTiming({
-        storyId: params.storyId,
-        storyRequestId: params.storyRequestId,
-        userId: params.userId,
-        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
-        pipelinePhase: 'asset_generation',
-        operation: 'environment_image',
-        targetType: 'environment',
-        targetKey: environment.id,
-        pageNumber: params.page.pageNumber,
-        status: image ? 'completed' : 'skipped',
-        startedAt,
-        completedAt: new Date(),
-        metadata: {
-          source: 'graphic_novel_page_reference',
-          environmentName: environment.name,
-          hasImage: !!image,
-        },
-      });
-    } catch (error) {
-      await recordStageTiming({
-        storyId: params.storyId,
-        storyRequestId: params.storyRequestId,
-        userId: params.userId,
-        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
-        pipelinePhase: 'asset_generation',
-        operation: 'environment_image',
-        targetType: 'environment',
-        targetKey: environment.id,
-        pageNumber: params.page.pageNumber,
-        status: 'failed',
-        startedAt,
-        completedAt: new Date(),
-        metadata: {
-          source: 'graphic_novel_page_reference',
-          environmentName: environment.name,
-          errorMessage: error instanceof Error ? error.message : String(error),
-        },
-      });
-      throw error;
-    }
-    if (!image) continue;
+  const references = await Promise.all(
+    [...pageEnvironmentMap.values()].map(async (environment) => {
+      const startedAt = new Date();
+      let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
+      try {
+        image = await getOrCreateEnvironmentImage({
+          storyId: params.storyId,
+          userId: params.userId,
+          storyEnvironmentId: environment.id,
+          environment,
+          assetStorage,
+        });
+        await recordStageTiming({
+          storyId: params.storyId,
+          storyRequestId: params.storyRequestId,
+          userId: params.userId,
+          generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+          pipelinePhase: 'asset_generation',
+          operation: 'environment_image',
+          targetType: 'environment',
+          targetKey: environment.id,
+          pageNumber: params.page.pageNumber,
+          status: image ? 'completed' : 'skipped',
+          startedAt,
+          completedAt: new Date(),
+          metadata: {
+            source: 'graphic_novel_page_reference',
+            environmentName: environment.name,
+            hasImage: !!image,
+          },
+        });
+      } catch (error) {
+        await recordStageTiming({
+          storyId: params.storyId,
+          storyRequestId: params.storyRequestId,
+          userId: params.userId,
+          generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+          pipelinePhase: 'asset_generation',
+          operation: 'environment_image',
+          targetType: 'environment',
+          targetKey: environment.id,
+          pageNumber: params.page.pageNumber,
+          status: 'failed',
+          startedAt,
+          completedAt: new Date(),
+          metadata: {
+            source: 'graphic_novel_page_reference',
+            environmentName: environment.name,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        });
+        throw error;
+      }
+      if (!image) return null;
 
-    const reference: GraphicNovelReferenceImage = {
-      base64Data: image.base64,
-      mimeType: image.storagePath ? mimeTypeForStoragePath(image.storagePath) : image.mimeType,
-      referenceKind: 'object',
-      characterName: environment.name,
-      source: 'environment',
-      type: 'environment_reference',
-      environmentId: environment.id,
-      storagePath: image.storagePath,
-    };
-    references.push({
-      ...reference,
-      instructionText: buildGraphicNovelReferenceInstruction(reference),
-    });
-  }
+      const reference: GraphicNovelReferenceImage = {
+        base64Data: image.base64,
+        mimeType: image.storagePath ? mimeTypeForStoragePath(image.storagePath) : image.mimeType,
+        referenceKind: 'object',
+        characterName: environment.name,
+        source: 'environment',
+        type: 'environment_reference',
+        environmentId: environment.id,
+        storagePath: image.storagePath,
+      };
+      return {
+        ...reference,
+        instructionText: buildGraphicNovelReferenceInstruction(reference),
+      };
+    })
+  );
 
-  return references;
+  return references.filter(
+    (
+      reference
+    ): reference is Exclude<(typeof references)[number], null> => reference !== null
+  );
 }
 
 async function buildStoryArtifactReferenceImage(
@@ -2673,36 +2685,41 @@ async function buildPageCharacterReferenceImages(params: {
   if (pageNames.size === 0 && pageRefs.size === 0) return [];
 
   const assetStorage = getAssetStorageService();
-  const references: GraphicNovelReferenceImage[] = [];
   const seenStoragePaths = new Set<string>();
   const explicitlyIncludedIds = new Set(
     (params.includeCharacterIds || []).map(normalizeCharacterRef).filter(Boolean)
   );
 
-  for (const character of params.characters) {
+  const referencesToLoad = params.characters.flatMap((character) => {
     const characterId = normalizeCharacterRef(character.id);
     if (
       !explicitlyIncludedIds.has(characterId) &&
       !characterManifestMatchesPage(character, pageNames, pageRefs, params.characters)
     ) {
-      continue;
+      return [];
     }
     const firstReference = character.references?.find(
       (ref) => !seenStoragePaths.has(ref.storagePath)
     );
-    if (!firstReference) continue;
+    if (!firstReference) return [];
     seenStoragePaths.add(firstReference.storagePath);
-    const loaded = await loadGraphicNovelReferenceImage({
-      ref: firstReference,
-      characterName: character.name,
-      characterId: character.id,
-      imageDomain: params.imageDomain,
-      assetStorage,
-    });
-    if (loaded) references.push(loaded);
-  }
+    return [{ character, firstReference }];
+  });
+  const references = await Promise.all(
+    referencesToLoad.map(({ character, firstReference }) =>
+      loadGraphicNovelReferenceImage({
+        ref: firstReference,
+        characterName: character.name,
+        characterId: character.id,
+        imageDomain: params.imageDomain,
+        assetStorage,
+      })
+    )
+  );
 
-  return references;
+  return references.filter(
+    (reference): reference is GraphicNovelReferenceImage => reference !== null
+  );
 }
 
 function buildGraphicNovelCharacterDataMap(
@@ -4755,34 +4772,39 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         })
     );
 
-    const { characters: graphicNovelCharacters, llmCharacters: graphicNovelLlmCharacters } =
-      await prepareGraphicNovelCharactersForScript({
-        storyId,
-        storyRequestId: requestId,
-        userId: request.userId,
-        generationKind: GRAPHIC_NOVEL_KIND,
-        spec,
-        script,
-        imageStyle: (spec as any).imageStyle,
-      });
-
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 20_000,
     });
     await setGraphicNovelProgressStage(requestId, 'planning_pages');
-    const graphicNovelEnvironmentImages = await ensureGraphicNovelEnvironmentImages({
-      storyId,
-      storyRequestId: requestId,
-      userId: request.userId,
-      environments: script.environments,
-      scenarioCardId: spec.scenarioCard?.id,
-      generationKind: GRAPHIC_NOVEL_KIND,
-    });
-    const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
-      ageGroup: spec.ageGroup,
-      userId: request.userId,
-      childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
-    });
+    const [graphicNovelCharacterPreparation, graphicNovelEnvironmentImages, readingTextSettings] =
+      await Promise.all([
+        prepareGraphicNovelCharactersForScript({
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind: GRAPHIC_NOVEL_KIND,
+          spec,
+          script,
+          imageStyle: (spec as any).imageStyle,
+        }),
+        ensureGraphicNovelEnvironmentImages({
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          environments: script.environments,
+          scenarioCardId: spec.scenarioCard?.id,
+          generationKind: GRAPHIC_NOVEL_KIND,
+        }),
+        resolveGraphicNovelReadingTextSettings({
+          ageGroup: spec.ageGroup,
+          userId: request.userId,
+          childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
+        }),
+      ]);
+    const {
+      characters: graphicNovelCharacters,
+      llmCharacters: graphicNovelLlmCharacters,
+    } = graphicNovelCharacterPreparation;
     const { characterManifest, plannedPages } = await withStageTiming(
       {
         storyId,
@@ -5164,34 +5186,37 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
         })
     );
 
-    const { characters: mixedStoryCharacters, llmCharacters: mixedStoryLlmCharacters } =
-      await prepareGraphicNovelCharactersForScript({
-        storyId,
-        storyRequestId: requestId,
-        userId: request.userId,
-        generationKind: MIXED_STORY_KIND,
-        spec,
-        script,
-        imageStyle: (spec as any).imageStyle,
-      });
-
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 15_000,
     });
     await setGraphicNovelProgressStage(requestId, 'planning_pages', MIXED_STORY_KIND);
-    const graphicNovelEnvironmentImages = await ensureGraphicNovelEnvironmentImages({
-      storyId,
-      storyRequestId: requestId,
-      userId: request.userId,
-      environments: script.environments,
-      scenarioCardId: spec.scenarioCard?.id,
-      generationKind: MIXED_STORY_KIND,
-    });
-    const readingTextSettings = await resolveGraphicNovelReadingTextSettings({
-      ageGroup: spec.ageGroup,
-      userId: request.userId,
-      childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
-    });
+    const [mixedStoryCharacterPreparation, graphicNovelEnvironmentImages, readingTextSettings] =
+      await Promise.all([
+        prepareGraphicNovelCharactersForScript({
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind: MIXED_STORY_KIND,
+          spec,
+          script,
+          imageStyle: (spec as any).imageStyle,
+        }),
+        ensureGraphicNovelEnvironmentImages({
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          environments: script.environments,
+          scenarioCardId: spec.scenarioCard?.id,
+          generationKind: MIXED_STORY_KIND,
+        }),
+        resolveGraphicNovelReadingTextSettings({
+          ageGroup: spec.ageGroup,
+          userId: request.userId,
+          childProfileId: request.childProfileId ?? request.createdByChildProfileId ?? null,
+        }),
+      ]);
+    const { characters: mixedStoryCharacters, llmCharacters: mixedStoryLlmCharacters } =
+      mixedStoryCharacterPreparation;
     const { characterManifest, plannedPages } = await withStageTiming(
       {
         storyId,
@@ -5527,22 +5552,23 @@ async function renderAndStorePage(params: {
   const comicPanelImageSize: GenerateImageRequest['imageSize'] = '1K';
   const pageSize = pageSizeForGraphicNovelPage(plannedPage);
   const environmentsById = environmentMapForPage(plannedPage, params.environments);
-  const environmentReferenceImages = await buildPageEnvironmentReferenceImages({
-    storyId: params.storyId,
-    storyRequestId: params.requestId,
-    userId: params.userId,
-    page: plannedPage,
-    environments: params.environments,
-    generationKind: params.generationKind,
-  });
-  const storyArtifactReferenceImage = await buildStoryArtifactReferenceImage(
-    params.storyArtifactReference
-  );
-  const characterReferenceImages = await buildPageCharacterReferenceImages({
-    page: plannedPage,
-    characters: params.characters,
-    imageDomain: complexImageDomain,
-  });
+  const [environmentReferenceImages, storyArtifactReferenceImage, characterReferenceImages] =
+    await Promise.all([
+      buildPageEnvironmentReferenceImages({
+        storyId: params.storyId,
+        storyRequestId: params.requestId,
+        userId: params.userId,
+        page: plannedPage,
+        environments: params.environments,
+        generationKind: params.generationKind,
+      }),
+      buildStoryArtifactReferenceImage(params.storyArtifactReference),
+      buildPageCharacterReferenceImages({
+        page: plannedPage,
+        characters: params.characters,
+        imageDomain: complexImageDomain,
+      }),
+    ]);
   const dressedTurnaroundReferenceImages = await buildPageDressedTurnaroundReferenceImages({
     storyId: params.storyId,
     storyRequestId: params.requestId,

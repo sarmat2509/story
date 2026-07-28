@@ -1128,14 +1128,14 @@ export function useAdminImageValidations(params: { limit: number; offset: number
   });
 }
 
-export function useAdminImageValidationCharacterRegenerationAnalytics() {
+export function useAdminImageValidationCharacterRegenerationAnalytics(days: number) {
   return useQuery({
-    queryKey: ['admin', 'image-validations', 'analytics', 'character-regenerations'],
+    queryKey: ['admin', 'image-validations', 'analytics', 'character-regenerations', days],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         data: AdminImageValidationCharacterRegenerationAnalytics;
-      }>('/api/v1/admin/image-validations/analytics/character-regenerations');
+      }>('/api/v1/admin/image-validations/analytics/character-regenerations', { params: { days } });
       return response.data.data;
     },
   });
