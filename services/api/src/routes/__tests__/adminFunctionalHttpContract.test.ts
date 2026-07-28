@@ -299,6 +299,8 @@ async function main(): Promise<void> {
       { method: 'PATCH', path: '/api/v1/admin/discount-codes/not-a-uuid', body: {} },
       { method: 'GET', path: '/api/v1/admin/outfits?limit=0' },
       { method: 'POST', path: '/api/v1/admin/outfits/search', body: {} },
+      { method: 'GET', path: '/api/v1/admin/environments?limit=0' },
+      { method: 'POST', path: '/api/v1/admin/environments/search', body: {} },
       { method: 'GET', path: '/api/v1/admin/voices?limit=0' },
       { method: 'PATCH', path: '/api/v1/admin/voices/not-a-uuid', body: {} },
       { method: 'GET', path: '/api/v1/admin/feedback?limit=0' },

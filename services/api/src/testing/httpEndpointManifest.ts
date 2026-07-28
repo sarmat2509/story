@@ -324,6 +324,8 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['PATCH', '/api/v1/admin/discount-codes/:discountCodeId'],
     ['GET', '/api/v1/admin/outfits'],
     ['POST', '/api/v1/admin/outfits/search'],
+    ['GET', '/api/v1/admin/environments'],
+    ['POST', '/api/v1/admin/environments/search'],
     ['GET', '/api/v1/admin/voices'],
     ['PATCH', '/api/v1/admin/voices/:voiceId'],
     ['GET', '/api/v1/admin/feedback'],

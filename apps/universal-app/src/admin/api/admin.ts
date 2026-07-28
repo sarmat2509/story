@@ -843,6 +843,64 @@ export function useSearchAdminOutfits() {
   });
 }
 
+export type AdminEnvironmentCatalogItem = {
+  id: string;
+  description: string;
+  cacheDescription: string;
+  cacheVersion: string | null;
+  isCurrentVersion: boolean;
+  imageUrl: string;
+  storagePath: string;
+  createdAt: string;
+};
+
+export type AdminEnvironmentSearchItem = {
+  id: string;
+  description: string;
+  cacheDescription: string;
+  cacheVersion: string | null;
+  isCurrentVersion: boolean;
+  imageUrl: string;
+  storagePath: string;
+  score: number;
+  meetsThreshold: boolean;
+};
+
+export type AdminEnvironmentSearchResult = {
+  description: string;
+  threshold: number;
+  items: AdminEnvironmentSearchItem[];
+};
+
+export function useAdminEnvironments(params: { limit: number; offset: number }) {
+  const { limit, offset } = params;
+  return useQuery({
+    queryKey: ['admin', 'environments', limit, offset],
+    queryFn: async () => {
+      const response = await apiClient.get<PaginatedResponse<AdminEnvironmentCatalogItem>>(
+        '/api/v1/admin/environments',
+        { params: { limit, offset } }
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useSearchAdminEnvironments() {
+  return useMutation({
+    mutationFn: async (params: { description: string; limit?: number }) => {
+      const response = await apiClient.post<{
+        status: string;
+        data: AdminEnvironmentSearchResult;
+      }>('/api/v1/admin/environments/search', {
+        description: params.description,
+        limit: params.limit ?? 20,
+      });
+      return response.data.data;
+    },
+  });
+}
+
 export type AdminVoiceListItem = {
   id: string;
   provider: string;

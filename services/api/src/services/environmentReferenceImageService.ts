@@ -26,6 +26,9 @@ export interface EnvImageData {
   storagePath: string;
 }
 
+/** Different Director environment IDs may share a plate only at near-exact semantic similarity. */
+const CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE = 0.95;
+
 export interface EnvironmentImageRequest {
   storyId: string;
   userId?: string;
@@ -97,33 +100,52 @@ export async function getOrCreateEnvironmentImageCore(
   }
 
   const embedding = await deps.generateEmbedding(cacheDescription);
-  const similar = await envCacheRepo.findSimilar(embedding, deps.similarityThreshold, {
-    descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
-  });
-  if (similar) {
-    const conflictingStoryEnvironment = (await storyEnvRepo.listByCacheId(similar.id)).find(
-      (row) => row.storyEnvironmentId !== storyEnvironmentId
+  const similarCandidates = await envCacheRepo.findSimilarMany(
+    embedding,
+    deps.similarityThreshold,
+    {
+      descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
+    }
+  );
+  if (similarCandidates.length > 0) {
+    const highConfidenceCrossEnvironmentCandidate = similarCandidates.find(
+      (candidate) => candidate.score > CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE
     );
-    if (conflictingStoryEnvironment) {
+    const selectedCandidate = highConfidenceCrossEnvironmentCandidate;
+
+    if (selectedCandidate) {
+      const buffer = await assetStorage.getAssetByPath(selectedCandidate.storagePath);
+      await storyEnvRepo.upsert(storyId, storyEnvironmentId, selectedCandidate.id);
+
       logger.info(
         {
           storyId,
           storyEnvironmentId,
-          cacheId: similar.id,
-          conflictingStoryEnvironmentId: conflictingStoryEnvironment.storyEnvironmentId,
-          conflictingStoryId: conflictingStoryEnvironment.storyId,
-          score: similar.score.toFixed(3),
+          cacheId: selectedCandidate.id,
+          score: selectedCandidate.score.toFixed(3),
+          minimumScoreExclusive: CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE,
         },
-        'Environment cache hit skipped because the cache belongs to a different environment id'
+        'Reused high-confidence environment cache across stories'
       );
-    } else {
-      const buffer = await assetStorage.getAssetByPath(similar.storagePath);
-      await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
       return {
         base64: buffer.toString('base64'),
-        mimeType: imageMimeTypeFromPath(similar.storagePath),
-        storagePath: similar.storagePath,
+        mimeType: imageMimeTypeFromPath(selectedCandidate.storagePath),
+        storagePath: selectedCandidate.storagePath,
       };
+    }
+
+    const bestCandidate = similarCandidates[0];
+    if (bestCandidate) {
+      logger.info(
+        {
+          storyId,
+          storyEnvironmentId,
+          cacheId: bestCandidate.id,
+          score: bestCandidate.score.toFixed(3),
+          minimumScoreExclusive: CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE,
+        },
+        'Environment cache hit skipped because no high-confidence match was found'
+      );
     }
   }
 

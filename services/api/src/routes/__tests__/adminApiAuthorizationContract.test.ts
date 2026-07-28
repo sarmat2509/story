@@ -29,6 +29,8 @@ const adminOnlyEndpoints: AdminEndpointCase[] = [
   { method: 'PATCH', path: `/api/v1/admin/discount-codes/${id}`, body: {} },
   { method: 'GET', path: '/api/v1/admin/outfits' },
   { method: 'POST', path: '/api/v1/admin/outfits/search', body: {} },
+  { method: 'GET', path: '/api/v1/admin/environments' },
+  { method: 'POST', path: '/api/v1/admin/environments/search', body: {} },
   { method: 'GET', path: '/api/v1/admin/voices' },
   { method: 'PATCH', path: `/api/v1/admin/voices/${id}`, body: {} },
   { method: 'GET', path: '/api/v1/admin/feedback' },

@@ -52,6 +52,10 @@ import {
 } from '../services/discountService';
 import { listAdminOutfits, searchAdminOutfits } from '../services/adminOutfitService';
 import {
+  listAdminEnvironments,
+  searchAdminEnvironments,
+} from '../services/adminEnvironmentService';
+import {
   GRAPHIC_NOVEL_PANEL_REPAIR_ISSUE_KINDS,
   type GraphicNovelPanelRepairTarget,
 } from '../services/graphicNovelPanelRepairTypes';
@@ -154,6 +158,18 @@ const AdminOutfitListQuerySchema = z.object({
 });
 
 const AdminOutfitSearchBodySchema = z
+  .object({
+    description: z.string().trim().min(1).max(4000),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+const AdminEnvironmentListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(24),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const AdminEnvironmentSearchBodySchema = z
   .object({
     description: z.string().trim().min(1).max(4000),
     limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -1066,6 +1082,64 @@ router.post('/outfits/search', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to search outfits',
+    });
+  }
+});
+
+router.get('/environments', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminEnvironmentListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const data = await listAdminEnvironments({
+      limit: parsed.data.limit ?? 24,
+      offset: parsed.data.offset ?? 0,
+    });
+    return res.json({ status: 'success', data });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin environments list failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to list environments',
+    });
+  }
+});
+
+router.post('/environments/search', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminEnvironmentSearchBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const data = await searchAdminEnvironments({
+      description: parsed.data.description,
+      limit: parsed.data.limit ?? 20,
+    });
+    return res.json({ status: 'success', data });
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        userId: req.user?.id,
+        descriptionLength:
+          typeof req.body?.description === 'string' ? req.body.description.length : null,
+      },
+      'Admin environment search failed'
+    );
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to search environments',
     });
   }
 });
