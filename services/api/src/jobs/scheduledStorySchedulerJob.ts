@@ -78,9 +78,35 @@ export function nextScheduledTarget(
   );
 }
 
-export async function runScheduledStoryScheduler(): Promise<void> {
-  if ((await getOpsRuntimeStatus()).active) return;
-  const repo = getStoryRepository();
+export interface ScheduledStorySchedulerDependencies {
+  getOpsRuntimeStatus: typeof getOpsRuntimeStatus;
+  getStoryRepository: typeof getStoryRepository;
+  getChildProfileRepository: typeof getChildProfileRepository;
+  getCharacterRepository: typeof getCharacterRepository;
+  createStoryRequest: typeof createStoryRequest;
+  releaseStoryQuotaReservationForRequest: typeof releaseStoryQuotaReservationForRequest;
+  isStoryQuotaError: typeof isStoryQuotaError;
+  enqueueTextJob: typeof textQueue.addJob;
+}
+
+const productionDependencies: ScheduledStorySchedulerDependencies = {
+  getOpsRuntimeStatus,
+  getStoryRepository,
+  getChildProfileRepository,
+  getCharacterRepository,
+  createStoryRequest,
+  releaseStoryQuotaReservationForRequest,
+  isStoryQuotaError,
+  enqueueTextJob: textQueue.addJob.bind(textQueue),
+};
+
+/** Kept dependency-injected so the account fan-out and quota isolation can be
+ * exercised without a database or queue. */
+export async function runScheduledStorySchedulerCore(
+  deps: ScheduledStorySchedulerDependencies = productionDependencies
+): Promise<void> {
+  if ((await deps.getOpsRuntimeStatus()).active) return;
+  const repo = deps.getStoryRepository();
   const due = await repo.findDueStoryScheduleRules(new Date());
   for (const rule of due) {
     // Move first: a second worker tick cannot fan out the same rule twice.
@@ -95,17 +121,17 @@ export async function runScheduledStoryScheduler(): Promise<void> {
       target,
       new Date(target.getTime() - PREPARE_LEAD_MS)
     );
-    const profiles = await getChildProfileRepository().findByIds(rule.userId, rule.childProfileIds);
+    const profiles = await deps.getChildProfileRepository().findByIds(rule.userId, rule.childProfileIds);
     for (const profile of profiles) {
       let requestId: string | undefined;
       try {
-        const characters = await getCharacterRepository().findByUserId(rule.userId, undefined, {
+        const characters = await deps.getCharacterRepository().findByUserId(rule.userId, undefined, {
           childProfileId: profile.id,
         });
         const format = pick(rule.formats as Array<'story' | 'comic' | 'mixed'>);
         const scenarioCardId = pick(rule.themes as string[]);
         const goal = pick(rule.morals as string[]);
-        requestId = await createStoryRequest(
+        requestId = await deps.createStoryRequest(
           rule.userId,
           {
             childProfileId: profile.id,
@@ -131,14 +157,14 @@ export async function runScheduledStoryScheduler(): Promise<void> {
               format === 'comic' ? 'graphic_novel' : format === 'mixed' ? 'mixed_story' : undefined,
           } as any,
         });
-        await textQueue.addJob({ type: 'text_generation', requestId });
+        await deps.enqueueTextJob({ type: 'text_generation', requestId });
       } catch (err) {
         if (requestId)
-          await releaseStoryQuotaReservationForRequest(requestId, {
+          await deps.releaseStoryQuotaReservationForRequest(requestId, {
             reason: 'queue_enqueue_failed',
             errorMessage: err instanceof Error ? err.message : String(err),
           });
-        if (isStoryQuotaError(err))
+        if (deps.isStoryQuotaError(err))
           logger.info(
             { ruleId: rule.id, childProfileId: profile.id },
             'Scheduled story skipped: quota unavailable for child'
@@ -151,6 +177,10 @@ export async function runScheduledStoryScheduler(): Promise<void> {
       }
     }
   }
+}
+
+export async function runScheduledStoryScheduler(): Promise<void> {
+  await runScheduledStorySchedulerCore();
 }
 export function startScheduledStoryScheduler(): void {
   if (timer) clearInterval(timer);

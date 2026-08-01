@@ -143,6 +143,51 @@ async function main(): Promise<void> {
           storyId,
           requestId,
           scheduleId,
+          purpose: 'scheduled_scene',
+        },
+      ]);
+    } finally {
+      await flushImmediate();
+      (imageQueue as { addJob: typeof imageQueue.addJob }).addJob = originalAddJob;
+      clearStoryTextPhaseTestOverride();
+      clearRepositoryTestOverrides();
+    }
+  }
+
+  // --- Scheduled family story: batch only the missing environment plates ---
+  {
+    const batchPending: unknown[] = [];
+    const enqueued: unknown[] = [];
+
+    installRepositoryTestOverrides({
+      story: {
+        findRequestById: async () => ({
+          id: requestId,
+          userId,
+          intermediateData: { isScheduledStory: true },
+          status: 'processing',
+        }),
+        findById: async () => null,
+        insertBatchImagePending: async (row: unknown) => {
+          batchPending.push(row);
+        },
+      } as any,
+    });
+    installStoryTextPhaseTestOverride(async () => ({ storyId, isScheduledStory: true }));
+    (imageQueue as { addJob: typeof imageQueue.addJob }).addJob = async (job) => {
+      enqueued.push(job);
+      return 'should-not-run';
+    };
+
+    try {
+      await processTextGenerationForTesting(baseJob());
+      assert.equal(enqueued.length, 0, 'Seedream scene rendering waits for the environment batch');
+      assert.deepEqual(batchPending, [
+        {
+          storyId,
+          requestId,
+          scheduleId: null,
+          purpose: 'scheduled_environment',
         },
       ]);
     } finally {
