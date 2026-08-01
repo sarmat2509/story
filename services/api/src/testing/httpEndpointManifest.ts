@@ -225,10 +225,12 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['GET', '/api/v1/characters'],
     ['POST', '/api/v1/characters'],
     ['GET', '/api/v1/characters/:id'],
+    ['PATCH', '/api/v1/characters/:id/name'],
   ]),
   ...ownedRoutes('parent', [200, 204, 400, 403, 404, 401], `${routeTests}/charactersCrudHttpContract.test.ts`, [
     ['DELETE', '/api/v1/characters/:id'],
     ['PATCH', '/api/v1/characters/:id'],
+    ['GET', '/api/v1/characters/:id/shared-preview'],
   ]),
   ...ownedRoutes('auth', [200, 400, 403, 401], `${routeTests}/instantAnalyzeChainHttpContract.test.ts`, [
     ['POST', '/api/v1/characters/analyze'],
@@ -335,6 +337,7 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['PATCH', '/api/v1/admin/privacy-requests/:requestId'],
     ['PATCH', '/api/v1/admin/users/:userId'],
     ['GET', '/api/v1/admin/image-validations'],
+    ['GET', '/api/v1/admin/image-validations/analytics/character-regenerations'],
     ['GET', '/api/v1/admin/image-validations/:id/image'],
     ['GET', '/api/v1/admin/image-validations/:id'],
     ['POST', '/api/v1/admin/image-validations/:id/apply-best-scene-image'],
@@ -363,6 +366,14 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['GET', '/api/v1/public/stories/:slug'],
     ['GET', '/api/v1/public/authors/:authorId'],
     ['GET', '/api/v1/public/u/:token'],
+  ]),
+  ...ownedRoutes('parent', [200, 400, 403, 404, 401], `${routeTests}/publicStoriesHttpContract.test.ts`, [
+    ['POST', '/api/v1/public/stories/:slug/characters/:characterId/save'],
+    ['POST', '/api/v1/public/u/:token/characters/:characterId/save'],
+  ]),
+  ...ownedRoutes('auth', [200, 403, 404, 401], `${routeTests}/publicStoriesHttpContract.test.ts`, [
+    ['GET', '/api/v1/public/stories/:slug/characters/:characterId/image'],
+    ['GET', '/api/v1/public/u/:token/characters/:characterId/image'],
   ]),
   ...ownedRoutes('optional', [200, 400, 404, 409, 429], `${routeTests}/publicStoriesHttpContract.test.ts`, [
     ['POST', '/api/v1/public/stories/:slug/rating'],
@@ -393,6 +404,7 @@ export const HTTP_ENDPOINT_MANIFEST: readonly HttpEndpointManifestEntry[] = [
     ['POST', '/api/v1/feedback'],
   ]),
   ...ownedRoutes('parent', [200, 400, 501, 401], `${routeTests}/billingBundlesUsageHttpContract.test.ts`, [
+    ['PUT', '/api/v1/me/story-mix'],
     ['POST', '/api/v1/billing/discount-preview'],
     ['POST', '/api/v1/billing/checkout-session'],
     ['POST', '/api/v1/billing/bundle-checkout'],

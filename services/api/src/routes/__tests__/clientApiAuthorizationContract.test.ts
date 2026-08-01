@@ -32,6 +32,7 @@ const protectedClientEndpoints: ProtectedEndpointCase[] = [
   { method: 'GET', path: `/api/v1/me/stories/${id}/quiz` },
   { method: 'POST', path: `/api/v1/me/stories/${id}/quiz` },
   { method: 'PUT', path: `/api/v1/me/stories/${id}/quiz/answers/check_1` },
+  { method: 'PUT', path: '/api/v1/me/story-mix' },
   { method: 'GET', path: '/api/v1/me/artifacts' },
   { method: 'POST', path: '/api/v1/me/artifacts/collect' },
   { method: 'GET', path: '/api/v1/me/map-tiles' },
@@ -56,8 +57,26 @@ const protectedClientEndpoints: ProtectedEndpointCase[] = [
   { method: 'POST', path: '/api/v1/characters' },
   { method: 'POST', path: '/api/v1/characters/analyze' },
   { method: 'GET', path: `/api/v1/characters/${id}` },
+  { method: 'GET', path: `/api/v1/characters/${id}/shared-preview` },
   { method: 'PATCH', path: `/api/v1/characters/${id}` },
+  { method: 'PATCH', path: `/api/v1/characters/${id}/name` },
   { method: 'DELETE', path: `/api/v1/characters/${id}` },
+  {
+    method: 'POST',
+    path: `/api/v1/public/stories/test-story/characters/${characterId}/save`,
+  },
+  {
+    method: 'GET',
+    path: `/api/v1/public/stories/test-story/characters/${characterId}/image`,
+  },
+  {
+    method: 'POST',
+    path: `/api/v1/public/u/test-token/characters/${characterId}/save`,
+  },
+  {
+    method: 'GET',
+    path: `/api/v1/public/u/test-token/characters/${characterId}/image`,
+  },
   { method: 'POST', path: '/api/v1/stories' },
   { method: 'POST', path: '/api/v1/stories/child-mode' },
   { method: 'POST', path: '/api/v1/stories/instant' },
@@ -120,6 +139,10 @@ const protectedClientEndpoints: ProtectedEndpointCase[] = [
   { method: 'PATCH', path: `/api/v1/admin/privacy-requests/${id}` },
   { method: 'GET', path: `/api/v1/admin/privacy-requests/${id}/export` },
   { method: 'GET', path: '/api/v1/admin/image-validations' },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/image-validations/analytics/character-regenerations',
+  },
   { method: 'GET', path: `/api/v1/admin/image-validations/${id}` },
   {
     method: 'POST',
@@ -336,6 +359,7 @@ async function main(): Promise<void> {
       } as any,
       childProfile: {
         findById: async () => childProfile,
+        findByUserId: async () => [childProfile],
         findByIds: async () => [childProfile],
         findByIdsIncludingInactive: async () => [childProfile],
       } as any,
