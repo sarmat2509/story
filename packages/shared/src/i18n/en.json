@@ -328,6 +328,47 @@
     "story_context_hint": "Add a few details to guide the story",
     "title": "Create story"
   },
+  "scheduler_wizard": {
+    "title": "Schedule story surprises",
+    "subtitle": "Choose several options and we'll randomly combine them into a fresh story for every child.",
+    "step_basics": "Ideas",
+    "step_details": "For whom",
+    "step_delivery": "Schedule",
+    "formats_title": "Choose formats",
+    "formats_hint": "Pick more than one — the format of the next story can be a surprise.",
+    "themes_title": "Choose several themes",
+    "themes_hint": "Add every world your family loves. We'll randomly choose one for each story.",
+    "languages_title": "Choose several languages",
+    "languages_hint": "We'll randomly choose one of these languages for each story.",
+    "profiles_title": "Choose child profiles",
+    "profiles_hint": "Choose one, several, or every child profile. Each will receive their own story at the scheduled time.",
+    "morals_title": "Choose several morals",
+    "morals_hint": "We'll randomly choose one moral for every new adventure.",
+    "free_moral": "Free moral",
+    "styles_title": "Choose illustration styles",
+    "styles_hint": "Pick several styles — every story can look fresh.",
+    "notes_title": "Shared notes (optional)",
+    "delivery_title": "When should the surprise arrive?",
+    "delivery_hint": "We start preparing early. The story appears as soon as it is ready, with your local time as the target.",
+    "delivery_time": "Preferred time",
+    "cadence": {
+      "daily": "Daily",
+      "every_2_days": "Every 2 days",
+      "twice_weekly": "Twice weekly",
+      "weekly": "Weekly"
+    },
+    "summary_eyebrow": "Surprise plan",
+    "summary_title": "Your schedule",
+    "summary_profiles": "Profiles: {{values}}",
+    "summary_formats": "Formats: {{values}}",
+    "summary_themes": "Themes: {{values}}",
+    "summary_morals": "Morals: {{values}}",
+    "summary_languages": "Languages: {{values}}",
+    "summary_styles": "Styles: {{values}}",
+    "summary_delivery": "{{cadence}} at {{time}}",
+    "summary_compact": "{{profiles}} profiles · {{themes}} themes",
+    "action": "Schedule surprises"
+  },
   "instant_wizard": {
     "title": "Create Story",
     "subtitle": "Upload photos and create a story instantly",
@@ -1458,6 +1499,18 @@
       "body": "Take the quiz for “{{title}}” and unlock a prize.",
       "cta": "Go to quiz"
     },
+    "schedule": {
+      "eyebrow_new": "A LITTLE MAGIC, PLANNED AHEAD",
+      "eyebrow_active": "YOUR SURPRISE RITUAL",
+      "title_new": "Turn “one more story?” into a lovely surprise.",
+      "title_active": "A fresh family story is quietly getting ready.",
+      "body_new": "Pick a few favourite worlds once. We will mix them into an unexpected adventure for each child, ready for your chosen rhythm.",
+      "body_active": "We will shuffle your favourite worlds, lessons and styles—then make a different adventure for each child.",
+      "favourites": "Your family’s favourites",
+      "twist": "A new twist every time",
+      "cta_new": "Plan a surprise",
+      "cta_active": "Fine-tune the magic"
+    },
     "recent_stories_hint": "A curated shelf of the stories your family opened most recently.",
     "stats": {
       "stories": "Stories",
@@ -1540,9 +1593,9 @@
       "images_per_story_one": "{{value}} personalized illustration per story",
       "images_per_story_other": "{{value}} personalized illustrations per story",
       "characters_per_month": "Up to {{value}} character generations per month",
-    "monthly_usage_with_comics": "Up to {{stories}} and up to {{comics}} comics per month",
-    "monthly_usage_with_comics_and_mixed": "Up to {{stories}}, up to {{comics}} comics, and up to {{mixed}} comic-to-text stories per month",
-    "monthly_usage_with_comics_and_audio": "Up to {{stories}}, up to {{comics}} comics, and {{audio}} per month",
+      "monthly_usage_with_comics": "Up to {{stories}} and up to {{comics}} comics per month",
+      "monthly_usage_with_comics_and_mixed": "Up to {{stories}}, up to {{comics}} comics, and up to {{mixed}} comic-to-text stories per month",
+      "monthly_usage_with_comics_and_audio": "Up to {{stories}}, up to {{comics}} comics, and {{audio}} per month",
       "graphic_novels_per_month": "Up to {{value}} comics per month",
       "graphic_novels_locked": "Comics",
       "mixed_stories_per_month": "Up to {{value}} comic-to-text stories per month",
@@ -2033,19 +2086,62 @@
     "inventory_expand": "Expand piece row"
   },
   "product_tour": {
-    "skip": "Skip tour", "restart": "How it works", "previous": "Back", "next": "Next", "finish": "Get started", "progress": "{{current}} of {{total}}", "background_label": "Product tour", "prompt_title": "Would you like a quick tour?", "prompt_body": "We’ll show you where the main tools live and how to create a first story. You can always reopen the tour with the question-mark button in the sidebar.", "prompt_accept": "Yes, show me", "prompt_decline": "Not now",
+    "skip": "Skip tour",
+    "restart": "How it works",
+    "previous": "Back",
+    "next": "Next",
+    "finish": "Get started",
+    "progress": "{{current}} of {{total}}",
+    "background_label": "Product tour",
+    "prompt_title": "Would you like a quick tour?",
+    "prompt_body": "We’ll show you where the main tools live and how to create a first story. You can always reopen the tour with the question-mark button in the sidebar.",
+    "prompt_accept": "Yes, show me",
+    "prompt_decline": "Not now",
     "steps": {
-      "dashboard": { "title": "Your family reading corner", "body": "This is home to recent stories, a quick path to a new tale, and your family highlights. Return here to keep reading or begin the next adventure." },
-      "library": { "title": "Your adventure library", "body": "Every finished story is kept here. Reopen favourite chapters, browse by theme, and watch your family shelf grow into a personal universe." },
-      "artisan": { "title": "Create a story together", "body": "In the workshop, choose a theme, language and format, then add heroes and small details. The next steps let you shape the message, illustration style and companions." },
-      "wizard_basics": { "title": "Start with the story’s foundation", "body": "Choose a format, then pick the theme and language of the story. This is where you set the direction of the adventure before adding its finer details." },
-      "wizard_details": { "title": "Give the story its meaning", "body": "Here you can choose an educational goal or moral, illustration style and any special notes. These details help the tale sound and feel just right for your family." },
-      "wizard_characters": { "title": "Invite the heroes", "body": "Add family members, friends or imagined companions to the adventure. Each selected character can influence the scenes and make the story feel more personal." },
-      "instant": { "title": "Where to enable Quick mode", "body": "Quick mode is switched on here: Profile → Story creation mode → Quick. It turns a few photos, an age, theme and language into a personal story with a shorter setup." },
-      "artifacts": { "title": "A collection of little treasures", "body": "A hero sometimes receives a special keepsake after a story. Those finds appear here and keep a link to the chapter where the small miracle happened." },
-      "map": { "title": "Your reading-world map", "body": "Reading a story and completing its short quiz unlocks new tiles. Build your own world, move tiles along matching roads, and send the walker across your universe." },
-      "profile": { "title": "Family settings in one place", "body": "Update the adult profile, choose a story-creation mode, language and appearance here. Everything that makes WonderTales feel right for your family." },
-      "child": { "title": "Let’s begin with a child profile", "body": "A name, age and language help make every story right for this child. Create the first profile, then add heroes, stories and entire worlds." }
+      "dashboard": {
+        "title": "Your family reading corner",
+        "body": "This is home to recent stories, a quick path to a new tale, and your family highlights. Return here to keep reading or begin the next adventure."
+      },
+      "library": {
+        "title": "Your adventure library",
+        "body": "Every finished story is kept here. Reopen favourite chapters, browse by theme, and watch your family shelf grow into a personal universe."
+      },
+      "artisan": {
+        "title": "Create a story together",
+        "body": "In the workshop, choose a theme, language and format, then add heroes and small details. The next steps let you shape the message, illustration style and companions."
+      },
+      "wizard_basics": {
+        "title": "Start with the story’s foundation",
+        "body": "Choose a format, then pick the theme and language of the story. This is where you set the direction of the adventure before adding its finer details."
+      },
+      "wizard_details": {
+        "title": "Give the story its meaning",
+        "body": "Here you can choose an educational goal or moral, illustration style and any special notes. These details help the tale sound and feel just right for your family."
+      },
+      "wizard_characters": {
+        "title": "Invite the heroes",
+        "body": "Add family members, friends or imagined companions to the adventure. Each selected character can influence the scenes and make the story feel more personal."
+      },
+      "instant": {
+        "title": "Where to enable Quick mode",
+        "body": "Quick mode is switched on here: Profile → Story creation mode → Quick. It turns a few photos, an age, theme and language into a personal story with a shorter setup."
+      },
+      "artifacts": {
+        "title": "A collection of little treasures",
+        "body": "A hero sometimes receives a special keepsake after a story. Those finds appear here and keep a link to the chapter where the small miracle happened."
+      },
+      "map": {
+        "title": "Your reading-world map",
+        "body": "Reading a story and completing its short quiz unlocks new tiles. Build your own world, move tiles along matching roads, and send the walker across your universe."
+      },
+      "profile": {
+        "title": "Family settings in one place",
+        "body": "Update the adult profile, choose a story-creation mode, language and appearance here. Everything that makes WonderTales feel right for your family."
+      },
+      "child": {
+        "title": "Let’s begin with a child profile",
+        "body": "A name, age and language help make every story right for this child. Create the first profile, then add heroes, stories and entire worlds."
+      }
     }
   }
 }

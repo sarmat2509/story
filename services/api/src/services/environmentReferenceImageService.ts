@@ -39,6 +39,17 @@ export interface EnvironmentImageRequest {
   previousStoryIds?: string[];
 }
 
+/** Persist a remotely generated plate through the same global/story cache path. */
+export async function saveBatchEnvironmentImage(params: EnvironmentImageRequest & { imageData: Buffer; mimeType: string }): Promise<EnvImageData> {
+  const cacheDescription = buildEnvironmentImageCacheDescription(params.environment.description);
+  const embedding = await generateEmbedding(cacheDescription);
+  const cacheId = crypto.randomUUID();
+  const { storagePath } = await params.assetStorage.saveEnvironmentCacheImage(cacheId, params.imageData, params.mimeType);
+  await getEnvironmentImageCacheRepository().create({ id: cacheId, description: cacheDescription, descriptionEmbedding: embedding, storagePath, storageUrl: `/api/v1/assets/${storagePath}` });
+  await getStoryEnvironmentCacheRepository().upsert(params.storyId, params.storyEnvironmentId, cacheId);
+  return { base64: params.imageData.toString('base64'), mimeType: params.mimeType, storagePath };
+}
+
 interface EnvironmentImageDependencies {
   enabled: boolean;
   similarityThreshold: number;

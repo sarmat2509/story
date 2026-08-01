@@ -9,15 +9,22 @@ import { modernColors, modernShadows } from '@/theme/modernTheme';
 interface Props {
   selected: string;
   onSelect: (lang: string) => void;
+  /** Scheduler mode: use the same language chips as a multi-select set. */
+  selectedLanguages?: string[];
+  onLanguagesChange?: (languages: string[]) => void;
   defaultLanguage: string;
   allowedLanguageCodes?: string[];
+  schedulerMode?: boolean;
 }
 
 export function LanguageSelector({
   selected,
   onSelect,
+  selectedLanguages,
+  onLanguagesChange,
   defaultLanguage,
   allowedLanguageCodes,
+  schedulerMode = false,
 }: Props) {
   const { t } = useTranslation();
   const languages = useMemo(
@@ -56,18 +63,41 @@ export function LanguageSelector({
 
   return (
     <View style={styles.container} testID="wizard-language-selector">
-      <Text style={styles.label}>{t('wizard.language')}</Text>
+      <Text style={styles.label}>
+        {schedulerMode ? t('scheduler_wizard.languages_title') : t('wizard.language')}
+      </Text>
+      {schedulerMode ? (
+        <Text style={styles.hint}>{t('scheduler_wizard.languages_hint')}</Text>
+      ) : null}
       <View style={styles.chipsContainer}>
         {languages.map((lang) => (
           <TouchableOpacity
             key={lang.code}
-            style={[styles.chip, selected === lang.code && styles.chipSelected]}
-            onPress={() => onSelect(lang.code)}
+            style={[
+              styles.chip,
+              (selectedLanguages?.includes(lang.code) ?? selected === lang.code) &&
+                styles.chipSelected,
+            ]}
+            onPress={() => {
+              if (selectedLanguages && onLanguagesChange) {
+                onLanguagesChange(
+                  selectedLanguages.includes(lang.code)
+                    ? selectedLanguages.filter((code) => code !== lang.code)
+                    : [...selectedLanguages, lang.code]
+                );
+              } else onSelect(lang.code);
+            }}
             activeOpacity={0.7}
             testID={`wizard-language-${lang.code}`}
           >
             <Text style={styles.flag}>{lang.flag}</Text>
-            <Text style={[styles.chipText, selected === lang.code && styles.chipTextSelected]}>
+            <Text
+              style={[
+                styles.chipText,
+                (selectedLanguages?.includes(lang.code) ?? selected === lang.code) &&
+                  styles.chipTextSelected,
+              ]}
+            >
               {lang.label}
             </Text>
           </TouchableOpacity>
@@ -92,6 +122,13 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
+  },
+  hint: {
+    marginTop: -theme.spacing[2],
+    marginBottom: theme.spacing[4],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
   },
   chipsContainer: {
     flexDirection: 'row',

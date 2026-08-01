@@ -32,6 +32,7 @@ import { modernColors, modernGradients, modernShadows } from '@/theme/modernThem
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { getLocalizedStoryTitle } from '@/utils/storyTitle';
 import { storage, type DashboardVisitEntry } from '@/utils/storage';
+import { useStorySchedule } from '@/api/storySchedule';
 
 type ExtendedPressableState = {
   pressed: boolean;
@@ -84,6 +85,59 @@ function getDashboardGreetingVariant(
   return 'regular';
 }
 
+function StoryScheduleCard({
+  active,
+  wide,
+  compact,
+  onPress,
+  t,
+}: {
+  active: boolean;
+  wide: boolean;
+  compact: boolean;
+  onPress: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <View
+      testID="dashboard-story-schedule-card"
+      style={[
+        styles.scheduleCard,
+        wide && styles.scheduleCardWide,
+        compact && styles.scheduleCardCompact,
+      ]}
+    >
+      <LinearGradient colors={['#FFF5DF', '#FBE8F2', '#EAE5FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.scheduleGlow} />
+      <View style={[styles.scheduleConstellation, wide && styles.scheduleConstellationWide]} pointerEvents="none">
+        <View style={[styles.scheduleStar, styles.scheduleStarOne]} />
+        <View style={[styles.scheduleStar, styles.scheduleStarTwo]} />
+        <View style={[styles.scheduleStar, styles.scheduleStarThree]} />
+        <View style={[styles.scheduleMoon, wide && styles.scheduleMoonWide]}><Ionicons name="moon" size={wide ? 22 : 32} color="#5B4BA0" /></View>
+      </View>
+      <View style={styles.scheduleCopy}>
+        <View style={styles.scheduleEyebrowRow}>
+          <View style={styles.scheduleIcon}><Ionicons name="sparkles" size={16} color="#714E9B" /></View>
+          <Text style={styles.scheduleEyebrow}>{t(active ? 'dashboard.schedule.eyebrow_active' : 'dashboard.schedule.eyebrow_new')}</Text>
+        </View>
+        <Text style={styles.scheduleTitle}>{t(active ? 'dashboard.schedule.title_active' : 'dashboard.schedule.title_new')}</Text>
+        <Text style={styles.scheduleDescription}>{t(active ? 'dashboard.schedule.body_active' : 'dashboard.schedule.body_new')}</Text>
+        <View style={styles.scheduleMoments}>
+          <View style={styles.scheduleMoment}><Ionicons name="heart-outline" size={15} color="#85576B" /><Text style={styles.scheduleMomentText}>{t('dashboard.schedule.favourites')}</Text></View>
+          <View style={styles.scheduleMoment}><Ionicons name="shuffle-outline" size={15} color="#85576B" /><Text style={styles.scheduleMomentText}>{t('dashboard.schedule.twist')}</Text></View>
+        </View>
+      </View>
+      <AppButton
+        testID="dashboard-story-schedule-cta"
+        label={t(active ? 'dashboard.schedule.cta_active' : 'dashboard.schedule.cta_new')}
+        onPress={onPress}
+        trailing={<Ionicons name="arrow-forward" size={18} color={theme.colors.text.inverse} />}
+        size="md"
+        style={styles.scheduleAction}
+      />
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -101,6 +155,7 @@ export default function DashboardScreen() {
   } = useStories();
   const { data: audioStoriesData } = useStories({ limit: 1, hasAudio: true });
   const { data: quizCandidate } = useStoryQuizCandidate(isChildSession && childQuizEnabled);
+  const { data: storySchedule } = useStorySchedule();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [greetingVariant, setGreetingVariant] = useState<DashboardGreetingVariant>('regular');
 
@@ -186,6 +241,7 @@ export default function DashboardScreen() {
   const { width } = useWindowDimensions();
   const isStackedHero = width < theme.breakpoints.tablet;
   const isTabletHero = width >= theme.breakpoints.tablet && width < 1120;
+  const isWideSchedulerLayout = width >= 1500;
   const numColumns = width < 640 ? 1 : width < 1024 ? 2 : 3;
   const gridCellStyle =
     numColumns === 1
@@ -193,6 +249,15 @@ export default function DashboardScreen() {
       : numColumns === 2
         ? styles.gridCellHalf
         : styles.gridCellThird;
+  const scheduleCard = !isChildSession ? (
+    <StoryScheduleCard
+      active={Boolean(storySchedule)}
+      wide={isWideSchedulerLayout}
+      compact={isStackedHero}
+      onPress={() => navigation.navigate('Wizard', { scheduler: true })}
+      t={t}
+    />
+  ) : null;
 
   // Show loading state
   if (isLoading) {
@@ -330,6 +395,8 @@ export default function DashboardScreen() {
                 />
               </View>
 
+              {isWideSchedulerLayout ? scheduleCard : null}
+
               <View
                 testID="dashboard-latest-story-card"
                 style={[styles.featuredColumn, isTabletHero && styles.featuredColumnTablet]}
@@ -424,6 +491,10 @@ export default function DashboardScreen() {
               </View>
             </View>
           </AnimatedSection>
+
+          {!isWideSchedulerLayout && scheduleCard ? (
+            <AnimatedSection delay={70} trigger={enterKey}>{scheduleCard}</AnimatedSection>
+          ) : null}
 
           {isChildSession && childQuizEnabled && quizCandidate ? (
             <AnimatedSection delay={90} trigger={enterKey}>
@@ -582,6 +653,41 @@ const styles = StyleSheet.create({
   topSectionTablet: {
     gap: theme.spacing[5],
   },
+  scheduleCard: {
+    position: 'relative',
+    minHeight: 236,
+    overflow: 'hidden',
+    marginBottom: theme.spacing[8],
+    padding: theme.spacing[8],
+    // Reserve a real lane for the moon so localized text never passes beneath it.
+    paddingRight: 184,
+    borderRadius: 28,
+    borderWidth: theme.borders.width.thin,
+    borderColor: 'rgba(113, 78, 155, 0.16)',
+    backgroundColor: '#FFF9F1',
+    ...modernShadows.card,
+  },
+  scheduleCardCompact: { minHeight: 318, paddingRight: 154, paddingBottom: 86 },
+  scheduleCardWide: { width: 420, minHeight: 360, marginBottom: 0, padding: theme.spacing[5], paddingRight: theme.spacing[5], paddingBottom: 88, flexShrink: 0 },
+  scheduleGlow: { ...StyleSheet.absoluteFillObject },
+  scheduleCopy: { position: 'relative', zIndex: 1, maxWidth: 690 },
+  scheduleEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] },
+  scheduleIcon: { width: 27, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: theme.borders.radius.full, backgroundColor: 'rgba(255,255,255,0.72)' },
+  scheduleEyebrow: { fontSize: theme.typography.fontSize.xs, fontWeight: theme.typography.fontWeight.bold, letterSpacing: 0.8, color: '#714E9B' },
+  scheduleTitle: { marginTop: theme.spacing[4], maxWidth: 640, fontSize: theme.typography.fontSize['2xl'], lineHeight: 34, fontWeight: theme.typography.fontWeight.bold, color: '#33264D' },
+  scheduleDescription: { marginTop: theme.spacing[3], maxWidth: 610, fontSize: theme.typography.fontSize.base, lineHeight: 24, color: '#62556E' },
+  scheduleMoments: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[3], marginTop: theme.spacing[5] },
+  scheduleMoment: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2], paddingVertical: theme.spacing[2], paddingHorizontal: theme.spacing[3], borderRadius: theme.borders.radius.full, backgroundColor: 'rgba(255,255,255,0.66)' },
+  scheduleMomentText: { fontSize: theme.typography.fontSize.xs, fontWeight: theme.typography.fontWeight.semibold, color: '#6E5061' },
+  scheduleConstellation: { position: 'absolute', right: theme.spacing[3], top: theme.spacing[3], width: 155, height: 148, alignItems: 'center', justifyContent: 'center' },
+  scheduleConstellationWide: { opacity: 0.28, right: 8, top: -8, width: 80, height: 80 },
+  scheduleMoon: { width: 92, height: 92, borderRadius: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
+  scheduleMoonWide: { width: 56, height: 56, borderRadius: 28 },
+  scheduleStar: { position: 'absolute', width: 8, height: 8, borderRadius: 4, backgroundColor: '#D08A62' },
+  scheduleStarOne: { top: 4, right: 15 },
+  scheduleStarTwo: { top: 41, left: 8, width: 5, height: 5, borderRadius: 3 },
+  scheduleStarThree: { bottom: 11, right: 5, width: 6, height: 6, borderRadius: 3, backgroundColor: '#8A70C5' },
+  scheduleAction: { position: 'absolute', right: theme.spacing[6], bottom: theme.spacing[6], zIndex: 2, width: 272, maxWidth: 'calc(100% - 48px)' as any, backgroundColor: '#714E9B' },
   quizBanner: {
     minHeight: 76,
     marginTop: -theme.spacing[4],

@@ -237,8 +237,21 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                 canPreventDefault: true,
               });
               if (!event.defaultPrevented) {
+                // A scheduler is an alternate Wizard mode, never the default destination of
+                // the main "Create story" navigation item. Explicitly replace its params so
+                // returning through the drawer cannot retain scheduler=true from this route.
+                const action =
+                  route.name === 'Wizard'
+                    ? CommonActions.navigate({
+                        name: 'Wizard',
+                        params: {},
+                        merge: false,
+                      })
+                    : focused
+                      ? DrawerActions.closeDrawer()
+                      : CommonActions.navigate(route);
                 navigation.dispatch({
-                  ...(focused ? DrawerActions.closeDrawer() : CommonActions.navigate(route)),
+                  ...action,
                   target: state.key,
                 });
               }

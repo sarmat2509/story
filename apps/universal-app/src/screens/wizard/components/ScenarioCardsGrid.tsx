@@ -27,6 +27,10 @@ interface Props {
   scenarios: ScenarioCard[];
   selected: string | null;
   onSelect: (id: string | null) => void;
+  /** Scheduler mode: reuse the card grid while collecting a set of worlds. */
+  selectedScenarios?: Array<string | null>;
+  onScenariosChange?: (ids: Array<string | null>) => void;
+  schedulerMode?: boolean;
 }
 
 const TOPIC_IMAGE_BASE_WEB = '/landing/topics/optimized';
@@ -65,7 +69,14 @@ function getTopicImageUri(scenarioId: string | null) {
   return `${API_BASE_URL.replace(/\/$/, '')}${TOPIC_IMAGE_BASE_NATIVE}/${imageName}.png`;
 }
 
-export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
+export function ScenarioCardsGrid({
+  scenarios,
+  selected,
+  onSelect,
+  selectedScenarios,
+  onScenariosChange,
+  schedulerMode = false,
+}: Props) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const [gridWidth, setGridWidth] = useState(0);
@@ -93,16 +104,39 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
 
   return (
     <View style={styles.container} testID="wizard-scenario-grid">
-      <Text style={styles.label}>{t('wizard.theme_title')}</Text>
+      <Text style={styles.label}>
+        {schedulerMode ? t('scheduler_wizard.themes_title') : t('wizard.theme_title')}
+      </Text>
+      {schedulerMode ? <Text style={styles.hint}>{t('scheduler_wizard.themes_hint')}</Text> : null}
       <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
         {allScenarios.map((scenario) => {
-          const isSelected = selected === scenario.id;
+          const isSelected =
+            selectedScenarios?.some((id) => id === scenario.id) ?? selected === scenario.id;
 
           return (
             <TouchableOpacity
               key={scenario.id || 'free'}
               style={[styles.card, isDesktop && styles.cardDesktop, { width: cardWidth }]}
-              onPress={() => onSelect(scenario.id)}
+              onPress={() => {
+                if (selectedScenarios && onScenariosChange) {
+                  if (schedulerMode && scenario.id === null) {
+                    onScenariosChange(isSelected ? [] : [null]);
+                  } else if (schedulerMode) {
+                    const withoutFreeTheme = selectedScenarios.filter((id) => id !== null);
+                    onScenariosChange(
+                      isSelected
+                        ? withoutFreeTheme.filter((id) => id !== scenario.id)
+                        : [...withoutFreeTheme, scenario.id]
+                    );
+                  } else {
+                    onScenariosChange(
+                      isSelected
+                        ? selectedScenarios.filter((id) => id !== scenario.id)
+                        : [...selectedScenarios, scenario.id]
+                    );
+                  }
+                } else onSelect(scenario.id);
+              }}
               activeOpacity={0.82}
               testID={`wizard-scenario-${scenario.id || 'free'}`}
             >
@@ -153,6 +187,13 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
+  },
+  hint: {
+    marginTop: -theme.spacing[2],
+    marginBottom: theme.spacing[4],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
   },
   grid: {
     flexDirection: 'row',

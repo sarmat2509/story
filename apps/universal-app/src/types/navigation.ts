@@ -43,6 +43,7 @@ export type MainDrawerParamList = {
         scenarioCardId?: string;
         scenario?: string;
         theme?: string;
+        scheduler?: boolean;
       }
     | undefined;
   Library: { scenarioCardId?: string } | undefined;

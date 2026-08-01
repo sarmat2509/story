@@ -3,6 +3,7 @@ import { checkDatabaseHealth } from './db';
 import { startAllQueues } from './jobs/storyJobProcessor';
 import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
 import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
+import { startScheduledStoryScheduler } from './jobs/scheduledStorySchedulerJob';
 import { startOrphanStorageCleanupScheduler } from './jobs/orphanStorageCleanupSchedulerJob';
 import { startBillingReminderScheduler } from './jobs/billingReminderSchedulerJob';
 import { startPromoAccountExpiryScheduler } from './jobs/promoAccountExpirySchedulerJob';
@@ -19,6 +20,7 @@ async function startWorker() {
   startAllQueues();
   startBatchImageWorker();
   startScheduledContinuationScheduler();
+  startScheduledStoryScheduler();
   startOrphanStorageCleanupScheduler();
   startBillingReminderScheduler();
   startPromoAccountExpiryScheduler();

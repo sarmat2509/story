@@ -719,6 +719,7 @@ export async function createContinuationRequest(
 export async function processStoryRequest(requestId: string): Promise<{
   storyId: string;
   isScheduledContinuation?: boolean;
+  isScheduledStory?: boolean;
   scheduleId?: string;
 }> {
   const startTime = Date.now();
@@ -733,6 +734,7 @@ export async function processStoryRequest(requestId: string): Promise<{
     const intermediateData = (request.intermediateData as any) || {};
     const isContinuation = !!intermediateData.isContinuation;
     const isScheduledContinuation = !!intermediateData.isScheduledContinuation;
+    const isScheduledStory = !!intermediateData.isScheduledStory;
     const scheduleId = intermediateData.scheduleId as string | undefined;
     const { seriesId, partNumber, continuationContext } = intermediateData;
 
@@ -824,7 +826,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           ...getStoryCreationAttributionInputFromRequest(request),
           spec,
           ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
-          isScheduledContinuation,
+          isScheduledContinuation: isScheduledContinuation || isScheduledStory,
         });
         Object.assign(checkpoints, { storyId });
         await getStoryRepository().updateRequest(requestId, {
@@ -1205,7 +1207,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           ...(textValidation && { textValidation }),
         },
         ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
-        isScheduledContinuation,
+        isScheduledContinuation: isScheduledContinuation || isScheduledStory,
       };
       if (existingStory) {
         await enrichStoryRecord(storyId, enrichParams);
@@ -1265,7 +1267,7 @@ export async function processStoryRequest(requestId: string): Promise<{
       'Text+validation phase completed, handing off to image queue'
     );
 
-    return { storyId, isScheduledContinuation: isScheduledContinuation || undefined, scheduleId };
+    return { storyId, isScheduledContinuation: isScheduledContinuation || undefined, isScheduledStory: isScheduledStory || undefined, scheduleId };
   } catch (error) {
     logger.error(
       {

@@ -18,7 +18,8 @@ export type StoryQuotaReservationSource =
   | 'instant'
   | 'child_mode'
   | 'continuation'
-  | 'scheduled_continuation';
+  | 'scheduled_continuation'
+  | 'scheduled_story';
 
 export interface StoryQuotaCalculationInput {
   planLimit: number | null;

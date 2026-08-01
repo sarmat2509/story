@@ -910,12 +910,41 @@ export class StoryRepository {
     storyId: string;
     requestId: string;
     scheduleId?: string | null;
+    purpose?: string;
   }): Promise<void> {
     await this.db.insert(schema.batchImagePending).values({
       storyId: params.storyId,
       requestId: params.requestId,
       scheduleId: params.scheduleId ?? null,
+      purpose: params.purpose ?? 'scheduled_scene',
     });
+  }
+
+  async findStoryScheduleRuleByUserId(userId: string): Promise<schema.StoryScheduleRule | null> {
+    const [row] = await this.db.select().from(schema.storyScheduleRules).where(eq(schema.storyScheduleRules.userId, userId)).limit(1);
+    return row ?? null;
+  }
+
+  async upsertStoryScheduleRule(params: Omit<schema.NewStoryScheduleRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<schema.StoryScheduleRule> {
+    const existing = await this.findStoryScheduleRuleByUserId(params.userId);
+    if (existing) {
+      const [updated] = await this.db.update(schema.storyScheduleRules).set({ ...params, updatedAt: new Date() }).where(eq(schema.storyScheduleRules.id, existing.id)).returning();
+      return updated!;
+    }
+    const [created] = await this.db.insert(schema.storyScheduleRules).values(params).returning();
+    return created!;
+  }
+
+  async deleteStoryScheduleRuleByUserId(userId: string): Promise<void> {
+    await this.db.delete(schema.storyScheduleRules).where(eq(schema.storyScheduleRules.userId, userId));
+  }
+
+  async findDueStoryScheduleRules(now: Date): Promise<schema.StoryScheduleRule[]> {
+    return this.db.select().from(schema.storyScheduleRules).where(lte(schema.storyScheduleRules.prepareRunAt, now)).orderBy(schema.storyScheduleRules.prepareRunAt);
+  }
+
+  async updateStoryScheduleRuleRunTimes(id: string, targetRunAt: Date, prepareRunAt: Date): Promise<void> {
+    await this.db.update(schema.storyScheduleRules).set({ targetRunAt, prepareRunAt, updatedAt: new Date() }).where(eq(schema.storyScheduleRules.id, id));
   }
 
   /** Find all batch_image_pending rows (for batch worker) */

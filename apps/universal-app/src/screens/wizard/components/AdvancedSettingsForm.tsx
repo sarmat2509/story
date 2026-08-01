@@ -18,6 +18,9 @@ interface ChildProfile {
 interface Props {
   childProfileId?: string;
   onChildProfileChange: (id: string) => void;
+  /** Scheduler mode: the same profile chips become a multi-select. */
+  childProfileIds?: string[];
+  onChildProfilesChange?: (ids: string[]) => void;
   children?: ChildProfile[];
   onAddChild?: () => void;
   showChildProfileSelector?: boolean;
@@ -28,16 +31,25 @@ interface Props {
 
   imageStyle?: ImageStyle;
   onImageStyleChange: (style: ImageStyle | undefined) => void;
+  /** Scheduler mode: retain a set of visual styles to surprise the family with. */
+  imageStyles?: ImageStyle[];
+  onImageStylesChange?: (styles: ImageStyle[]) => void;
 
   userNotes?: string;
   onNotesChange: (notes: string) => void;
   notesEnabled?: boolean;
   compactAddChild?: boolean;
+  /** Keeps the normal Wizard layout but explains that every chip may be combined. */
+  schedulerMode?: boolean;
+  /** Lets Wizard place the existing child-profile selector on an earlier step. */
+  showOptions?: boolean;
 }
 
 export function AdvancedSettingsForm({
   childProfileId,
   onChildProfileChange,
+  childProfileIds,
+  onChildProfilesChange,
   children = [],
   onAddChild,
   showChildProfileSelector = true,
@@ -46,14 +58,33 @@ export function AdvancedSettingsForm({
   onGoalsChange,
   imageStyle,
   onImageStyleChange,
+  imageStyles: selectedImageStyles,
+  onImageStylesChange,
   userNotes = '',
   onNotesChange,
   notesEnabled = true,
   compactAddChild = false,
+  schedulerMode = false,
+  showOptions = true,
 }: Props) {
   const { t } = useTranslation();
 
   const toggleGoal = (goalSlug: string) => {
+    if (schedulerMode && goalSlug === '__free__') {
+      onGoalsChange(selectedGoals.includes(goalSlug) ? [] : [goalSlug]);
+      return;
+    }
+
+    if (schedulerMode) {
+      const withoutFreeMoral = selectedGoals.filter((goal) => goal !== '__free__');
+      onGoalsChange(
+        selectedGoals.includes(goalSlug)
+          ? withoutFreeMoral.filter((goal) => goal !== goalSlug)
+          : [...withoutFreeMoral, goalSlug]
+      );
+      return;
+    }
+
     if (selectedGoals.includes(goalSlug)) {
       onGoalsChange(selectedGoals.filter((g) => g !== goalSlug));
     } else {
@@ -67,13 +98,21 @@ export function AdvancedSettingsForm({
     name: t(IMAGE_STYLE_METADATA[slug].i18nKey),
     icon: IMAGE_STYLE_METADATA[slug].icon,
   }));
+  const selectableGoals = schedulerMode
+    ? [{ slug: '__free__', name: t('scheduler_wizard.free_moral') }, ...goals]
+    : goals;
 
   return (
     <View style={styles.container}>
       {/* Child Profile Selector */}
       {showChildProfileSelector && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
+          <Text style={styles.sectionLabel}>
+            {schedulerMode ? t('scheduler_wizard.profiles_title') : t('wizard.story_for')}
+          </Text>
+          {schedulerMode ? (
+            <Text style={styles.sectionHint}>{t('scheduler_wizard.profiles_hint')}</Text>
+          ) : null}
           {children.length === 0 ? (
             <View style={styles.profileRequiredNotice} testID="wizard-child-profile-required">
               <View style={styles.profileRequiredIcon}>
@@ -84,7 +123,9 @@ export function AdvancedSettingsForm({
                 />
               </View>
               <View style={styles.profileRequiredCopy}>
-                <Text style={styles.profileRequiredTitle}>{t('wizard.child_profile_required')}</Text>
+                <Text style={styles.profileRequiredTitle}>
+                  {t('wizard.child_profile_required')}
+                </Text>
                 <Text style={styles.profileRequiredDescription}>
                   {t('wizard.child_profile_required_hint')}
                 </Text>
@@ -115,14 +156,27 @@ export function AdvancedSettingsForm({
                 {children.map((child) => (
                   <TouchableOpacity
                     key={child.id}
-                    style={[styles.chip, childProfileId === child.id && styles.chipSelected]}
-                    onPress={() => onChildProfileChange(child.id)}
+                    style={[
+                      styles.chip,
+                      (childProfileIds?.includes(child.id) ?? childProfileId === child.id) &&
+                        styles.chipSelected,
+                    ]}
+                    onPress={() => {
+                      if (childProfileIds && onChildProfilesChange) {
+                        onChildProfilesChange(
+                          childProfileIds.includes(child.id)
+                            ? childProfileIds.filter((id) => id !== child.id)
+                            : [...childProfileIds, child.id]
+                        );
+                      } else onChildProfileChange(child.id);
+                    }}
                     testID={`wizard-child-${child.id}`}
                   >
                     <Text
                       style={[
                         styles.chipText,
-                        childProfileId === child.id && styles.chipTextSelected,
+                        (childProfileIds?.includes(child.id) ?? childProfileId === child.id) &&
+                          styles.chipTextSelected,
                       ]}
                     >
                       {child.name}
@@ -155,72 +209,105 @@ export function AdvancedSettingsForm({
         </View>
       )}
 
-      {/* Goals Selector */}
-      {goals.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('wizard.goal_label')}</Text>
-          <View style={styles.chipsContainer}>
-            {goals.map((goal) => (
-              <TouchableOpacity
-                key={goal.slug}
-                style={[styles.chip, selectedGoals.includes(goal.slug) && styles.chipSelected]}
-                onPress={() => toggleGoal(goal.slug)}
-                testID={`wizard-goal-${goal.slug}`}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    selectedGoals.includes(goal.slug) && styles.chipTextSelected,
-                  ]}
-                >
-                  {goal.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Image Style Selector */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{t('wizard.image_style_label')}</Text>
-        <Text style={styles.sectionHint}>{t('wizard.image_style_hint')}</Text>
-        <View style={styles.chipsContainer}>
-          {imageStyles.map((style) => (
-            <TouchableOpacity
-              key={style.slug}
-              style={[styles.chip, imageStyle === style.slug && styles.chipSelected]}
-              onPress={() => onImageStyleChange(imageStyle === style.slug ? undefined : style.slug)}
-              testID={`wizard-image-style-${style.slug}`}
-            >
-              <Text style={styles.styleIcon}>{style.icon}</Text>
-              <Text style={[styles.chipText, imageStyle === style.slug && styles.chipTextSelected]}>
-                {style.name}
+      {showOptions ? (
+        <>
+          {/* Goals Selector */}
+          {selectableGoals.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>
+                {schedulerMode ? t('scheduler_wizard.morals_title') : t('wizard.goal_label')}
               </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+              {schedulerMode ? (
+                <Text style={styles.sectionHint}>{t('scheduler_wizard.morals_hint')}</Text>
+              ) : null}
+              <View style={styles.chipsContainer}>
+                {selectableGoals.map((goal) => (
+                  <TouchableOpacity
+                    key={goal.slug}
+                    style={[styles.chip, selectedGoals.includes(goal.slug) && styles.chipSelected]}
+                    onPress={() => toggleGoal(goal.slug)}
+                    testID={`wizard-goal-${goal.slug}`}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selectedGoals.includes(goal.slug) && styles.chipTextSelected,
+                      ]}
+                    >
+                      {goal.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
-      {/* Notes Input */}
-      {notesEnabled && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('wizard.notes_label')}</Text>
-          <TextInput
-            style={styles.textInput}
-            placeholder={t('wizard.notes_placeholder')}
-            placeholderTextColor={theme.colors.text.disabled}
-            value={userNotes}
-            onChangeText={onNotesChange}
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-            textAlignVertical="top"
-            testID="wizard-notes"
-          />
-          <Text style={styles.charCount}>{userNotes.length}/500</Text>
-        </View>
-      )}
+          {/* Image Style Selector */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>
+              {schedulerMode ? t('scheduler_wizard.styles_title') : t('wizard.image_style_label')}
+            </Text>
+            <Text style={styles.sectionHint}>
+              {schedulerMode ? t('scheduler_wizard.styles_hint') : t('wizard.image_style_hint')}
+            </Text>
+            <View style={styles.chipsContainer}>
+              {imageStyles.map((style) => (
+                <TouchableOpacity
+                  key={style.slug}
+                  style={[
+                    styles.chip,
+                    (selectedImageStyles?.includes(style.slug) ?? imageStyle === style.slug) &&
+                      styles.chipSelected,
+                  ]}
+                  onPress={() => {
+                    if (selectedImageStyles && onImageStylesChange) {
+                      onImageStylesChange(
+                        selectedImageStyles.includes(style.slug)
+                          ? selectedImageStyles.filter((id) => id !== style.slug)
+                          : [...selectedImageStyles, style.slug]
+                      );
+                    } else onImageStyleChange(imageStyle === style.slug ? undefined : style.slug);
+                  }}
+                  testID={`wizard-image-style-${style.slug}`}
+                >
+                  <Text style={styles.styleIcon}>{style.icon}</Text>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      (selectedImageStyles?.includes(style.slug) ?? imageStyle === style.slug) &&
+                        styles.chipTextSelected,
+                    ]}
+                  >
+                    {style.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Notes Input */}
+          {notesEnabled && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>
+                {schedulerMode ? t('scheduler_wizard.notes_title') : t('wizard.notes_label')}
+              </Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder={t('wizard.notes_placeholder')}
+                placeholderTextColor={theme.colors.text.disabled}
+                value={userNotes}
+                onChangeText={onNotesChange}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                textAlignVertical="top"
+                testID="wizard-notes"
+              />
+              <Text style={styles.charCount}>{userNotes.length}/500</Text>
+            </View>
+          )}
+        </>
+      ) : null}
     </View>
   );
 }

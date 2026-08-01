@@ -5,16 +5,19 @@
  */
 
 import { logger } from '../utils/logger';
-import { getStoryRepository, getSceneRepository, getAssetRepository } from '../repositories';
+import { getStoryRepository, getSceneRepository, getAssetRepository, getStoryEnvironmentCacheRepository } from '../repositories';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getPlanFeatures } from '../services/planService';
 import {
   buildSceneBatchRequests,
+  buildScheduledEnvironmentBatchRequest,
   createSceneImageBatch,
   getBatchJobStatus,
   getBatchJobResults,
   parseBatchCustomId,
+  parseScheduledEnvironmentCustomId,
 } from '../services/batchImageService';
+import { saveBatchEnvironmentImage } from '../services/environmentReferenceImageService';
 import { notifyNewContinuationReady } from '../services/notificationService';
 import { getIllustrationBlockStartSceneIds } from '../services/storyOrchestration/utilities';
 import config from '../config';
@@ -34,6 +37,12 @@ export async function runBatchImageWorker(): Promise<void> {
   const pending = await getStoryRepository().findBatchImagePendingAll();
   if (pending.length === 0) {
     return;
+  }
+
+  const environmentPending = pending.filter((row) => row.purpose === 'scheduled_environment');
+  if (environmentPending.length) {
+    await processScheduledEnvironmentBatch(environmentPending);
+    return; // do not mix model/purpose with the legacy scene batch
   }
 
   logger.info({ count: pending.length }, 'Batch image worker: processing pending');
@@ -202,6 +211,67 @@ export async function runBatchImageWorker(): Promise<void> {
   }
 
   logger.info({ batchId, processedStories: processedStories.size }, 'Batch image worker completed');
+}
+
+/** Wait for the discounted Gemini batch only for environment plates, persist
+ * them in the existing cache, then resume the normal realtime Seedream jobs. */
+async function processScheduledEnvironmentBatch(pending: Awaited<ReturnType<ReturnType<typeof getStoryRepository>['findBatchImagePendingAll']>>): Promise<void> {
+  const contexts = new Map<string, { pendingId: string; requestId: string; storyId: string; userId: string; environment: any; scenarioCardId?: string | null }>();
+  const requests: any[] = [];
+  for (const row of pending) {
+    const request = await getStoryRepository().findRequestById(row.requestId);
+    if (!request) continue;
+    const data = (request.intermediateData as any) || {};
+    const environments = data.validatedText?.environments || data.text?.environments || [];
+    for (const environment of environments) {
+      if (await getStoryEnvironmentCacheRepository().getByStoryAndEnvId(row.storyId, environment.id)) continue;
+      const batchRequest = buildScheduledEnvironmentBatchRequest({ storyId: row.storyId, environment, scenarioCardId: request.scenarioCardId });
+      // Director IDs are unique per story, so this also deduplicates worker retries.
+      if (contexts.has(batchRequest.customId)) continue;
+      contexts.set(batchRequest.customId, { pendingId: row.id, requestId: row.requestId, storyId: row.storyId, userId: request.userId, environment, scenarioCardId: request.scenarioCardId });
+      requests.push(batchRequest);
+    }
+  }
+  if (requests.length) {
+    const batchJob = await createSceneImageBatch(requests);
+    await getStoryRepository().createBatchImageJob({ batchId: batchJob.batchId, vendor: 'gemini', status: 'in_progress', pendingIds: pending.map((row) => row.id) });
+    let status;
+    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      status = await getBatchJobStatus(batchJob.batchId);
+      logger.info({ batchId: batchJob.batchId, status: status.status, purpose: 'scheduled_environment' }, 'Scheduled environment batch status');
+      if (status.status === 'completed' || status.status === 'failed') break;
+    }
+    if (status?.status !== 'completed') {
+      logger.warn({ batchId: batchJob.batchId, status: status?.status }, 'Scheduled environment batch incomplete; leaving pending rows for retry');
+      return;
+    }
+    const storage = getAssetStorageService();
+    let savedCount = 0;
+    for (const result of await getBatchJobResults(batchJob.batchId)) {
+      const parsed = parseScheduledEnvironmentCustomId(result.customId);
+      const context = contexts.get(result.customId);
+      if (!parsed || !context || result.error || !result.imageData || !result.mimeType) {
+        if (context) logger.warn({ customId: result.customId, error: result.error }, 'Scheduled environment batch result unavailable');
+        continue;
+      }
+      await saveBatchEnvironmentImage({ storyId: context.storyId, userId: context.userId, storyEnvironmentId: parsed.environmentId, environment: context.environment, scenarioCardId: context.scenarioCardId || undefined, assetStorage: storage, imageData: result.imageData, mimeType: result.mimeType });
+      savedCount++;
+    }
+    if (savedCount !== contexts.size) {
+      logger.warn({ batchId: batchJob.batchId, expected: contexts.size, saved: savedCount }, 'Scheduled environment batch partially failed; final realtime images will not start');
+      return;
+    }
+    const record = await getStoryRepository().findBatchImageJobByBatchId(batchJob.batchId);
+    if (record) await getStoryRepository().updateBatchImageJobStatus(record.id, 'completed');
+  }
+  const { imageQueue } = await import('./storyJobProcessor');
+  for (const row of pending) {
+    const request = await getStoryRepository().findRequestById(row.requestId);
+    const kind = (request?.intermediateData as any)?.generationKind;
+    await imageQueue.addJob({ type: kind === 'graphic_novel' || kind === 'mixed_story' ? 'graphic_novel_pages' : 'image_batch', requestId: row.requestId, storyId: row.storyId });
+    await getStoryRepository().deleteBatchImagePendingById(row.id);
+  }
 }
 
 function getBatchImageProviderInternal() {

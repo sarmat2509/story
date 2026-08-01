@@ -1169,6 +1169,31 @@ export const seriesSchedules = pgTable(
   })
 );
 
+// One scheduler rule per family account. selected values are sampled per child
+// when a run is prepared, so a family can retain an element of surprise.
+export const storyScheduleRules = pgTable(
+  'story_schedule_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    childProfileIds: uuid('child_profile_ids').array().notNull(),
+    cadence: varchar('cadence', { length: 20 }).notNull(),
+    runAtTime: varchar('run_at_time', { length: 5 }).notNull(),
+    timezone: varchar('timezone', { length: 100 }).notNull(),
+    formats: jsonb('formats').$type<string[]>().notNull(),
+    themes: jsonb('themes').$type<string[]>().notNull(),
+    morals: jsonb('morals').$type<string[]>().notNull(),
+    languages: jsonb('languages').$type<string[]>().notNull(),
+    imageStyles: jsonb('image_styles').$type<string[]>().notNull(),
+    userNotes: text('user_notes'),
+    targetRunAt: timestamp('target_run_at', { withTimezone: true }).notNull(),
+    prepareRunAt: timestamp('prepare_run_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ userUnique: uniqueIndex('story_schedule_rules_user_unique').on(table.userId), prepareIdx: index('story_schedule_rules_prepare_idx').on(table.prepareRunAt) })
+);
+
 // Stories table
 export const stories = pgTable(
   'stories',
@@ -1771,6 +1796,7 @@ export const batchImagePending = pgTable(
       .references(() => storyRequests.id)
       .notNull(),
     scheduleId: uuid('schedule_id').references(() => seriesSchedules.id, { onDelete: 'set null' }),
+    purpose: varchar('purpose', { length: 40 }).notNull().default('scheduled_scene'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -1799,6 +1825,8 @@ export const batchImageJobs = pgTable(
 
 export type SeriesSchedule = typeof seriesSchedules.$inferSelect;
 export type NewSeriesSchedule = typeof seriesSchedules.$inferInsert;
+export type StoryScheduleRule = typeof storyScheduleRules.$inferSelect;
+export type NewStoryScheduleRule = typeof storyScheduleRules.$inferInsert;
 export type BatchImagePending = typeof batchImagePending.$inferSelect;
 export type NewBatchImagePending = typeof batchImagePending.$inferInsert;
 export type BatchImageJob = typeof batchImageJobs.$inferSelect;

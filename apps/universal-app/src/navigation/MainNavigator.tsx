@@ -91,7 +91,17 @@ function WizardScreenWithAuth() {
       </AuthGuard>
     );
   }
-  return <AuthGuard>{isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}</AuthGuard>;
+  return (
+    <AuthGuard>
+      {route.params?.scheduler ? (
+        <WizardScreen schedulerMode />
+      ) : isInstantMode ? (
+        <InstantWizardScreen />
+      ) : (
+        <WizardScreen />
+      )}
+    </AuthGuard>
+  );
 }
 function DashboardScreenWithAuth() {
   return (

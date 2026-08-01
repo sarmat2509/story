@@ -321,6 +321,47 @@
     "select_hint": "Choose an option to continue",
     "story_context_hint": "Add a few details to guide the story"
   },
+  "scheduler_wizard": {
+    "title": "Programmer des histoires surprises",
+    "subtitle": "Choisissez plusieurs options : nous les combinerons au hasard en une nouvelle histoire pour chaque enfant.",
+    "step_basics": "Idées",
+    "step_details": "Pour qui",
+    "step_delivery": "Planning",
+    "formats_title": "Choisissez des formats",
+    "formats_hint": "Vous pouvez en choisir plusieurs : le format de la prochaine histoire sera une surprise.",
+    "themes_title": "Choisissez plusieurs thèmes",
+    "themes_hint": "Ajoutez tous les univers que votre famille aime. Nous en choisirons un au hasard pour chaque histoire.",
+    "languages_title": "Choisissez plusieurs langues",
+    "languages_hint": "Nous choisirons au hasard une de ces langues pour chaque histoire.",
+    "profiles_title": "Choisissez les profils enfants",
+    "profiles_hint": "Choisissez un, plusieurs ou tous les profils. Chacun recevra sa propre histoire à l'heure prévue.",
+    "morals_title": "Choisissez plusieurs morales",
+    "morals_hint": "Nous choisirons une morale au hasard pour chaque nouvelle aventure.",
+    "free_moral": "Morale libre",
+    "styles_title": "Choisissez des styles d'illustration",
+    "styles_hint": "Choisissez plusieurs styles : chaque histoire peut avoir un nouveau look.",
+    "notes_title": "Notes communes (facultatif)",
+    "delivery_title": "Quand envoyer la surprise",
+    "delivery_hint": "Nous commençons à préparer l'histoire à l'avance. Elle apparaîtra dès qu'elle sera prête, avec votre heure locale comme objectif.",
+    "delivery_time": "Heure souhaitée",
+    "cadence": {
+      "daily": "Chaque jour",
+      "every_2_days": "Tous les 2 jours",
+      "twice_weekly": "Deux fois par semaine",
+      "weekly": "Chaque semaine"
+    },
+    "summary_eyebrow": "Plan de surprises",
+    "summary_title": "Votre planning",
+    "summary_profiles": "Profils : {{values}}",
+    "summary_formats": "Formats : {{values}}",
+    "summary_themes": "Thèmes : {{values}}",
+    "summary_morals": "Morales : {{values}}",
+    "summary_languages": "Langues : {{values}}",
+    "summary_styles": "Styles : {{values}}",
+    "summary_delivery": "{{cadence}} à {{time}}",
+    "summary_compact": "{{profiles}} profils · {{themes}} thèmes",
+    "action": "Programmer les surprises"
+  },
   "instant_wizard": {
     "title": "Créer une histoire",
     "subtitle": "Importez des photos et créez une histoire instantanément",
@@ -616,6 +657,18 @@
       "body": "Fais le quiz de « {{title}} » et débloque un prix.",
       "cta": "Aller au quiz"
     },
+    "schedule": {
+      "eyebrow_new": "UN PEU DE MAGIE À L’AVANCE",
+      "eyebrow_active": "VOTRE RITUEL DE SURPRISES",
+      "title_new": "Transformez « encore une histoire ? » en jolie surprise.",
+      "title_active": "Une nouvelle histoire familiale se prépare déjà en douceur.",
+      "body_new": "Choisissez une fois quelques mondes favoris. Nous les mêlerons en une aventure inattendue pour chaque enfant, selon votre rythme.",
+      "body_active": "Nous mélangerons vos mondes, valeurs et styles favoris pour créer une aventure différente pour chaque enfant.",
+      "favourites": "Les favoris de votre famille",
+      "twist": "Une nouvelle tournure à chaque fois",
+      "cta_new": "Prévoir une surprise",
+      "cta_active": "Ajuster la magie"
+    },
     "welcome_back": "Welcome back, {{name}}!",
     "greeting_regular": "Ravi de vous voir, {{name}} !",
     "greeting_regular_child": "Ravi de te voir, {{name}} !",
@@ -690,9 +743,9 @@
       "images_per_story_one": "{{value}} illustration personnalisée par histoire",
       "images_per_story_other": "{{value}} illustrations personnalisées par histoire",
       "characters_per_month": "Jusqu’à {{value}} générations de personnages par mois",
-    "monthly_usage_with_comics": "Jusqu’à {{stories}} histoires et jusqu’à {{comics}} BD par mois",
-    "monthly_usage_with_comics_and_mixed": "Jusqu’à {{stories}} histoires, jusqu’à {{comics}} BD et jusqu’à {{mixed}} histoires de la BD au texte par mois",
-    "monthly_usage_with_comics_and_audio": "Jusqu’à {{stories}} histoires, jusqu’à {{comics}} BD et {{audio}} par mois",
+      "monthly_usage_with_comics": "Jusqu’à {{stories}} histoires et jusqu’à {{comics}} BD par mois",
+      "monthly_usage_with_comics_and_mixed": "Jusqu’à {{stories}} histoires, jusqu’à {{comics}} BD et jusqu’à {{mixed}} histoires de la BD au texte par mois",
+      "monthly_usage_with_comics_and_audio": "Jusqu’à {{stories}} histoires, jusqu’à {{comics}} BD et {{audio}} par mois",
       "graphic_novels_per_month": "Jusqu’à {{value}} BD incluses dans la limite d’histoires",
       "graphic_novels_locked": "BD",
       "mixed_stories_per_month": "Jusqu’à {{value}} histoires de la BD au texte par mois",
@@ -1944,19 +1997,62 @@
     "can_change_later": "You can change this later in settings"
   },
   "product_tour": {
-    "skip": "Passer la découverte", "restart": "Comment ça marche", "previous": "Retour", "next": "Suivant", "finish": "Commencer", "progress": "{{current}} sur {{total}}", "background_label": "Découverte de l’application", "prompt_title": "Souhaitez-vous découvrir l’application rapidement ?", "prompt_body": "Nous vous montrerons les outils principaux et comment créer une première histoire. Vous pourrez toujours relancer la découverte avec le bouton point d’interrogation de la barre latérale.", "prompt_accept": "Oui, montrer", "prompt_decline": "Pas maintenant",
+    "skip": "Passer la découverte",
+    "restart": "Comment ça marche",
+    "previous": "Retour",
+    "next": "Suivant",
+    "finish": "Commencer",
+    "progress": "{{current}} sur {{total}}",
+    "background_label": "Découverte de l’application",
+    "prompt_title": "Souhaitez-vous découvrir l’application rapidement ?",
+    "prompt_body": "Nous vous montrerons les outils principaux et comment créer une première histoire. Vous pourrez toujours relancer la découverte avec le bouton point d’interrogation de la barre latérale.",
+    "prompt_accept": "Oui, montrer",
+    "prompt_decline": "Pas maintenant",
     "steps": {
-      "dashboard": { "title": "Le coin lecture de votre famille", "body": "Vous retrouvez ici les dernières histoires, un accès rapide à un nouveau conte et les moments importants de la famille. Revenez pour continuer à lire ou lancer une aventure." },
-      "library": { "title": "Votre bibliothèque d’aventures", "body": "Toutes les histoires terminées sont conservées ici. Rouvrez vos chapitres préférés, explorez les thèmes et regardez l’étagère familiale devenir un univers personnel." },
-      "artisan": { "title": "Créez une histoire ensemble", "body": "Dans l’atelier, choisissez le thème, la langue et le format, puis ajoutez héros et petits détails. Les étapes suivantes permettent de façonner le message, le style et les compagnons." },
-      "wizard_basics": { "title": "Commencez par la base de l’histoire", "body": "Choisissez le format, le thème et la langue. Vous définissez ici la direction de l’aventure avant d’ajouter les détails plus personnels." },
-      "wizard_details": { "title": "Donnez du sens à l’histoire", "body": "Vous pouvez ici choisir un objectif éducatif ou une morale, le style d’illustration et des notes particulières. Ces détails rendent le récit juste pour votre famille." },
-      "wizard_characters": { "title": "Invitez les héros", "body": "Ajoutez à l’aventure des proches, des amis ou des compagnons imaginaires. Chaque personnage choisi peut influencer les scènes et rendre l’histoire plus personnelle." },
-      "instant": { "title": "Où activer le mode rapide", "body": "Le mode rapide s’active ici : Profil → Mode de création → Rapide. Il transforme quelques photos, un âge, un thème et une langue en histoire personnelle avec une préparation plus courte." },
-      "artifacts": { "title": "Collection de petits trésors", "body": "Après une histoire, le héros reçoit parfois un souvenir spécial. Ces trouvailles apparaissent ici et gardent le lien avec le chapitre où le petit miracle a eu lieu." },
-      "map": { "title": "La carte de votre monde lecteur", "body": "Lire une histoire et réussir son court quiz débloque de nouvelles tuiles. Construisez votre monde, déplacez les tuiles sur les bonnes routes et envoyez le walker voyager." },
-      "profile": { "title": "Les réglages familiaux au même endroit", "body": "Mettez à jour le profil adulte, le mode de création, la langue et l’apparence ici. Tout ce qui aide WonderTales à convenir à votre famille." },
-      "child": { "title": "Commençons par le profil enfant", "body": "Le prénom, l’âge et la langue rendent chaque histoire adaptée à cet enfant. Créez le premier profil, puis ajoutez héros, histoires et mondes entiers." }
+      "dashboard": {
+        "title": "Le coin lecture de votre famille",
+        "body": "Vous retrouvez ici les dernières histoires, un accès rapide à un nouveau conte et les moments importants de la famille. Revenez pour continuer à lire ou lancer une aventure."
+      },
+      "library": {
+        "title": "Votre bibliothèque d’aventures",
+        "body": "Toutes les histoires terminées sont conservées ici. Rouvrez vos chapitres préférés, explorez les thèmes et regardez l’étagère familiale devenir un univers personnel."
+      },
+      "artisan": {
+        "title": "Créez une histoire ensemble",
+        "body": "Dans l’atelier, choisissez le thème, la langue et le format, puis ajoutez héros et petits détails. Les étapes suivantes permettent de façonner le message, le style et les compagnons."
+      },
+      "wizard_basics": {
+        "title": "Commencez par la base de l’histoire",
+        "body": "Choisissez le format, le thème et la langue. Vous définissez ici la direction de l’aventure avant d’ajouter les détails plus personnels."
+      },
+      "wizard_details": {
+        "title": "Donnez du sens à l’histoire",
+        "body": "Vous pouvez ici choisir un objectif éducatif ou une morale, le style d’illustration et des notes particulières. Ces détails rendent le récit juste pour votre famille."
+      },
+      "wizard_characters": {
+        "title": "Invitez les héros",
+        "body": "Ajoutez à l’aventure des proches, des amis ou des compagnons imaginaires. Chaque personnage choisi peut influencer les scènes et rendre l’histoire plus personnelle."
+      },
+      "instant": {
+        "title": "Où activer le mode rapide",
+        "body": "Le mode rapide s’active ici : Profil → Mode de création → Rapide. Il transforme quelques photos, un âge, un thème et une langue en histoire personnelle avec une préparation plus courte."
+      },
+      "artifacts": {
+        "title": "Collection de petits trésors",
+        "body": "Après une histoire, le héros reçoit parfois un souvenir spécial. Ces trouvailles apparaissent ici et gardent le lien avec le chapitre où le petit miracle a eu lieu."
+      },
+      "map": {
+        "title": "La carte de votre monde lecteur",
+        "body": "Lire une histoire et réussir son court quiz débloque de nouvelles tuiles. Construisez votre monde, déplacez les tuiles sur les bonnes routes et envoyez le walker voyager."
+      },
+      "profile": {
+        "title": "Les réglages familiaux au même endroit",
+        "body": "Mettez à jour le profil adulte, le mode de création, la langue et l’apparence ici. Tout ce qui aide WonderTales à convenir à votre famille."
+      },
+      "child": {
+        "title": "Commençons par le profil enfant",
+        "body": "Le prénom, l’âge et la langue rendent chaque histoire adaptée à cet enfant. Créez le premier profil, puis ajoutez héros, histoires et mondes entiers."
+      }
     }
   }
 }

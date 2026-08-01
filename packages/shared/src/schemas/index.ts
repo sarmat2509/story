@@ -589,3 +589,40 @@ export const CreateStoryRequestSchema = z.object({
 });
 
 export type CreateStoryRequestInput = z.infer<typeof CreateStoryRequestSchema>;
+
+// A single parent-owned recurring rule.  The values are sets on purpose: a
+// concrete story is sampled by the worker when the rule fires.
+export const StoryScheduleCadenceSchema = z.enum([
+  'daily',
+  'every_2_days',
+  'twice_weekly',
+  'weekly',
+]);
+export const StoryScheduleFormatSchema = z.enum(['story', 'comic', 'mixed']);
+export const StoryScheduleRuleSchema = z
+  .object({
+    childProfileIds: z.array(z.string().uuid()).min(1),
+    cadence: StoryScheduleCadenceSchema,
+    runAtTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:mm'),
+    timezone: z
+      .string()
+      .min(1)
+      .max(100)
+      .refine((value) => {
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: value });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'Invalid IANA timezone'),
+    formats: z.array(StoryScheduleFormatSchema).min(1),
+    themes: z.array(z.string().max(100)).min(1),
+    morals: z.array(z.string().max(100)).min(1),
+    languages: z.array(LocaleSchema).min(1),
+    imageStyles: z.array(z.string().max(50)).min(1),
+    userNotes: z.string().max(500).nullable().optional(),
+  })
+  .strict();
+
+export type StoryScheduleRuleInput = z.infer<typeof StoryScheduleRuleSchema>;

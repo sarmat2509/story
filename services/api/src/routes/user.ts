@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { THEME_PALETTE_IDS, UpdateChildModeExitPasscodeSchema } from '@wondertales/shared';
+import { THEME_PALETTE_IDS, UpdateChildModeExitPasscodeSchema, StoryScheduleRuleSchema } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import {
   getUserWithOAuth,
@@ -27,8 +27,64 @@ import { getStoryCharacterSelectionLimit } from '../domain/story/storyCharacterS
 import { logger } from '../utils/logger';
 import { toUserResponse } from '../utils/userResponse';
 import { childSessionCanReadFamilyStories } from '../services/childStoryAccessService';
+import { getChildProfileRepository, getStoryRepository } from '../repositories';
+import { nextScheduledTarget } from '../jobs/scheduledStorySchedulerJob';
 
 const router = Router();
+
+const STORY_SCHEDULE_PREPARE_LEAD_MS = Number(process.env.STORY_SCHEDULE_PREPARE_LEAD_HOURS || 24) * 60 * 60 * 1000;
+function initialScheduleTarget(runAtTime: string, timezone: string): Date {
+  // Start at the next occurrence of the selected local wall time (today when
+  // still ahead), then apply the configured cadence only after the first run.
+  const now = new Date();
+  const today = nextScheduledTarget(new Date(now.getTime() - 24 * 60 * 60 * 1000), 'daily', runAtTime, timezone);
+  return today > now ? today : nextScheduledTarget(today, 'daily', runAtTime, timezone);
+}
+
+router.get('/story-schedule', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    res.json({ status: 'success', rule: await getStoryRepository().findStoryScheduleRuleByUserId(req.user!.id) });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Get story schedule failed');
+    res.status(500).json({ status: 'error', message: 'Failed to fetch story schedule' });
+  }
+});
+
+router.put('/story-schedule', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const parsed = StoryScheduleRuleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ status: 'error', message: 'Invalid story schedule', details: parsed.error.errors });
+      return;
+    }
+    const data = parsed.data;
+    const profiles = await getChildProfileRepository().findByIds(req.user!.id, data.childProfileIds);
+    if (profiles.length !== data.childProfileIds.length) {
+      res.status(400).json({ status: 'error', message: 'One or more child profiles are unavailable' });
+      return;
+    }
+    // PUT replaces the rule, including its local time/timezone semantics.
+    const targetRunAt = initialScheduleTarget(data.runAtTime, data.timezone);
+    const rule = await getStoryRepository().upsertStoryScheduleRule({
+      userId: req.user!.id, ...data, targetRunAt,
+      prepareRunAt: new Date(targetRunAt.getTime() - STORY_SCHEDULE_PREPARE_LEAD_MS),
+    });
+    res.json({ status: 'success', rule });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Save story schedule failed');
+    res.status(500).json({ status: 'error', message: 'Failed to save story schedule' });
+  }
+});
+
+router.delete('/story-schedule', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    await getStoryRepository().deleteStoryScheduleRuleByUserId(req.user!.id);
+    res.status(204).send();
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Delete story schedule failed');
+    res.status(500).json({ status: 'error', message: 'Failed to delete story schedule' });
+  }
+});
 
 // Validation schema for user update
 const updateUserSchema = z.object({

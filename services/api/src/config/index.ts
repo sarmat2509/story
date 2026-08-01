@@ -247,6 +247,8 @@ export const config = {
       location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
       batchGcsBucket: process.env.BATCH_IMAGE_GCS_BUCKET || '', // For scheduled continuation batch (Vertex AI)
       batchModel: process.env.GEMINI_BATCH_MODEL || 'gemini-3.1-flash-image',
+      scheduledEnvironmentBatchModel:
+        process.env.GEMINI_SCHEDULED_ENVIRONMENT_BATCH_MODEL || 'gemini-3.1-flash-lite-image',
     },
     defaultStyle: 'soft_watercolor',
     defaultAspectRatio: '16:9',

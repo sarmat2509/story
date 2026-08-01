@@ -109,7 +109,7 @@ export class GeminiBatchImageProvider implements IImageProvider {
       parent,
       batchPredictionJob: {
         displayName: `scheduled-continuation-${Date.now()}`,
-        model: `publishers/google/models/${config.image.gemini.batchModel || BATCH_MODEL}`,
+        model: `publishers/google/models/${requests[0].modelOverride || config.image.gemini.batchModel || BATCH_MODEL}`,
         inputConfig: {
           gcsSource: { uris: [inputUri] },
           instancesFormat: 'jsonl',

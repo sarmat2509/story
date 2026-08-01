@@ -8,9 +8,10 @@
  */
 
 import type { ImageBatchRequest, BatchJob, BatchStatus, BatchResult } from '../providers/base/IImageProvider';
-import { buildSceneImagePrompt, buildImageSystemInstruction } from '../prompts/image';
+import { buildSceneImagePrompt, buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../prompts/image';
 import type { SceneVisual } from './types';
 import { logger } from '../utils/logger';
+import config from '../config';
 
 /** Pending story context for building batch requests */
 export interface BatchStoryContext {
@@ -83,6 +84,23 @@ export function buildSceneBatchRequests(context: BatchStoryContext): ImageBatchR
   }
 
   return requests;
+}
+
+/** Build one 1K Gemini Batch request per missing Director environment plate. */
+export function buildScheduledEnvironmentBatchRequest(params: {
+  storyId: string; environment: { id: string; name: string; description: string }; scenarioCardId?: string | null;
+}): ImageBatchRequest {
+  return {
+    customId: `scheduled_environment_${params.storyId}_${params.environment.id}`,
+    prompt: buildEnvironmentImagePrompt({ environment: params.environment as any, scenarioCardId: params.scenarioCardId || undefined }),
+    systemInstruction: buildImageSystemInstruction({ style: 'storybook', ageGroup: '6-8', hasReferences: false, hasEnvironmentReference: false, scenarioCardId: params.scenarioCardId || undefined }),
+    aspectRatio: '16:9', modelOverride: config.image.gemini.scheduledEnvironmentBatchModel,
+  };
+}
+
+export function parseScheduledEnvironmentCustomId(customId: string): { storyId: string; environmentId: string } | null {
+  const match = customId.match(/^scheduled_environment_([a-f0-9-]+)_(.+)$/i);
+  return match ? { storyId: match[1], environmentId: match[2] } : null;
 }
 
 /**

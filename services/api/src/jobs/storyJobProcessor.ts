@@ -278,6 +278,7 @@ export function clearStoryJobQueueAddJobTestOverride(): void {
 type StoryTextPhaseTestOverride = (requestId: string) => Promise<{
   storyId: string;
   isScheduledContinuation?: boolean;
+  isScheduledStory?: boolean;
   scheduleId?: string | null;
 }>;
 
@@ -540,6 +541,7 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   const request = await getStoryRepository().findRequestById(job.requestId);
   const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
     ?.generationKind;
+  const isScheduledStory = Boolean((request?.intermediateData as Record<string, unknown> | null | undefined)?.isScheduledStory);
 
   if (imageJobTypeForGenerationKind(generationKind as any) === 'graphic_novel_pages') {
     const { processGraphicNovelRequest, processMixedStoryRequest } = await import('../services/graphicNovelOrchestrationService');
@@ -549,11 +551,11 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
         : await processGraphicNovelRequest(job.requestId);
     storyId = result.storyId;
 
-    await imageQueue.addJob({
-      type: 'graphic_novel_pages',
-      requestId: job.requestId,
-      storyId,
-    });
+    if (isScheduledStory) {
+      await getStoryRepository().insertBatchImagePending({ storyId, requestId: job.requestId, purpose: 'scheduled_environment' });
+    } else {
+      await imageQueue.addJob({ type: 'graphic_novel_pages', requestId: job.requestId, storyId });
+    }
 
     logger.info(
       { requestId: job.requestId, storyId, generationKind },
@@ -569,13 +571,14 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   storyId = result.storyId;
   startStoryQuizWarmup(storyId, job.requestId);
 
-  if (result.isScheduledContinuation) {
+  if (result.isScheduledContinuation || result.isScheduledStory) {
     // Scheduled continuation: add to batch_image_pending for batch worker, skip imageQueue
     logger.info({ requestId: job.requestId, storyId }, 'Text generation completed, adding to batch_image_pending');
     await getStoryRepository().insertBatchImagePending({
       storyId,
       requestId: job.requestId,
       scheduleId: result.scheduleId ?? null,
+      purpose: result.isScheduledStory ? 'scheduled_environment' : 'scheduled_scene',
     });
     return;
   }

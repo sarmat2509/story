@@ -321,6 +321,47 @@
     "story_context_hint": "Dodaj kilka szczegolow, ktore poprowadza historie",
     "title": "Utworz historie"
   },
+  "scheduler_wizard": {
+    "title": "Zaplanuj historie-niespodzianki",
+    "subtitle": "Wybierz kilka opcji, a połączymy je losowo w świeżą historię dla każdego dziecka.",
+    "step_basics": "Pomysły",
+    "step_details": "Dla kogo",
+    "step_delivery": "Harmonogram",
+    "formats_title": "Wybierz formaty",
+    "formats_hint": "Możesz wybrać kilka — format następnej historii będzie niespodzianką.",
+    "themes_title": "Wybierz kilka tematów",
+    "themes_hint": "Dodaj wszystkie światy, które lubi twoja rodzina. Dla każdej historii losowo wybierzemy jeden.",
+    "languages_title": "Wybierz kilka języków",
+    "languages_hint": "Dla każdej historii losowo wybierzemy jeden z tych języków.",
+    "profiles_title": "Wybierz profile dzieci",
+    "profiles_hint": "Wybierz jeden, kilka lub wszystkie profile. Każdy dostanie własną historię o zaplanowanej porze.",
+    "morals_title": "Wybierz kilka morałów",
+    "morals_hint": "Dla każdej nowej przygody losowo wybierzemy jeden morał.",
+    "free_moral": "Dowolny morał",
+    "styles_title": "Wybierz style ilustracji",
+    "styles_hint": "Wybierz kilka stylów — każda historia może wyglądać inaczej.",
+    "notes_title": "Wspólne wskazówki (opcjonalnie)",
+    "delivery_title": "Kiedy wysłać niespodziankę",
+    "delivery_hint": "Zaczynamy przygotowania wcześniej. Historia pojawi się, gdy tylko będzie gotowa, z twoim lokalnym czasem jako celem.",
+    "delivery_time": "Preferowana godzina",
+    "cadence": {
+      "daily": "Codziennie",
+      "every_2_days": "Co 2 dni",
+      "twice_weekly": "Dwa razy w tygodniu",
+      "weekly": "Co tydzień"
+    },
+    "summary_eyebrow": "Plan niespodzianek",
+    "summary_title": "Twój harmonogram",
+    "summary_profiles": "Profile: {{values}}",
+    "summary_formats": "Formaty: {{values}}",
+    "summary_themes": "Tematy: {{values}}",
+    "summary_morals": "Morały: {{values}}",
+    "summary_languages": "Języki: {{values}}",
+    "summary_styles": "Style: {{values}}",
+    "summary_delivery": "{{cadence}} o {{time}}",
+    "summary_compact": "{{profiles}} profile · {{themes}} tematów",
+    "action": "Zaplanuj niespodzianki"
+  },
   "instant_wizard": {
     "title": "Utworz historie",
     "subtitle": "Wgraj zdjęcia i natychmiast stwórz historię",
@@ -1315,6 +1356,18 @@
       "body": "Rozwiąż quiz do historii „{{title}}” i odblokuj nagrodę.",
       "cta": "Do quizu"
     },
+    "schedule": {
+      "eyebrow_new": "ODROBINA MAGII Z WYPRZEDZENIEM",
+      "eyebrow_active": "WASZ RYTUAŁ NIESPODZIANEK",
+      "title_new": "Niech „jeszcze jedna historia?” stanie się miłą niespodzianką.",
+      "title_active": "Nowa rodzinna historia cicho się już przygotowuje.",
+      "body_new": "Raz wybierzcie kilka ulubionych światów. Zmienimy je w niespodziewaną przygodę dla każdego dziecka, w waszym rytmie.",
+      "body_active": "Pomieszamy ulubione światy, wartości i style, tworząc inną przygodę dla każdego dziecka.",
+      "favourites": "Ulubione rzeczy waszej rodziny",
+      "twist": "Nowy zwrot za każdym razem",
+      "cta_new": "Zaplanuj niespodziankę",
+      "cta_active": "Dopasuj magię"
+    },
     "welcome_back": "Welcome back, {{name}}!",
     "greeting_regular": "Dobrze Cie widziec, {{name}}!",
     "greeting_regular_child": "Dobrze Cie widziec, {{name}}!",
@@ -1391,9 +1444,9 @@
       "images_per_story_one": "{{value}} spersonalizowana ilustracja w historii",
       "images_per_story_other": "{{value}} spersonalizowanych ilustracji w historii",
       "characters_per_month": "Do {{value}} generowan postaci miesiecznie",
-    "monthly_usage_with_comics": "Do {{stories}} historii i do {{comics}} komiksow miesiecznie",
-    "monthly_usage_with_comics_and_mixed": "Do {{stories}} historii, do {{comics}} komiksow i do {{mixed}} historii: komiks → tekst miesiecznie",
-    "monthly_usage_with_comics_and_audio": "Do {{stories}} historii, do {{comics}} komiksow i {{audio}} miesiecznie",
+      "monthly_usage_with_comics": "Do {{stories}} historii i do {{comics}} komiksow miesiecznie",
+      "monthly_usage_with_comics_and_mixed": "Do {{stories}} historii, do {{comics}} komiksow i do {{mixed}} historii: komiks → tekst miesiecznie",
+      "monthly_usage_with_comics_and_audio": "Do {{stories}} historii, do {{comics}} komiksow i {{audio}} miesiecznie",
       "graphic_novels_per_month": "Do {{value}} komiksow w limicie historii",
       "graphic_novels_locked": "Komiksy",
       "mixed_stories_per_month": "Do {{value}} historii: komiks → tekst miesiecznie",
@@ -1944,19 +1997,62 @@
     "reward_unlocked": "Nagroda odblokowana"
   },
   "product_tour": {
-    "skip": "Pomiń wprowadzenie", "restart": "Jak to działa", "previous": "Wstecz", "next": "Dalej", "finish": "Zaczynamy", "progress": "{{current}} z {{total}}", "background_label": "Wprowadzenie do aplikacji", "prompt_title": "Chcesz szybko poznać aplikację?", "prompt_body": "Pokażemy główne narzędzia i drogę do pierwszej historii. Wprowadzenie zawsze można ponownie otworzyć przyciskiem ze znakiem zapytania na pasku bocznym.", "prompt_accept": "Tak, pokaż", "prompt_decline": "Nie teraz",
+    "skip": "Pomiń wprowadzenie",
+    "restart": "Jak to działa",
+    "previous": "Wstecz",
+    "next": "Dalej",
+    "finish": "Zaczynamy",
+    "progress": "{{current}} z {{total}}",
+    "background_label": "Wprowadzenie do aplikacji",
+    "prompt_title": "Chcesz szybko poznać aplikację?",
+    "prompt_body": "Pokażemy główne narzędzia i drogę do pierwszej historii. Wprowadzenie zawsze można ponownie otworzyć przyciskiem ze znakiem zapytania na pasku bocznym.",
+    "prompt_accept": "Tak, pokaż",
+    "prompt_decline": "Nie teraz",
     "steps": {
-      "dashboard": { "title": "Rodzinny kącik czytania", "body": "Tutaj mieszkają ostatnie historie, szybka droga do nowej opowieści i ważne chwile rodziny. Wróć, by czytać dalej lub rozpocząć kolejną przygodę." },
-      "library": { "title": "Biblioteka waszych przygód", "body": "Wszystkie ukończone historie są przechowywane tutaj. Otwieraj ulubione rozdziały, przeglądaj tematy i obserwuj, jak rodzinna półka zmienia się w osobisty wszechświat." },
-      "artisan": { "title": "Stwórzcie historię razem", "body": "W pracowni wybierasz temat, język i format, dodajesz bohaterów oraz drobne szczegóły. Kolejne kroki pozwalają ustawić przesłanie, styl ilustracji i towarzyszy." },
-      "wizard_basics": { "title": "Zacznijcie od podstaw historii", "body": "Wybierzcie format, temat i język. Tutaj nadajecie kierunek przygodzie, zanim dodacie bardziej osobiste szczegóły." },
-      "wizard_details": { "title": "Nadajcie historii znaczenie", "body": "Tutaj można wybrać cel edukacyjny lub morał, styl ilustracji i szczególne wskazówki. Te detale pomagają dopasować opowieść do waszej rodziny." },
-      "wizard_characters": { "title": "Zaproście bohaterów", "body": "Dodajcie do przygody członków rodziny, przyjaciół lub wymyślonych towarzyszy. Każda wybrana postać może wpłynąć na sceny i uczynić historię bardziej osobistą." },
-      "instant": { "title": "Gdzie włączyć szybki tryb", "body": "Szybki tryb włącza się tutaj: Profil → Tryb tworzenia historii → Szybki. Zamienia kilka zdjęć, wiek, temat i język w osobistą historię z krótszą konfiguracją." },
-      "artifacts": { "title": "Kolekcja małych skarbów", "body": "Po historii bohater czasem otrzymuje wyjątkową pamiątkę. Takie znaleziska pojawiają się tutaj i zachowują związek z rozdziałem, w którym wydarzyła się magia." },
-      "map": { "title": "Mapa czytelniczego świata", "body": "Przeczytanie historii i krótki quiz odblokowują nowe kafelki. Buduj własny świat, przesuwaj kafelki po pasujących drogach i wysyłaj walker w podróż." },
-      "profile": { "title": "Ustawienia rodziny w jednym miejscu", "body": "Tutaj zaktualizujesz profil dorosłego, tryb tworzenia historii, język i wygląd. Wszystko, by WonderTales pasowało do waszej rodziny." },
-      "child": { "title": "Zacznijmy od profilu dziecka", "body": "Imię, wiek i język pomagają dopasować historie do tego dziecka. Utwórz pierwszy profil, a potem dodasz bohaterów, historie i całe światy." }
+      "dashboard": {
+        "title": "Rodzinny kącik czytania",
+        "body": "Tutaj mieszkają ostatnie historie, szybka droga do nowej opowieści i ważne chwile rodziny. Wróć, by czytać dalej lub rozpocząć kolejną przygodę."
+      },
+      "library": {
+        "title": "Biblioteka waszych przygód",
+        "body": "Wszystkie ukończone historie są przechowywane tutaj. Otwieraj ulubione rozdziały, przeglądaj tematy i obserwuj, jak rodzinna półka zmienia się w osobisty wszechświat."
+      },
+      "artisan": {
+        "title": "Stwórzcie historię razem",
+        "body": "W pracowni wybierasz temat, język i format, dodajesz bohaterów oraz drobne szczegóły. Kolejne kroki pozwalają ustawić przesłanie, styl ilustracji i towarzyszy."
+      },
+      "wizard_basics": {
+        "title": "Zacznijcie od podstaw historii",
+        "body": "Wybierzcie format, temat i język. Tutaj nadajecie kierunek przygodzie, zanim dodacie bardziej osobiste szczegóły."
+      },
+      "wizard_details": {
+        "title": "Nadajcie historii znaczenie",
+        "body": "Tutaj można wybrać cel edukacyjny lub morał, styl ilustracji i szczególne wskazówki. Te detale pomagają dopasować opowieść do waszej rodziny."
+      },
+      "wizard_characters": {
+        "title": "Zaproście bohaterów",
+        "body": "Dodajcie do przygody członków rodziny, przyjaciół lub wymyślonych towarzyszy. Każda wybrana postać może wpłynąć na sceny i uczynić historię bardziej osobistą."
+      },
+      "instant": {
+        "title": "Gdzie włączyć szybki tryb",
+        "body": "Szybki tryb włącza się tutaj: Profil → Tryb tworzenia historii → Szybki. Zamienia kilka zdjęć, wiek, temat i język w osobistą historię z krótszą konfiguracją."
+      },
+      "artifacts": {
+        "title": "Kolekcja małych skarbów",
+        "body": "Po historii bohater czasem otrzymuje wyjątkową pamiątkę. Takie znaleziska pojawiają się tutaj i zachowują związek z rozdziałem, w którym wydarzyła się magia."
+      },
+      "map": {
+        "title": "Mapa czytelniczego świata",
+        "body": "Przeczytanie historii i krótki quiz odblokowują nowe kafelki. Buduj własny świat, przesuwaj kafelki po pasujących drogach i wysyłaj walker w podróż."
+      },
+      "profile": {
+        "title": "Ustawienia rodziny w jednym miejscu",
+        "body": "Tutaj zaktualizujesz profil dorosłego, tryb tworzenia historii, język i wygląd. Wszystko, by WonderTales pasowało do waszej rodziny."
+      },
+      "child": {
+        "title": "Zacznijmy od profilu dziecka",
+        "body": "Imię, wiek i język pomagają dopasować historie do tego dziecka. Utwórz pierwszy profil, a potem dodasz bohaterów, historie i całe światy."
+      }
     }
   }
 }

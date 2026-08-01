@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -52,13 +53,14 @@ import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { getWebSearch } from '@/utils/webRuntime';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
-import {
-  IMAGE_STYLE_METADATA,
-  planAllowsComicFormats,
-  type ImageStyle,
-} from '@wondertales/shared';
+import { IMAGE_STYLE_METADATA, planAllowsComicFormats, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import {
+  useSaveStorySchedule,
+  useStorySchedule,
+  type StoryScheduleRuleInput,
+} from '@/api/storySchedule';
 
 type StoryFormat = 'story' | 'comic' | 'mixed';
 
@@ -66,7 +68,7 @@ function isChildProfileCharacter(character: { type?: string; subtype?: string | 
   return character.type === 'child' || character.subtype === 'child';
 }
 
-export default function WizardScreen() {
+export default function WizardScreen({ schedulerMode = false }: { schedulerMode?: boolean }) {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
@@ -84,6 +86,7 @@ export default function WizardScreen() {
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
+  const isSchedulerMode = schedulerMode || route.params?.scheduler === true;
   const childModeSettings = activeChild?.childMode?.childModeSettings;
   const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled === true;
   const notesEnabled = !isChildSession || childModeSettings?.freeTextPromptsEnabled === true;
@@ -96,10 +99,19 @@ export default function WizardScreen() {
   const [storyLanguage, setStoryLanguage] = useState('');
   const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
   const [childProfileId, setChildProfileId] = useState<string | undefined>(undefined);
-  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  const [selectedGoals, setSelectedGoals] = useState<string[]>(isSchedulerMode ? ['__free__'] : []);
   const [imageStyle, setImageStyle] = useState<ImageStyle | undefined>(undefined);
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
+  const [scheduleFormats, setScheduleFormats] = useState<StoryFormat[]>(['story']);
+  const [scheduleScenarioIds, setScheduleScenarioIds] = useState<Array<string | null>>([null]);
+  const [scheduleLanguages, setScheduleLanguages] = useState<string[]>([]);
+  const [scheduleProfileIds, setScheduleProfileIds] = useState<string[]>([]);
+  const [scheduleImageStyles, setScheduleImageStyles] = useState<ImageStyle[]>(['soft_watercolor']);
+  const [scheduleCadence, setScheduleCadence] =
+    useState<StoryScheduleRuleInput['cadence']>('daily');
+  const [scheduleRunAtTime, setScheduleRunAtTime] = useState('18:00');
+  const [showScheduleTimePicker, setShowScheduleTimePicker] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const activeStepScrollRef = React.useRef(activeStep);
   const [isMobileSummaryExpanded, setIsMobileSummaryExpanded] = useState(false);
@@ -135,6 +147,8 @@ export default function WizardScreen() {
   const createMixedStory = useCreateMixedStory();
   const createChildModeStory = useCreateChildModeStory();
   const retryStoryImages = useRetryStoryImages();
+  const { data: savedSchedule } = useStorySchedule(isSchedulerMode);
+  const saveSchedule = useSaveStorySchedule();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
   const maxStoryCharacterSelections = usage?.storyCharacterSelectionLimit ?? 3;
@@ -206,6 +220,27 @@ export default function WizardScreen() {
       setStoryLanguage(localeLanguage);
     }
   }, [childModeSettings?.allowedLanguageCodes, i18n.language, isChildSession, storyLanguage]);
+
+  useEffect(() => {
+    if (!isSchedulerMode || scheduleLanguages.length > 0) return;
+    const locale = i18n.language?.split('-')[0];
+    if (locale) setScheduleLanguages([locale]);
+  }, [i18n.language, isSchedulerMode, scheduleLanguages.length]);
+
+  useEffect(() => {
+    if (!isSchedulerMode || !savedSchedule) return;
+    setScheduleFormats(savedSchedule.formats);
+    setScheduleScenarioIds(
+      savedSchedule.themes.map((id: string) => (id === '__free__' ? null : id))
+    );
+    setSelectedGoals(savedSchedule.morals);
+    setScheduleLanguages(savedSchedule.languages);
+    setScheduleProfileIds(savedSchedule.childProfileIds);
+    setScheduleImageStyles(savedSchedule.imageStyles as ImageStyle[]);
+    setScheduleCadence(savedSchedule.cadence);
+    setScheduleRunAtTime(savedSchedule.runAtTime);
+    setUserNotes(savedSchedule.userNotes || '');
+  }, [isSchedulerMode, savedSchedule]);
 
   useEffect(() => {
     if (!isChildSession || !activeChild?.id) return;
@@ -369,6 +404,55 @@ export default function WizardScreen() {
       : storyFormat === 'mixed'
         ? t('wizard.format_mixed', { defaultValue: 'Comic-to-text story' })
         : t('wizard.format_story', { defaultValue: 'Story' });
+  const schedulerProfileNames = children
+    .filter((child) => scheduleProfileIds.includes(child.id))
+    .map((child) => child.name);
+  const schedulerFormatLabels = scheduleFormats.map((format) =>
+    format === 'comic'
+      ? t('wizard.format_comic', { defaultValue: 'Comic' })
+      : format === 'mixed'
+        ? t('wizard.format_mixed', { defaultValue: 'Comic-to-text story' })
+        : t('wizard.format_story', { defaultValue: 'Story' })
+  );
+  const schedulerThemeNames = scheduleScenarioIds.map((id) =>
+    id === null
+      ? t('wizard.free_theme')
+      : (scenarioOptions.find((scenario) => scenario.id === id)?.name ?? id)
+  );
+  const schedulerMoralNames = selectedGoals.map((slug) =>
+    slug === '__free__'
+      ? t('scheduler_wizard.free_moral')
+      : (availableGoals.find((goal) => goal.slug === slug)?.name ?? slug)
+  );
+  const schedulerLanguageNames = scheduleLanguages.map((language) =>
+    t(`language_names.${language}`, { defaultValue: language.toUpperCase() })
+  );
+  const schedulerStyleNames = scheduleImageStyles.map((style) =>
+    t(IMAGE_STYLE_METADATA[style]?.i18nKey ?? style, { defaultValue: style })
+  );
+  const summaryValues = (values: string[]) => values.join(', ') || '—';
+  const scheduleTimePickerValue = useMemo(() => {
+    const [hours, minutes] = scheduleRunAtTime.split(':').map(Number);
+    const value = new Date();
+    value.setHours(
+      Number.isFinite(hours) ? hours : 18,
+      Number.isFinite(minutes) ? minutes : 0,
+      0,
+      0
+    );
+    return value;
+  }, [scheduleRunAtTime]);
+  const updateScheduleTime = (value: Date) => {
+    const hours = String(value.getHours()).padStart(2, '0');
+    const minutes = String(value.getMinutes()).padStart(2, '0');
+    setScheduleRunAtTime(`${hours}:${minutes}`);
+  };
+  const [scheduleHours, scheduleMinutes] = scheduleRunAtTime.split(':').map(Number);
+  const selectedScheduleHour = Number.isFinite(scheduleHours) ? scheduleHours : 18;
+  const selectedScheduleMinute = Number.isFinite(scheduleMinutes) ? scheduleMinutes : 0;
+  const updateScheduleTimePart = (hour = selectedScheduleHour, minute = selectedScheduleMinute) => {
+    setScheduleRunAtTime(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+  };
   const summaryItems = [
     {
       key: 'format',
@@ -420,18 +504,117 @@ export default function WizardScreen() {
       }`,
     },
   ];
-  const summaryCompactLabel = [
-    selectedStoryFormatLabel,
-    selectedScenario?.name ?? t('wizard.free_theme'),
-    selectedLanguageLabel,
-  ].join(' · ');
-  const steps = [
-    { key: 'basics', label: t('wizard.step_basics'), icon: 'sparkles-outline' as const },
-    { key: 'details', label: t('wizard.step_details'), icon: 'options-outline' as const },
-    { key: 'characters', label: t('wizard.step_characters'), icon: 'people-outline' as const },
+  const schedulerSummaryItems = [
+    {
+      key: 'profiles',
+      label: t('scheduler_wizard.summary_profiles', {
+        values: summaryValues(schedulerProfileNames),
+      }),
+    },
+    {
+      key: 'formats',
+      label: t('scheduler_wizard.summary_formats', {
+        values: summaryValues(schedulerFormatLabels),
+      }),
+    },
+    {
+      key: 'themes',
+      label: t('scheduler_wizard.summary_themes', {
+        values: summaryValues(schedulerThemeNames),
+      }),
+    },
+    {
+      key: 'morals',
+      label: t('scheduler_wizard.summary_morals', {
+        values: summaryValues(schedulerMoralNames),
+      }),
+    },
+    {
+      key: 'languages',
+      label: t('scheduler_wizard.summary_languages', {
+        values: summaryValues(schedulerLanguageNames),
+      }),
+    },
+    {
+      key: 'styles',
+      label: t('scheduler_wizard.summary_styles', {
+        values: summaryValues(schedulerStyleNames),
+      }),
+    },
+    {
+      key: 'delivery',
+      label: t('scheduler_wizard.summary_delivery', {
+        cadence: t(`scheduler_wizard.cadence.${scheduleCadence}`),
+        time: scheduleRunAtTime,
+      }),
+    },
   ];
+  const visibleSummaryItems = isSchedulerMode ? schedulerSummaryItems : summaryItems;
+  const summaryCompactLabel = isSchedulerMode
+    ? [summaryValues(schedulerProfileNames), summaryValues(schedulerThemeNames)]
+        .filter((value) => value !== '—')
+        .join(' · ')
+    : [
+        selectedStoryFormatLabel,
+        selectedScenario?.name ?? t('wizard.free_theme'),
+        selectedLanguageLabel,
+      ].join(' · ');
+  const steps = isSchedulerMode
+    ? [
+        {
+          key: 'basics',
+          label: t('scheduler_wizard.step_basics'),
+          icon: 'sparkles-outline' as const,
+        },
+        {
+          key: 'details',
+          label: t('wizard.step_details'),
+          icon: 'options-outline' as const,
+        },
+        {
+          key: 'schedule',
+          label: t('scheduler_wizard.step_delivery'),
+          icon: 'time-outline' as const,
+        },
+      ]
+    : [
+        { key: 'basics', label: t('wizard.step_basics'), icon: 'sparkles-outline' as const },
+        { key: 'details', label: t('wizard.step_details'), icon: 'options-outline' as const },
+        { key: 'characters', label: t('wizard.step_characters'), icon: 'people-outline' as const },
+      ];
   const isLastStep = activeStep === steps.length - 1;
   const handleNextStep = () => setActiveStep((step) => Math.min(steps.length - 1, step + 1));
+  const toggleScheduleFormat = (format: StoryFormat) => {
+    setScheduleFormats((current) =>
+      current.includes(format) ? current.filter((value) => value !== format) : [...current, format]
+    );
+  };
+  const schedulerSelectionIncomplete =
+    !scheduleProfileIds.length ||
+    !scheduleFormats.length ||
+    !scheduleScenarioIds.length ||
+    !selectedGoals.length ||
+    !scheduleLanguages.length ||
+    !scheduleImageStyles.length;
+  const primaryActionLabel = isLastStep
+    ? isSchedulerMode
+      ? t('scheduler_wizard.action')
+      : storyFormat === 'comic'
+        ? t('wizard.create_comic', { defaultValue: 'Create comic' })
+        : storyFormat === 'mixed'
+          ? t('wizard.create_mixed_story', { defaultValue: 'Create comic-to-text story' })
+          : t('common.create')
+    : t('common.next');
+  const primaryActionDisabled = isLastStep
+    ? isSchedulerMode
+      ? schedulerSelectionIncomplete || saveSchedule.isPending
+      : !storyLanguage ||
+        (!isChildSession && !childProfileId) ||
+        isGenerating ||
+        !canGenerateStories
+    : isGenerating;
+  const primaryActionLoading =
+    isLastStep && (isSchedulerMode ? saveSchedule.isPending : isGenerating);
   const formatUsageLimitLabel = (bucket: { remaining: number; limit: number }) =>
     bucket.limit < 0
       ? t('usage_summary.unlimited', { defaultValue: 'Unlimited' })
@@ -465,8 +648,10 @@ export default function WizardScreen() {
 
   useEffect(() => {
     const allowedGoalIds = new Set(availableGoals.map((goal) => goal.slug));
-    setSelectedGoals((current) => current.filter((slug) => allowedGoalIds.has(slug)));
-  }, [availableGoals]);
+    setSelectedGoals((current) =>
+      current.filter((slug) => allowedGoalIds.has(slug) || (isSchedulerMode && slug === '__free__'))
+    );
+  }, [availableGoals, isSchedulerMode]);
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
@@ -489,6 +674,44 @@ export default function WizardScreen() {
   // Auto-close removed - user must manually close modal
 
   const handleGenerate = async () => {
+    if (isSchedulerMode) {
+      if (
+        !scheduleProfileIds.length ||
+        !scheduleFormats.length ||
+        !scheduleScenarioIds.length ||
+        !selectedGoals.length ||
+        !scheduleLanguages.length ||
+        !scheduleImageStyles.length
+      ) {
+        Alert.alert(
+          t('common.error') || 'Error',
+          t('wizard.complete_all_fields', {
+            defaultValue: 'Choose at least one option in every section.',
+          })
+        );
+        return;
+      }
+      try {
+        await saveSchedule.mutateAsync({
+          childProfileIds: scheduleProfileIds,
+          cadence: scheduleCadence,
+          runAtTime: scheduleRunAtTime,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          formats: scheduleFormats,
+          themes: scheduleScenarioIds.map((id) => id ?? '__free__'),
+          morals: selectedGoals,
+          languages: scheduleLanguages,
+          imageStyles: scheduleImageStyles,
+          userNotes: userNotes.trim() || null,
+        });
+        navigation.goBack();
+      } catch (error) {
+        setGenerationErrorMessage(
+          getLocalizedApiError(t, error, 'wizard.generation_error_message')
+        );
+      }
+      return;
+    }
     if (!canGenerateStories) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       return;
@@ -743,13 +966,17 @@ export default function WizardScreen() {
               </View>
               <View style={styles.heroText}>
                 <Text style={styles.title}>
-                  {t('wizard.title', { defaultValue: 'Create story' })}
+                  {isSchedulerMode
+                    ? t('scheduler_wizard.title')
+                    : t('wizard.title', { defaultValue: 'Create story' })}
                 </Text>
                 <Text style={styles.subtitle}>
-                  {t('wizard.subtitle', {
-                    defaultValue:
-                      "Pick a theme, heroes, and tiny details. We'll turn them into your story.",
-                  })}
+                  {isSchedulerMode
+                    ? t('scheduler_wizard.subtitle')
+                    : t('wizard.subtitle', {
+                        defaultValue:
+                          "Pick a theme, heroes, and tiny details. We'll turn them into your story.",
+                      })}
                 </Text>
               </View>
             </View>
@@ -834,10 +1061,45 @@ export default function WizardScreen() {
                 {activeStep === 0 ? (
                   <View style={styles.stepContent}>
                     {!isChildSession ? (
+                      <View style={[styles.detailsPanel, isMobile && styles.detailsPanelMobile]}>
+                        <AdvancedSettingsForm
+                          childProfileId={childProfileId}
+                          onChildProfileChange={setChildProfileId}
+                          childProfileIds={isSchedulerMode ? scheduleProfileIds : undefined}
+                          onChildProfilesChange={
+                            isSchedulerMode ? setScheduleProfileIds : undefined
+                          }
+                          children={children}
+                          onAddChild={
+                            canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined
+                          }
+                          showChildProfileSelector
+                          showOptions={false}
+                          goals={availableGoals}
+                          selectedGoals={selectedGoals}
+                          onGoalsChange={setSelectedGoals}
+                          imageStyle={imageStyle}
+                          onImageStyleChange={setImageStyle}
+                          userNotes={userNotes}
+                          onNotesChange={setUserNotes}
+                          notesEnabled={notesEnabled}
+                          compactAddChild={isMobile}
+                          schedulerMode={isSchedulerMode}
+                        />
+                      </View>
+                    ) : null}
+                    {!isChildSession ? (
                       <View style={[styles.formatPanel, isMobile && styles.formatPanelMobile]}>
                         <Text style={styles.formatTitle}>
-                          {t('wizard.format_title', { defaultValue: 'Choose format' })}
+                          {isSchedulerMode
+                            ? t('scheduler_wizard.formats_title')
+                            : t('wizard.format_title', { defaultValue: 'Choose format' })}
                         </Text>
+                        {isSchedulerMode ? (
+                          <Text style={styles.selectionHint}>
+                            {t('scheduler_wizard.formats_hint')}
+                          </Text>
+                        ) : null}
                         <View style={styles.formatOptions}>
                           {[
                             {
@@ -859,13 +1121,17 @@ export default function WizardScreen() {
                             {
                               value: 'mixed' as const,
                               icon: 'albums-outline' as const,
-                              label: t('wizard.format_mixed', { defaultValue: 'Comic-to-text story' }),
+                              label: t('wizard.format_mixed', {
+                                defaultValue: 'Comic-to-text story',
+                              }),
                               description: t('wizard.format_mixed_desc', {
                                 defaultValue: 'Comic strips alternating with short prose',
                               }),
                             },
                           ].map((option) => {
-                            const selected = storyFormat === option.value;
+                            const selected = isSchedulerMode
+                              ? scheduleFormats.includes(option.value)
+                              : storyFormat === option.value;
                             const locked =
                               option.value === 'comic'
                                 ? graphicNovelAccessLocked
@@ -880,7 +1146,11 @@ export default function WizardScreen() {
                                   selected && styles.formatOptionSelected,
                                   locked && styles.formatOptionLocked,
                                 ]}
-                                onPress={() => handleStoryFormatSelect(option.value)}
+                                onPress={() =>
+                                  isSchedulerMode
+                                    ? toggleScheduleFormat(option.value)
+                                    : handleStoryFormatSelect(option.value)
+                                }
                                 activeOpacity={0.85}
                                 testID={`wizard-format-${option.value}`}
                               >
@@ -947,12 +1217,18 @@ export default function WizardScreen() {
                       scenarios={themesData?.scenarioCards || []}
                       selected={scenarioCardId}
                       onSelect={setScenarioCardId}
+                      selectedScenarios={isSchedulerMode ? scheduleScenarioIds : undefined}
+                      onScenariosChange={isSchedulerMode ? setScheduleScenarioIds : undefined}
+                      schedulerMode={isSchedulerMode}
                     />
                     <LanguageSelector
                       selected={storyLanguage}
                       onSelect={setStoryLanguage}
                       defaultLanguage={i18n.language}
                       allowedLanguageCodes={allowedLanguageCodes}
+                      selectedLanguages={isSchedulerMode ? scheduleLanguages : undefined}
+                      onLanguagesChange={isSchedulerMode ? setScheduleLanguages : undefined}
+                      schedulerMode={isSchedulerMode}
                     />
                   </View>
                 ) : null}
@@ -962,25 +1238,167 @@ export default function WizardScreen() {
                     <AdvancedSettingsForm
                       childProfileId={childProfileId}
                       onChildProfileChange={setChildProfileId}
+                      childProfileIds={isSchedulerMode ? scheduleProfileIds : undefined}
+                      onChildProfilesChange={isSchedulerMode ? setScheduleProfileIds : undefined}
                       children={children}
                       onAddChild={
                         canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined
                       }
-                      showChildProfileSelector={!isChildSession}
+                      showChildProfileSelector={false}
                       goals={availableGoals}
                       selectedGoals={selectedGoals}
                       onGoalsChange={setSelectedGoals}
                       imageStyle={imageStyle}
                       onImageStyleChange={setImageStyle}
+                      imageStyles={isSchedulerMode ? scheduleImageStyles : undefined}
+                      onImageStylesChange={isSchedulerMode ? setScheduleImageStyles : undefined}
                       userNotes={userNotes}
                       onNotesChange={setUserNotes}
-                      notesEnabled={notesEnabled}
+                      notesEnabled={!isSchedulerMode && notesEnabled}
                       compactAddChild={isMobile}
+                      schedulerMode={isSchedulerMode}
                     />
                   </View>
                 ) : null}
 
-                {activeStep === 2 ? (
+                {activeStep === 2 && isSchedulerMode ? (
+                  <View style={[styles.detailsPanel, isMobile && styles.detailsPanelMobile]}>
+                    <View style={styles.sectionHeading}>
+                      <Ionicons name="time-outline" size={24} color={theme.colors.text.primary} />
+                      <Text style={styles.sectionHeadingText}>
+                        {t('scheduler_wizard.delivery_title')}
+                      </Text>
+                    </View>
+                    <Text style={styles.scheduleHint}>{t('scheduler_wizard.delivery_hint')}</Text>
+                    <View style={styles.scheduleCadenceRow}>
+                      {(
+                        [
+                          'daily',
+                          'every_2_days',
+                          'twice_weekly',
+                          'weekly',
+                        ] as StoryScheduleRuleInput['cadence'][]
+                      ).map((cadence) => (
+                        <TouchableOpacity
+                          key={cadence}
+                          onPress={() => setScheduleCadence(cadence)}
+                          style={[
+                            styles.scheduleCadenceChip,
+                            scheduleCadence === cadence && styles.scheduleCadenceChipSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.scheduleCadenceText,
+                              scheduleCadence === cadence && styles.scheduleCadenceTextSelected,
+                            ]}
+                          >
+                            {t(`scheduler_wizard.cadence.${cadence}`)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={styles.scheduleTimeLabel}>
+                      {t('scheduler_wizard.delivery_time')}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowScheduleTimePicker(true)}
+                      style={styles.scheduleTimeInput}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('scheduler_wizard.delivery_time')}
+                      testID="scheduler-delivery-time"
+                    >
+                      <Text style={styles.scheduleTimeValue}>{scheduleRunAtTime}</Text>
+                      <Ionicons name="time-outline" size={20} color={theme.colors.text.secondary} />
+                    </TouchableOpacity>
+                    {showScheduleTimePicker ? (
+                      Platform.OS === 'web' ? (
+                        <View style={styles.scheduleTimePicker} testID="scheduler-time-picker">
+                          <View style={styles.scheduleTimePickerColumns}>
+                            <ScrollView
+                              style={styles.scheduleTimePickerColumn}
+                              contentContainerStyle={styles.scheduleTimePickerColumnContent}
+                              showsVerticalScrollIndicator={false}
+                            >
+                              {Array.from({ length: 24 }, (_, hour) => (
+                                <TouchableOpacity
+                                  key={hour}
+                                  onPress={() => updateScheduleTimePart(hour)}
+                                  style={[
+                                    styles.scheduleTimeOption,
+                                    selectedScheduleHour === hour &&
+                                      styles.scheduleTimeOptionSelected,
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.scheduleTimeOptionText,
+                                      selectedScheduleHour === hour &&
+                                        styles.scheduleTimeOptionTextSelected,
+                                    ]}
+                                  >
+                                    {String(hour).padStart(2, '0')}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                            <ScrollView
+                              style={styles.scheduleTimePickerColumn}
+                              contentContainerStyle={styles.scheduleTimePickerColumnContent}
+                              showsVerticalScrollIndicator={false}
+                            >
+                              {Array.from({ length: 60 }, (_, minute) => (
+                                <TouchableOpacity
+                                  key={minute}
+                                  onPress={() => updateScheduleTimePart(undefined, minute)}
+                                  style={[
+                                    styles.scheduleTimeOption,
+                                    selectedScheduleMinute === minute &&
+                                      styles.scheduleTimeOptionSelected,
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.scheduleTimeOptionText,
+                                      selectedScheduleMinute === minute &&
+                                        styles.scheduleTimeOptionTextSelected,
+                                    ]}
+                                  >
+                                    {String(minute).padStart(2, '0')}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => setShowScheduleTimePicker(false)}
+                            style={styles.scheduleTimePickerClose}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.close')}
+                          >
+                            <Text style={styles.scheduleTimePickerCloseText}>
+                              {t('common.close')}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <DateTimePicker
+                          value={scheduleTimePickerValue}
+                          mode="time"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          locale="en_GB"
+                          is24Hour
+                          onChange={(_event, selectedTime) => {
+                            setShowScheduleTimePicker(Platform.OS === 'ios');
+                            if (selectedTime) updateScheduleTime(selectedTime);
+                          }}
+                        />
+                      )
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {activeStep === 2 && !isSchedulerMode ? (
                   <View style={[styles.detailsPanel, isMobile && styles.detailsPanelMobile]}>
                     <View style={styles.sectionHeading}>
                       <Ionicons name="people-outline" size={24} color={theme.colors.text.primary} />
@@ -1011,13 +1429,17 @@ export default function WizardScreen() {
               >
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryEyebrow}>
-                    {t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                    {isSchedulerMode
+                      ? t('scheduler_wizard.summary_eyebrow')
+                      : t('wizard.story_preview', { defaultValue: 'Story setup' })}
                   </Text>
                   <Text style={styles.summaryTitle}>
-                    {t('wizard.your_story', { defaultValue: 'Your story' })}
+                    {isSchedulerMode
+                      ? t('scheduler_wizard.summary_title')
+                      : t('wizard.your_story', { defaultValue: 'Your story' })}
                   </Text>
                   <View style={styles.summaryList}>
-                    {summaryItems.map((item) => (
+                    {visibleSummaryItems.map((item) => (
                       <View key={item.key} style={styles.summaryItem}>
                         <View style={styles.summaryDot} />
                         <Text style={styles.summaryItemText}>{item.label}</Text>
@@ -1048,7 +1470,9 @@ export default function WizardScreen() {
                       ) : null}
                     </View>
                   ) : null}
-                  <StoryCreationNotice testID="wizard-story-creation-notice" />
+                  {!isSchedulerMode ? (
+                    <StoryCreationNotice testID="wizard-story-creation-notice" />
+                  ) : null}
                   <View style={styles.summaryActions}>
                     {activeStep > 0 ? (
                       <AppButton
@@ -1068,28 +1492,11 @@ export default function WizardScreen() {
                       />
                     ) : null}
                     <AppButton
-                      label={
-                        isLastStep
-                          ? storyFormat === 'comic'
-                            ? t('wizard.create_comic', { defaultValue: 'Create comic' })
-                            : storyFormat === 'mixed'
-                              ? t('wizard.create_mixed_story', {
-                                  defaultValue: 'Create comic-to-text story',
-                                })
-                              : t('common.create')
-                          : t('common.next')
-                      }
+                      label={primaryActionLabel}
                       onPress={isLastStep ? handleGenerate : handleNextStep}
                       size="md"
-                      disabled={
-                        isLastStep
-                          ? !storyLanguage ||
-                            (!isChildSession && !childProfileId) ||
-                            isGenerating ||
-                            !canGenerateStories
-                          : isGenerating
-                      }
-                      loading={isLastStep && isGenerating}
+                      disabled={primaryActionDisabled}
+                      loading={primaryActionLoading}
                       trailing={
                         !isLastStep ? (
                           <Ionicons
@@ -1118,11 +1525,17 @@ export default function WizardScreen() {
                 activeOpacity={0.78}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isMobileSummaryExpanded }}
-                accessibilityLabel={t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                accessibilityLabel={
+                  isSchedulerMode
+                    ? t('scheduler_wizard.summary_eyebrow')
+                    : t('wizard.story_preview', { defaultValue: 'Story setup' })
+                }
               >
                 <View style={styles.mobileSummaryText}>
                   <Text style={styles.mobileSummaryEyebrow}>
-                    {t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                    {isSchedulerMode
+                      ? t('scheduler_wizard.summary_eyebrow')
+                      : t('wizard.story_preview', { defaultValue: 'Story setup' })}
                   </Text>
                   <Text numberOfLines={1} style={styles.mobileSummaryTitle}>
                     {summaryCompactLabel}
@@ -1144,7 +1557,7 @@ export default function WizardScreen() {
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.summaryList}>
-                    {summaryItems.map((item) => (
+                    {visibleSummaryItems.map((item) => (
                       <View key={item.key} style={styles.summaryItem}>
                         <View style={styles.summaryDot} />
                         <Text style={styles.summaryItemText}>{item.label}</Text>
@@ -1193,28 +1606,11 @@ export default function WizardScreen() {
                   />
                 ) : null}
                 <AppButton
-                  label={
-                    isLastStep
-                      ? storyFormat === 'comic'
-                        ? t('wizard.create_comic', { defaultValue: 'Create comic' })
-                        : storyFormat === 'mixed'
-                          ? t('wizard.create_mixed_story', {
-                              defaultValue: 'Create comic-to-text story',
-                            })
-                          : t('common.create')
-                      : t('common.next')
-                  }
+                  label={primaryActionLabel}
                   onPress={isLastStep ? handleGenerate : handleNextStep}
                   size="sm"
-                  disabled={
-                    isLastStep
-                      ? !storyLanguage ||
-                        (!isChildSession && !childProfileId) ||
-                        isGenerating ||
-                        !canGenerateStories
-                      : isGenerating
-                  }
-                  loading={isLastStep && isGenerating}
+                  disabled={primaryActionDisabled}
+                  loading={primaryActionLoading}
                   trailing={
                     !isLastStep ? (
                       <Ionicons
@@ -1455,6 +1851,13 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
   },
+  selectionHint: {
+    marginTop: -theme.spacing[1],
+    marginBottom: theme.spacing[3],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
   formatOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1600,6 +2003,122 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
+  },
+  scheduleHint: {
+    marginTop: -theme.spacing[2],
+    marginBottom: theme.spacing[5],
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+  },
+  scheduleCadenceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[5],
+  },
+  scheduleCadenceChip: {
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  scheduleCadenceChipSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: modernColors.accentWash,
+  },
+  scheduleCadenceText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.secondary,
+  },
+  scheduleCadenceTextSelected: {
+    color: theme.colors.primary[700],
+  },
+  scheduleTimeLabel: {
+    marginBottom: theme.spacing[2],
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  scheduleTimeInput: {
+    maxWidth: 180,
+    minWidth: 152,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing[3],
+    paddingLeft: theme.spacing[5],
+    paddingRight: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  scheduleTimeValue: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  scheduleTimePicker: {
+    width: 288,
+    marginTop: theme.spacing[2],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.card,
+  },
+  scheduleTimePickerColumns: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+  },
+  scheduleTimePickerColumn: {
+    flex: 1,
+    maxHeight: 220,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  scheduleTimePickerColumnContent: {
+    gap: theme.spacing[1],
+    padding: theme.spacing[2],
+  },
+  scheduleTimeOption: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.sm,
+  },
+  scheduleTimeOptionSelected: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  scheduleTimeOptionText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  scheduleTimeOptionTextSelected: {
+    color: theme.colors.text.inverse,
+  },
+  scheduleTimePickerClose: {
+    alignSelf: 'flex-end',
+    marginTop: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWash,
+  },
+  scheduleTimePickerCloseText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.primary[700],
   },
   summaryLimits: {
     paddingTop: theme.spacing[2],

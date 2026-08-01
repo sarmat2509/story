@@ -164,6 +164,8 @@ export interface ImageBatchRequest {
   prompt: string;
   systemInstruction?: string;
   aspectRatio?: ImageAspectRatio;
+  /** A batch contains one model; used by the scheduler environment-only batch. */
+  modelOverride?: string;
 }
 
 /** Batch job created by createImageBatch */
