@@ -138,6 +138,7 @@ import {
 } from '../utils/characterIdentity';
 import { normalizeStoryArtifactImagePath } from './storyArtifactImageService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
+import { generateMapTileBriefForScenes } from './mapTileBriefService';
 import { logger } from '../utils/logger';
 import {
   buildImageEditSystemInstruction,
@@ -165,6 +166,71 @@ type GraphicNovelStoryArtifactReference = NonNullable<StorySpec['closingArtifact
   storagePath: string | null;
   referenceBindingId: string;
 };
+type ComicMapTileBrief = Awaited<ReturnType<typeof generateMapTileBriefForScenes>>;
+type StoryUpdate = Parameters<ReturnType<typeof getStoryRepository>['updateStory']>[1];
+
+async function generateComicMapTileBrief(params: {
+  storyId: string;
+  requestId: string;
+  userId: string;
+  generationKind: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
+  scenes: Array<{ sceneId: number; text: string }>;
+  imagesPerStory: number;
+  spec: StorySpec;
+  userCharacters: CharacterData[];
+}) {
+  return withStageTiming(
+    {
+      storyId: params.storyId,
+      storyRequestId: params.requestId,
+      userId: params.userId,
+      generationKind: params.generationKind,
+      pipelinePhase: 'visual_planning',
+      operation: 'map_tile_brief',
+      targetType: 'story',
+      metadata: {
+        sceneCount: params.scenes.length,
+        imagesPerStory: params.imagesPerStory,
+      },
+      successMetadata: (result) => ({
+        descriptionLength: result.description.length,
+        requiredFeatureCount: result.requiredFeatures.length,
+      }),
+    },
+    () =>
+      generateMapTileBriefForScenes({
+        scenes: params.scenes,
+        imagesPerStory: params.imagesPerStory,
+        spec: params.spec,
+        userCharacters: params.userCharacters,
+        onUsage: (usage) => recordUsage(usage, { userId: params.userId, storyId: params.storyId }),
+      })
+  );
+}
+
+/**
+ * Persists the Director-produced brief with the initial comic story payload.
+ * Both comic formats share this boundary so a future metadata change cannot
+ * accidentally omit mapTile from one of their creation paths.
+ */
+async function persistInitialComicStory(params: {
+  storyId: string;
+  update: StoryUpdate;
+  mapTile: ComicMapTileBrief;
+}): Promise<void> {
+  const existingMetadata =
+    params.update.metadata && typeof params.update.metadata === 'object'
+      ? (params.update.metadata as Record<string, unknown>)
+      : {};
+
+  await getStoryRepository().updateStory(params.storyId, {
+    ...params.update,
+    metadata: {
+      ...existingMetadata,
+      mapTile: params.mapTile,
+    },
+  });
+}
 
 function graphicNovelArtifactReferenceBindingId(
   artifact: Pick<NonNullable<StorySpec['closingArtifact']>, 'title' | 'imagePath'>
@@ -1344,6 +1410,50 @@ export function buildGraphicNovelTextManifest(
       .join('\n\n'),
     scenes,
   };
+}
+
+export function buildComicMapTileScenes(params: {
+  scenes: Array<{
+    sceneId: number;
+    text: string;
+    graphicNovelPageNumber?: number | null;
+  }>;
+  plannedPages: PlannedGraphicNovelPage[];
+  environments: StoryEnvironment[];
+}): Array<{ sceneId: number; text: string }> {
+  const pageByNumber = new Map(params.plannedPages.map((page) => [page.pageNumber, page]));
+  const environmentById = new Map(
+    params.environments.map((environment) => [environment.id, environment])
+  );
+
+  return params.scenes.map((scene) => {
+    const pageNumber = scene.graphicNovelPageNumber ?? scene.sceneId;
+    const page = pageByNumber.get(pageNumber);
+    if (!page) {
+      return { sceneId: scene.sceneId, text: scene.text };
+    }
+
+    const visualParts: string[] = [];
+    const includedEnvironmentIds = new Set<string>();
+    for (const panel of page.panels) {
+      const environmentId = panel.script.visual.environmentId;
+      const environment = environmentById.get(environmentId);
+      if (environment && !includedEnvironmentIds.has(environmentId)) {
+        includedEnvironmentIds.add(environmentId);
+        visualParts.push(`Environment ${environment.name}: ${environment.description}`);
+      }
+      visualParts.push(panel.script.visual.primaryRead);
+      visualParts.push(panel.script.visual.sceneVisual.setting);
+    }
+
+    return {
+      sceneId: scene.sceneId,
+      text: [scene.text, ...visualParts]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join('\n'),
+    };
+  });
 }
 
 export function buildMixedStoryTextManifest(params: {
@@ -4848,65 +4958,83 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       }
     );
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles');
-    await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
-
     const textManifest = buildGraphicNovelTextManifest(plannedPages);
+    const mapTileScenes = buildComicMapTileScenes({
+      scenes: textManifest.scenes,
+      plannedPages,
+      environments: script.environments,
+    });
+    const mapTile = await generateComicMapTileBrief({
+      storyId,
+      requestId,
+      userId: request.userId,
+      generationKind: GRAPHIC_NOVEL_KIND,
+      scenes: mapTileScenes,
+      imagesPerStory: plannedPages.length,
+      spec,
+      userCharacters: specData.selectedCharacters,
+    });
+    await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
     const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
       fullText: textManifest.fullText,
       scenes: textManifest.scenes,
     });
-    await getStoryRepository().updateStory(storyId, {
-      title: stripCharacterIds(script.title),
-      language: spec.language,
-      ageGroup: spec.ageGroup,
-      moralTheme: request.goal,
-      scenes: textManifest.scenes,
-      fullText: textManifest.fullText,
-      wordCount: countNarrationWords(textManifest.fullText),
-      closingKeepsakeLabel,
-      closingArtifactId: spec.closingArtifact?.id ?? null,
-      modelVersion: config.ai.modelVersion,
-      generationTimeMs: null,
-      metadata: {
-        storyFormat: GRAPHIC_NOVEL_KIND,
-        mergedCharacters: graphicNovelCharacters,
-        graphicNovelTextMode: 'html_overlay',
-        storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
-        storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
-        graphicNovelTextManifestVersion: textManifest.version,
-        firstPageReady: false,
-        graphicNovelGenerationComplete: false,
-        readingSettings: {
-          baseTextSizePx: readingTextSettings.baseTextSizePx,
-          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
-          textSizePx: readingTextSettings.textSizePx,
+    await persistInitialComicStory({
+      storyId,
+      mapTile,
+      update: {
+        title: stripCharacterIds(script.title),
+        language: spec.language,
+        ageGroup: spec.ageGroup,
+        moralTheme: request.goal,
+        scenes: textManifest.scenes,
+        fullText: textManifest.fullText,
+        wordCount: countNarrationWords(textManifest.fullText),
+        closingKeepsakeLabel,
+        closingArtifactId: spec.closingArtifact?.id ?? null,
+        modelVersion: config.ai.modelVersion,
+        generationTimeMs: null,
+        metadata: {
+          storyFormat: GRAPHIC_NOVEL_KIND,
+          mergedCharacters: graphicNovelCharacters,
+          graphicNovelTextMode: 'html_overlay',
+          storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
+          storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
+          graphicNovelTextManifestVersion: textManifest.version,
+          firstPageReady: false,
+          graphicNovelGenerationComplete: false,
+          readingSettings: {
+            baseTextSizePx: readingTextSettings.baseTextSizePx,
+            textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+            textSizePx: readingTextSettings.textSizePx,
+          },
+          graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
+          imageStyle: (spec as any).imageStyle,
+          scenarioCardId: spec.scenarioCard?.id,
+          llmGeneratedCharacters: graphicNovelLlmCharacters,
+          graphicNovelPageCount: pageCount,
+          graphicNovelRequestedPageCount: GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT,
+          graphicNovelMaxPageCount: config.image.graphicNovelMaxPageCount,
+          graphicNovelPlannedPageCount: plannedPages.length,
+          environments: script.environments,
+          outfits: script.outfits || [],
+          graphicNovelEnvironmentImages,
+          seoDescription: script.description,
+          ...(spec.closingArtifact && {
+            storyArtifactId: spec.closingArtifact.id,
+            storyArtifactCode: spec.closingArtifact.artifactCode,
+            storyArtifactTitle: spec.closingArtifact.title,
+            storyArtifactDescription: spec.closingArtifact.description,
+            storyArtifactImagePath: spec.closingArtifact.imagePath,
+            storyArtifactReferenceBindingId: closingArtifactReference?.referenceBindingId,
+            storyArtifactSelection: (spec.closingArtifact as any).selection,
+          }),
         },
-        graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
-        imageStyle: (spec as any).imageStyle,
-        scenarioCardId: spec.scenarioCard?.id,
-        llmGeneratedCharacters: graphicNovelLlmCharacters,
-        graphicNovelPageCount: pageCount,
-        graphicNovelRequestedPageCount: GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT,
-        graphicNovelMaxPageCount: config.image.graphicNovelMaxPageCount,
-        graphicNovelPlannedPageCount: plannedPages.length,
-        environments: script.environments,
-        outfits: script.outfits || [],
-        graphicNovelEnvironmentImages,
-        seoDescription: script.description,
-        ...(spec.closingArtifact && {
-          storyArtifactId: spec.closingArtifact.id,
-          storyArtifactCode: spec.closingArtifact.artifactCode,
-          storyArtifactTitle: spec.closingArtifact.title,
-          storyArtifactDescription: spec.closingArtifact.description,
-          storyArtifactImagePath: spec.closingArtifact.imagePath,
-          storyArtifactReferenceBindingId: closingArtifactReference?.referenceBindingId,
-          storyArtifactSelection: (spec.closingArtifact as any).selection,
-        }),
-      },
-      policyChecks: {
-        textValidated: true,
-        graphicNovelScriptGenerated: true,
-        timestamp: new Date().toISOString(),
+        policyChecks: {
+          textValidated: true,
+          graphicNovelScriptGenerated: true,
+          timestamp: new Date().toISOString(),
+        },
       },
     });
     await linkGraphicNovelStoryCharacters({
@@ -5263,76 +5391,94 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       spec.storyComplexityAgeGroup ?? spec.ageGroup
     );
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles', MIXED_STORY_KIND);
-    await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
-
     const textManifest = buildMixedStoryTextManifest({ script, plannedPages });
+    const mapTileScenes = buildComicMapTileScenes({
+      scenes: textManifest.scenes,
+      plannedPages,
+      environments: script.environments,
+    });
+    const mapTile = await generateComicMapTileBrief({
+      storyId,
+      requestId,
+      userId: request.userId,
+      generationKind: MIXED_STORY_KIND,
+      scenes: mapTileScenes,
+      imagesPerStory: comicBlockCount,
+      spec,
+      userCharacters: specData.selectedCharacters,
+    });
+    await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
     const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
       fullText: textManifest.fullText,
       scenes: textManifest.scenes,
     });
-    await getStoryRepository().updateStory(storyId, {
-      title: stripCharacterIds(script.title),
-      language: spec.language,
-      ageGroup: spec.ageGroup,
-      moralTheme: request.goal,
-      scenes: textManifest.scenes,
-      fullText: textManifest.fullText,
-      wordCount: countNarrationWords(textManifest.fullText),
-      closingKeepsakeLabel,
-      closingArtifactId: spec.closingArtifact?.id ?? null,
-      modelVersion: config.ai.modelVersion,
-      generationTimeMs: null,
-      metadata: {
-        storyFormat: MIXED_STORY_KIND,
-        mergedCharacters: mixedStoryCharacters,
-        graphicNovelTextMode: 'html_overlay',
-        mixedStoryVersion: 1,
-        storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
-        storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
-        mixedStoryTextMode: textManifest.textMode,
-        mixedStoryTextManifestVersion: textManifest.version,
-        mixedStoryComicBlockCount: comicBlockCount,
-        mixedStoryRequestedComicBlockCount: planComicBlockCount,
-        mixedStorySceneCount: sceneCount,
-        mixedStoryAnchorSceneIds: comicSceneIds,
-        mixedStoryReadingOrder: textManifest.readingOrder,
-        mixedStoryComicTextRepairs: repairs,
-        firstPageReady: false,
-        graphicNovelGenerationComplete: false,
-        imageGenerationComplete: true,
-        readingSettings: {
-          baseTextSizePx: readingTextSettings.baseTextSizePx,
-          textSizeMultiplier: readingTextSettings.textSizeMultiplier,
-          textSizePx: readingTextSettings.textSizePx,
+    await persistInitialComicStory({
+      storyId,
+      mapTile,
+      update: {
+        title: stripCharacterIds(script.title),
+        language: spec.language,
+        ageGroup: spec.ageGroup,
+        moralTheme: request.goal,
+        scenes: textManifest.scenes,
+        fullText: textManifest.fullText,
+        wordCount: countNarrationWords(textManifest.fullText),
+        closingKeepsakeLabel,
+        closingArtifactId: spec.closingArtifact?.id ?? null,
+        modelVersion: config.ai.modelVersion,
+        generationTimeMs: null,
+        metadata: {
+          storyFormat: MIXED_STORY_KIND,
+          mergedCharacters: mixedStoryCharacters,
+          graphicNovelTextMode: 'html_overlay',
+          mixedStoryVersion: 1,
+          storyComplexityAgeGroup: spec.storyComplexityAgeGroup ?? spec.ageGroup,
+          storyComplexityAdjustment: spec.storyComplexityAdjustment ?? 0,
+          mixedStoryTextMode: textManifest.textMode,
+          mixedStoryTextManifestVersion: textManifest.version,
+          mixedStoryComicBlockCount: comicBlockCount,
+          mixedStoryRequestedComicBlockCount: planComicBlockCount,
+          mixedStorySceneCount: sceneCount,
+          mixedStoryAnchorSceneIds: comicSceneIds,
+          mixedStoryReadingOrder: textManifest.readingOrder,
+          mixedStoryComicTextRepairs: repairs,
+          firstPageReady: false,
+          graphicNovelGenerationComplete: false,
+          imageGenerationComplete: true,
+          readingSettings: {
+            baseTextSizePx: readingTextSettings.baseTextSizePx,
+            textSizeMultiplier: readingTextSettings.textSizeMultiplier,
+            textSizePx: readingTextSettings.textSizePx,
+          },
+          graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
+          sceneIdsWithImages: [],
+          imageStyle: (spec as any).imageStyle,
+          scenarioCardId: spec.scenarioCard?.id,
+          llmGeneratedCharacters: mixedStoryLlmCharacters,
+          graphicNovelPageCount: comicBlockCount,
+          graphicNovelMaxPageCount: config.image.graphicNovelMaxPageCount,
+          graphicNovelPlannedPageCount: plannedPages.length,
+          graphicNovelLayoutMode: 'template_panel_composition',
+          environments: script.environments,
+          outfits: script.outfits || [],
+          graphicNovelEnvironmentImages,
+          seoDescription: script.description,
+          ...(spec.closingArtifact && {
+            storyArtifactId: spec.closingArtifact.id,
+            storyArtifactCode: spec.closingArtifact.artifactCode,
+            storyArtifactTitle: spec.closingArtifact.title,
+            storyArtifactDescription: spec.closingArtifact.description,
+            storyArtifactImagePath: spec.closingArtifact.imagePath,
+            storyArtifactReferenceBindingId: closingArtifactReference?.referenceBindingId,
+            storyArtifactSelection: (spec.closingArtifact as any).selection,
+          }),
         },
-        graphicNovelBubbleTextSizing: readingTextSettings.bubbleTextSizing,
-        sceneIdsWithImages: [],
-        imageStyle: (spec as any).imageStyle,
-        scenarioCardId: spec.scenarioCard?.id,
-        llmGeneratedCharacters: mixedStoryLlmCharacters,
-        graphicNovelPageCount: comicBlockCount,
-        graphicNovelMaxPageCount: config.image.graphicNovelMaxPageCount,
-        graphicNovelPlannedPageCount: plannedPages.length,
-        graphicNovelLayoutMode: 'template_panel_composition',
-        environments: script.environments,
-        outfits: script.outfits || [],
-        graphicNovelEnvironmentImages,
-        seoDescription: script.description,
-        ...(spec.closingArtifact && {
-          storyArtifactId: spec.closingArtifact.id,
-          storyArtifactCode: spec.closingArtifact.artifactCode,
-          storyArtifactTitle: spec.closingArtifact.title,
-          storyArtifactDescription: spec.closingArtifact.description,
-          storyArtifactImagePath: spec.closingArtifact.imagePath,
-          storyArtifactReferenceBindingId: closingArtifactReference?.referenceBindingId,
-          storyArtifactSelection: (spec.closingArtifact as any).selection,
-        }),
-      },
-      policyChecks: {
-        textValidated: true,
-        mixedStoryScriptGenerated: true,
-        graphicNovelScriptGenerated: true,
-        timestamp: new Date().toISOString(),
+        policyChecks: {
+          textValidated: true,
+          mixedStoryScriptGenerated: true,
+          graphicNovelScriptGenerated: true,
+          timestamp: new Date().toISOString(),
+        },
       },
     });
 
@@ -8637,6 +8783,8 @@ export function buildGraphicNovelGenerationStatus(params: {
 
 /** Test-only access to production orchestration without replacing its logic. */
 export const graphicNovelOrchestrationTestSeams = {
+  generateComicMapTileBrief,
+  persistInitialComicStory,
   renderAndStorePage,
   applyVisionBubblePlacementForRenderedPage,
   graphicNovelPanelQualityDecision,

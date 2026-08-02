@@ -158,6 +158,7 @@ export interface RepositoryTestOverrides {
   alignment?: AlignmentRepository;
   aiUsage?: AiUsageRepository;
   dictionary?: DictionaryRepository;
+  policy?: PolicyRepository;
   storyArtifact?: StoryArtifactRepository;
   collectedStoryArtifact?: CollectedStoryArtifactRepository;
   storyQuiz?: StoryQuizRepository;
@@ -266,6 +267,7 @@ export function getDictionaryRepository(): DictionaryRepository {
 }
 
 export function getPolicyRepository(): PolicyRepository {
+  if (testOverrides?.policy) return testOverrides.policy;
   if (!policyRepo) policyRepo = new PolicyRepository(db);
   return policyRepo;
 }

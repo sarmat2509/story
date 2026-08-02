@@ -266,7 +266,7 @@ export const config = {
     enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
     /** Controls both no-text image prompt rules and validation/repair of visible text or symbols. */
     validationCheckTextOrSymbols:
-      process.env.IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS !== 'false',
+      process.env.IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS === 'true',
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
     /** When validation fails, use one image-edit repair pass instead of full regeneration. */
     validationUseEditRepair: process.env.IMAGE_VALIDATION_USE_EDIT_REPAIR === 'true',

@@ -31,6 +31,7 @@ import { canonicalizeMapTileFeatures } from '../domain/story/mapTileMasks';
 import { buildPolicyProfile } from '../services/policyService';
 import { getStoryDomainService } from '../services/aiService';
 import { composeScenesIntoBlocks } from '../services/storyOrchestration/utilities';
+import { resolveMapTileBriefImageCount } from '../services/mapTileBriefService';
 
 const MapTileBriefSchema = z.object({
   description: z.string().trim().min(20),
@@ -87,7 +88,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 function extractUserCharactersFromSceneText(text: string): Array<{ id?: string; name: string }> {
-  const re = /([^\[\n]+?)\s*\[ID:\s*([a-f0-9-]{36})\]/gi;
+  const re = /([^[\n]+?)\s*\[ID:\s*([a-f0-9-]{36})\]/gi;
   const byId = new Map<string, string>();
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
@@ -109,10 +110,12 @@ async function loadSceneRows(
       .sort((a, b) => a.sceneId - b.sceneId);
   }
 
-  return ((Array.isArray(legacyScenes) ? legacyScenes : []) as Array<{
-    sceneId?: number;
-    text?: string;
-  }>)
+  return (
+    (Array.isArray(legacyScenes) ? legacyScenes : []) as Array<{
+      sceneId?: number;
+      text?: string;
+    }>
+  )
     .filter((scene) => typeof scene.sceneId === 'number')
     .map((scene) => ({ sceneId: scene.sceneId!, text: scene.text || '' }))
     .sort((a, b) => a.sceneId - b.sceneId);
@@ -146,15 +149,11 @@ async function buildDirectorInput(story: typeof stories.$inferSelect, imagesOver
     story.metadata && typeof story.metadata === 'object'
       ? (story.metadata as Record<string, unknown>)
       : {};
-  let imagesPerStory =
-    imagesOverride ??
-    (Array.isArray(metadata.sceneIdsWithImages)
-      ? (metadata.sceneIdsWithImages as unknown[]).length
-      : undefined);
-
-  if (!imagesPerStory || imagesPerStory < 1) {
-    imagesPerStory = Math.min(3, Math.max(1, sceneRows.length));
-  }
+  const imagesPerStory = resolveMapTileBriefImageCount({
+    sceneCount: sceneRows.length,
+    imagesOverride,
+    metadata,
+  });
 
   const [storyRequestRow] = story.storyRequestId
     ? await db.select().from(storyRequests).where(eq(storyRequests.id, story.storyRequestId))
@@ -246,7 +245,9 @@ async function backfillStory(
   const mapTileBrief = await getStoryDomainService().generateMapTileBrief(input);
   const parsed = MapTileBriefSchema.safeParse(mapTileBrief);
   if (!parsed.success) {
-    throw new Error(`Map tile brief Director returned invalid mapTile: ${JSON.stringify(parsed.error.flatten())}`);
+    throw new Error(
+      `Map tile brief Director returned invalid mapTile: ${JSON.stringify(parsed.error.flatten())}`
+    );
   }
 
   const mapTile = parsed.data;

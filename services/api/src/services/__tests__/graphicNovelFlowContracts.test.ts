@@ -4,6 +4,7 @@ import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { calculateGraphicNovelQuota } from '../graphicNovelQuotaService';
 import {
   augmentGraphicNovelPagesWithMentionedCharacters,
+  buildComicMapTileScenes,
   buildGraphicNovelCharacterAliasMap,
   buildGraphicNovelTextManifest,
   buildGraphicNovelGenerationStatus,
@@ -230,6 +231,52 @@ function testTextManifestFeedsStoryTextAndOverlay(): void {
     manifest.scenes[0].graphicNovelTextSegmentIds,
     manifest.pages[0].items.map((item) => item.segmentId)
   );
+}
+
+function testComicMapTileScenesIncludeVisualEnvironmentContext(): void {
+  const plannedPages = planGraphicNovelLayouts({
+    ageGroup: '6-8',
+    pages: [
+      {
+        pageNumber: 1,
+        pageRole: 'reveal',
+        panels: [
+          {
+            panelId: 'p1-1',
+            beatType: 'reveal',
+            dialogue: [],
+            thoughts: [],
+            visual: {
+              environmentId: 'env_gate',
+              primaryRead: 'A narrow bridge crosses the silver pond.',
+              sceneVisual: {
+                setting: 'The ivy arch opens behind the bridge.',
+                lighting: 'cool moonlight',
+                cameraComposition: { shot: 'wide shot', characters: [] },
+              },
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const scenes = buildComicMapTileScenes({
+    scenes: [{ sceneId: 1, text: 'We found it!' }],
+    environments: [
+      {
+        id: 'env_gate',
+        name: 'Moon Garden',
+        description: 'A circular stone garden with a silver pond and an ivy arch.',
+      },
+    ],
+    plannedPages,
+  });
+
+  assert.match(scenes[0].text, /We found it!/);
+  assert.match(scenes[0].text, /Moon Garden/);
+  assert.match(scenes[0].text, /silver pond/);
+  assert.match(scenes[0].text, /narrow bridge/);
+  assert.match(scenes[0].text, /ivy arch/);
 }
 
 function testCoverPanelSelectionUsesClosestStandalonePanel(): void {
@@ -783,6 +830,7 @@ async function main(): Promise<void> {
   testFirstPageCompletionRule();
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();
+  testComicMapTileScenesIncludeVisualEnvironmentContext();
   testCoverPanelSelectionUsesClosestStandalonePanel();
   testCoverPanelCandidatesPreferLatestAcceptedRepair();
   await testComicPanelFrameCanBeRemovedWithoutChangingInterior();
