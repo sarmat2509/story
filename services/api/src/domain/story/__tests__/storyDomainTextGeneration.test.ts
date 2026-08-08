@@ -116,6 +116,31 @@ async function testGenerateTextPlainUsesAdjustedReadingComplexity() {
   stub.assertExhausted();
 }
 
+async function testBatchRegenerationUsesExpandedOutputBudget() {
+  const stub = new MockTextProvider().queueStructured('regenerateScene', {
+    scenes: [{ sceneId: 2, text: 'The friends found a gentle, thoughtful solution.' }],
+  });
+  const domain = new StoryDomainService(stub);
+
+  const regenerated = await domain.regenerateScenesBatch(
+    STATIC_STORY_SPEC,
+    11,
+    [
+      {
+        sceneId: 2,
+        originalText: 'The friends hurried away without a solution.',
+        feedback: 'Resolve the conflict with a kind action.',
+      },
+    ]
+  );
+
+  assert.deepStrictEqual(regenerated, [
+    { sceneId: 2, text: 'The friends found a gentle, thoughtful solution.' },
+  ]);
+  assert.strictEqual(stub.structuredRequests[0]?.maxTokens, 16384);
+  stub.assertExhausted();
+}
+
 async function testGenerateTextPlainRejectsEmptyWriterOutput() {
   const stub = new MockTextProvider().queueText(
     'text_plain',
@@ -340,6 +365,7 @@ async function testValidateScenesBatchEnforcesOpenLedgerRows(): Promise<void> {
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
   await testGenerateTextPlainUsesAdjustedReadingComplexity();
+  await testBatchRegenerationUsesExpandedOutputBudget();
   await testGenerateTextPlainRejectsEmptyWriterOutput();
   await testWriterPromptDoesNotExposeCharacterIds();
   await testContinuationWriterPromptDoesNotExposeIds();

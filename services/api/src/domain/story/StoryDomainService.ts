@@ -88,6 +88,8 @@ import { reconcileGeneratedCharacterIdentity } from '../../utils/characterIdenti
 
 /** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
 const PLAIN_WRITER_MAX_OUTPUT_TOKENS = 16384;
+/** Regeneration can consume Gemini thinking tokens before emitting the repaired JSON payload. */
+const BATCH_REGENERATION_MAX_OUTPUT_TOKENS = 16384;
 const MIN_GENERATED_SCENES = 1;
 
 function assertPlainStoryHasReadableScenes(parsed: {
@@ -886,6 +888,7 @@ export class StoryDomainService {
         prompt,
         cachedPrefix,
         schema: BATCH_REGENERATION_SCHEMA,
+        maxTokens: BATCH_REGENERATION_MAX_OUTPUT_TOKENS,
         temperature: 0.9,
         onUsage: options?.onUsage,
         operation: 'regenerateScene',
