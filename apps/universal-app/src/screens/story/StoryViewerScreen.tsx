@@ -87,6 +87,7 @@ import {
 import { getAnalytics } from '@/services/analytics';
 import { storage } from '@/utils/storage';
 import { assignWebLocation } from '@/utils/webRuntime';
+import { getStoryCharactersForSection } from './storyCharacterSectionData';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -258,42 +259,6 @@ const needsInlineSpaceBefore = (previousText: string, currentText: string): bool
 
 const needsInlineSpaceAfter = (currentText: string, nextText: string): boolean =>
   Boolean(currentText && nextText && !inlineNoSpaceBeforeRe.test(nextText));
-
-const graphicNovelReferenceToUrl = (reference: any): string | null => {
-  const candidate =
-    reference?.url ||
-    reference?.imageUrl ||
-    reference?.fullImageUrl ||
-    reference?.storagePath ||
-    reference?.path ||
-    null;
-  return typeof candidate === 'string' && candidate.trim() ? candidate : null;
-};
-
-const manifestCharacterToStoryCharacter = (
-  character: any,
-  index: number
-): StoryCharacter | null => {
-  const name = typeof character?.name === 'string' ? character.name.trim() : '';
-  if (!name) return null;
-  const references: unknown[] = Array.isArray(character?.references) ? character.references : [];
-  const referencePhotoUrl =
-    references.map(graphicNovelReferenceToUrl).find((value): value is string => !!value) ?? null;
-  const idSource =
-    (typeof character?.id === 'string' && character.id) ||
-    (typeof character?.canonicalName === 'string' && character.canonicalName) ||
-    name;
-
-  return {
-    id: `graphic-novel-${idSource}-${index}`,
-    name,
-    localizedName: typeof character?.canonicalName === 'string' ? character.canonicalName : null,
-    type: typeof character?.type === 'string' ? character.type : 'person',
-    referencePhotoUrl,
-    isHidden: false,
-    description: typeof character?.description === 'string' ? character.description : null,
-  };
-};
 
 // Format wait time using i18n translations
 const formatWaitTime = (
@@ -1144,7 +1109,7 @@ export default function StoryViewerScreen() {
       ),
     [graphicNovel?.pages]
   );
-  const graphicNovelManifestCharacters = useMemo(() => {
+  const storyCharactersForSection = useMemo(() => {
     const layoutManifest =
       (graphicNovel?.project?.layoutManifest as any) ||
       (graphicNovel?.project?.layout_manifest as any) ||
@@ -1152,17 +1117,14 @@ export default function StoryViewerScreen() {
     const manifestCharacters: unknown[] = Array.isArray(layoutManifest.characters)
       ? layoutManifest.characters
       : [];
-    return manifestCharacters
-      .map(manifestCharacterToStoryCharacter)
-      .filter((character: StoryCharacter | null): character is StoryCharacter => !!character);
-  }, [graphicNovel?.project]);
-  const storyCharactersForSection = useMemo(() => {
-    const storyCharacters = Array.isArray(story?.characters) ? story.characters : [];
-    if (hasGraphicNovelPages && graphicNovelManifestCharacters.length > 0) {
-      return graphicNovelManifestCharacters;
-    }
-    return storyCharacters as StoryCharacter[];
-  }, [graphicNovelManifestCharacters, hasGraphicNovelPages, story?.characters]);
+    return getStoryCharactersForSection({
+      storyCharacters: Array.isArray(story?.characters)
+        ? (story.characters as StoryCharacter[])
+        : [],
+      manifestCharacters,
+      hasGraphicNovelPages,
+    });
+  }, [graphicNovel?.project, hasGraphicNovelPages, story?.characters]);
 
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
