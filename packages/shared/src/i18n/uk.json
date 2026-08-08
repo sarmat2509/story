@@ -1912,6 +1912,7 @@
     "mixed_stories_in_story_limit": "Комікс → текст",
     "audio": "Аудіоісторії",
     "remaining_of_limit": "Залишилось {{remaining}} з {{limit}}",
+    "story_mix_profile_hint": "Ви можете налаштувати свої вподобання у профілі.",
     "unlimited": "Без ліміту"
   },
   "paywall": {

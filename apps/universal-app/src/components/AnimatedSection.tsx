@@ -1,5 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  type StyleProp,
+  type ViewProps,
+  type ViewStyle,
+} from 'react-native';
 
 interface AnimatedSectionProps {
   children: React.ReactNode;
@@ -16,6 +23,7 @@ interface AnimatedSectionProps {
    */
   trigger?: unknown;
   style?: StyleProp<ViewStyle>;
+  onLayout?: ViewProps['onLayout'];
 }
 
 /**
@@ -31,6 +39,7 @@ export function AnimatedSection({
   translate = 12,
   trigger,
   style,
+  onLayout,
 }: AnimatedSectionProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(translate)).current;
@@ -75,7 +84,7 @@ export function AnimatedSection({
   }, [delay, duration, opacity, translateY, translate, trigger]);
 
   return (
-    <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
+    <Animated.View onLayout={onLayout} style={[{ opacity, transform: [{ translateY }] }, style]}>
       {children}
     </Animated.View>
   );

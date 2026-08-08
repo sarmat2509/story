@@ -1912,6 +1912,7 @@
     "mixed_stories_in_story_limit": "Comic-to-text stories",
     "audio": "Audio stories",
     "remaining_of_limit": "{{remaining}} of {{limit}} left",
+    "story_mix_profile_hint": "You can customize your preferences in your profile.",
     "unlimited": "Unlimited"
   },
   "paywall": {

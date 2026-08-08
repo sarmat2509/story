@@ -1743,6 +1743,7 @@
     "mixed_stories_in_story_limit": "Histoires de la BD au texte",
     "audio": "Histoires audio",
     "remaining_of_limit": "{{remaining}} sur {{limit}} restantes",
+    "story_mix_profile_hint": "Vous pouvez personnaliser vos préférences dans votre profil.",
     "unlimited": "Illimité"
   },
   "paywall": {

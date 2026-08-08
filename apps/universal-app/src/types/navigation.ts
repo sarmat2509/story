@@ -62,7 +62,7 @@ export type MainDrawerParamList = {
   ChildDetail: { childId: string };
   Characters: undefined;
   Plans: undefined;
-  Profile: undefined;
+  Profile: { scrollToStoryMix?: boolean } | undefined;
   BillingSuccess: { kind?: 'subscription' | 'bundle'; session_id?: string } | undefined;
   LanguageSettings: undefined;
   ThemeSettings: undefined;

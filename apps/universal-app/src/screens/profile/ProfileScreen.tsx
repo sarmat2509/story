@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute, NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -80,7 +80,11 @@ export default function ProfileScreen() {
   const { isMobile } = useResponsive();
   const { user, logout, setUser } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const route = useRoute<RouteProp<MainDrawerParamList, 'Profile'>>();
   const enterKey = useScreenEnter();
+  const profileScrollRef = useRef<ScrollView>(null);
+  const storyMixSectionOffsetRef = useRef<number | null>(null);
+  const storyMixScrollHandledRef = useRef(false);
   const { data: plansData, isLoading: plansLoading } = usePlansWithAuth();
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
   const privacyRequestsQuery = usePrivacyRequests();
@@ -191,6 +195,30 @@ export default function ProfileScreen() {
     ? PAYMENT_ISSUE_STATUSES.has(usage.subscriptionStatus)
     : false;
   const storyMix = usage?.storyMix;
+  const hasStoryMixHash =
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    window.location.hash === '#story-mix';
+  const shouldScrollToStoryMix =
+    !storyMixScrollHandledRef.current &&
+    (route.params?.scrollToStoryMix === true || hasStoryMixHash);
+  const scrollToStoryMix = () => {
+    const offset = storyMixSectionOffsetRef.current;
+    if (!storyMix || !shouldScrollToStoryMix || offset === null) return;
+
+    storyMixScrollHandledRef.current = true;
+    profileScrollRef.current?.scrollTo({
+      y: Math.max(0, offset - theme.spacing[4]),
+      animated: true,
+    });
+    navigation.setParams({ scrollToStoryMix: undefined });
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.hash = 'story-mix';
+      window.history.replaceState(window.history.state, '', url.toString());
+    }
+  };
   const storyMixStoriesLimit = storyMix
     ? Math.max(
         storyMix.used.stories,
@@ -239,6 +267,12 @@ export default function ProfileScreen() {
       );
     }
   };
+
+  useEffect(() => {
+    if (!storyMix || !shouldScrollToStoryMix) return;
+    const timer = setTimeout(scrollToStoryMix, 0);
+    return () => clearTimeout(timer);
+  }, [storyMix, shouldScrollToStoryMix]);
   const recentPrivacyRequests = useMemo(
     () => (privacyRequestsQuery.data ?? []).slice(0, 3),
     [privacyRequestsQuery.data]
@@ -528,6 +562,7 @@ export default function ProfileScreen() {
   return (
     <>
       <ScrollView
+        ref={profileScrollRef}
         contentContainerStyle={[styles.content, isMobile && styles.contentMobile]}
         testID="profile-screen"
         nativeID="tour-profile"
@@ -923,6 +958,10 @@ export default function ProfileScreen() {
             <AnimatedSection
               delay={280}
               trigger={enterKey}
+              onLayout={(event) => {
+                storyMixSectionOffsetRef.current = event.nativeEvent.layout.y;
+                scrollToStoryMix();
+              }}
               style={[styles.settingsPanel, isMobile && styles.settingsPanelMobile]}
             >
               <View style={styles.settingsPanelHeader}>
@@ -938,7 +977,21 @@ export default function ProfileScreen() {
                 <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
               ) : (
                 <>
-                  <Text style={styles.subscriptionPlan}>{currentPlanName}</Text>
+                  <View style={styles.subscriptionPlanRow}>
+                    <Text style={styles.subscriptionPlan}>{currentPlanName}</Text>
+                    <AppButton
+                      label={
+                        canManageSubscription
+                          ? t('billing.manage_subscription')
+                          : t('profile.upgrade_plan')
+                      }
+                      onPress={handleManageSubscription}
+                      disabled={createPortalSession.isPending}
+                      loading={createPortalSession.isPending}
+                      variant="primary"
+                      style={styles.subscriptionActionInline}
+                    />
+                  </View>
                   {hasPaymentIssue ? (
                     <Text style={styles.subscriptionDetail}>
                       {t('profile.subscription_payment_issue')}
@@ -967,7 +1020,7 @@ export default function ProfileScreen() {
                     </Text>
                   )}
                   {storyMix ? (
-                    <View style={styles.storyMixCard}>
+                    <View nativeID="story-mix" style={styles.storyMixCard}>
                       <Text style={styles.storyMixTitle}>
                         {t('profile.story_mix_title', { defaultValue: 'Your story mix this month' })}
                       </Text>
@@ -977,72 +1030,74 @@ export default function ProfileScreen() {
                             'Choose comics and mixed stories. Ordinary stories are calculated automatically.',
                         })}
                       </Text>
-                      <View style={styles.storyMixRow}>
-                        <Text style={styles.storyMixLabel}>
-                          {t('profile.story_mix_comics', { defaultValue: 'Comics' })}
-                        </Text>
-                        <View style={styles.storyMixControl}>
-                          <TouchableOpacity
-                            accessibilityLabel="Decrease comics"
-                            onPress={() =>
-                              setStoryMixGraphicNovels((value) =>
-                                Math.max(storyMix.used.graphicNovels, value - 1)
-                              )
-                            }
-                            style={styles.storyMixStep}
-                          >
-                            <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.storyMixValue}>{storyMixGraphicNovels}</Text>
-                          <TouchableOpacity
-                            accessibilityLabel="Increase comics"
-                            onPress={() =>
-                              setStoryMixGraphicNovels((value) =>
-                                Math.min(storyMixMaxGraphicNovels, value + 1)
-                              )
-                            }
-                            style={styles.storyMixStep}
-                          >
-                            <Ionicons name="add" size={18} color={theme.colors.text.primary} />
-                          </TouchableOpacity>
+                      <View style={styles.storyMixRows}>
+                        <View style={[styles.storyMixRow, styles.storyMixRowDivider]}>
+                          <Text style={styles.storyMixLabel}>
+                            {t('profile.story_mix_comics', { defaultValue: 'Comics' })}
+                          </Text>
+                          <View style={styles.storyMixControl}>
+                            <TouchableOpacity
+                              accessibilityLabel="Decrease comics"
+                              onPress={() =>
+                                setStoryMixGraphicNovels((value) =>
+                                  Math.max(storyMix.used.graphicNovels, value - 1)
+                                )
+                              }
+                              style={styles.storyMixStep}
+                            >
+                              <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
+                            </TouchableOpacity>
+                            <Text style={styles.storyMixValue}>{storyMixGraphicNovels}</Text>
+                            <TouchableOpacity
+                              accessibilityLabel="Increase comics"
+                              onPress={() =>
+                                setStoryMixGraphicNovels((value) =>
+                                  Math.min(storyMixMaxGraphicNovels, value + 1)
+                                )
+                              }
+                              style={styles.storyMixStep}
+                            >
+                              <Ionicons name="add" size={18} color={theme.colors.text.primary} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                      <View style={styles.storyMixRow}>
-                        <Text style={styles.storyMixLabel}>
-                          {t('profile.story_mix_mixed', { defaultValue: 'Comic-to-text story' })}
-                        </Text>
-                        <View style={styles.storyMixControl}>
-                          <TouchableOpacity
-                            accessibilityLabel="Decrease mixed stories"
-                            onPress={() =>
-                              setStoryMixMixedStories((value) =>
-                                Math.max(storyMix.used.mixedStories, value - 1)
-                              )
-                            }
-                            style={styles.storyMixStep}
-                          >
-                            <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.storyMixValue}>{storyMixMixedStories}</Text>
-                          <TouchableOpacity
-                            accessibilityLabel="Increase mixed stories"
-                            onPress={() =>
-                              setStoryMixMixedStories((value) =>
-                                Math.min(storyMixMaxMixedStories, value + 1)
-                              )
-                            }
-                            style={styles.storyMixStep}
-                          >
-                            <Ionicons name="add" size={18} color={theme.colors.text.primary} />
-                          </TouchableOpacity>
+                        <View style={[styles.storyMixRow, styles.storyMixRowDivider]}>
+                          <Text style={styles.storyMixLabel}>
+                            {t('profile.story_mix_mixed', { defaultValue: 'Comic-to-text story' })}
+                          </Text>
+                          <View style={styles.storyMixControl}>
+                            <TouchableOpacity
+                              accessibilityLabel="Decrease mixed stories"
+                              onPress={() =>
+                                setStoryMixMixedStories((value) =>
+                                  Math.max(storyMix.used.mixedStories, value - 1)
+                                )
+                              }
+                              style={styles.storyMixStep}
+                            >
+                              <Ionicons name="remove" size={18} color={theme.colors.text.primary} />
+                            </TouchableOpacity>
+                            <Text style={styles.storyMixValue}>{storyMixMixedStories}</Text>
+                            <TouchableOpacity
+                              accessibilityLabel="Increase mixed stories"
+                              onPress={() =>
+                                setStoryMixMixedStories((value) =>
+                                  Math.min(storyMixMaxMixedStories, value + 1)
+                                )
+                              }
+                              style={styles.storyMixStep}
+                            >
+                              <Ionicons name="add" size={18} color={theme.colors.text.primary} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                      <View style={styles.storyMixRow}>
-                        <Text style={styles.storyMixLabel}>
-                          {t('usage_summary.stories', { defaultValue: 'Stories' })}
-                        </Text>
-                        <View style={[styles.storyMixControl, styles.storyMixReadonlyControl]}>
-                          <Text style={styles.storyMixValue}>{storyMixStoriesLimit}</Text>
+                        <View style={styles.storyMixRow}>
+                          <Text style={styles.storyMixLabel}>
+                            {t('usage_summary.stories', { defaultValue: 'Stories' })}
+                          </Text>
+                          <View style={[styles.storyMixControl, styles.storyMixReadonlyControl]}>
+                            <Text style={styles.storyMixValue}>{storyMixStoriesLimit}</Text>
+                          </View>
                         </View>
                       </View>
                       <AppButton
@@ -1050,23 +1105,11 @@ export default function ProfileScreen() {
                         onPress={saveStoryMix}
                         loading={updateStoryMix.isPending}
                         disabled={updateStoryMix.isPending}
-                        variant="secondary"
+                        variant="primary"
                         style={styles.storyMixSave}
                       />
                     </View>
                   ) : null}
-                  <AppButton
-                    label={
-                      canManageSubscription
-                        ? t('billing.manage_subscription')
-                        : t('profile.upgrade_plan')
-                    }
-                    style={[styles.subscriptionAction, isMobile && styles.mobileFullWidthAction]}
-                    onPress={handleManageSubscription}
-                    disabled={createPortalSession.isPending}
-                    loading={createPortalSession.isPending}
-                    variant="primary"
-                  />
                 </>
               )}
             </AnimatedSection>
@@ -1957,9 +2000,16 @@ const styles = StyleSheet.create({
     ...modernShadows.subtle,
   },
   subscriptionPlan: {
+    flexShrink: 1,
     fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
+  },
+  subscriptionPlanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
     marginBottom: theme.spacing[2],
   },
   subscriptionDetail: {
@@ -1967,8 +2017,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginBottom: theme.spacing[4],
   },
-  subscriptionAction: {
-    alignSelf: 'flex-start',
+  subscriptionActionInline: {
+    flexShrink: 0,
     minWidth: 240,
   },
   storyMixCard: {
@@ -1989,11 +2039,20 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
   },
+  storyMixRows: {
+    width: '100%',
+  },
   storyMixRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing[3],
+    minHeight: 56,
+    paddingVertical: theme.spacing[2],
+  },
+  storyMixRowDivider: {
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
   },
   storyMixLabel: {
     flex: 1,

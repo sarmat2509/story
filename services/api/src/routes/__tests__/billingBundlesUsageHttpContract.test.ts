@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     updatedAt: now,
   };
   let storyMixEnabled = false;
-  const storyMixUsage = {
+  let storyMixUsage = {
     points: 35_480,
     stories: 2,
     graphicNovels: 4,
@@ -244,6 +244,27 @@ async function main(): Promise<void> {
     assert.equal(usageOkBody.data.enableRealPayments, false);
 
     storyMixEnabled = true;
+    storyMixUsage = {
+      points: 0,
+      stories: 0,
+      graphicNovels: 0,
+      mixedStories: 0,
+    };
+    const defaultStoryMix = await request('GET', '/api/v1/me/subscription-usage');
+    assert.equal(defaultStoryMix.status, 200);
+    const defaultStoryMixBody = (await defaultStoryMix.json()) as any;
+    assert.deepEqual(defaultStoryMixBody.data.storyMix.allocation, {
+      stories: 87,
+      graphicNovels: 1,
+      mixedStories: 1,
+    });
+
+    storyMixUsage = {
+      points: 35_480,
+      stories: 2,
+      graphicNovels: 4,
+      mixedStories: 0,
+    };
     subscription = {
       ...subscription,
       metadata: {

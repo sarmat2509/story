@@ -425,10 +425,14 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       storedAllocation?.periodStart === subscription.currentPeriodStart.toISOString();
     const requestedGraphicNovels = storedAllocationIsCurrentPeriod
       ? Math.max(0, Math.trunc(Number(storedAllocation?.graphicNovels) || 0))
-      : 0;
+      : graphicNovelsPlanLimit > 0
+        ? 1
+        : 0;
     const requestedMixedStories = storedAllocationIsCurrentPeriod
       ? Math.max(0, Math.trunc(Number(storedAllocation?.mixedStories) || 0))
-      : 0;
+      : mixedStoriesPlanLimit > 0
+        ? 1
+        : 0;
     const allocatedGraphicNovels = Math.max(
       storyMixUsage.graphicNovels,
       Math.min(

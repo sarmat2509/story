@@ -1774,6 +1774,7 @@
     "mixed_stories_in_story_limit": "Historie: komiks → tekst",
     "audio": "Historie audio",
     "remaining_of_limit": "Pozostalo {{remaining}} z {{limit}}",
+    "story_mix_profile_hint": "Możesz dostosować swoje preferencje w profilu.",
     "unlimited": "Bez limitu"
   },
   "paywall": {

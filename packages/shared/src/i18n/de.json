@@ -1743,6 +1743,7 @@
     "mixed_stories_in_story_limit": "Comic-zu-Text-Geschichten",
     "audio": "Audiogeschichten",
     "remaining_of_limit": "{{remaining}} von {{limit}} uebrig",
+    "story_mix_profile_hint": "Du kannst deine Präferenzen in deinem Profil anpassen.",
     "unlimited": "Unbegrenzt"
   },
   "paywall": {

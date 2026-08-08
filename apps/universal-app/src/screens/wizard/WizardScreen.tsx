@@ -623,6 +623,7 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
           limit: bucket.limit,
           defaultValue: '{{remaining}} of {{limit}} left',
         });
+  const openStoryMixPreferences = () => navigation.navigate('Profile', { scrollToStoryMix: true });
 
   useEffect(() => {
     const tourStep = route.params?.tourStep;
@@ -1468,6 +1469,19 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
                           : {formatUsageLimitLabel(usage.mixedStories)}
                         </Text>
                       ) : null}
+                      {usage.storyMix && !isSchedulerMode ? (
+                        <TouchableOpacity
+                          accessibilityRole="link"
+                          onPress={openStoryMixPreferences}
+                          style={styles.summaryPreferencesLink}
+                        >
+                          <Text style={styles.summaryPreferencesLinkText}>
+                            {t('usage_summary.story_mix_profile_hint', {
+                              defaultValue: 'You can customize your preferences in your profile.',
+                            })}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   ) : null}
                   {!isSchedulerMode ? (
@@ -1585,6 +1599,19 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
                           })}
                           : {formatUsageLimitLabel(usage.mixedStories)}
                         </Text>
+                      ) : null}
+                      {usage.storyMix && !isSchedulerMode ? (
+                        <TouchableOpacity
+                          accessibilityRole="link"
+                          onPress={openStoryMixPreferences}
+                          style={styles.summaryPreferencesLink}
+                        >
+                          <Text style={styles.summaryPreferencesLinkText}>
+                            {t('usage_summary.story_mix_profile_hint', {
+                              defaultValue: 'You can customize your preferences in your profile.',
+                            })}
+                          </Text>
+                        </TouchableOpacity>
                       ) : null}
                     </View>
                   ) : null}
@@ -2130,6 +2157,15 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
+  },
+  summaryPreferencesLink: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[1],
+  },
+  summaryPreferencesLinkText: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.interactive.primary,
+    textDecorationLine: 'underline',
   },
   summaryActions: {
     flexDirection: 'row',
