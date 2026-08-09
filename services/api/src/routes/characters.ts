@@ -31,8 +31,32 @@ import {
 } from '../services/turnaroundSheetService';
 import { getChildProfileRepository } from '../repositories';
 import { getSavedCharacterPreview } from '../services/publicCharacterSharingService';
+import {
+  assertProfileTextSafety,
+  isPromptSafetyError,
+} from '../services/promptSafetyService';
+import { z } from 'zod';
 
 const router = Router();
+
+const UpdateHiddenCharacterDescriptionSchema = z
+  .object({
+    isHidden: z.boolean(),
+    description: z.string().max(5000).nullable(),
+  })
+  .strict();
+
+function sendPromptSafetyError(res: Response, error: unknown): boolean {
+  if (!isPromptSafetyError(error)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    category: error.category,
+    source: error.source,
+  });
+  return true;
+}
 
 function requireParentOrScopedChildSession(req: Request, res: Response, next: NextFunction): void {
   if (req.sessionMode !== 'child') {
@@ -437,6 +461,12 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
       createdByChildProfileId: req.sessionMode === 'child' ? req.childProfileId! : null,
     };
 
+    assertProfileTextSafety({
+      userId,
+      source: 'character_profile',
+      value: data,
+    });
+
     if (data.childProfileId) {
       const childProfile = await getChildProfileRepository().findById(data.childProfileId, userId);
       if (!childProfile) {
@@ -733,7 +763,15 @@ router.patch('/:id', requireAuth, requireParentOrScopedChildSession, async (req,
 
     let data: any;
     if (hasIsHidden && keys.length === 2 && hasDescription) {
-      data = { isHidden: req.body.isHidden, description: req.body.description };
+      const validation = UpdateHiddenCharacterDescriptionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          status: 'error',
+          error: 'Validation failed',
+          details: validation.error.format(),
+        });
+      }
+      data = validation.data;
     } else {
       const validation = UpdateCharacterSchema.safeParse(req.body);
       if (!validation.success) {
@@ -745,6 +783,12 @@ router.patch('/:id', requireAuth, requireParentOrScopedChildSession, async (req,
       }
       data = validation.data;
     }
+
+    assertProfileTextSafety({
+      userId,
+      source: 'character_profile',
+      value: data,
+    });
 
     const incomingReferencePhotos = (data as { referencePhotos?: unknown }).referencePhotos;
     const referencePhotosChanged =
@@ -812,6 +856,7 @@ router.patch('/:id', requireAuth, requireParentOrScopedChildSession, async (req,
       character: characterToReturn ?? character,
     });
   } catch (error: unknown) {
+    if (sendPromptSafetyError(res, error)) return;
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendCharacterQuotaError(res, error)) return;

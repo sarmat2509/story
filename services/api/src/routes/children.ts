@@ -40,6 +40,10 @@ import {
 import { getChildPhotoValidationService } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
 import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
+import {
+  assertProfileTextSafety,
+  isPromptSafetyError,
+} from '../services/promptSafetyService';
 
 const router = Router();
 
@@ -90,6 +94,21 @@ function sendChildPhotoValidationError(
     code: error.code,
     error: error.message,
     index: error.index,
+  });
+  return true;
+}
+
+function sendPromptSafetyError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!isPromptSafetyError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    category: error.category,
+    source: error.source,
   });
   return true;
 }
@@ -473,6 +492,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     }
 
     const data = validation.data;
+    assertProfileTextSafety({ userId, source: 'child_profile', value: data });
     if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
 
     const referencePhotoUrls = getReferencePhotoUrls(data.referencePhotos);
@@ -565,6 +585,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       child: profileWithAge,
     });
   } catch (error: unknown) {
+    if (sendPromptSafetyError(res, error)) return;
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendChildPhotoValidationError(res, error)) return;
@@ -745,6 +766,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     }
 
     const data = validation.data;
+    assertProfileTextSafety({ userId, source: 'child_profile', value: data });
     const dataForUpdate = {
       ...data,
       ...(data.birthDate && {
@@ -765,6 +787,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
       child: profileWithAge,
     });
   } catch (error: unknown) {
+    if (sendPromptSafetyError(res, error)) return;
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('not found')) {
       return res.status(404).json({

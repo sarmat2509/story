@@ -385,8 +385,8 @@ const GenerateFromPhotosSchema = z.object({
   scenario: z.string(),
   language: LocaleSchema,
   childProfileId: z.string().uuid().optional(),
-  goals: z.array(z.string().optional()).optional().default([]),
-  imageStyle: z.string().optional(),
+  goals: z.array(z.string().max(50).optional()).max(5).optional().default([]),
+  imageStyle: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),
 });
 

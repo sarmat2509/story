@@ -12,6 +12,7 @@ import { generateEmbedding } from './embeddingService';
 import { extractFrontFromTurnaround } from './turnaroundFrontExtractor';
 import { getCharacterRepository, getChildProfileRepository, getLlmTurnaroundCacheRepository } from '../repositories';
 import { logger } from '../utils/logger';
+import { assertProfileTextSafety } from './promptSafetyService';
 import config from '../config';
 import {
   getLlmTurnaroundImageDomainService,
@@ -92,6 +93,12 @@ export async function generateTurnaroundSheetFromReference(
     aiDescription,
     currentAgeMonths,
   } = params;
+
+  assertProfileTextSafety({
+    userId,
+    source: 'turnaround_input',
+    value: { characterName, aiDescription },
+  });
 
   const firstUrl = referencePhotoUrls.find(u => u && u.trim());
   if (!firstUrl) {
@@ -202,6 +209,12 @@ export async function generateTurnaroundSheetFromDescription(
   params: TurnaroundSheetFromDescriptionParams,
 ): Promise<TurnaroundSheetResult> {
   const { targetId, characterName, characterDescription, currentAgeMonths, userId } = params;
+
+  assertProfileTextSafety({
+    userId,
+    source: 'turnaround_input',
+    value: { characterName, characterDescription },
+  });
 
   logger.info({
     childId: targetId,
@@ -316,6 +329,12 @@ export async function generateLlmCharacterTurnaround(
   params: LlmCharacterTurnaroundParams,
 ): Promise<TurnaroundSheetResult> {
   const { characterId, userId, characterName, characterDescription, imageStyle, storyId, useCache = true } = params;
+
+  assertProfileTextSafety({
+    userId,
+    source: 'turnaround_input',
+    value: { characterName, characterDescription },
+  });
 
   logger.info({
     characterId,

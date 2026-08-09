@@ -10,7 +10,8 @@ export type PromptSafetyCategory =
   | 'self_harm'
   | 'graphic_violence'
   | 'dangerous_instructions'
-  | 'hate_or_extremism';
+  | 'hate_or_extremism'
+  | 'prompt_injection';
 
 export type PromptSafetySource =
   | 'story_goal'
@@ -20,8 +21,12 @@ export type PromptSafetySource =
   | 'child_mode_story_goal'
   | 'child_mode_story_notes'
   | 'story_continuation_notes'
+  | 'story_image_style'
   | 'scene_regeneration_prompt'
-  | 'map_tile_generation_prompt';
+  | 'map_tile_generation_prompt'
+  | 'character_profile'
+  | 'child_profile'
+  | 'turnaround_input';
 
 export type PromptSafetyDecision =
   | { allowed: true }
@@ -41,6 +46,9 @@ interface PromptSafetyRule {
 
 const PROMPT_SAFETY_BLOCK_MESSAGE =
   'This prompt cannot be used for a children story. Please choose a safer idea.';
+
+const PROMPT_INJECTION_BLOCK_MESSAGE =
+  'Please enter a child-friendly description or preference, not instructions for the story generator.';
 
 const PROMPT_SAFETY_RULES: PromptSafetyRule[] = [
   {
@@ -94,6 +102,16 @@ const PROMPT_SAFETY_RULES: PromptSafetyRule[] = [
       /(?:нацистск[а-я]* пропаганд|геноцид)/iu,
     ],
   },
+  {
+    id: 'prompt-injection',
+    category: 'prompt_injection',
+    patterns: [
+      /\b(?:ignore|disregard|override|forget|bypass)\b.{0,80}?\b(?:previous|prior|system|developer|instructions?|rules?|policy|safety|moderation)\b/iu,
+      /\b(?:system\s*(?:prompt|message)|developer\s*message|jailbreak|prompt\s*injection|do\s+anything\s+now)\b/iu,
+      /(?:игнорир|пренебрег|обойд|отмен).{0,80}?(?:предыдущ|инструкц|правил|систем|модерац|безопасност)/iu,
+      /(?:ігнор|знехту|обійд|скасу).{0,80}?(?:попередн|інструкц|правил|систем|модерац|безпек)/iu,
+    ],
+  },
 ];
 
 export class PromptSafetyError extends Error {
@@ -117,7 +135,12 @@ export function isPromptSafetyError(error: unknown): error is PromptSafetyError 
 }
 
 function normalizePromptText(text: string): string {
-  return text.normalize('NFKC').replace(/\s+/g, ' ').trim();
+  return text
+    .normalize('NFKC')
+    .replace(/[\p{Cc}]/gu, ' ')
+    .replace(/[\p{Cf}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function evaluatePromptSafety(text: string | null | undefined): PromptSafetyDecision {
@@ -133,7 +156,10 @@ export function evaluatePromptSafety(text: string | null | undefined): PromptSaf
         code: 'PROMPT_SAFETY_BLOCKED',
         category: rule.category,
         ruleId: rule.id,
-        message: PROMPT_SAFETY_BLOCK_MESSAGE,
+        message:
+          rule.category === 'prompt_injection'
+            ? PROMPT_INJECTION_BLOCK_MESSAGE
+            : PROMPT_SAFETY_BLOCK_MESSAGE,
       };
     }
   }
@@ -186,6 +212,7 @@ export function assertStoryPromptSafety(input: {
   userId?: string;
   goal?: string | null;
   userNotes?: string | null;
+  imageStyle?: string | null;
   goalSource?: Extract<PromptSafetySource, 'story_goal' | 'instant_story_goal' | 'child_mode_story_goal'>;
   notesSource?: Extract<
     PromptSafetySource,
@@ -200,6 +227,45 @@ export function assertStoryPromptSafety(input: {
   assertPromptSafety({
     text: input.userNotes,
     source: input.notesSource ?? 'story_user_notes',
+    userId: input.userId,
+  });
+  assertPromptSafety({
+    text: input.imageStyle,
+    source: 'story_image_style',
+    userId: input.userId,
+  });
+}
+
+function collectTextLeaves(value: unknown, output: string[]): void {
+  if (typeof value === 'string') {
+    output.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextLeaves(item, output);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      collectTextLeaves(item, output);
+    }
+  }
+}
+
+/**
+ * All profile fields accepted from the client are untrusted, including fields
+ * named `aiGeneratedDescription`: clients can submit those values directly.
+ */
+export function assertProfileTextSafety(input: {
+  userId?: string;
+  source: Extract<PromptSafetySource, 'character_profile' | 'child_profile' | 'turnaround_input'>;
+  value: unknown;
+}): void {
+  const values: string[] = [];
+  collectTextLeaves(input.value, values);
+  assertPromptSafety({
+    text: values.join('\n'),
+    source: input.source,
     userId: input.userId,
   });
 }

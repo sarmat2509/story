@@ -526,6 +526,7 @@ export async function createStoryRequest(
       userId,
       goal: input.goal,
       userNotes: input.userNotes,
+      imageStyle: (input as { imageStyle?: string | null }).imageStyle,
       goalSource:
         quotaSource === 'instant'
           ? 'instant_story_goal'
