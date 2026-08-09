@@ -46,9 +46,9 @@ export interface ImageValidationPromptParams {
 
 const IMAGE_TEXT_CACHE_VARIANT = shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored';
 export const IMAGE_VALIDATION_CACHE_KEY_FULL =
-  `image_validation_rules_full_v23_${IMAGE_TEXT_CACHE_VARIANT}`;
+  `image_validation_rules_full_v26_${IMAGE_TEXT_CACHE_VARIANT}`;
 export const IMAGE_VALIDATION_CACHE_KEY_LITE =
-  `image_validation_rules_lite_v11_${IMAGE_TEXT_CACHE_VARIANT}`;
+  `image_validation_rules_lite_v14_${IMAGE_TEXT_CACHE_VARIANT}`;
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';
@@ -102,6 +102,8 @@ ${imageTextValidationPromptLines().join('\n')}
 	- Set hasSceneCompositionMismatch=true when the image adds, duplicates, or omits a clearly specified countable scene anchor (such as a window, door, portal, mirror, framed opening, sky view, or celestial subject). A singular "the window" or "the Moon" means exactly one unless the brief explicitly says otherwise.
 - Use the authoritative designer scene brief as ground truth for this specific scene.
 - Scene-specific states from the designer brief are valid: transparent, glowing, startled, mid-action, sleepy, flying, wet, dusty, magical, or otherwise temporarily changed characters.
+- Treat figurative action comparisons as movement direction, not literal transformations. For an expected HUMAN, an unexpected tail, fin, wing, animal limb, or replaced/missing human legs is a rendering artifact unless the authoritative brief explicitly requests that literal transformation.
+- If the authoritative scene brief explicitly defines a camera medium or view boundary, enforce it. Set hasSceneCompositionMismatch=true when Image 1 shows an incompatible exterior or viewpoint: for example, a top-down/exterior fountain view when camera and characters must be fully underwater inside the basin, or an open sky/shore/rim that the brief says is outside frame.
 - Identity failures require visible evidence available in this validation run.
 
 	Output JSON rules:
@@ -137,6 +139,7 @@ Identity rules:
 - If HUMAN hairMatchesReference=false, recognizableScore cannot be 1.0. Do not claim "hair color/style matches" when only broad color matches but hairstyle structure or hair color zoning differs.
 - ANIMAL: highest-weight checks are body type / silhouette, species read (e.g. hamster vs cat), head/muzzle shape, proportions, fur/feather pattern, and stable markings/coloration. For ANIMAL, interpret sameOverallDesignRead = same body type + species read, silhouetteDriftSeverity = body-proportions/silhouette drift, proportionsMatchReference = head-to-body ratio. Leave faceMatchesReference / hairMatchesReference / ageReadMatchesReference as null for animals — those are human identity slots.
 - IMAGINARY_CREATURE: highest-weight checks are silhouette, body type, subtype read, head/muzzle shape, proportions, and signature markings/colors. Use the same sameOverallDesignRead / silhouetteDriftSeverity / proportionsMatchReference fields as animals; leave human-only identity booleans null.
+- HUMAN anatomy is locked by the reference. An unrequested tail, fin, wing, animal limb, or replacement/removal of the reference-defined human legs is severe identity/anatomy drift, even when the scene uses figurative wording such as "swimming like a mermaid". Set sameOverallDesignRead=false, silhouetteDriftSeverity="severe", lower recognizableScore meaningfully, and state the visible anatomy drift in issue and identityComparisonSummary. Accept a literal transformation only when the authoritative scene brief explicitly requests it and it is compatible with the attached character reference.
 - Matching clothes, palette, pose, or broad archetype cannot compensate for wrong identity.
 - If first-glance design read drifts, recognizableScore must drop meaningfully.
 - Temporary expression changes alone are NOT identity drift. A sad vs happy expression, different gaze direction, or scene-driven eyebrow/eyelid change should not materially lower recognizableScore if the same design is still obvious at first glance.
@@ -160,6 +163,7 @@ Scoring guide:
 - Check duplicates, missing characters, unexpected characters, and rendering artifacts.
 ${imageTextValidationPromptLines().join('\n')}
 - Set hasSceneCompositionMismatch=true when the image adds, duplicates, or omits a clearly specified countable scene anchor (such as a window, door, portal, mirror, framed opening, sky view, or celestial subject). A singular "the window" or "the Moon" means exactly one unless the brief explicitly says otherwise. Multiple views on a turnaround sheet are reference views, never multiple scene subjects.
+- Also set hasSceneCompositionMismatch=true when Image 1 violates an explicit camera medium or view boundary in the scene brief, such as showing an exterior/top-down fountain view when the camera is fully underwater in the basin, or showing an exterior rim, plaza, shore, or sky explicitly kept outside frame.
 - Apply scene-appropriate occlusion before failing outfit or visibility checks.
 
 Output JSON rules:

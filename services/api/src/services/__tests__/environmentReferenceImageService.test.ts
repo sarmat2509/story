@@ -40,6 +40,7 @@ function createDeps(
       id: string;
       storagePath: string;
       storageUrl?: string | null;
+      description?: string;
       score?: number;
     }>;
     storyMapping?: { cacheId: string } | null;
@@ -64,7 +65,7 @@ function createDeps(
           `cache:findSimilarMany:${embedding.join(',')}:${threshold}:${findOptions?.descriptionPrefix ?? ''}`
         );
         return (options.similarCandidates ?? []).map((candidate) => ({
-          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX} cached moon garden`,
+          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=exterior] cached moon garden`,
           storageUrl: null,
           score: 0.96,
           ...candidate,
@@ -162,7 +163,7 @@ async function testCurrentStoryEnvironmentCacheHitTakesPriority() {
       },
       cachedRows: {
         'current-story-cache': {
-          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX} cached moon garden`,
+          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=exterior] cached moon garden`,
           storagePath: 'environment-cache/current-story-cache.png',
         },
       },
@@ -193,7 +194,7 @@ async function testSeriesEnvironmentCacheHitTakesPriority() {
       },
       cachedRows: {
         'series-cache': {
-          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX} cached moon garden`,
+          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=exterior] cached moon garden`,
           storagePath: 'environment-cache/series-cache.png',
         },
       },
@@ -231,6 +232,74 @@ async function testCrossEnvironmentHitAt95IsSkipped() {
   assert.equal(events.includes('asset:get:environment-cache/threshold-cache.png'), false);
 }
 
+async function testUnderwaterInteriorNeverReusesExteriorPlateAcrossEnvironmentIds() {
+  const events: string[] = [];
+  const underwaterEnvironment = {
+    id: 'underwater_fountain_basin',
+    name: 'Underwater fountain basin interior',
+    description:
+      'Fully submerged underwater interior of a stone fountain basin, with curved stone floor and walls. The exterior rim and plaza are outside frame.',
+  };
+  const result = await getOrCreateEnvironmentImageCore(
+    {
+      ...createBaseRequest(events),
+      storyEnvironmentId: underwaterEnvironment.id,
+      environment: underwaterEnvironment,
+    },
+    createDeps(events, {
+      similarCandidates: [
+        {
+          id: 'exterior-fountain',
+          storagePath: 'environment-cache/exterior-fountain.png',
+          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=exterior] exterior fountain`,
+          score: 0.99,
+        },
+      ],
+    })
+  );
+
+  assert.match(result?.storagePath ?? '', /^environment-cache\/[a-f0-9-]+\.png$/);
+  assert.ok(events.includes('provider:generateImage'));
+  assert.equal(events.includes('asset:get:environment-cache/exterior-fountain.png'), false);
+  assert.equal(
+    events.some((event) => event.startsWith('cache:findSimilarMany:')),
+    true,
+    'An underwater plate may search the cache, but it must reject a candidate from another viewpoint kind'
+  );
+}
+
+async function testCurrentStoryCacheRejectsMismatchedViewpointKind() {
+  const events: string[] = [];
+  const underwaterEnvironment = {
+    id: 'fountain_basin',
+    name: 'Underwater fountain basin',
+    viewpointKind: 'submerged' as const,
+    description: 'Submerged stone basin interior under blue water.',
+  };
+  const result = await getOrCreateEnvironmentImageCore(
+    {
+      ...createBaseRequest(events),
+      storyEnvironmentId: underwaterEnvironment.id,
+      environment: underwaterEnvironment,
+    },
+    createDeps(events, {
+      storyMappings: {
+        [`story-1:${underwaterEnvironment.id}`]: { cacheId: 'old-exterior-cache' },
+      },
+      cachedRows: {
+        'old-exterior-cache': {
+          description: `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=exterior] fountain exterior`,
+          storagePath: 'environment-cache/old-exterior-cache.png',
+        },
+      },
+    })
+  );
+
+  assert.match(result?.storagePath ?? '', /^environment-cache\/[a-f0-9-]+\.png$/);
+  assert.ok(events.includes('provider:generateImage'));
+  assert.equal(events.includes('asset:get:environment-cache/old-exterior-cache.png'), false);
+}
+
 async function testVectorSearchHappensBeforeGenerationOnMiss() {
   const events: string[] = [];
   const result = await getOrCreateEnvironmentImageCore(
@@ -260,6 +329,8 @@ async function main() {
   await testCurrentStoryEnvironmentCacheHitTakesPriority();
   await testSeriesEnvironmentCacheHitTakesPriority();
   await testCrossEnvironmentHitAt95IsSkipped();
+  await testUnderwaterInteriorNeverReusesExteriorPlateAcrossEnvironmentIds();
+  await testCurrentStoryCacheRejectsMismatchedViewpointKind();
   await testVectorSearchHappensBeforeGenerationOnMiss();
   console.log('environmentReferenceImageService tests passed');
 }

@@ -50,7 +50,7 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
       type: 'string',
       minLength: 1,
       description:
-        'Position in frame, posture, action, expression. IN ENGLISH. Object-contact actions require explicit physical staging: body position beside or in front of the fixed object, exact contact point, and the named handle, surface, window, door, panel, control, or affected object.',
+        'Position in frame, posture, action, expression. IN ENGLISH. Use literal, observable staging only: describe the actual pose and movement, never similes, metaphors, species comparisons, or transformation language (for example, write "swimming horizontally with arms extended" rather than "swimming like a mermaid"). Object-contact actions require explicit physical staging: body position beside or in front of the fixed object, exact contact point, and the named handle, surface, window, door, panel, control, or affected object.',
     },
     outfitId: {
       type: 'string',
@@ -292,7 +292,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     hasSceneCompositionMismatch: {
       type: 'boolean',
       description:
-        'Whether the artwork violates an explicit scene composition constraint by adding, duplicating, or missing a countable anchor such as a window, door, portal, mirror, framed opening, sky view, or celestial subject. When the brief says "the window" or "the Moon" in singular, extra copies must be reported.',
+        'Whether the artwork violates an explicit scene composition constraint by adding, duplicating, or missing a countable anchor such as a window, door, portal, mirror, framed opening, sky view, or celestial subject, OR violates an explicit camera medium/view boundary (for example an exterior/top-down fountain view when the brief requires the camera fully underwater inside its basin). When the brief says "the window" or "the Moon" in singular, extra copies must be reported.',
     },
     overallFeedback: { type: 'string', description: 'Human-readable summary of all issues found' },
   },
@@ -399,8 +399,8 @@ export const SCENE_SCHEMA: JsonSchema = {
       properties: {
         setting: {
           type: 'string',
-          description:
-            'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.',
+        description:
+          'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). For a restricted/interior/fully immersed camera view, explicitly state the camera medium and frame boundary when it matters (for example, both camera and characters are underwater and the surface/exterior is outside frame). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.',
         },
         cameraComposition: {
           type: 'object',
@@ -408,7 +408,7 @@ export const SCENE_SCHEMA: JsonSchema = {
             shot: {
               type: 'string',
               description:
-                'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, and framing.',
+                'Camera angle IN ENGLISH: shot type (wide/medium/close-up), camera position/medium, viewing direction, eye level, and framing. For underwater/interior/restricted views, specify whether the camera is inside that volume and whether it looks level, upward, or toward an opening.',
             },
             characters: {
               type: 'array',

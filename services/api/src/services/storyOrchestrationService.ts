@@ -4409,7 +4409,7 @@ export function computeValidationScore(
       }
     }
   }
-  if (config.image.validationCheckTextOrSymbols && validation.hasTextOrLetters) {
+  if (validation.hasTextOrLetters) {
     score -= p.textPenalty;
   }
   if (validation.hasSceneCompositionMismatch) score -= p.artifactsPenalty;
@@ -4426,10 +4426,7 @@ export function computeValidationScore(
  * This includes leaked reference-sheet titles/identifiers reported through hasTextOrLetters.
  */
 export function hasBlockingUnwantedImageText(validation: ImageValidationResult): boolean {
-  return (
-    config.image.validationCheckTextOrSymbols &&
-    validation.hasTextOrLetters === true
-  );
+  return validation.hasTextOrLetters === true;
 }
 
 /** Explicit scene-structure violations must be repaired even when identity scoring is high. */
@@ -4716,11 +4713,11 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
       )
     );
   }
-  if (config.image.validationCheckTextOrSymbols && validation.hasTextOrLetters)
+  if (validation.hasTextOrLetters)
     issues.push(
       makeRepairIssue(
         'text',
-        'Remove all visible text or lettering, including any leaked reference-sheet title or REF_* identifier.'
+        'Remove every label, title, caption, REF_* identifier, and descriptive/reference/UI block. Restore continuous surrounding storybook artwork in its place.'
       )
     );
   if (validation.hasSceneCompositionMismatch)

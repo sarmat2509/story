@@ -27,11 +27,11 @@ import {
 } from '../../domain/image/imageValidationRun';
 import { optionalNoVisibleTextRule } from './ImageTextPolicy';
 
-export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v3_color';
+export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v5_viewpoint_kind';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
 function resolveCharacterImageIndex(
   characterName: string,
-  imageIndexMap?: Map<string, number>,
+  imageIndexMap?: Map<string, number>
 ): number | undefined {
   if (!imageIndexMap || imageIndexMap.size === 0) return undefined;
   if (imageIndexMap.has(characterName)) return imageIndexMap.get(characterName);
@@ -112,10 +112,7 @@ function nameAliasVariants(name: string): string[] {
   const seeds = new Set<string>([full, base]);
   const baseParts = base.split(/\s+/).filter(Boolean);
   if (baseParts.length > 1) {
-    const shortName = baseParts.at(-1)?.replace(
-      /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu,
-      '',
-    );
+    const shortName = baseParts.at(-1)?.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
     if (shortName && shortName.length >= 2) seeds.add(shortName);
   }
 
@@ -146,11 +143,7 @@ function nameAliasVariants(name: string): string[] {
   return [...variants].filter((value) => value.length >= 2);
 }
 
-function addPromptName(
-  context: PromptNameContext,
-  name: string,
-  label: string,
-): void {
+function addPromptName(context: PromptNameContext, name: string, label: string): void {
   const normalized = normalizedPromptName(name);
   if (normalized) context.byNormalizedName.set(normalized, label);
   for (const variant of nameAliasVariants(name)) {
@@ -160,17 +153,19 @@ function addPromptName(
 
 function normalizeReplacementAliases(context: PromptNameContext): void {
   context.replacementAliases = context.replacementAliases
-    .filter((entry, index, list) =>
-      list.findIndex((other) =>
-        other.alias.toLowerCase() === entry.alias.toLowerCase() && other.label === entry.label,
-      ) === index,
+    .filter(
+      (entry, index, list) =>
+        list.findIndex(
+          (other) =>
+            other.alias.toLowerCase() === entry.alias.toLowerCase() && other.label === entry.label
+        ) === index
     )
     .sort((a, b) => b.alias.length - a.alias.length);
 }
 
 function applyReferenceBindingAliases(
   context: PromptNameContext,
-  referenceImages?: ReferenceBindingInput[],
+  referenceImages?: ReferenceBindingInput[]
 ): void {
   for (const ref of referenceImages ?? []) {
     if (referenceBindingKind(ref) !== 'character' || !ref.characterName) continue;
@@ -203,7 +198,9 @@ function applyReferenceBindingAliases(
 function buildPromptNameContext(params: {
   sceneVisual: SceneVisual;
   imageIndexMap?: Map<string, number>;
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  referenceCharacterNames?: Array<
+    string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }
+  >;
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   referenceImages?: ReferenceBindingInput[];
 }): PromptNameContext {
@@ -217,11 +214,10 @@ function buildPromptNameContext(params: {
     typeof params.sceneVisual.cameraComposition === 'string'
       ? []
       : params.sceneVisual.cameraComposition.characters.map((char) => char.name);
-  const rawReferenceEntries =
-    (params.referenceCharacterNames ?? []).map((entry) => ({
-      name: typeof entry === 'string' ? entry : entry.name,
-      nameAliases: typeof entry === 'string' ? [] : (entry.nameAliases ?? []),
-    }));
+  const rawReferenceEntries = (params.referenceCharacterNames ?? []).map((entry) => ({
+    name: typeof entry === 'string' ? entry : entry.name,
+    nameAliases: typeof entry === 'string' ? [] : (entry.nameAliases ?? []),
+  }));
   const rawReferenceNames = rawReferenceEntries.map((entry) => entry.name);
   const placeholderMap = buildPlaceholderReferenceNameMap(rawReferenceNames, sceneCharacterNames);
 
@@ -229,7 +225,7 @@ function buildPromptNameContext(params: {
     name: string | undefined,
     imageIdx?: number,
     originalName?: string,
-    nameAliases?: string[],
+    nameAliases?: string[]
   ) => {
     if (!name) return;
     const normalized = normalizedPromptName(name);
@@ -260,14 +256,16 @@ function buildPromptNameContext(params: {
           resolveCharacterImageIndex(resolvedName, params.imageIndexMap),
       };
     })
-    .sort((a, b) => (a.imageIdx ?? Number.MAX_SAFE_INTEGER) - (b.imageIdx ?? Number.MAX_SAFE_INTEGER));
+    .sort(
+      (a, b) => (a.imageIdx ?? Number.MAX_SAFE_INTEGER) - (b.imageIdx ?? Number.MAX_SAFE_INTEGER)
+    );
 
   for (const candidate of referenceCandidates) {
     addCandidate(
       candidate.resolvedName,
       candidate.imageIdx,
       candidate.originalName,
-      candidate.nameAliases,
+      candidate.nameAliases
     );
   }
 
@@ -280,7 +278,7 @@ function buildPromptNameContext(params: {
       char.name,
       resolveCharacterImageIndex(char.name, params.imageIndexMap),
       undefined,
-      char.nameAliases,
+      char.nameAliases
     );
   }
 
@@ -296,7 +294,7 @@ function replacePromptNames(text: string, nameContext?: PromptNameContext): stri
   for (const { alias, label } of nameContext.replacementAliases) {
     const pattern = new RegExp(
       `(^|[^\\p{L}\\p{N}_])(${escapeRegExp(alias)})(?=$|[^\\p{L}\\p{N}_])`,
-      'giu',
+      'giu'
     );
     result = result.replace(pattern, `$1${label}`);
   }
@@ -306,7 +304,7 @@ function replacePromptNames(text: string, nameContext?: PromptNameContext): stri
 function getPromptLabelForName(
   name: string,
   nameContext?: PromptNameContext,
-  imageIdx?: number,
+  imageIdx?: number
 ): string {
   if (imageIdx !== undefined) {
     const byImage = nameContext?.byImageIndex.get(imageIdx);
@@ -319,7 +317,7 @@ function getPromptLabelForName(
 function promptReferenceLabel(
   label: string,
   imageIdx?: number,
-  ref?: ReferenceBindingInput,
+  ref?: ReferenceBindingInput
 ): string {
   if (ref) {
     return referenceBindingLabel(ref, imageIdx);
@@ -331,7 +329,10 @@ function promptReferenceLabel(
 function sanitizeSettingForImagePrompt(setting: string): string {
   if (!setting.trim()) return setting;
   let sanitized = setting;
-  sanitized = sanitized.replace(/\[\s*(?:STYLE|PROMPT|NOTE|INSTRUCTION|CAMERA|LIGHTING)\s*:[^\]]*\]/gi, '');
+  sanitized = sanitized.replace(
+    /\[\s*(?:STYLE|PROMPT|NOTE|INSTRUCTION|CAMERA|LIGHTING)\s*:[^\]]*\]/gi,
+    ''
+  );
   const inlineStyleClauses = [
     /\b(?:a|an)\s+watercolor\s+children[’'`]s-book\s+look\b[^.?!;]*/gi,
     /\b(?:a|an)\s+storybook\s+look\b[^.?!;]*/gi,
@@ -377,56 +378,67 @@ function sanitizeEnvironmentDescriptionForReferenceImage(description: string): s
   // Treat character-owned body/location names as inert terrain for environment plates.
   sanitized = sanitized.replace(
     /\bon top of\s+[\p{Lu}][\p{L}'’`-]*[’'`]\s*s\s+shell\b/giu,
-    'on top of a large inert shell-shaped landform',
+    'on top of a large inert shell-shaped landform'
   );
   sanitized = sanitized.replace(
     /\bthe rounded rise of\s+(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+shell\s+pushing up from under/giu,
-    'the rounded rise of a large inert shell-shaped mound under',
+    'the rounded rise of a large inert shell-shaped mound under'
   );
   sanitized = sanitized.replace(
     /\b(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+shell\b/giu,
-    'a large inert shell-shaped landform',
+    'a large inert shell-shaped landform'
   );
   sanitized = sanitized.replace(
     /\b(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+([a-z][\p{L}-]*)\b/giu,
-    'the $1',
+    'the $1'
   );
   sanitized = sanitized.replace(/\bthe\s+the\b/gi, 'the');
 
   // Scale comparisons must not invite the character into the environment image.
   sanitized = sanitized.replace(
     /\(\s*(?:to|for|relative to|compared to)\s+[\p{Lu}][\p{L}'’`-]*(?:\s+[A-Z][\p{L}'’`-]*)?\s*\)/gu,
-    '(small-story scale)',
+    '(small-story scale)'
   );
   sanitized = sanitized.replace(
     /\b(?:waist|knee|ankle|shoulder|head)[-\s]high\s+\(small-story scale\)/gi,
-    'small-story-scale height',
+    'small-story-scale height'
   );
   sanitized = sanitized.replace(
     /\b(?:waist|knee|ankle|shoulder|head)[-\s]high\s+to\s+[\p{Lu}][\p{L}'’`-]*\b/gu,
-    'small-story-scale height',
+    'small-story-scale height'
   );
 
   // Environment references are reusable plates, so living extras become static traces.
   const creatureWords =
     '(?:people|persons|children|kids|boys|girls|adults|characters|animals|creatures|snails|birds|mice|rabbits|dogs|cats|insects|butterflies|bees)';
   sanitized = sanitized.replace(
-    new RegExp(`\\bwhere\\s+${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`, 'giu'),
-    'where small static traces remain',
+    new RegExp(
+      `\\bwhere\\s+${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`,
+      'giu'
+    ),
+    'where small static traces remain'
   );
   sanitized = sanitized.replace(
-    new RegExp(`\\b${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`, 'giu'),
-    'small static traces remain',
+    new RegExp(
+      `\\b${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`,
+      'giu'
+    ),
+    'small static traces remain'
   );
 
   return cleanupPromptText(sanitized);
 }
 
-export function buildEnvironmentImageCacheDescription(description: string): string {
-  return `${ENVIRONMENT_REFERENCE_CACHE_PREFIX} ${sanitizeEnvironmentDescriptionForReferenceImage(description)}`;
+export function buildEnvironmentImageCacheDescription(
+  description: string,
+  viewpointKind: NonNullable<StoryEnvironment['viewpointKind']> = 'exterior'
+): string {
+  return `${ENVIRONMENT_REFERENCE_CACHE_PREFIX}[viewpoint=${viewpointKind}] ${sanitizeEnvironmentDescriptionForReferenceImage(description)}`;
 }
 
-export function isCurrentEnvironmentImageCacheDescription(description: string | null | undefined): boolean {
+export function isCurrentEnvironmentImageCacheDescription(
+  description: string | null | undefined
+): boolean {
   return !!description?.startsWith(ENVIRONMENT_REFERENCE_CACHE_PREFIX);
 }
 
@@ -467,7 +479,7 @@ function canonicalizeReferenceNameMentions(text: string, canonicalNames: string[
 
 function sanitizeCharacterDescriptionForImagePrompt(
   description: string,
-  opts: { canonicalNames: string[] },
+  opts: { canonicalNames: string[] }
 ): string {
   let result = canonicalizeReferenceNameMentions(description, opts.canonicalNames);
   result = result.replace(/\bas if [^.;,]+/gi, '');
@@ -486,7 +498,10 @@ function stripWardrobeTextForFinalScene(text: string): string {
   const wardrobeClauses = [
     /\b(?:wearing|dressed in|clad in|outfitted in|costumed in)\b[^.;,]*/gi,
     new RegExp(`\\b(?:in|with)\\s+(?:a|an|the)?\\s*[^.;,]*(?:${garmentTerms})\\b[^.;,]*`, 'gi'),
-    new RegExp(`\\b(?:toward|towards|at|on|onto|into)\\s+(?:the\\s+)?(?:${garmentTerms})\\b[^.;,]*`, 'gi'),
+    new RegExp(
+      `\\b(?:toward|towards|at|on|onto|into)\\s+(?:the\\s+)?(?:${garmentTerms})\\b[^.;,]*`,
+      'gi'
+    ),
   ];
   for (const pattern of wardrobeClauses) {
     result = result.replace(pattern, '');
@@ -503,10 +518,10 @@ function stripWardrobeTextForFinalScene(text: string): string {
 
 function sanitizeSceneCharacterDescriptionForImagePrompt(
   description: string,
-  opts: { canonicalNames: string[] },
+  opts: { canonicalNames: string[] }
 ): string {
   return stripWardrobeTextForFinalScene(
-    sanitizeCharacterDescriptionForImagePrompt(description, opts),
+    sanitizeCharacterDescriptionForImagePrompt(description, opts)
   );
 }
 
@@ -525,7 +540,9 @@ function cleanupPromptText(text: string): string {
 function buildCompositionText(params: {
   sceneVisual: SceneVisual;
   imageIndexMap?: Map<string, number>;
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  referenceCharacterNames?: Array<
+    string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }
+  >;
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   referenceImages?: ReferenceBindingInput[];
   nameContext?: PromptNameContext;
@@ -533,28 +550,32 @@ function buildCompositionText(params: {
   const cam = params.sceneVisual.cameraComposition;
   if (typeof cam === 'string') {
     const canonical = canonicalizeReferenceNameMentions(cleanupPromptText(cam), [
-      ...(params.referenceCharacterNames ?? []).map((entry) => typeof entry === 'string' ? entry : entry.name),
+      ...(params.referenceCharacterNames ?? []).map((entry) =>
+        typeof entry === 'string' ? entry : entry.name
+      ),
       ...(params.realWorldCharacters ?? []).map((char) => char.name),
     ]);
     return replacePromptNames(stripWardrobeTextForFinalScene(canonical), params.nameContext);
   }
 
   const canonicalNames = [
-    ...(params.referenceCharacterNames ?? []).map((entry) => typeof entry === 'string' ? entry : entry.name),
+    ...(params.referenceCharacterNames ?? []).map((entry) =>
+      typeof entry === 'string' ? entry : entry.name
+    ),
     ...(params.realWorldCharacters ?? []).map((char) => char.name),
   ];
   const shot = replacePromptNames(
     stripWardrobeTextForFinalScene(
-      cleanupPromptText(canonicalizeReferenceNameMentions(cam.shot, canonicalNames)),
+      cleanupPromptText(canonicalizeReferenceNameMentions(cam.shot, canonicalNames))
     ),
-    params.nameContext,
+    params.nameContext
   );
   const characterLines = cam.characters.map((character) => {
     const description = replacePromptNames(
       sanitizeSceneCharacterDescriptionForImagePrompt(character.description, {
         canonicalNames,
       }),
-      params.nameContext,
+      params.nameContext
     );
     const imageIdx = resolveCharacterImageIndex(character.name, params.imageIndexMap);
     const promptLabel = getPromptLabelForName(character.name, params.nameContext, imageIdx);
@@ -590,7 +611,9 @@ export function buildSceneImagePrompt(params: {
   ageGroup: string;
   style: string;
   // Imaginary creatures with reference drawings attached as images
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  referenceCharacterNames?: Array<
+    string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }
+  >;
   // Legacy name/alias entries. Descriptions are ignored and never added to final scene prompts.
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   hasReferences?: boolean;
@@ -606,7 +629,10 @@ export function buildSceneImagePrompt(params: {
   // When true: SETTING uses only scene-specific delta (env image provides layout)
   hasEnvironmentImageRef?: boolean;
 }): string {
-  const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
+  const imagePolicy = getImageContentPolicy({
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+  });
   const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
   const safetyAdditions = imagePolicy.imageSafetyAdditions;
 
@@ -653,7 +679,7 @@ export function buildSceneImagePrompt(params: {
 
   // Non-reference legacy path (Imagen 3). Character appearance text is intentionally omitted.
   const negativeToUse = removeUserPromptTextBanNegativeTerms(
-    params.negativePrompt ?? imagePolicy.imageNegativePrompt,
+    params.negativePrompt ?? imagePolicy.imageNegativePrompt
   );
   const negativeGuidance = negativeToUse ? `, avoid: ${negativeToUse}` : '';
 
@@ -667,7 +693,9 @@ export function buildSceneImagePrompt(params: {
  */
 function buildStructuredPrompt(params: {
   sceneVisual: SceneVisual;
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  referenceCharacterNames?: Array<
+    string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }
+  >;
   realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   imageIndexMap?: Map<string, number>;
   referenceImages?: ReferenceBindingInput[];
@@ -687,7 +715,7 @@ function buildStructuredPrompt(params: {
   if (sceneVisual.setting) {
     const sanitizedSetting = replacePromptNames(
       sanitizeSettingForImagePrompt(sceneVisual.setting),
-      nameContext,
+      nameContext
     );
     if (sanitizedSetting) {
       sections.push(`- Scene-specific: ${sanitizedSetting}`);
@@ -709,7 +737,7 @@ function buildStructuredPrompt(params: {
 
   if (sceneVisual.lighting) {
     sections.push(
-      `- Lighting: ${replacePromptNames(cleanupPromptText(sceneVisual.lighting), nameContext)}`,
+      `- Lighting: ${replacePromptNames(cleanupPromptText(sceneVisual.lighting), nameContext)}`
     );
   }
 
@@ -720,12 +748,12 @@ function buildStructuredPrompt(params: {
     sections.push(
       `- Exact scene counts: include exactly one ${sceneAnchorConstraints.join(
         ' and exactly one '
-      )}. Do not add, duplicate, or invent another window, door, portal, mirror, sky view, or celestial subject.`,
+      )}. Do not add, duplicate, or invent another window, door, portal, mirror, sky view, or celestial subject.`
     );
   }
   if (requiresCelestialSubjectInsideWindow(sceneVisual, shot)) {
     sections.push(
-      '- Celestial placement: place the single Moon/Sun character inside the existing window sky view. Do not create a separate floating sky cloud, portal, or second night-sky opening.',
+      '- Celestial placement: place the single Moon/Sun character inside the existing window sky view. Do not create a separate floating sky cloud, portal, or second night-sky opening.'
     );
   }
 
@@ -756,11 +784,13 @@ export function buildEnvironmentImagePrompt(params: {
     'style-neutral full-color location design plate, clean readable shapes, natural color blocking, soft directional light, visible form shading, material identity cues, atmospheric depth, clear spatial layout';
   const safetyAdditions = imagePolicy.imageSafetyAdditions;
   const environmentDescription = sanitizeEnvironmentDescriptionForReferenceImage(
-    params.environment.description,
+    params.environment.description
   );
+  const viewpointKind = params.environment.viewpointKind ?? 'exterior';
 
   const parts = [
     'ENVIRONMENT REFERENCE PLATE ONLY: draw a reusable empty location/terrain plate, not a story moment',
+    `CAMERA VIEWPOINT KIND: ${viewpointKind}. Draw only the physical volume accessible from this camera class; never substitute its exterior for an interior/submerged/enclosed view or vice versa.`,
     stylePrefix,
     environmentDescription,
     'Make this a finished color establishing background reference, not a sketch, not a blueprint, not a coloring page, not line art. Use filled colors, soft shadows, ambient occlusion, foreground/midground/background separation, and readable depth.',
@@ -777,11 +807,13 @@ export function buildEnvironmentImagePrompt(params: {
     safetyAdditions,
   ];
 
-  return parts
-    .filter(Boolean)
-    .map((part) => cleanupPromptText(part).replace(/[.?!]+$/g, ''))
-    .filter(Boolean)
-    .join('. ') + '.';
+  return (
+    parts
+      .filter(Boolean)
+      .map((part) => cleanupPromptText(part).replace(/[.?!]+$/g, ''))
+      .filter(Boolean)
+      .join('. ') + '.'
+  );
 }
 
 /**
@@ -797,17 +829,18 @@ export function buildCharacterPortraitPrompt(params: {
   negativePrompt?: string; // Negative prompt to include as text
   scenarioCardId?: string;
 }): string {
-  const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
+  const imagePolicy = getImageContentPolicy({
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+  });
   const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
   const safetyAdditions = imagePolicy.imageSafetyAdditions;
 
   // Build negative guidance as text (since API doesn't support negativePrompt parameter)
   const negativeToUse = removeUserPromptTextBanNegativeTerms(
-    params.negativePrompt ?? imagePolicy.imageNegativePrompt,
+    params.negativePrompt ?? imagePolicy.imageNegativePrompt
   );
-  const negativeGuidance = negativeToUse
-    ? `, avoid: ${negativeToUse}`
-    : '';
+  const negativeGuidance = negativeToUse ? `, avoid: ${negativeToUse}` : '';
 
   return `${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing, ${safetyAdditions}${negativeGuidance}`;
 }
@@ -871,7 +904,7 @@ export function buildImageSystemInstruction(params: {
   const sections: string[] = [];
 
   // Role
-  sections.push('You are a professional children\'s book illustrator.');
+  sections.push("You are a professional children's book illustrator.");
 
   // Art style
   sections.push(`ART STYLE: ${stylePrefix}`);
@@ -884,21 +917,25 @@ export function buildImageSystemInstruction(params: {
       'Pure visual storytelling only.',
     ]
       .filter(Boolean)
-      .join(' '),
+      .join(' ')
   );
   sections.push(`SAFETY: ${imagePolicy.imageSafetyAdditions}.`);
 
   // Reference image rules (only when turnaround sheets are attached)
   if (params.hasReferences) {
     sections.push(
-      'REFERENCES: Character sheets establish locked IDENTITY: face, age, body proportions, silhouette, exact hairstyle structure, hair placement, skin/hair palette, distinctive marks, and visible wardrobe when present in the attached reference. Keep those traits exactly recognizable while rendering them in the scene art style. Preserve hair and facial identity faithfully; avoid redesigning, re-braiding, re-styling, simplifying, beautifying, or reinterpreting them.',
+      'REFERENCES: Character sheets establish locked IDENTITY: face, age, body proportions, silhouette, exact hairstyle structure, hair placement, skin/hair palette, distinctive marks, and visible wardrobe when present in the attached reference. Keep those traits exactly recognizable while rendering them in the scene art style. Preserve hair and facial identity faithfully; avoid redesigning, re-braiding, re-styling, simplifying, beautifying, or reinterpreting them.'
     );
   }
+
+  sections.push(
+    'ANATOMY AND ACTION: Treat action or motion comparisons as figurative movement direction, never as literal anatomy or species transformation. For example, "swimming like a mermaid" means graceful horizontal swimming only, not a mermaid tail. Preserve each character\'s reference-defined ordinary body plan. Never add tails, fins, wings, animal limbs, or replace/remove human legs unless the scene explicitly requests a literal transformation and that transformation is compatible with the attached character reference.'
+  );
 
   // Environment reference rules (when env image is attached)
   if (params.hasEnvironmentReference) {
     sections.push(
-      'ENVIRONMENT REFERENCE: The provided location image defines reusable layout, spatial structure, key objects, material identity, palette family, and lighting mood. Keep the same location and spatial relationships while rendering it in the selected scene art style. Preserve object positions, color-family continuity, depth cues, and the placement of key objects such as trees, buildings, and furniture. Character positions are relative to these fixed objects.',
+      'ENVIRONMENT REFERENCE: The provided location image defines reusable layout, spatial structure, key objects, material identity, palette family, and lighting mood. Keep the same location and spatial relationships while rendering it in the selected scene art style. Preserve object positions, color-family continuity, depth cues, and the placement of key objects such as trees, buildings, and furniture. Character positions are relative to these fixed objects.'
     );
   }
 
@@ -913,20 +950,21 @@ function optimizePromptLength(prompt: string, maxLength: number = 2000): string 
   if (prompt.length <= maxLength) {
     return prompt;
   }
-  
-  logger.warn({
-    originalLength: prompt.length,
-    maxLength,
-    excess: prompt.length - maxLength
-  }, 'Prompt exceeds recommended length, truncating');
-  
+
+  logger.warn(
+    {
+      originalLength: prompt.length,
+      maxLength,
+      excess: prompt.length - maxLength,
+    },
+    'Prompt exceeds recommended length, truncating'
+  );
+
   // Truncate at word boundary
   const truncated = prompt.substring(0, maxLength);
   const lastSpace = truncated.lastIndexOf(' ');
-  
-  return lastSpace > 0 
-    ? truncated.substring(0, lastSpace) + '...' 
-    : truncated + '...';
+
+  return lastSpace > 0 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
 }
 
 /**
@@ -938,8 +976,8 @@ export function extractSceneCharacters(
   allCharacters: CharacterReference[]
 ): CharacterReference[] {
   const sceneLower = sceneText.toLowerCase();
-  
-  return allCharacters.filter(char => {
+
+  return allCharacters.filter((char) => {
     const nameLower = char.name.toLowerCase();
     return sceneLower.includes(nameLower);
   });

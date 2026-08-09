@@ -6,6 +6,7 @@ import {
   buildMapTilePromptParts,
   buildOutfitPlatePrompt,
   getImageValidationCachedPrefix,
+  imageTextValidationPromptLines,
   shouldCheckImageTextOrSymbols,
 } from '../image';
 
@@ -28,31 +29,37 @@ const runtimeValidation = buildImageValidationRuntimePrompt({
   expectedCharacters: [],
 });
 
-for (const prompt of [
-  systemInstruction,
-  outfitPrompt,
-  editInstruction,
-  mapTileInstruction,
-]) {
-  assert.strictEqual(
-    prompt.includes('MUST AVOID any kind of text'),
-    enabled,
-    'Generation and edit prompts must follow IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS'
+assert.equal(enabled, true, 'Illustration-only output is a product invariant');
+
+for (const prompt of [systemInstruction, outfitPrompt, editInstruction, mapTileInstruction]) {
+  assert.match(
+    prompt,
+    /MUST OUTPUT ONLY the continuous storybook illustration/,
+    'Generation and edit prompts must reject visible labels and descriptive blocks'
   );
 }
 
 assert.strictEqual(
-  cachedValidation.key.endsWith(enabled ? '_text_check' : '_text_ignored'),
+  cachedValidation.key.endsWith('_text_check'),
   true
 );
-assert.strictEqual(
-  cachedValidation.content.includes('Always set hasTextOrLetters=false'),
-  !enabled
+assert.match(
+  cachedValidation.content,
+  /title card, caption\/description\/information panel, legend\/key, reference-sheet\/contact-sheet layout/
+);
+assert.match(
+  cachedValidation.content,
+  /SECRET_CAVERN \(REF_ENV\)/,
+  'The known reference-label leak must be an explicit validator negative example'
 );
 assert.strictEqual(
-  runtimeValidation.includes('MUST AVOID any kind of text'),
+  runtimeValidation.includes('MUST OUTPUT ONLY the continuous storybook illustration'),
   false,
-  'Runtime roster prompt must not add an independent text ban'
+  'The cached validator prefix owns the shared illustration-only policy'
+);
+assert.match(
+  imageTextValidationPromptLines().join('\n'),
+  /Reject it even when its writing is too small or garbled to read/
 );
 
-console.log(`imageTextPolicy tests passed (${enabled ? 'enabled' : 'disabled'})`);
+console.log('imageTextPolicy tests passed');

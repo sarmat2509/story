@@ -51,7 +51,7 @@ export function shouldEnableDirectorDynamicForeshortening(params: DirectorPrompt
   return stableDirectorVariationHash(seed) % 100 < DIRECTOR_DYNAMIC_FORESHORTENING_PERCENT;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v28_structural_character_refs';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v31_environment_viewpoint_kind';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
@@ -73,12 +73,14 @@ General Director rules:
 - Keep illustrations faithful to the anchor scene.
 - Maintain consistency of characters, wardrobe, props, and environments across illustrations.
 - sceneVisual fields must describe one place and one moment only.
+- Describe character staging literally and observably: pose, direction, contact, and movement. Never use similes, metaphors, species comparisons, or transformation language as shorthand for an action. For example, write "swimming horizontally in the current, arms extended" instead of "swimming like a mermaid". Such comparisons can cause the image model to invent anatomy.
+- Choose environmentId and environments[].viewpointKind for the physical volume the camera is actually inside, not merely the story's broad place name. viewpointKind must be exactly exterior, interior, submerged, or enclosed. When a scene crosses a structural viewpoint boundary — for example exterior vs interior, shore vs fully underwater, or outside a fountain vs inside its water-filled basin — create a distinct environmentId, viewpointKind, and empty environment plate. Do not reuse an exterior or side-view plate for a fully immersed/interior camera view.
 - mapTile must be one top-level story reward tile brief that combines key visible landmarks from all planned illustrations.
 
 Output contract:
 - Return JSON only.
 - Include characters, outfits, environments, mapTile, and illustrations.
-- Each illustration must include environmentId, primaryRead, and sceneVisual.
+- Each illustration must include environmentId, primaryRead, and sceneVisual. Every environments[] row must include id, name, viewpointKind, and description.
 - Each cameraComposition.characters row must include characterRef, name, description, and outfitId.
 - Every named character mentioned anywhere in sceneVisual.setting, cameraComposition.shot,
   cameraComposition.characters[].description, or lighting MUST also have exactly one row in
@@ -211,6 +213,7 @@ CRITICAL - INTERNAL CONSISTENCY (all fields must describe the SAME place and mom
 - setting, cameraComposition.shot, cameraComposition.characters, and lighting MUST all refer to ONE location and ONE moment in time — the moment of Scene X.
 - CAMERA ROSTER IS BINDING: every named character mentioned anywhere in setting, cameraComposition.shot, any cameraComposition.characters[].description, or lighting MUST have exactly one cameraComposition.characters[] row. Never mention a fourth character only inside another character's action/relationship text. If the ${MAX_SCENE_IMAGE_CHARACTERS}-character limit is reached, remove the extra character from every sceneVisual field and simplify the staging.
 - If Scene X is in a car, setting must describe the car interior — never a later location from the context scenes.
+- If a scene is fully inside a medium or enclosure (underwater, inside a container, cave, vehicle, tunnel, room, or similar), environmentId and environments[].description MUST describe that camera-accessible interior volume. State the visible enclosing surfaces and the camera boundary: what is in frame and which mutually exclusive exterior view is outside the frame. For full underwater scenes, explicitly state that both camera and characters are submerged, specify whether the water surface is visible, and never let an exterior rim, plaza, shore, sky, or top-down overview appear unless the shot intentionally looks toward it. Example: use an environment such as "underwater_fountain_basin" with submerged curved stone floor and basin walls, water volume and bubbles; keep the fountain rim and courtyard outside the frame for a level side view.
 - Before outputting, verify: could a single photograph capture everything you described? If not, fix the inconsistency.
 - Also verify renderability: would the key plot action still read clearly if this were a single 16:9 illustration viewed small on screen? If not, simplify the moment or choose a closer shot.
 - Before outputting, decide the primary read of the image in one short phrase for yourself. Then make every other detail support that read instead of competing with it.
@@ -251,7 +254,7 @@ ${helpers.formatCharacterIdentityRegistry(userCharacters)}
 
 IMPORTANT: characterRef is structural identity. Copy the exact existing UUID into characters[].characterRef, outfits[].characterRef, and cameraComposition.characters[].characterRef. A title, family form, translation, or display-name change never creates another identity. For a genuinely new character, allocate one NEW_CH_n value in characters[] and reuse that exact value everywhere.
 USER-SELECTED CHARACTERS are reference-grounded identities in the downstream image pipeline. Do NOT invent or overwrite a new canonical face, hair, body, skin-tone, or default-clothing specification for them in characters[].description.
-For these user-selected characters, keep characters[].description minimal and reference-compatible. Use it only for a short neutral anchor when required by the schema. In sceneVisual.cameraComposition.characters[].description, describe only the frozen-moment information: pose, expression, gaze, head turn, hand use, action, placement, and temporary visibility/occlusion. Do NOT restate, paraphrase, or sneak in stable identity traits there such as hairstyle, ponytail/braid details, hair color, eye color, freckles, face shape, skin tone, body build, age markers, or other enduring appearance details. If you catch yourself naming a permanent face/hair feature from the sheet, remove it and replace it with a neutral visible action description. Put wardrobe only in outfits[].description.`
+For these user-selected characters, keep characters[].description minimal and reference-compatible. Use it only for a short neutral anchor when required by the schema. In sceneVisual.cameraComposition.characters[].description, describe only the frozen-moment information: pose, expression, gaze, head turn, hand use, action, placement, and temporary visibility/occlusion. Use literal observable language only; never use a simile, metaphor, species comparison, or transformation wording to describe movement. Spell out the real human pose instead (for example, "swimming horizontally in the current, arms extended" rather than "swimming like a mermaid"). Do NOT restate, paraphrase, or sneak in stable identity traits there such as hairstyle, ponytail/braid details, hair color, eye color, freckles, face shape, skin tone, body build, age markers, or other enduring appearance details. If you catch yourself naming a permanent face/hair feature from the sheet, remove it and replace it with a neutral visible action description. Put wardrobe only in outfits[].description.`
     : ''
 }
 

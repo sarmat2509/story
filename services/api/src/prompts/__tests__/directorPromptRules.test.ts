@@ -14,7 +14,7 @@ import {
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v28_structural_character_refs');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v31_environment_viewpoint_kind');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
@@ -23,6 +23,11 @@ function testDirectorCachedPrefixContainsImagePromptRules() {
   );
   assert.ok(cached.includes('avoid vague wording like "the object is now resting"'));
   assert.ok(cached.includes('Depict exactly one concrete frozen moment'));
+  assert.ok(cached.includes('Never use similes, metaphors, species comparisons'));
+  assert.ok(cached.includes('"swimming like a mermaid"'));
+  assert.ok(cached.includes('physical volume the camera is actually inside'));
+  assert.ok(cached.includes('inside its water-filled basin'));
+  assert.ok(cached.includes('viewpointKind must be exactly exterior, interior, submerged, or enclosed'));
   assert.ok(cached.includes('Never describe a sequence of events'));
   assert.ok(cached.includes('Use positive visual phrasing'));
   assert.ok(cached.includes('Write for an image generation system, not for a chat conversation.'));

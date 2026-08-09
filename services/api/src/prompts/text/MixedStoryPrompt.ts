@@ -261,9 +261,10 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string' },
           name: { type: 'string' },
+          viewpointKind: { type: 'string', enum: ['exterior', 'interior', 'submerged', 'enclosed'] },
           description: { type: 'string' },
         },
-        required: ['id', 'name', 'description'],
+        required: ['id', 'name', 'viewpointKind', 'description'],
       },
     },
     outfits: structuredOutfitsJsonSchema(),

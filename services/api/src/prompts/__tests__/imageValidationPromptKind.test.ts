@@ -17,13 +17,13 @@ import { shouldCheckImageTextOrSymbols } from '../image/ImageTextPolicy';
 function testCacheKeysBumped() {
   assert.strictEqual(
     IMAGE_VALIDATION_CACHE_KEY_FULL,
-    `image_validation_rules_full_v23_${
+      `image_validation_rules_full_v26_${
       shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored'
     }`
   );
   assert.strictEqual(
     IMAGE_VALIDATION_CACHE_KEY_LITE,
-    `image_validation_rules_lite_v11_${
+      `image_validation_rules_lite_v14_${
       shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored'
     }`
   );
@@ -88,6 +88,26 @@ function testCacheKeysBumped() {
   assert.ok(
     full.content.includes('Turnaround identity references are strict multi-view model sheets'),
     'Full prompt should treat turnaround sheets as strict identity ground truth'
+  );
+  assert.ok(
+    full.content.includes('An unrequested tail, fin, wing, animal limb'),
+    'Full prompt should treat invented human-anatomy transformations as severe identity drift'
+  );
+  assert.ok(
+    full.content.includes('"swimming like a mermaid"'),
+    'Full prompt should explicitly keep figurative swimming language from authorizing a mermaid tail'
+  );
+  assert.ok(
+    lite.content.includes('Treat figurative action comparisons as movement direction'),
+    'Lite prompt should reject unexpected transformations for expected humans even without references'
+  );
+  assert.ok(
+    full.content.includes('camera is fully underwater in the basin'),
+    'Full prompt should reject a generated exterior/top-down view that contradicts an underwater camera boundary'
+  );
+  assert.ok(
+    lite.content.includes('camera and characters must be fully underwater inside the basin'),
+    'Lite prompt should enforce explicit camera-medium constraints without reference images'
   );
 }
 

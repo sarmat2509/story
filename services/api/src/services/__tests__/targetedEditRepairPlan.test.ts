@@ -75,7 +75,7 @@ const visibleSubjectPrompt = buildImageEditPrompt({
 
 assert.match(
   visibleSubjectPrompt,
-  /Completely replace the visible subject described as "young girl with braided pastel hair and yellow sweater"/
+  /Replace only the existing visible subject described as "young girl with braided pastel hair and yellow sweater"/
 );
 assert.doesNotMatch(visibleSubjectPrompt, /Replace the entire matching visible subject/);
 assert.doesNotMatch(visibleSubjectPrompt, /Validator notes:/);
@@ -96,7 +96,7 @@ const slotFallbackPrompt = buildImageEditPrompt({
 
 assert.match(
   slotFallbackPrompt,
-  /Completely replace the visible subject occupying this scene slot: "center foreground, kneeling beside the glowing egg"/
+  /Replace only the existing visible subject occupying this scene slot: "center foreground, kneeling beside the glowing egg"/
 );
 assert.doesNotMatch(slotFallbackPrompt, /Replace the entire matching visible subject/);
 
@@ -210,7 +210,10 @@ const forcedAnchorPlan = buildTargetedEditRepairPlan(
 assert.equal(forcedAnchorPlan.manifest.issues[0]?.kind, 'composition');
 assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one window/);
 assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /exactly one Moon subject/);
-assert.match(forcedAnchorPlan.manifest.issues[0]?.note || '', /inside the remaining existing window sky view/);
+assert.match(
+  forcedAnchorPlan.manifest.issues[0]?.note || '',
+  /inside the remaining existing window sky view/
+);
 
 const generationAnchorPrompt = buildSceneImagePrompt({
   sceneVisual: {
@@ -228,6 +231,9 @@ assert.match(
   generationAnchorPrompt,
   /Exact scene counts: include exactly one window and exactly one Moon subject/
 );
-assert.match(generationAnchorPrompt, /Celestial placement: place the single Moon\/Sun character inside the existing window sky view/);
+assert.match(
+  generationAnchorPrompt,
+  /Celestial placement: place the single Moon\/Sun character inside the existing window sky view/
+);
 
 console.log('targeted edit repair plan guards passed');

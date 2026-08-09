@@ -426,7 +426,7 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   });
 
   assert.ok(systemInstruction.includes('Character sheets establish locked IDENTITY'));
-  assert.ok(systemInstruction.includes('MUST AVOID any kind of text'));
+  assert.ok(systemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
   assert.doesNotMatch(systemInstruction, /internal binding tokens/);
   assert.doesNotMatch(systemInstruction, /Reference IDs such as REF_CH_\*/);
   assert.doesNotMatch(systemInstruction, /Never render reference IDs/);
@@ -440,6 +440,9 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   assert.doesNotMatch(systemInstruction, /touches, opens, presses/i);
   assert.doesNotMatch(systemInstruction, /clay, felt, colored pencil, cel animation, 3D, comic ink, or watercolor/i);
   assert.ok(systemInstruction.includes('Preserve hair and facial identity faithfully'));
+  assert.ok(systemInstruction.includes('ANATOMY AND ACTION:'));
+  assert.ok(systemInstruction.includes('"swimming like a mermaid" means graceful horizontal swimming only'));
+  assert.ok(systemInstruction.includes('Never add tails, fins, wings, animal limbs'));
   assert.ok(systemInstruction.includes('ENVIRONMENT REFERENCE: The provided location image defines reusable layout'));
   assert.ok(systemInstruction.includes('Keep the same location and spatial relationships'));
 }
@@ -472,6 +475,15 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
         'On top of Matilda’s shell: a miniature forest clearing with springy mossy grass covering most of the ground. A dense patch of waist-high (to Emilia) fern thickets occupies the left midground. A large rounded gray boulder stands in the background right, its base surrounded by darker wet soil where snails gather. The shell’s curved edge is visible as a rough brown rim in the far background.',
     },
   });
+  const underwaterPrompt = buildEnvironmentImagePrompt({
+    environment: {
+      id: 'underwater_fountain_basin',
+      name: 'Underwater fountain basin',
+      viewpointKind: 'submerged',
+      description:
+        'Submerged stone floor and curved basin walls under blue water; the exterior fountain rim and courtyard are outside the frame.',
+    },
+  });
 
   assert.ok(gardenPrompt.includes('ENVIRONMENT REFERENCE PLATE ONLY'));
   assert.ok(gardenPrompt.includes('style-neutral full-color location design plate'));
@@ -490,6 +502,8 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
   assert.ok(!shellPrompt.includes('Matilda'));
   assert.ok(!shellPrompt.includes('Emilia'));
   assert.ok(!shellPrompt.includes('snails gather'));
+  assert.ok(underwaterPrompt.includes('CAMERA VIEWPOINT KIND: submerged'));
+  assert.ok(underwaterPrompt.includes('never substitute its exterior for an interior/submerged/enclosed view'));
 }
 
 async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
@@ -559,8 +573,8 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   assert.equal(capturedAspectRatio, '16:9');
   assert.equal(capturedOperation, 'image_generate');
   assert.ok(!capturedSystemInstruction.includes('ENVIRONMENT REFERENCE:'));
-  assert.ok(capturedSystemInstruction.includes('MUST AVOID any kind of text'));
-  assert.ok(!capturedPrompt.includes('MUST AVOID any kind of text'));
+  assert.ok(capturedSystemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
+  assert.ok(!capturedPrompt.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
   assert.ok(!capturedPrompt.includes('REF_CH_MIA_TEST01'));
   assert.ok(capturedReferenceLabels.includes('REF_CH_MIA_TEST01: character identity reference.'));
   assert.ok(!capturedPrompt.includes(forbiddenSyntheticAlias));
@@ -592,8 +606,8 @@ async function testImageDomainSceneIllustrationUsesSystemOnlyTextBan() {
     mode: 'without_references',
   });
 
-  assert.ok(capturedSystemInstruction.includes('MUST AVOID any kind of text'));
-  assert.ok(!capturedPrompt.includes('MUST AVOID any kind of text'));
+  assert.ok(capturedSystemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
+  assert.ok(!capturedPrompt.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
   assert.doesNotMatch(capturedPrompt, /keep free of text/i);
 }
 

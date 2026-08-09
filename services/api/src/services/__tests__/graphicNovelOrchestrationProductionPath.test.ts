@@ -650,7 +650,7 @@ async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaro
       validationResult: { overallFeedback: 'unused' } as any,
       targetedRepairManifest: repairManifest,
     });
-    assert.match(editPrompt, /full character from REF_CH_LUMA_123/);
+    assert.match(editPrompt, /Use REF_CH_LUMA_123 only as the visual identity source/);
     assert.doesNotMatch(editPrompt, /Restore the exact two-braid hairstyle/);
     assert.doesNotMatch(editPrompt, /yellow raincoat/);
 
@@ -728,7 +728,7 @@ async function testManualPanelRepairKeepsDiagnosisOutOfPromptAndRefreshesTurnaro
     });
     assert.match(
       validatorEditPrompt,
-      /Completely replace the visible subject described as "girl with loose brown hair and a green coat" with the full character from REF_CH_LUMA_123/
+      /Replace only the existing visible subject described as "girl with loose brown hair and a green coat"\. Use REF_CH_LUMA_123 only as the visual identity source/
     );
     assert.doesNotMatch(validatorEditPrompt, /Restore the exact two-braid hairstyle/);
     assert.doesNotMatch(validatorEditPrompt, /yellow raincoat/);
@@ -759,8 +759,7 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
   const {
     graphicNovelOrchestrationTestSeams,
     selectGraphicNovelPanelReferenceImagesForGeneration,
-  } =
-    await import('../graphicNovelOrchestrationService');
+  } = await import('../graphicNovelOrchestrationService');
   const characters = [
     {
       id: 'theo-uuid',
@@ -787,10 +786,7 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
   ] as any;
 
   assert.equal(
-    graphicNovelOrchestrationTestSeams.characterManifestForPageName(
-      characters,
-      'Тато Тео'
-    )?.id,
+    graphicNovelOrchestrationTestSeams.characterManifestForPageName(characters, 'Тато Тео')?.id,
     'theo-uuid'
   );
   assert.equal(
@@ -889,14 +885,16 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     'page-level dressed turnaround preparation keeps display alias attached to the stable ref'
   );
   assert.deepEqual(
-    graphicNovelOrchestrationTestSeams.buildGraphicNovelExpectedCharactersForPanel({
-      panel: page.panels[0],
-      characters: charactersWithPersistedAliasDuplicate,
-      dressedTurnaroundValidationNames: new Set(),
-    }).map((character: any) => ({
-      name: character.name,
-      characterRef: character.characterRef,
-    })),
+    graphicNovelOrchestrationTestSeams
+      .buildGraphicNovelExpectedCharactersForPanel({
+        panel: page.panels[0],
+        characters: charactersWithPersistedAliasDuplicate,
+        dressedTurnaroundValidationNames: new Set(),
+      })
+      .map((character: any) => ({
+        name: character.name,
+        characterRef: character.characterRef,
+      })),
     [{ name: 'Тато Тео', characterRef: 'theo-uuid' }]
   );
   const selectedReferences = selectGraphicNovelPanelReferenceImagesForGeneration({
@@ -937,8 +935,8 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
     ['Тато Тео'],
     'per-panel generation and repair references use the panel display alias'
   );
-  const localizedRepairManifest =
-    graphicNovelOrchestrationTestSeams.buildManualPanelRepairManifest({
+  const localizedRepairManifest = graphicNovelOrchestrationTestSeams.buildManualPanelRepairManifest(
+    {
       target: {
         panelNumber: 1,
         mode: 'edit',
@@ -953,7 +951,8 @@ async function testLegacyLocalizedTitleAliasUsesPersistedManifestIdentity(): Pro
       },
       panel: page.panels[0],
       characters: charactersWithPersistedAliasDuplicate,
-    });
+    }
+  );
   assert.equal(
     localizedRepairManifest.subjectReplacements?.[0]?.sceneSlotDescription,
     'clapping on the right',

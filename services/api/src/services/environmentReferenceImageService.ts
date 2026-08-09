@@ -29,6 +29,23 @@ export interface EnvImageData {
 /** Different Director environment IDs may share a plate only at near-exact semantic similarity. */
 const CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE = 0.95;
 
+type EnvironmentViewpointKind = NonNullable<StoryEnvironment['viewpointKind']>;
+
+function resolveEnvironmentViewpointKind(environment: StoryEnvironment): EnvironmentViewpointKind {
+  if (environment.viewpointKind) return environment.viewpointKind;
+  const text = `${environment.id} ${environment.name} ${environment.description}`.toLowerCase();
+  if (/\b(underwater|submerged|water-filled)\b/.test(text)) return 'submerged';
+  if (/\b(inside|interior|enclosed|cabin|cockpit|cave)\b/.test(text)) return 'interior';
+  return 'exterior';
+}
+
+function cacheDescriptionHasViewpointKind(
+  description: string | null | undefined,
+  viewpointKind: EnvironmentViewpointKind
+): boolean {
+  return description?.includes(`[viewpoint=${viewpointKind}]`) ?? false;
+}
+
 export interface EnvironmentImageRequest {
   storyId: string;
   userId?: string;
@@ -40,13 +57,32 @@ export interface EnvironmentImageRequest {
 }
 
 /** Persist a remotely generated plate through the same global/story cache path. */
-export async function saveBatchEnvironmentImage(params: EnvironmentImageRequest & { imageData: Buffer; mimeType: string }): Promise<EnvImageData> {
-  const cacheDescription = buildEnvironmentImageCacheDescription(params.environment.description);
+export async function saveBatchEnvironmentImage(
+  params: EnvironmentImageRequest & { imageData: Buffer; mimeType: string }
+): Promise<EnvImageData> {
+  const cacheDescription = buildEnvironmentImageCacheDescription(
+    params.environment.description,
+    resolveEnvironmentViewpointKind(params.environment)
+  );
   const embedding = await generateEmbedding(cacheDescription);
   const cacheId = crypto.randomUUID();
-  const { storagePath } = await params.assetStorage.saveEnvironmentCacheImage(cacheId, params.imageData, params.mimeType);
-  await getEnvironmentImageCacheRepository().create({ id: cacheId, description: cacheDescription, descriptionEmbedding: embedding, storagePath, storageUrl: `/api/v1/assets/${storagePath}` });
-  await getStoryEnvironmentCacheRepository().upsert(params.storyId, params.storyEnvironmentId, cacheId);
+  const { storagePath } = await params.assetStorage.saveEnvironmentCacheImage(
+    cacheId,
+    params.imageData,
+    params.mimeType
+  );
+  await getEnvironmentImageCacheRepository().create({
+    id: cacheId,
+    description: cacheDescription,
+    descriptionEmbedding: embedding,
+    storagePath,
+    storageUrl: `/api/v1/assets/${storagePath}`,
+  });
+  await getStoryEnvironmentCacheRepository().upsert(
+    params.storyId,
+    params.storyEnvironmentId,
+    cacheId
+  );
   return { base64: params.imageData.toString('base64'), mimeType: params.mimeType, storagePath };
 }
 
@@ -76,12 +112,20 @@ export async function getOrCreateEnvironmentImageCore(
     previousStoryIds,
   } = params;
   const { envCacheRepo, storyEnvRepo } = deps;
-  const cacheDescription = buildEnvironmentImageCacheDescription(environment.description);
+  const viewpointKind = resolveEnvironmentViewpointKind(environment);
+  const cacheDescription = buildEnvironmentImageCacheDescription(
+    environment.description,
+    viewpointKind
+  );
 
   const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
   if (existing) {
     const cached = await envCacheRepo.getById(existing.cacheId);
-    if (cached && isCurrentEnvironmentImageCacheDescription(cached.description)) {
+    if (
+      cached &&
+      isCurrentEnvironmentImageCacheDescription(cached.description) &&
+      cacheDescriptionHasViewpointKind(cached.description, viewpointKind)
+    ) {
       const buffer = await assetStorage.getAssetByPath(cached.storagePath);
       return {
         base64: buffer.toString('base64'),
@@ -95,7 +139,13 @@ export async function getOrCreateEnvironmentImageCore(
     const previous = await storyEnvRepo.getByStoryAndEnvId(previousStoryId, storyEnvironmentId);
     if (!previous) continue;
     const cached = await envCacheRepo.getById(previous.cacheId);
-    if (!cached || !isCurrentEnvironmentImageCacheDescription(cached.description)) continue;
+    if (
+      !cached ||
+      !isCurrentEnvironmentImageCacheDescription(cached.description) ||
+      !cacheDescriptionHasViewpointKind(cached.description, viewpointKind)
+    ) {
+      continue;
+    }
 
     const buffer = await assetStorage.getAssetByPath(cached.storagePath);
     await storyEnvRepo.upsert(storyId, storyEnvironmentId, previous.cacheId);
@@ -120,7 +170,9 @@ export async function getOrCreateEnvironmentImageCore(
   );
   if (similarCandidates.length > 0) {
     const highConfidenceCrossEnvironmentCandidate = similarCandidates.find(
-      (candidate) => candidate.score > CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE
+      (candidate) =>
+        candidate.score > CROSS_ENVIRONMENT_REUSE_SCORE_EXCLUSIVE &&
+        cacheDescriptionHasViewpointKind(candidate.description, viewpointKind)
     );
     const selectedCandidate = highConfidenceCrossEnvironmentCandidate;
 

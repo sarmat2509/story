@@ -1032,13 +1032,14 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique environment id referenced by panels' },
           name: { type: 'string', description: 'Human-readable location name' },
+          viewpointKind: { type: 'string', enum: ['exterior', 'interior', 'submerged', 'enclosed'], description: 'Camera-accessible structural class: exterior, interior, submerged, or enclosed.' },
           description: {
             type: 'string',
             description:
               'Base visual description IN ENGLISH. Include reusable static layout, fixed objects, relative positions, materials, colors, time/weather if important.',
           },
         },
-        required: ['id', 'name', 'description'],
+        required: ['id', 'name', 'viewpointKind', 'description'],
       },
     },
     outfits: structuredOutfitsJsonSchema(),

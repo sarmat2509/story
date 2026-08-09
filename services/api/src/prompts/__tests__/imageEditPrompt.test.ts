@@ -60,7 +60,7 @@ const systemInstruction = buildImageEditSystemInstruction();
 assert.match(systemInstruction, /Follow the numbered edit instructions exactly/);
 assert.match(systemInstruction, /Use REF_\* only to match attached reference images/);
 assert.match(systemInstruction, /never draw REF_\* tokens/);
-assert.match(systemInstruction, /MUST AVOID any kind of text/);
+assert.match(systemInstruction, /MUST OUTPUT ONLY the continuous storybook illustration/);
 assert.match(systemInstruction, /Preserve composition, background, lighting, pose intent, style/);
 assert.doesNotMatch(systemInstruction, /ABSOLUTE VISUAL TEXT BAN/);
 assert.doesNotMatch(systemInstruction, /Reference labels are internal control tokens only/);
@@ -106,19 +106,27 @@ const targetedPrompt = buildImageEditPrompt({
 assert.match(targetedPrompt, /Make these edits:/);
 assert.match(
   targetedPrompt,
-  /1\. Completely replace the visible subject described as "a girl with one thick side braid and safari clothes" with the full character from REF_CH_LERA_TEST01\./
+  /1\. Replace only the existing visible subject described as "a girl with one thick side braid and safari clothes"\. Use REF_CH_LERA_TEST01 only as the visual identity source\./
 );
-assert.doesNotMatch(targetedPrompt, /Include the reference identity|Validator diagnosis/);
-assert.match(targetedPrompt, /2\. Preserve everything else in the image\./);
 assert.match(
   targetedPrompt,
-  /3\. Add no unrelated new props or extra subjects\./
+  /Keep exactly the existing crop, pose, scale, camera angle, body visibility, and scene position/
+);
+assert.match(targetedPrompt, /do not insert a full-body figure from the reference/);
+assert.doesNotMatch(targetedPrompt, /Include the reference identity|Validator diagnosis/);
+assert.match(
+  targetedPrompt,
+  /2\. Preserve everything else in the image, including the current camera crop/
+);
+assert.match(
+  targetedPrompt,
+  /3\. Never zoom out, extend a partial or close-up subject into a full body/
 );
 assert.doesNotMatch(targetedPrompt, /MUST AVOID any kind of text/);
 assert.doesNotMatch(targetedPrompt, /Add no text|labels|captions|symbols/);
 assert.doesNotMatch(
   targetedPrompt,
-  /Keep the same scene slot|pose\/action intent|scale|lighting|art style|composition|background|every other character/
+  /Keep the same scene slot|pose\/action intent|lighting|art style|composition|background|every other character/
 );
 assert.doesNotMatch(targetedPrompt, /Keep everything else exactly the same/);
 assert.doesNotMatch(targetedPrompt, /Do not add labels, captions, or any text\./);
@@ -166,11 +174,11 @@ const multiReplacementPrompt = buildImageEditPrompt({
 
 assert.match(
   multiReplacementPrompt,
-  /Completely replace the visible subject described as "a young girl with rainbow-colored hair" with the full character from REF_CH_EMILIA_C16C59\./
+  /Replace only the existing visible subject described as "a young girl with rainbow-colored hair"\. Use REF_CH_EMILIA_C16C59 only as the visual identity source\./
 );
 assert.match(
   multiReplacementPrompt,
-  /Completely replace the visible subject occupying this scene slot: "right side near the glowing tree roots, hovering with a bright tail" with the full character from REF_CH_FLESH_966AD7\./
+  /Replace only the existing visible subject occupying this scene slot: "right side near the glowing tree roots, hovering with a bright tail"\. Use REF_CH_FLESH_966AD7 only as the visual identity source\./
 );
 assert.doesNotMatch(
   multiReplacementPrompt,
@@ -199,7 +207,7 @@ const combinedTraitPrompt = buildImageEditPrompt({
 
 assert.match(
   combinedTraitPrompt,
-  /Completely replace the visible subject described as "a girl with one thick side braid" with the full character from REF_CH_LERA_TEST01\./
+  /Replace only the existing visible subject described as "a girl with one thick side braid"\. Use REF_CH_LERA_TEST01 only as the visual identity source\./
 );
 assert.doesNotMatch(combinedTraitPrompt, /Change only/);
 assert.doesNotMatch(combinedTraitPrompt, /PERSON SOURCE|CLOTHES SOURCE/);
@@ -229,9 +237,12 @@ const combinedIdentityAndOutfitPrompt = buildImageEditPrompt({
 
 assert.match(
   combinedIdentityAndOutfitPrompt,
-  /Completely replace the visible subject described as "a girl with one thick side braid and safari clothes" with the full character from REF_CH_LERA_DRESSED_TEST02\./
+  /Replace only the existing visible subject described as "a girl with one thick side braid and safari clothes"\. Use REF_CH_LERA_DRESSED_TEST02 only as the visual identity source\./
 );
-assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Include the reference character design|signature props/);
+assert.doesNotMatch(
+  combinedIdentityAndOutfitPrompt,
+  /Include the reference character design|signature props/
+);
 assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /Change only/);
 assert.doesNotMatch(combinedIdentityAndOutfitPrompt, /PERSON SOURCE|CLOTHES SOURCE/);
 assert.doesNotMatch(
@@ -256,7 +267,7 @@ const headReplacementPrompt = buildImageEditPrompt({
 
 assert.match(
   headReplacementPrompt,
-  /Completely replace the mismatched visible subject for the expected character slot with the full character from REF_CH_LERA_TEST01\./
+  /Replace only the mismatched existing visible subject for the expected character slot\. Use REF_CH_LERA_TEST01 only as the visual identity source\./
 );
 assert.doesNotMatch(headReplacementPrompt, /visible subject for "Lera"/);
 assert.doesNotMatch(
@@ -286,16 +297,36 @@ const signaturePropPrompt = buildImageEditPrompt({
   },
 });
 
-assert.match(signaturePropPrompt, /full character from REF_CH_TIK_01DEB5/);
+assert.match(signaturePropPrompt, /Use REF_CH_TIK_01DEB5 only as the visual identity source/);
 assert.match(
   signaturePropPrompt,
-  /Completely replace the mismatched visible subject for the expected character slot with the full character from REF_CH_TIK_01DEB5\./
+  /Replace only the mismatched existing visible subject for the expected character slot\./
 );
 assert.doesNotMatch(signaturePropPrompt, /Visible subject to replace: "The character is missing/);
 assert.doesNotMatch(signaturePropPrompt, /signature props that belong to that character/);
 assert.doesNotMatch(signaturePropPrompt, /Validator diagnosis/);
 assert.match(signaturePropPrompt, /unrelated new props/);
-assert.doesNotMatch(signaturePropPrompt, /Add no text, labels, captions, symbols, new props, or extra subjects/);
+assert.doesNotMatch(
+  signaturePropPrompt,
+  /Add no text, labels, captions, symbols, new props, or extra subjects/
+);
+
+const textBlockRepairPrompt = buildImageEditPrompt({
+  validationResult: validation,
+  targetedRepairManifest: {
+    referenceMode: 'none',
+    issues: [{ kind: 'text', note: 'A leaked environment reference label is visible.' }],
+  },
+});
+
+assert.match(
+  textBlockRepairPrompt,
+  /Remove every visible label, title, caption, REF_\* identifier, and descriptive\/reference\/UI block/
+);
+assert.match(
+  textBlockRepairPrompt,
+  /replace the entire block with continuous surrounding storybook artwork/
+);
 
 const noReferenceLabelPrompt = buildImageEditPrompt({
   validationResult: validation,
@@ -314,9 +345,12 @@ const noReferenceLabelPrompt = buildImageEditPrompt({
 
 assert.match(
   noReferenceLabelPrompt,
-  /Completely replace the visible subject described as "young girl with braided pastel hair and yellow sweater" with the full character from the matching attached reference image\./
+  /Replace only the existing visible subject described as "young girl with braided pastel hair and yellow sweater"\. Use the matching attached reference image only as the visual identity source\./
 );
-assert.doesNotMatch(noReferenceLabelPrompt, /Replace the validator-flagged mismatched visible subject/);
+assert.doesNotMatch(
+  noReferenceLabelPrompt,
+  /Replace the validator-flagged mismatched visible subject/
+);
 
 const sceneSlotFallbackPrompt = buildImageEditPrompt({
   validationResult: validation,
@@ -336,7 +370,7 @@ const sceneSlotFallbackPrompt = buildImageEditPrompt({
 
 assert.match(
   sceneSlotFallbackPrompt,
-  /Completely replace the visible subject occupying this scene slot: "center foreground, kneeling beside the glowing egg" with the full character from REF_CH_LERA_TEST01\./
+  /Replace only the existing visible subject occupying this scene slot: "center foreground, kneeling beside the glowing egg"\. Use REF_CH_LERA_TEST01 only as the visual identity source\./
 );
 assert.doesNotMatch(sceneSlotFallbackPrompt, /Replace the entire matching visible subject/);
 
@@ -345,10 +379,7 @@ const duplicateMissingSubjectPrompt = buildImageEditPrompt({
   targetedRepairManifest: {
     referenceMode: 'identity',
     issues: [{ kind: 'presence', note: 'Expected subject is missing.' }],
-    subjectReplacements: [
-      { found: false },
-      { found: false },
-    ],
+    subjectReplacements: [{ found: false }, { found: false }],
   },
 });
 

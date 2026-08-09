@@ -6,10 +6,7 @@
  */
 
 import type { ImageValidationResult } from '../../ai/types';
-import {
-  optionalNoVisibleTextRule,
-  shouldCheckImageTextOrSymbols,
-} from './ImageTextPolicy';
+import { optionalNoVisibleTextRule, shouldCheckImageTextOrSymbols } from './ImageTextPolicy';
 
 export type ImageEditRepairReferenceMode = 'identity' | 'outfit' | 'identity_and_outfit' | 'none';
 export type ImageEditRepairIssueKind =
@@ -74,7 +71,9 @@ export function buildImageEditSystemInstruction(): string {
     optionalNoVisibleTextRule(),
     'Never create or duplicate architecture, openings, backgrounds, or celestial bodies merely to place a repaired subject; use the existing scene anchor when the instruction names one.',
     'Preserve composition, background, lighting, pose intent, style, and all unmentioned subjects.',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string {
@@ -97,7 +96,8 @@ function buildTargetedImageEditPrompt(manifest: ImageEditRepairManifest): string
   const actions = [
     ...repairActions,
     ...(protectedSubjectAction ? [protectedSubjectAction] : []),
-    'Preserve everything else in the image.',
+    'Preserve everything else in the image, including the current camera crop, framing, subject scale, and scene placement.',
+    'Never zoom out, extend a partial or close-up subject into a full body, or add legs, feet, or other anatomy outside the original visible framing.',
     'Add no unrelated new props or extra subjects.',
   ]
     .map((action, index) => `${index + 1}. ${action}`)
@@ -129,6 +129,7 @@ function buildSubjectReplacementAction(replacement: ImageEditSubjectReplacement)
     : 'the matching attached reference image';
   const visible = visibleSubjectDescription(replacement.actualVisibleDescription);
   const sceneSlot = compactPromptText(replacement.sceneSlotDescription);
+  const preserveFraming = `Use ${reference} only as the visual identity source. Keep exactly the existing crop, pose, scale, camera angle, body visibility, and scene position; do not insert a full-body figure from the reference or draw anatomy outside the original framing.`;
 
   if (replacement.found === false && !visible) {
     if (sceneSlot && /\bwindow\b/i.test(sceneSlot)) {
@@ -140,13 +141,13 @@ function buildSubjectReplacementAction(replacement: ImageEditSubjectReplacement)
   }
 
   if (visible) {
-    return `Completely replace the visible subject described as "${visible}" with the full character from ${reference}.`;
+    return `Replace only the existing visible subject described as "${visible}". ${preserveFraming}`;
   }
   if (sceneSlot) {
-    return `Completely replace the visible subject occupying this scene slot: "${sceneSlot}" with the full character from ${reference}.`;
+    return `Replace only the existing visible subject occupying this scene slot: "${sceneSlot}". ${preserveFraming}`;
   }
 
-  return `Completely replace the mismatched visible subject for the expected character slot with the full character from ${reference}.`;
+  return `Replace only the mismatched existing visible subject for the expected character slot. ${preserveFraming}`;
 }
 
 function compactPromptText(text: string | null | undefined): string | null {
@@ -241,7 +242,7 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
         : 'Remove only the unexpected extra subject.';
     }
     case 'text':
-      return 'Remove only the visible text or lettering, including any leaked reference-sheet title, label, or REF_* identifier.';
+      return 'Remove every visible label, title, caption, REF_* identifier, and descriptive/reference/UI block; replace the entire block with continuous surrounding storybook artwork, without adding any text.';
     case 'composition':
       return `Restore this exact scene structure: "${compactPromptText(issue.note) || 'use the scene brief'}". Count every separate framed, curtained, or bordered night-sky opening as a window, even if it has a different size or shape. If there are two, retain only the original environment-reference window; completely remove the added opening itself (not just its Moon) and fill that area with the continuous surrounding wall/background. Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.`;
     case 'generic':

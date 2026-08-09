@@ -77,6 +77,7 @@ function fallbackEnvironment(spec: StorySpec): StoryEnvironment {
   return {
     id: FALLBACK_ENVIRONMENT_ID,
     name: spec.scenarioCard?.name || spec.goalName || 'Main Story Place',
+    viewpointKind: 'exterior',
     description:
       'A clear child-friendly story location with simple fixed objects, readable open space for characters, warm colors, and uncluttered background areas.',
   };
@@ -89,6 +90,7 @@ function normalizeEnvironments(script: MixedStoryScript, spec: StorySpec): Story
     .map((environment) => ({
       id: String(environment.id),
       name: environment.name || environment.id,
+      viewpointKind: environment.viewpointKind,
       description: environment.description,
       characterOutfits: environment.characterOutfits,
     }))

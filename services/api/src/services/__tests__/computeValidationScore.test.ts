@@ -86,13 +86,13 @@ function testUnwantedTextIsBlockingEvenWhenScoreWouldPass() {
 
   assert.strictEqual(
     score,
-    config.image.validationCheckTextOrSymbols ? 95 : 100,
-    'Text penalty must follow IMAGE_VALIDATION_CHECK_TEXT_OR_SYMBOLS'
+    95,
+    'Visible text, leaked reference labels, and descriptive blocks must receive the text penalty'
   );
   assert.strictEqual(
     hasBlockingUnwantedImageText(result),
-    config.image.validationCheckTextOrSymbols,
-    'Visible text/reference labels must only force repair when the check is enabled'
+    true,
+    'Visible text/reference labels must always force repair'
   );
 }
 

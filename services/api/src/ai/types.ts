@@ -213,6 +213,8 @@ export interface StoryEnvironment {
   id: string;
   name: string;
   description: string; // Base visual description (English)
+  /** Camera-accessible structural view of this plate; prevents exterior/interior reference mixing. */
+  viewpointKind?: 'exterior' | 'interior' | 'submerged' | 'enclosed';
   characterOutfits?: string; // "Char1: outfit1. Char2: outfit2." — parsed to Record for image gen
 }
 

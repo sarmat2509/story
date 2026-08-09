@@ -1294,9 +1294,10 @@ export function formatEnvironmentRules(): string {
   return [
     'CRITICAL - Environments (Base Descriptions):',
     '- Define environments AFTER scenes and outfits. One entry per unique environmentId used in scenes.',
-    '- Each environment has THREE fields (all required): id, name, description. Do NOT put wardrobe in environments — use the outfits array and per-character outfitId on sceneVisual.cameraComposition.characters only.',
+    '- Each environment has FOUR fields (all required): id, name, viewpointKind, description. Do NOT put wardrobe in environments — use the outfits array and per-character outfitId on sceneVisual.cameraComposition.characters only.',
     '  - "id": Short identifier (e.g. "bedroom", "forest_clearing")',
     '  - "name": Human-readable name',
+    '  - "viewpointKind": exactly one of exterior, interior, submerged, enclosed. This is the camera-accessible structural class of the plate, not mood or art style. Exterior of a cave/airplane/fountain is exterior; cave interior or aircraft cabin is interior; fully underwater is submerged; a sealed container or other constrained volume is enclosed.',
     '  - "description": BASE visual description IN ENGLISH of the fixed, permanent elements:',
     '    * Room structure: layout, shape, dimensions',
     '    * Permanent furniture: beds, tables, shelves, cabinets',
@@ -1305,6 +1306,7 @@ export function formatEnvironmentRules(): string {
     '    * Materials and colors of permanent elements',
     '    * Weather and time-of-day when they affect the place (snow on ground, rain, night sky) — as part of the location, not character wardrobe',
     '    * SPATIAL LAYOUT: describe where key objects are (left/center/right, foreground/background) AND their positions relative to each other (path beside the tree, house behind the bushes, bushes to the left of the path). This layout is reused for ALL scenes in this environment.',
+    '    * CAMERA-ACCESSIBLE VOLUME: describe the physical volume visible to the scene camera, including its enclosing surfaces and frame boundary. The plate must make clear what can appear in frame and which mutually exclusive exterior view stays outside the frame. For a fully submerged scene, describe an underwater interior volume (such as the inside of a fountain basin), submerged floor/walls, water depth, and whether the water surface is visible; do not describe the exterior plaza, fountain rim, shore, or sky unless that exact view is intentionally in frame.',
     '    * Include ALL static objects that appear in the story: flower, tree, rock, bench — everything that has a fixed place. If the story mentions a flower, it must be in environment.description with its position. No static object may appear "new" in sceneVisual — it must already be in the environment. Scene delta can only describe state changes (flower bloomed, tree lit up), not new objects.',
     '- Base description should work for ALL scenes in this location',
     '- STORY-CRITICAL STATIC OBJECTS (tree, building, monument, rock, path, bushes, flower, bench) MUST be in environment.description with fixed position. For each: position in frame (left/center/right, foreground/background) AND position relative to other objects ("tree to the left of path", "path leads from foreground to tree", "bushes along left side of path", "house behind trees").',
@@ -1322,6 +1324,7 @@ export function formatEnvironmentRules(): string {
     '  * Different rooms (bedroom vs kitchen vs living room)',
     '  * Cave entrance vs cave interior',
     '  * Beach vs pier or beach vs underwater',
+    '  * Fountain exterior/side view vs underwater fountain-basin interior',
     '  * Any sub-location with different visual structure (layout, sky visibility, key landmarks) — use separate environment.',
     '- Good example: scene 3 "forest path" → environmentId "forest_path"; scene 5 "spacious glade with Silver Tree" → environmentId "silver_tree_glade" (NOT same as forest_path).',
   ].join('\n');

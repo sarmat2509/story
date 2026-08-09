@@ -55,9 +55,10 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier' },
           name: { type: 'string', description: 'Human-readable location name' },
-          description: { type: 'string', description: 'Base visual description IN ENGLISH for a reusable EMPTY LOCATION PLATE. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations. Include weather/time-of-day when it affects the location (snow, rain, night). Do not include people, animals, creatures, character actions, or named-character scale comparisons. If the location is on/inside a character-owned shell, den, nest, house, or body-adjacent place, describe only inert terrain/architecture and never the character body, face, eyes, limbs, or living anatomy.' },
+          viewpointKind: { type: 'string', enum: ['exterior', 'interior', 'submerged', 'enclosed'], description: 'Camera-accessible structural class for this environment plate. Use exterior for outside views, interior for rooms/caves/cabins, submerged for fully underwater views, enclosed for sealed or constrained internal volumes.' },
+          description: { type: 'string', description: 'Base visual description IN ENGLISH for a reusable EMPTY LOCATION PLATE. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations. Describe the camera-accessible physical volume, enclosing surfaces, and frame boundary: what is visible here and which mutually exclusive exterior view is outside frame. A fully submerged/interior viewpoint needs its own environmentId and plate — for example, the underwater interior of a fountain basin, not the exterior fountain. Include weather/time-of-day when it affects the location (snow, rain, night). Do not include people, animals, creatures, character actions, or named-character scale comparisons. If the location is on/inside a character-owned shell, den, nest, house, or body-adjacent place, describe only inert terrain/architecture and never the character body, face, eyes, limbs, or living anatomy.' },
         },
-        required: ['id', 'name', 'description'],
+        required: ['id', 'name', 'viewpointKind', 'description'],
       },
       description: 'All distinct locations in the story. Wardrobe is NOT here — use outfits[] and sceneVisual.cameraComposition.characters[].outfitId on each illustration. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance.',
     },
@@ -125,12 +126,12 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
             properties: {
               setting: {
                 type: 'string',
-                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. Do not state a separate focus sentence here. Every named character mentioned here must also have a cameraComposition.characters[] row; otherwise omit that character from all sceneVisual prose.',
+                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. For a restricted/interior/fully immersed view, explicitly state the camera medium and frame boundary when it matters: for example, both camera and characters are underwater and the water surface/exterior rim is outside frame. Do not state a separate focus sentence here. Every named character mentioned here must also have a cameraComposition.characters[] row; otherwise omit that character from all sceneVisual prose.',
               },
               cameraComposition: {
                 type: 'object',
                 properties: {
-                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level. Choose the shot to make primaryRead readable. Every named character mentioned here must also have a cameraComposition.characters[] row.' },
+                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, camera position/medium, viewing direction, eye level, and framing. For an underwater/interior/restricted view, state whether the camera is inside that volume and whether it looks level, upward, or toward an opening. Choose the shot to make primaryRead readable. Every named character mentioned here must also have a cameraComposition.characters[] row.' },
                   characters: {
                     type: 'array',
                     minItems: 1,
