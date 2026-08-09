@@ -896,6 +896,10 @@ wait_for_generation_drain() {
 # ─────────────────────────────────────────────────────────────────────────────
 deploy_api() {
   local existing_web_build_id local_web_build_id api_tarball_kb api_image_kb required_remote_kb
+  local api_tarball_name api_tarball_path remote_api_tarball_path
+  api_tarball_name="${API_IMAGE}-${DEPLOY_ID}.tar.gz"
+  api_tarball_path="/tmp/${api_tarball_name}"
+  remote_api_tarball_path="${DROPLET_PATH}/${api_tarball_name}"
   existing_web_build_id=$(ssh_droplet "if [ -f '${DROPLET_PATH}/.env.production' ]; then grep -E '^WEB_BUILD_ID=' '${DROPLET_PATH}/.env.production' | tail -n 1 | cut -d= -f2-; fi" || true)
   local_web_build_id=$(read_env_var "${PROJECT_ROOT}/.env.production" "WEB_BUILD_ID" || true)
 
@@ -907,10 +911,10 @@ deploy_api() {
   print_step_done
 
   print_step "Saving API image to tarball..."
-  docker save ${API_IMAGE}:${API_TAG} | gzip > /tmp/${API_IMAGE}.tar.gz
+  docker save ${API_IMAGE}:${API_TAG} | gzip > "${api_tarball_path}"
   print_step_done
 
-  api_tarball_kb=$(du -k "/tmp/${API_IMAGE}.tar.gz" | awk '{print $1}')
+  api_tarball_kb=$(du -k "${api_tarball_path}" | awk '{print $1}')
   api_image_kb=$(( ($(docker image inspect --format '{{.Size}}' "${API_IMAGE}:${API_TAG}") + 1023) / 1024 ))
   required_remote_kb=$((api_tarball_kb + api_image_kb + API_RUNTIME_DISK_RESERVE_KB))
   prepare_disk_for_api_deploy "${required_remote_kb}"
@@ -920,7 +924,7 @@ deploy_api() {
   wait_for_generation_drain
 
   print_step "Uploading API image to droplet..."
-  scp -o ControlPath=${SSH_CONTROL_PATH} /tmp/${API_IMAGE}.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${api_tarball_path}" ${DROPLET_USER}@${DROPLET_IP}:"${remote_api_tarball_path}"
   print_step_done
 
   print_step "Uploading .env.production..."
@@ -941,16 +945,16 @@ deploy_api() {
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
 echo "Starting docker load at \$(date '+%H:%M:%S')"
-docker load < ${API_IMAGE}.tar.gz
+docker load < ${remote_api_tarball_path}
 echo "Finished docker load at \$(date '+%H:%M:%S')"
-rm -f ${API_IMAGE}.tar.gz
+rm -f ${remote_api_tarball_path}
 echo "Starting docker compose up api at \$(date '+%H:%M:%S')"
 docker compose -f docker-compose.prod.yml up -d api
 echo "Finished docker compose up at \$(date '+%H:%M:%S')"
 EOF
   print_step_done
 
-  rm -f /tmp/${API_IMAGE}.tar.gz
+  rm -f "${api_tarball_path}"
   sync_voice_samples
   sync_story_artifact_images
   sync_outfit_plate_cache
