@@ -3,9 +3,9 @@
  * Usage: npx tsx src/scripts/dumpStoryDirectorJson.ts <storyId>
  */
 
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db } from '../db';
-import { stories } from '../db/schema';
+import { stories, storyDirectorScenes } from '../db/schema';
 
 const storyId = process.argv[2];
 if (!storyId) {
@@ -24,14 +24,32 @@ async function run() {
     (a, b) => (a.sceneId as number) - (b.sceneId as number),
   );
   const meta = (story.metadata as Record<string, unknown>) || {};
-  const illScenes = scenes.filter((s) => {
-    const sv = s.sceneVisual as Record<string, unknown> | undefined;
-    return sv && (sv.setting != null || sv.cameraComposition != null);
-  });
-  const illustrations = illScenes.map((s) => ({
-    environmentId: s.environmentId,
-    sceneVisual: s.sceneVisual,
-  }));
+  const directorRows = await db
+    .select()
+    .from(storyDirectorScenes)
+    .where(eq(storyDirectorScenes.storyId, storyId))
+    .orderBy(asc(storyDirectorScenes.illustrationBlockIndex), asc(storyDirectorScenes.sceneIndex));
+  const illustrations = directorRows
+    .filter((row) => row.isBlockAnchor)
+    .map((row) => ({
+      environmentId: row.environmentId,
+      sceneVisual: row.sceneVisual,
+    }));
+
+  // Stories created before story_director_scenes existed keep their Director
+  // anchors on the legacy scenes JSON column.
+  if (illustrations.length === 0) {
+    const illScenes = scenes.filter((s) => {
+      const sv = s.sceneVisual as Record<string, unknown> | undefined;
+      return sv && (sv.setting != null || sv.cameraComposition != null);
+    });
+    illustrations.push(
+      ...illScenes.map((s) => ({
+        environmentId: s.environmentId,
+        sceneVisual: s.sceneVisual,
+      })),
+    );
+  }
 
   const directorOutput = {
     characters: (meta.llmGeneratedCharacters as unknown[]) || [],
