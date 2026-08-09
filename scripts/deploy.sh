@@ -1005,7 +1005,10 @@ run_migrations_post_deploy() {
   invalidate_remote_ssr_html_cache
 
   print_step "Starting worker container..."
-  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d worker"
+  # Both api and worker use the mutable kazka-api:latest tag. `up -d worker`
+  # alone may keep a running worker on the previous image, so recreate it
+  # explicitly after every API image upload.
+  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d --force-recreate worker"
   print_step_done
 
   print_step "Restoring normal ops mode..."
