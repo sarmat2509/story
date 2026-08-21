@@ -92,6 +92,9 @@ apps/universal-app/android/local.properties
 apps/universal-app/.expo/
 apps/universal-app/.expo-shared/
 
+# Storybook build output
+apps/universal-app/storybook-static/
+
 # Next.js
 apps/web-landing/.next/
 apps/web-landing/out/
