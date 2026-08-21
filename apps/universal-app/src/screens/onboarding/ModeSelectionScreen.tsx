@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,18 +25,20 @@ import {
   useEnterChildMode,
   useUpdateChildModeControls,
 } from '@/api/children';
+import { useUpdateChildModeExitPasscode } from '@/api/auth';
 import { AppButton } from '@/components/AppButton';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuthStore } from '@/store/authStore';
 import { useProductTour } from '@/features/productTour/ProductTourProvider';
 import { getAnalytics } from '@/services/analytics';
 import { theme } from '@/theme';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES } from '@wondertales/shared';
 
-type OnboardingStep = 'profile' | 'setup' | 'done';
-type StoryCreationMode = 'instant' | 'artisan';
+export type OnboardingStep = 'profile' | 'setup' | 'done';
+export type StoryCreationMode = 'instant' | 'artisan';
 
-type CreatedChild = {
+export type CreatedChild = {
   id: string;
   name: string;
   storyCreationMode?: StoryCreationMode;
@@ -49,6 +53,41 @@ function getDefaultBirthDate(): Date {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 6);
   return date;
+}
+
+function getOldestAllowedBirthDate(): Date {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 18);
+  return date;
+}
+
+function isValidChildBirthDate(date: Date): boolean {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date >= getOldestAllowedBirthDate() && date <= today;
+}
+
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDateFormatHint(locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+    .formatToParts(new Date(2006, 10, 22))
+    .map((part) => {
+      if (part.type === 'day') return 'DD';
+      if (part.type === 'month') return 'MM';
+      if (part.type === 'year') return 'YYYY';
+      return part.value;
+    })
+    .join('');
 }
 
 function ModeOption({
@@ -100,7 +139,16 @@ function ModeOption({
   );
 }
 
-export default function ModeSelectionScreen() {
+interface ModeSelectionScreenProps {
+  /** Lets isolated previews start at a particular onboarding stage. */
+  initialStep?: OnboardingStep;
+  initialCreatedChild?: CreatedChild | null;
+}
+
+export default function ModeSelectionScreen({
+  initialStep = 'profile',
+  initialCreatedChild = null,
+}: ModeSelectionScreenProps) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
@@ -110,20 +158,26 @@ export default function ModeSelectionScreen() {
   const createChild = useCreateChild();
   const updateChildModeControls = useUpdateChildModeControls();
   const enterChildMode = useEnterChildMode();
+  const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
 
-  const [step, setStep] = useState<OnboardingStep>('profile');
+  const [step, setStep] = useState<OnboardingStep>(initialStep);
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState(getDefaultBirthDate);
+  const [birthDateError, setBirthDateError] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showChildModePasscodeModal, setShowChildModePasscodeModal] = useState(false);
+  const [newExitPasscode, setNewExitPasscode] = useState('');
+  const [confirmExitPasscode, setConfirmExitPasscode] = useState('');
   const [storyLanguage, setStoryLanguage] = useState(toBaseLocale(i18n.language));
   const [storyCreationMode, setStoryCreationMode] = useState<StoryCreationMode>('instant');
   const [consentAccepted, setConsentAccepted] = useState(false);
-  const [createdChild, setCreatedChild] = useState<CreatedChild | null>(null);
+  const [createdChild, setCreatedChild] = useState<CreatedChild | null>(initialCreatedChild);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
 
   const isWide = width >= 820;
-  const hasExistingChildProfile = (childrenData?.children.length ?? 0) > 0;
+  const isNarrow = width < 540;
+  const hasExistingChildProfile = (childrenData?.children?.length ?? 0) > 0;
   const shouldKeepChildProfileVisible =
     keepChildProfileVisible && (isChildrenLoading || !hasExistingChildProfile);
   const languageOptions = useMemo(
@@ -137,6 +191,7 @@ export default function ModeSelectionScreen() {
       })),
     [t]
   );
+  const birthDateFormatHint = useMemo(() => getDateFormatHint(i18n.language), [i18n.language]);
 
   const title =
     step === 'profile'
@@ -225,9 +280,29 @@ export default function ModeSelectionScreen() {
     }
   };
 
+  const validateBirthDate = (date: Date): boolean => {
+    if (isValidChildBirthDate(date)) {
+      setBirthDateError(null);
+      return true;
+    }
+
+    setBirthDateError(
+      t('child_form.birth_date_invalid', {
+        defaultValue: 'Enter a valid birth date for a child aged 18 or under.',
+      })
+    );
+    return false;
+  };
+
+  const continueFromProfile = () => {
+    if (!validateBirthDate(birthDate)) return;
+    setStep('setup');
+  };
+
   const resetForAnotherChild = () => {
     setName('');
     setBirthDate(getDefaultBirthDate());
+    setBirthDateError(null);
     setStoryCreationMode('instant');
     setConsentAccepted(false);
     setError(null);
@@ -262,12 +337,13 @@ export default function ModeSelectionScreen() {
   const startChildMode = async () => {
     if (!createdChild) return;
     setError(null);
+    if (!user?.childModeExitPasscodeConfigured) {
+      setShowChildModePasscodeModal(true);
+      return;
+    }
     try {
       const updatedUser = await completeOnboarding();
-      if (!updatedUser?.childModeExitPasscodeConfigured) {
-        navigation.navigate('Main', { screen: 'Profile' });
-        return;
-      }
+      if (!updatedUser?.childModeExitPasscodeConfigured) return;
       await updateChildModeControls.mutateAsync({
         id: createdChild.id,
         data: { childModeEnabled: true },
@@ -282,6 +358,40 @@ export default function ModeSelectionScreen() {
       );
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const closeChildModePasscodeModal = () => {
+    if (updateChildModeExitPasscode.isPending) return;
+    setShowChildModePasscodeModal(false);
+    setNewExitPasscode('');
+    setConfirmExitPasscode('');
+  };
+
+  const saveChildModeExitPasscode = async () => {
+    const nextPasscode = newExitPasscode.trim();
+    const confirmation = confirmExitPasscode.trim();
+    if (nextPasscode.length < 4) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_too_short'));
+      return;
+    }
+    if (nextPasscode !== confirmation) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_mismatch'));
+      return;
+    }
+
+    try {
+      await updateChildModeExitPasscode.mutateAsync({ newPasscode: nextPasscode });
+      closeChildModePasscodeModal();
+      Alert.alert(
+        t('profile.child_mode_exit_passcode_success_title'),
+        t('profile.child_mode_exit_passcode_success_message')
+      );
+    } catch (err) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, err, 'profile.child_mode_exit_passcode_error')
+      );
     }
   };
 
@@ -322,14 +432,33 @@ export default function ModeSelectionScreen() {
           {Platform.OS === 'web' ? (
             <input
               type="date"
-              value={birthDate.toISOString().split('T')[0]}
-              max={new Date().toISOString().split('T')[0]}
+              value={toDateInputValue(birthDate)}
+              min={toDateInputValue(getOldestAllowedBirthDate())}
+              max={toDateInputValue(new Date())}
+              placeholder={birthDateFormatHint}
               onChange={(event) => {
                 const nextDate = new Date((event.target as HTMLInputElement).value);
-                if (!Number.isNaN(nextDate.getTime())) setBirthDate(nextDate);
+                if (!Number.isNaN(nextDate.getTime())) {
+                  setBirthDate(nextDate);
+                  validateBirthDate(nextDate);
+                }
               }}
               data-testid="mode-selection-birth-date"
-              style={styles.webDateInput as React.CSSProperties}
+              style={
+                {
+                  width: '100%',
+                  minHeight: 54,
+                  boxSizing: 'border-box',
+                  border: `${theme.borders.width.thin}px solid ${theme.colors.border.light}`,
+                  borderRadius: theme.borders.radius.md,
+                  backgroundColor: theme.colors.background.secondary,
+                  color: theme.colors.text.primary,
+                  fontSize: theme.typography.fontSize.base,
+                  fontFamily: 'inherit',
+                  padding: `0 ${theme.spacing[4]}px`,
+                  outline: 'none',
+                } as React.CSSProperties
+              }
             />
           ) : (
             <>
@@ -344,15 +473,21 @@ export default function ModeSelectionScreen() {
                 <DateTimePicker
                   value={birthDate}
                   mode="date"
+                  minimumDate={getOldestAllowedBirthDate()}
                   maximumDate={new Date()}
                   onChange={(_event, selectedDate) => {
                     setShowDatePicker(Platform.OS === 'ios');
-                    if (selectedDate) setBirthDate(selectedDate);
+                    if (selectedDate) {
+                      setBirthDate(selectedDate);
+                      validateBirthDate(selectedDate);
+                    }
                   }}
                 />
               ) : null}
             </>
           )}
+          <Text style={styles.dateHint}>{birthDateFormatHint}</Text>
+          {birthDateError ? <Text style={styles.fieldError}>{birthDateError}</Text> : null}
         </View>
       </View>
 
@@ -402,7 +537,7 @@ export default function ModeSelectionScreen() {
 
       <AppButton
         label={t('common.continue', { defaultValue: 'Continue' })}
-        onPress={() => setStep('setup')}
+        onPress={continueFromProfile}
         disabled={!name.trim() || !consentAccepted}
         style={styles.onboardingPrimaryAction}
         testID="mode-selection-continue"
@@ -548,6 +683,95 @@ export default function ModeSelectionScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </GlassCard>
       </ScrollView>
+      <Modal
+        visible={showChildModePasscodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeChildModePasscodeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.passcodeModal}>
+            <View style={styles.passcodeModalHeader}>
+              <View style={styles.passcodeModalHeaderText}>
+                <Text style={styles.passcodeModalTitle}>
+                  {t('profile.child_mode_exit_passcode_title')}
+                </Text>
+                <Text style={styles.passcodeModalDescription}>
+                  {t('onboarding.child_mode_passcode_description', {
+                    defaultValue:
+                      'This password lets a parent leave Child Mode and return to the parent area. You can change it any time in Profile.',
+                  })}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={closeChildModePasscodeModal}
+                style={styles.passcodeModalClose}
+                disabled={updateChildModeExitPasscode.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.passcodeFields, isNarrow && styles.passcodeFieldsNarrow]}>
+              <View style={styles.passcodeField}>
+                <Text style={styles.passcodeLabel}>
+                  {t('profile.child_mode_exit_passcode_new')}
+                </Text>
+                <TextInput
+                  style={styles.passcodeInput}
+                  value={newExitPasscode}
+                  onChangeText={setNewExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                  testID="mode-selection-passcode-new"
+                />
+              </View>
+              <View style={styles.passcodeField}>
+                <Text style={styles.passcodeLabel}>
+                  {t('profile.child_mode_exit_passcode_confirm')}
+                </Text>
+                <TextInput
+                  style={styles.passcodeInput}
+                  value={confirmExitPasscode}
+                  onChangeText={setConfirmExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                  onSubmitEditing={saveChildModeExitPasscode}
+                  testID="mode-selection-passcode-confirm"
+                />
+              </View>
+            </View>
+            <View
+              style={[styles.passcodeModalActions, isNarrow && styles.passcodeModalActionsNarrow]}
+            >
+              <AppButton
+                label={t('common.cancel')}
+                onPress={closeChildModePasscodeModal}
+                disabled={updateChildModeExitPasscode.isPending}
+                variant="secondary"
+                style={styles.passcodeModalAction}
+              />
+              <AppButton
+                label={t('profile.child_mode_exit_passcode_save')}
+                onPress={saveChildModeExitPasscode}
+                disabled={
+                  newExitPasscode.trim().length < 4 ||
+                  newExitPasscode.trim() !== confirmExitPasscode.trim() ||
+                  updateChildModeExitPasscode.isPending
+                }
+                loading={updateChildModeExitPasscode.isPending}
+                style={styles.passcodeModalAction}
+                testID="mode-selection-passcode-save"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -634,18 +858,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     paddingHorizontal: theme.spacing[4],
   },
-  webDateInput: {
-    minHeight: 54,
-    width: '100%',
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
-    color: theme.colors.text.primary,
-    fontSize: theme.typography.fontSize.base,
-    paddingLeft: theme.spacing[4],
-    paddingRight: theme.spacing[4],
-  },
   dateInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -654,6 +866,90 @@ const styles = StyleSheet.create({
   dateText: {
     color: theme.colors.text.primary,
     fontSize: theme.typography.fontSize.base,
+  },
+  dateHint: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    marginTop: theme.spacing[1],
+  },
+  fieldError: {
+    color: theme.colors.status.error,
+    fontSize: theme.typography.fontSize.sm,
+    marginTop: theme.spacing[1],
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[4],
+    backgroundColor: 'rgba(17, 24, 39, 0.45)',
+  },
+  passcodeModal: {
+    width: '100%',
+    maxWidth: 520,
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.primary,
+  },
+  passcodeModalHeader: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    justifyContent: 'space-between',
+  },
+  passcodeModalHeaderText: {
+    flex: 1,
+  },
+  passcodeModalTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  passcodeModalDescription: {
+    marginTop: theme.spacing[2],
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+  },
+  passcodeModalClose: {
+    padding: theme.spacing[1],
+  },
+  passcodeFields: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  passcodeFieldsNarrow: {
+    flexDirection: 'column',
+  },
+  passcodeField: {
+    flex: 1,
+  },
+  passcodeLabel: {
+    marginBottom: theme.spacing[2],
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  passcodeInput: {
+    minHeight: 44,
+    paddingHorizontal: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  passcodeModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  passcodeModalActionsNarrow: {
+    flexDirection: 'column-reverse',
+  },
+  passcodeModalAction: {
+    minWidth: 140,
   },
   languageGrid: {
     flexDirection: 'row',

@@ -16,6 +16,7 @@ interface Props {
   onRetry?: () => void;
   onReport?: () => void;
   allowManualClose?: boolean;
+  presentation?: 'modal' | 'inline';
 }
 
 export function GenerationProgressModal({
@@ -28,6 +29,7 @@ export function GenerationProgressModal({
   onRetry,
   onReport,
   allowManualClose = false,
+  presentation = 'modal',
 }: Props) {
   const { t } = useTranslation();
   const maxSeenProgressRef = React.useRef(0);
@@ -164,81 +166,95 @@ export function GenerationProgressModal({
       })
     : null;
 
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modal} testID="generation-progress-modal">
-          {allowManualClose && onClose && status === 'completed' && (
-            <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-              <Text style={styles.closeIconText}>✕</Text>
-            </TouchableOpacity>
-          )}
+  const content = (
+    <View style={styles.modal} testID="generation-progress-modal">
+      {allowManualClose && onClose && (status === 'completed' || status === 'failed') && (
+        <TouchableOpacity
+          style={styles.closeIcon}
+          onPress={onClose}
+          testID="generation-progress-close"
+        >
+          <Text style={styles.closeIconText}>✕</Text>
+        </TouchableOpacity>
+      )}
 
-          {status !== 'completed' && status !== 'failed' && (
-            <ActivityIndicator
-              size="large"
-              color={theme.colors.interactive.primary}
-              style={styles.spinner}
+      {status !== 'completed' && status !== 'failed' && (
+        <ActivityIndicator
+          size="large"
+          color={theme.colors.interactive.primary}
+          style={styles.spinner}
+        />
+      )}
+
+      {status === 'completed' && <Text style={styles.successIcon}>✅</Text>}
+
+      {status === 'failed' && <Text style={styles.errorIcon}>❌</Text>}
+
+      <Text
+        style={[styles.statusText, status === 'failed' && styles.errorText]}
+        testID="generation-progress-status"
+      >
+        {getStatusText()}
+      </Text>
+
+      {status !== 'completed' && status !== 'failed' && (
+        <>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
+          </View>
+          <Text
+            style={[styles.progressText, progressHint && styles.progressTextWithHint]}
+            testID="generation-progress-percentage"
+          >
+            {Math.round(progressPercentage)}%
+          </Text>
+          {progressHint && <Text style={styles.progressHint}>{progressHint}</Text>}
+        </>
+      )}
+
+      {status === 'failed' && (
+        <View style={styles.failedActions}>
+          {onRetry && (
+            <AppButton
+              label={t('wizard.retry')}
+              onPress={onRetry}
+              style={styles.failedAction}
+              testID="generation-progress-retry"
             />
           )}
-
-          {status === 'completed' && <Text style={styles.successIcon}>✅</Text>}
-
-          {status === 'failed' && <Text style={styles.errorIcon}>❌</Text>}
-
-          <Text
-            style={[styles.statusText, status === 'failed' && styles.errorText]}
-            testID="generation-progress-status"
-          >
-            {getStatusText()}
-          </Text>
-
-          {status !== 'completed' && status !== 'failed' && (
-            <>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
-              </View>
-              <Text
-                style={[styles.progressText, progressHint && styles.progressTextWithHint]}
-                testID="generation-progress-percentage"
-              >
-                {Math.round(progressPercentage)}%
-              </Text>
-              {progressHint && <Text style={styles.progressHint}>{progressHint}</Text>}
-            </>
-          )}
-
-          {status === 'failed' && (
-            <View style={styles.failedActions}>
-              {onRetry && (
-                <AppButton
-                  label={t('wizard.retry')}
-                  onPress={onRetry}
-                  style={styles.failedAction}
-                  testID="generation-progress-retry"
-                />
-              )}
-              {onReport && (
-                <AppButton
-                  label={t('feedback.report_this_issue')}
-                  onPress={onReport}
-                  variant="secondary"
-                  style={styles.failedAction}
-                />
-              )}
-            </View>
-          )}
-
-          {status === 'completed' && onClose && (
+          {onReport && (
             <AppButton
-              label="Переглянути історію"
-              onPress={onClose}
-              style={styles.completedAction}
-              testID="generation-progress-view-story"
+              label={t('feedback.report_this_issue')}
+              onPress={() => {
+                onClose?.();
+                onReport();
+              }}
+              variant="secondary"
+              style={styles.failedAction}
+              testID="generation-progress-report"
             />
           )}
         </View>
-      </View>
+      )}
+
+      {status === 'completed' && onClose && (
+        <AppButton
+          label="Переглянути історію"
+          onPress={onClose}
+          style={styles.completedAction}
+          testID="generation-progress-view-story"
+        />
+      )}
+    </View>
+  );
+
+  if (presentation === 'inline') {
+    return visible ? <View style={[styles.overlay, styles.inlineOverlay]}>{content}</View> : null;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>{content}</View>
     </Modal>
   );
 }
@@ -251,6 +267,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing[6],
   },
+  inlineOverlay: { flexGrow: 1, minHeight: 360, borderRadius: theme.borders.radius.xl },
   modal: {
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.lg,
