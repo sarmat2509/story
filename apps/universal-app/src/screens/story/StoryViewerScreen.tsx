@@ -742,6 +742,7 @@ export default function StoryViewerScreen() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [publishShareDialogVisible, setPublishShareDialogVisible] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showContentReportModal, setShowContentReportModal] = useState(false);
   const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
   const [publishDialogOpenedFromShare, setPublishDialogOpenedFromShare] = useState(false);
   const [unpublishDialogVisible, setUnpublishDialogVisible] = useState(false);
@@ -778,14 +779,30 @@ export default function StoryViewerScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
+      headerRight: () => (
+        <View
+          style={[
+            styles.headerFeedbackActions,
+            isSingleColumn
+              ? styles.singleColumnHeaderFeedbackActions
+              : styles.desktopHeaderFeedbackActions,
+          ]}
+        >
+          <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+          <FeedbackHeaderButton
+            action="generatedContent"
+            onPress={() => setShowContentReportModal(true)}
+            testID="content-report-header-button"
+          />
+        </View>
+      ),
       headerRightContainerStyle: isMobile
         ? styles.mobileHeaderRightContainer
         : isTabletPortrait
           ? styles.tabletHeaderRightContainer
           : undefined,
     });
-  }, [isMobile, isTabletPortrait, isChildSession, navigation]);
+  }, [isMobile, isTabletPortrait, isChildSession, isSingleColumn, navigation]);
 
   // Default voice: keep last user choice across stories; if it is missing from this
   // catalog (e.g. other story language), restore from storage or first unlocked voice.
@@ -3083,6 +3100,7 @@ export default function StoryViewerScreen() {
               onActivateAudio={handleActivateAudio}
               onDeleteStory={isChildSession ? undefined : handleDeleteStory}
               onReportProblem={() => setShowFeedbackModal(true)}
+              onReportGeneratedContent={() => setShowContentReportModal(true)}
               onPublish={isChildSession ? undefined : handleOpenPublishDialog}
               onShare={isChildSession ? undefined : handleShare}
               onUnpublish={isChildSession ? undefined : handleUnpublish}
@@ -3444,6 +3462,12 @@ export default function StoryViewerScreen() {
       <FeedbackModal
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="story_viewer"
+      />
+
+      <FeedbackModal
+        visible={showContentReportModal}
+        onClose={() => setShowContentReportModal(false)}
         initialReportedScreen="story_viewer"
         contentReportContext={{
           storyId,
@@ -4132,6 +4156,16 @@ const styles = StyleSheet.create({
   tabletHeaderRightContainer: {
     right: 0,
     zIndex: 2,
+  },
+  headerFeedbackActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  singleColumnHeaderFeedbackActions: {
+    marginRight: theme.spacing[4],
+  },
+  desktopHeaderFeedbackActions: {
+    marginRight: theme.spacing[6] + theme.borders.width.medium,
   },
   mobileHeaderTitleContainer: {
     left: 0,

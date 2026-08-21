@@ -24,6 +24,7 @@ interface StoryBottomSheetProps {
   onActivateAudio: () => void | Promise<void>;
   onDeleteStory?: () => void;
   onReportProblem?: () => void;
+  onReportGeneratedContent?: () => void;
   onPublish?: () => void;
   onShare?: () => void;
   onUnpublish?: () => void;
@@ -48,6 +49,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
       onActivateAudio,
       onDeleteStory,
       onReportProblem,
+      onReportGeneratedContent,
       onPublish,
       onShare,
       onUnpublish,
@@ -205,7 +207,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
             />
           ) : null}
 
-          {/* Report Problem */}
+          {/* Product bug report */}
           {onReportProblem && (
             <AppButton
               label={t('profile.report_problem')}
@@ -213,6 +215,20 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               variant="ghost"
               size="md"
               leading={<Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />}
+              style={styles.reportProblemAction}
+            />
+          )}
+
+          {/* Generated-content safety/privacy report */}
+          {onReportGeneratedContent && (
+            <AppButton
+              label={t('feedback.content_report_title')}
+              onPress={onReportGeneratedContent}
+              variant="ghost"
+              size="md"
+              leading={
+                <Ionicons name="flag-outline" size={20} color={theme.colors.text.tertiary} />
+              }
               style={styles.reportProblemAction}
             />
           )}
