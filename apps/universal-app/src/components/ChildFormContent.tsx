@@ -50,6 +50,29 @@ function toBaseLocale(locale: string | undefined): string {
   return LOCALE_IDS.includes(base as any) ? base : DEFAULT_LOCALE;
 }
 
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDateFormatHint(locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+    .formatToParts(new Date(2006, 10, 22))
+    .map((part) => {
+      if (part.type === 'day') return 'DD';
+      if (part.type === 'month') return 'MM';
+      if (part.type === 'year') return 'YYYY';
+      return part.value;
+    })
+    .join('');
+}
+
 /** Convert relative asset path to absolute URL for Zod .url() validation */
 function toAbsoluteAssetUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -137,6 +160,7 @@ interface Props {
   onCancel?: () => void;
   variant?: 'modal' | 'inline';
   inlineSection?: 'full' | 'identity' | 'childProfile' | 'storyAuthor';
+  saveLabel?: string;
 }
 
 export function ChildFormContent({
@@ -146,6 +170,7 @@ export function ChildFormContent({
   onCancel,
   variant = 'modal',
   inlineSection = 'full',
+  saveLabel,
 }: Props) {
   const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
@@ -165,6 +190,8 @@ export function ChildFormContent({
     activeInlineSection === 'identity' || (activeInlineSection === 'full' && currentStep === 1);
   const showStoryAuthorFields = activeInlineSection === 'storyAuthor' || showFullStepTwo;
   const showChildProfileFields = activeInlineSection === 'childProfile' || showFullStepTwo;
+  const shouldShowImageRightsNotice = isSectionedInline || currentStep === 2;
+  const resolvedSaveLabel = saveLabel ?? t('child_form.save_button');
 
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState(new Date());
@@ -576,11 +603,30 @@ export function ChildFormContent({
 
   const showCloseButton = variant === 'modal' && !!onCancel;
   const showCancelInFooter = variant === 'modal' && !!onCancel;
+  const isStorySettingsInlineSection = isInline && activeInlineSection === 'storyAuthor';
   const inlineButtonStyle = isInline
     ? isMobile
       ? styles.inlineButtonMobile
-      : styles.inlineButton
+      : isStorySettingsInlineSection
+        ? styles.inlineButtonStorySettings
+        : styles.inlineButton
     : null;
+  const inlineSaveLabelStyle = isStorySettingsInlineSection
+    ? styles.inlineSaveLabelStorySettings
+    : undefined;
+
+  const imageRightsNotice = shouldShowImageRightsNotice ? (
+    <View style={styles.footerImageRightsNotice}>
+      <Ionicons name="information-circle-outline" size={15} color={theme.colors.text.tertiary} />
+      <Text style={styles.footerImageRightsNoticeText}>
+        {t('image_rights.child_inline_notice', {
+          defaultValue:
+            'By saving, you confirm that you have permission to use the photos in this form and are the child’s parent or legal guardian, or have their permission.',
+        })}
+      </Text>
+    </View>
+  ) : null;
+  const birthDateFormatHint = getDateFormatHint(i18n.language);
 
   return (
     <View style={isInline ? styles.inlineContainer : styles.modalContainer}>
@@ -665,20 +711,34 @@ export function ChildFormContent({
                 <input
                   type="date"
                   value={
-                    birthDate && !isNaN(birthDate.getTime())
-                      ? birthDate.toISOString().split('T')[0]
-                      : ''
+                    birthDate && !isNaN(birthDate.getTime()) ? toDateInputValue(birthDate) : ''
                   }
                   onChange={(e) => {
                     const newDate = new Date((e.target as HTMLInputElement).value);
                     if (!isNaN(newDate.getTime())) setBirthDate(newDate);
                   }}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={toDateInputValue(new Date())}
+                  placeholder={birthDateFormatHint}
                   style={
                     {
-                      ...styles.input,
-                      ...(isInline ? styles.inputInline : {}),
-                      ...(errors.birthDate ? styles.inputError : {}),
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      border: `${theme.borders.width.thin}px solid ${
+                        errors.birthDate
+                          ? theme.colors.status.error
+                          : isInline
+                            ? theme.colors.border.light
+                            : theme.colors.border.medium
+                      }`,
+                      borderRadius: theme.borders.radius.md,
+                      padding: theme.spacing[3],
+                      fontSize: theme.typography.fontSize.base,
+                      fontFamily: 'inherit',
+                      color: theme.colors.text.primary,
+                      backgroundColor: isInline
+                        ? theme.colors.neutral[50]
+                        : theme.colors.background.secondary,
+                      outline: 'none',
                     } as React.CSSProperties
                   }
                 />
@@ -709,6 +769,7 @@ export function ChildFormContent({
                   )}
                 </>
               )}
+              <Text style={styles.dateHint}>{birthDateFormatHint}</Text>
               {errors.birthDate && <Text style={styles.errorText}>{errors.birthDate}</Text>}
             </View>
 
@@ -748,7 +809,12 @@ export function ChildFormContent({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>{t('child_form.photos_title')}</Text>
+              <View style={styles.photoLabelRow}>
+                <Text style={styles.label}>{t('child_form.photos_title')}</Text>
+                <Text style={styles.photoCounter}>
+                  {t('photo_upload.counter', { count: photos.length, max: 5 })}
+                </Text>
+              </View>
               {!childId && (
                 <TouchableOpacity
                   style={styles.consentRow}
@@ -770,6 +836,8 @@ export function ChildFormContent({
                 onPhotosChange={setPhotos}
                 maxPhotos={5}
                 photoType="child"
+                imageRightsConsentMode="story-submit"
+                showCounter={false}
                 disabled={!childId && !childDataConsentAccepted}
                 childDataConsentAccepted={childDataConsentAccepted}
                 formatUrl={formatAssetUrl}
@@ -1176,13 +1244,17 @@ export function ChildFormContent({
         style={[styles.footer, isInline && styles.footerInline, isMobile && styles.footerMobile]}
       >
         {isSectionedInline ? (
-          <AppButton
-            label={t('child_form.save_button')}
-            onPress={handleSubmit}
-            disabled={updateChild.isPending || !name.trim() || photos.some((p) => p.isUploading)}
-            loading={updateChild.isPending}
-            style={[styles.footerAction, inlineButtonStyle]}
-          />
+          <View style={styles.footerSaveColumn}>
+            {imageRightsNotice}
+            <AppButton
+              label={resolvedSaveLabel}
+              onPress={handleSubmit}
+              disabled={updateChild.isPending || !name.trim() || photos.some((p) => p.isUploading)}
+              loading={updateChild.isPending}
+              style={[styles.footerAction, inlineButtonStyle, styles.footerSaveAction]}
+              labelStyle={inlineSaveLabelStyle}
+            />
+          </View>
         ) : currentStep === 1 ? (
           <>
             {showCancelInFooter && (
@@ -1212,19 +1284,23 @@ export function ChildFormContent({
               variant="secondary"
               style={[styles.footerAction, inlineButtonStyle]}
             />
-            <AppButton
-              label={t('child_form.save_button')}
-              onPress={handleSubmit}
-              disabled={
-                createChild.isPending ||
-                updateChild.isPending ||
-                (!childId && !childDataConsentAccepted) ||
-                (!childId && !description.trim()) ||
-                (!childId && analyzeChild.isPending)
-              }
-              loading={createChild.isPending || updateChild.isPending}
-              style={[styles.footerAction, inlineButtonStyle]}
-            />
+            <View style={styles.footerSaveColumn}>
+              {imageRightsNotice}
+              <AppButton
+                label={resolvedSaveLabel}
+                onPress={handleSubmit}
+                disabled={
+                  createChild.isPending ||
+                  updateChild.isPending ||
+                  (!childId && !childDataConsentAccepted) ||
+                  (!childId && !description.trim()) ||
+                  (!childId && analyzeChild.isPending)
+                }
+                loading={createChild.isPending || updateChild.isPending}
+                style={[styles.footerAction, inlineButtonStyle, styles.footerSaveAction]}
+                labelStyle={inlineSaveLabelStyle}
+              />
+            </View>
           </>
         )}
       </View>
@@ -1305,6 +1381,16 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: theme.spacing[6],
+  },
+  photoLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  photoCounter: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    marginBottom: theme.spacing[2],
   },
   currentImageCard: {
     padding: theme.spacing[3],
@@ -1387,6 +1473,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
   },
+  dateHint: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    marginTop: theme.spacing[1],
+  },
   errorText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.status.error,
@@ -1429,6 +1520,28 @@ const styles = StyleSheet.create({
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: theme.colors.border.light,
   },
+  footerSaveColumn: {
+    flex: 1,
+    alignItems: 'stretch',
+  },
+  footerSaveAction: {
+    alignSelf: 'flex-end',
+  },
+  footerImageRightsNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    alignSelf: 'flex-end',
+    maxWidth: 520,
+    marginBottom: theme.spacing[2],
+  },
+  footerImageRightsNoticeText: {
+    flex: 1,
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.xs,
+    lineHeight: 17,
+    textAlign: 'right',
+  },
   footerInline: {
     justifyContent: 'flex-end',
     backgroundColor: theme.colors.background.primary,
@@ -1452,11 +1565,21 @@ const styles = StyleSheet.create({
     maxWidth: 288,
     alignSelf: 'center',
   },
+  inlineButtonStorySettings: {
+    flex: 0,
+    width: 360,
+    minWidth: 360,
+    maxWidth: 360,
+    alignSelf: 'center',
+  },
   inlineButtonMobile: {
     flex: 0,
     width: '100%',
     maxWidth: '100%',
     alignSelf: 'stretch',
+  },
+  inlineSaveLabelStorySettings: {
+    fontSize: theme.typography.fontSize.sm,
   },
   section: {
     marginBottom: theme.spacing[6],

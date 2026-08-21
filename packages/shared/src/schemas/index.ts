@@ -291,9 +291,27 @@ import {
 } from '../constants/humanTraits';
 
 // Child Profile Schemas
+const MAX_CHILD_AGE_YEARS = 18;
+
+function isChildAge(date: Date): boolean {
+  if (Number.isNaN(date.getTime())) return false;
+
+  const today = new Date();
+  const oldestAllowedBirthDate = new Date(
+    today.getFullYear() - MAX_CHILD_AGE_YEARS,
+    today.getMonth(),
+    today.getDate()
+  );
+
+  return date >= oldestAllowedBirthDate && date <= today;
+}
+
 const BaseChildProfileSchema = z.object({
   name: z.string().min(1).max(100),
-  birthDate: z.coerce.date().max(new Date(), 'Birth date cannot be in future'),
+  birthDate: z
+    .coerce
+    .date()
+    .refine(isChildAge, 'Birth date must be within the last 18 years'),
 
   // Languages array (min 1, max 3)
   languages: z.array(LocaleSchema).min(1).max(3),

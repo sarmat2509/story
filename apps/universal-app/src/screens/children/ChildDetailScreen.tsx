@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState, useLayoutEffect } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -25,6 +28,7 @@ import {
 } from '@/api/children';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useSubscriptionUsage } from '@/api/plans';
+import { useUpdateChildModeExitPasscode } from '@/api/auth';
 import { ChildFormContent, type ChildFormInitialData } from '@/components/ChildFormContent';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { FeedbackModal } from '@/components/FeedbackModal';
@@ -33,6 +37,7 @@ import { ChildCard } from './components/ChildCard';
 import { ChildDataDeletionRequestModal } from './components/ChildDataDeletionRequestModal';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { useResponsive } from '@/hooks/useResponsive';
 import type { MainDrawerParamList } from '@/types/navigation';
 import {
@@ -133,6 +138,10 @@ export default function ChildDetailScreen() {
     return turnaroundSheet?.frontUrl || turnaroundSheet?.url || referencePhotos?.[0]?.url || null;
   }, [child]);
   const [childDataDeletionRequestVisible, setChildDataDeletionRequestVisible] = useState(false);
+  const [showChildModePasscodeModal, setShowChildModePasscodeModal] = useState(false);
+  const [newExitPasscode, setNewExitPasscode] = useState('');
+  const [confirmExitPasscode, setConfirmExitPasscode] = useState('');
+  const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -175,6 +184,9 @@ export default function ChildDetailScreen() {
       defaultValue: 'Access allowed',
     }),
     accessDisabled: t('children_screen.child_mode_access_disabled', { defaultValue: 'Access off' }),
+    setupNeeded: t('children_screen.child_mode_setup_needed', {
+      defaultValue: 'Set up Child Mode',
+    }),
     readyToStart: t('children_screen.child_mode_ready_to_start', {
       defaultValue: 'Ready to start',
     }),
@@ -250,12 +262,16 @@ export default function ChildDetailScreen() {
     anyLanguage: t('children_screen.child_mode_any_language'),
     anyCharacter: t('children_screen.child_mode_any_character'),
     noCharacters: t('children_screen.child_mode_no_characters'),
-    setPasscodeToStart: t('children_screen.child_mode_set_passcode_to_start'),
+    setPasscodeToStart: t('children_screen.child_mode_set_passcode', {
+      defaultValue: 'Set the password',
+    }),
     activeSessions: t('children_screen.child_mode_active_sessions'),
     revoke: t('children_screen.child_mode_revoke_sessions'),
     start: t('children_screen.child_mode_start'),
     starting: t('children_screen.child_mode_starting'),
-    enableToStart: t('children_screen.child_mode_enable_to_start'),
+    enableToStart: t('children_screen.child_mode_enable', {
+      defaultValue: 'Enable Child Mode',
+    }),
   };
 
   const themeOptions = useMemo(
@@ -296,6 +312,65 @@ export default function ChildDetailScreen() {
       id: childId,
       data: { childModeEnabled: enabled },
     });
+  };
+
+  const handleCloseChildModePasscodeModal = () => {
+    if (updateChildModeExitPasscode.isPending) return;
+    setShowChildModePasscodeModal(false);
+    setNewExitPasscode('');
+    setConfirmExitPasscode('');
+  };
+
+  const handleChildModeStartAction = async () => {
+    if (!child) return;
+    try {
+      if (childCardData.childModeEnabled !== true) {
+        await updateChildModeControls.mutateAsync({
+          id: child.id,
+          data: { childModeEnabled: true },
+        });
+      }
+
+      if (childCardData.childModePasscodeConfigured !== true) {
+        setShowChildModePasscodeModal(true);
+        return;
+      }
+
+      enterChildMode.mutate(child.id);
+    } catch (error) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, error, 'children_screen.child_mode_enable_error')
+      );
+    }
+  };
+
+  const handleSaveChildModeExitPasscode = async () => {
+    const nextPasscode = newExitPasscode.trim();
+    const confirmPasscode = confirmExitPasscode.trim();
+
+    if (nextPasscode.length < 4) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_too_short'));
+      return;
+    }
+    if (nextPasscode !== confirmPasscode) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_mismatch'));
+      return;
+    }
+
+    try {
+      await updateChildModeExitPasscode.mutateAsync({ newPasscode: nextPasscode });
+      handleCloseChildModePasscodeModal();
+      Alert.alert(
+        t('profile.child_mode_exit_passcode_success_title'),
+        t('profile.child_mode_exit_passcode_success_message')
+      );
+    } catch (error) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, error, 'profile.child_mode_exit_passcode_error')
+      );
+    }
   };
 
   if (isLoading) {
@@ -346,15 +421,6 @@ export default function ChildDetailScreen() {
       | 'instant'
       | 'artisan'
       | undefined) ?? 'instant';
-  const childModeReadyToStart =
-    childCardData.childModeEnabled === true && childCardData.childModePasscodeConfigured === true;
-  const childModeNeedsPassword =
-    childCardData.childModeEnabled === true && childCardData.childModePasscodeConfigured !== true;
-  const childModeHeaderStatus = childModeReadyToStart
-    ? labels.readyToStart
-    : childModeNeedsPassword
-      ? labels.passwordNeeded
-      : labels.accessDisabled;
   const storyMonthlyLimit = getFiniteLimit(subscriptionUsage?.stories.limit);
   const audioMonthlyLimit = getFiniteLimit(subscriptionUsage?.audio.limit);
   const otherChildrenMonthlyStoryLimit = (data?.children ?? [])
@@ -424,56 +490,22 @@ export default function ChildDetailScreen() {
         : labels.start
     : labels.enableToStart;
   const childModeStartActionDisabled =
-    childCardData.childModeEnabled !== true ||
-    childCardData.childModePasscodeConfigured !== true ||
+    updateChildModeControls.isPending ||
     (enterChildMode.isPending && enterChildMode.variables === child.id);
+  const canSaveChildModeExitPasscode =
+    newExitPasscode.trim().length >= 4 &&
+    newExitPasscode.trim() === confirmExitPasscode.trim() &&
+    !updateChildModeExitPasscode.isPending;
   const renderHeaderActions = (compact = false) => (
     <View style={[styles.headerActions, compact && styles.headerActionsMobile]}>
-      <View
-        style={[
-          styles.statusPill,
-          childModeReadyToStart
-            ? styles.statusPillEnabled
-            : childModeNeedsPassword
-              ? styles.statusPillWarning
-              : styles.statusPillDisabled,
-          compact && styles.statusPillMobile,
-        ]}
-      >
-        <Ionicons
-          name={
-            childModeReadyToStart
-              ? 'shield-checkmark'
-              : childModeNeedsPassword
-                ? 'key-outline'
-                : 'shield-outline'
-          }
-          size={compact ? 15 : 16}
-          color={
-            childModeReadyToStart
-              ? theme.colors.status.success
-              : childModeNeedsPassword
-                ? theme.colors.interactive.primary
-                : theme.colors.text.tertiary
-          }
-        />
-        <Text
-          style={[
-            styles.statusPillText,
-            childModeReadyToStart && styles.statusPillTextEnabled,
-            childModeNeedsPassword && styles.statusPillTextWarning,
-            compact && styles.statusPillTextMobile,
-          ]}
-          numberOfLines={1}
-        >
-          {childModeHeaderStatus}
-        </Text>
-      </View>
       <AppButton
         label={childModeStartActionLabel}
         disabled={childModeStartActionDisabled}
-        loading={enterChildMode.isPending && enterChildMode.variables === child.id}
-        onPress={() => enterChildMode.mutate(child.id)}
+        loading={
+          updateChildModeControls.isPending ||
+          (enterChildMode.isPending && enterChildMode.variables === child.id)
+        }
+        onPress={handleChildModeStartAction}
         size={compact ? 'sm' : 'md'}
         leading={
           <Ionicons
@@ -525,6 +557,20 @@ export default function ChildDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.pageContent, isMobile && styles.pageContentMobile]}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Children')}
+          style={styles.backToChildrenLink}
+          accessibilityRole="link"
+          accessibilityLabel={t('children_screen.back_to_children', {
+            defaultValue: 'Back to children',
+          })}
+          testID="child-detail-back-to-children"
+        >
+          <Ionicons name="arrow-back" size={18} color={theme.colors.interactive.primary} />
+          <Text style={styles.backToChildrenLinkText}>
+            {t('children_screen.back_to_children', { defaultValue: 'Back to children' })}
+          </Text>
+        </TouchableOpacity>
         <View style={[styles.headerPanel, isMobile && styles.headerPanelMobile]}>
           <View style={[styles.identityRow, isMobile && styles.identityRowMobile]}>
             <View style={[styles.avatarShell, { width: headerAvatarWidth }]}>
@@ -636,6 +682,7 @@ export default function ChildDetailScreen() {
                   onSuccess={() => undefined}
                   variant="inline"
                   inlineSection="identity"
+                  saveLabel={t('children_screen.save_profile', { defaultValue: 'Save profile' })}
                 />
               )}
 
@@ -646,6 +693,7 @@ export default function ChildDetailScreen() {
                   onSuccess={() => undefined}
                   variant="inline"
                   inlineSection="childProfile"
+                  saveLabel={t('children_screen.save_portrait', { defaultValue: 'Save portrait' })}
                 />
               )}
 
@@ -719,6 +767,9 @@ export default function ChildDetailScreen() {
                     onSuccess={() => undefined}
                     variant="inline"
                     inlineSection="storyAuthor"
+                    saveLabel={t('children_screen.save_story_settings', {
+                      defaultValue: 'Save story settings',
+                    })}
                   />
                 </>
               )}
@@ -764,6 +815,92 @@ export default function ChildDetailScreen() {
         child={{ id: child.id, name: child.name }}
         onClose={() => setChildDataDeletionRequestVisible(false)}
       />
+      <Modal
+        visible={showChildModePasscodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseChildModePasscodeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.passcodeModal, isMobile && styles.passcodeModalMobile]}>
+            <View style={styles.passcodeModalHeader}>
+              <View style={styles.passcodeModalHeaderText}>
+                <Text style={styles.passcodeModalTitle}>
+                  {t('profile.child_mode_exit_passcode_title')}
+                </Text>
+                <Text style={styles.passcodeModalDescription}>
+                  {t('children_screen.child_mode_set_passcode_description', {
+                    defaultValue:
+                      'This password lets a parent leave Child Mode and return to the parent area. You can change it any time in Profile.',
+                  })}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCloseChildModePasscodeModal}
+                style={styles.passcodeModalClose}
+                disabled={updateChildModeExitPasscode.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+                testID="child-detail-passcode-close"
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.passcodeFields, isMobile && styles.passcodeFieldsMobile]}>
+              <View style={styles.passcodeField}>
+                <Text style={styles.passcodeLabel}>
+                  {t('profile.child_mode_exit_passcode_new')}
+                </Text>
+                <TextInput
+                  style={styles.passcodeInput}
+                  value={newExitPasscode}
+                  onChangeText={setNewExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                  testID="child-detail-passcode-new"
+                />
+              </View>
+              <View style={styles.passcodeField}>
+                <Text style={styles.passcodeLabel}>
+                  {t('profile.child_mode_exit_passcode_confirm')}
+                </Text>
+                <TextInput
+                  style={styles.passcodeInput}
+                  value={confirmExitPasscode}
+                  onChangeText={setConfirmExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                  onSubmitEditing={handleSaveChildModeExitPasscode}
+                  testID="child-detail-passcode-confirm"
+                />
+              </View>
+            </View>
+            <View
+              style={[styles.passcodeModalActions, isMobile && styles.passcodeModalActionsMobile]}
+            >
+              <AppButton
+                label={t('common.cancel')}
+                onPress={handleCloseChildModePasscodeModal}
+                disabled={updateChildModeExitPasscode.isPending}
+                variant="secondary"
+                style={styles.passcodeModalAction}
+              />
+              <AppButton
+                label={t('profile.child_mode_exit_passcode_save')}
+                onPress={handleSaveChildModeExitPasscode}
+                disabled={!canSaveChildModeExitPasscode}
+                loading={updateChildModeExitPasscode.isPending}
+                style={styles.passcodeModalAction}
+                testID="child-detail-passcode-save"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -798,6 +935,19 @@ const styles = StyleSheet.create({
   },
   backToChildrenAction: {
     marginTop: theme.spacing[4],
+  },
+  backToChildrenLink: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+  },
+  backToChildrenLinkText: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   headerPanel: {
     width: '100%',
@@ -904,6 +1054,83 @@ const styles = StyleSheet.create({
   headerStartActionLabelMobile: {
     fontSize: theme.typography.fontSize.sm,
     lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[4],
+    backgroundColor: 'rgba(17, 24, 39, 0.45)',
+  },
+  passcodeModal: {
+    width: '100%',
+    maxWidth: 520,
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.primary,
+  },
+  passcodeModalMobile: {
+    padding: theme.spacing[4],
+  },
+  passcodeModalHeader: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    justifyContent: 'space-between',
+  },
+  passcodeModalHeaderText: {
+    flex: 1,
+  },
+  passcodeModalTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  passcodeModalDescription: {
+    marginTop: theme.spacing[2],
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+  },
+  passcodeModalClose: {
+    padding: theme.spacing[1],
+  },
+  passcodeFields: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  passcodeFieldsMobile: {
+    flexDirection: 'column',
+  },
+  passcodeField: {
+    flex: 1,
+  },
+  passcodeLabel: {
+    marginBottom: theme.spacing[2],
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  passcodeInput: {
+    minHeight: 44,
+    paddingHorizontal: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  passcodeModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  passcodeModalActionsMobile: {
+    flexDirection: 'column-reverse',
+  },
+  passcodeModalAction: {
+    minWidth: 140,
   },
   statusPill: {
     flexDirection: 'row',
