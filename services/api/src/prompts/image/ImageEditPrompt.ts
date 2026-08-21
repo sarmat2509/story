@@ -29,6 +29,8 @@ export type ImageEditRepairIssueKind =
 export interface ImageEditRepairIssue {
   kind: ImageEditRepairIssueKind;
   note: string;
+  /** Expected scene slot that identifies the copy to preserve during duplicate removal. */
+  keepNote?: string | null;
 }
 
 export interface ImageEditSubjectReplacement {
@@ -233,8 +235,18 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
   switch (issue.kind) {
     case 'presence':
       return 'Add only the missing expected subject from the selected visual reference.';
-    case 'duplicate':
-      return 'Remove only the duplicate copy of the same subject.';
+    case 'duplicate': {
+      const keep = compactPromptText(issue.keepNote);
+      const duplicateLocation = compactPromptText(issue.note);
+      const keepAction = keep
+        ? `Keep the one visible copy occupying this expected scene slot unchanged: "${keep}".`
+        : 'Keep the clearest primary copy in its current scene position unchanged.';
+      const removeAction =
+        duplicateLocation && !/^duplicate (subject|copy)\.?$/i.test(duplicateLocation)
+          ? `Remove the other physical copy localized by the validator as: "${duplicateLocation}".`
+          : 'Remove the other physical copy of the same subject.';
+      return `${keepAction} ${removeAction} Fill the removed copy's area with the continuous surrounding background.`;
+    }
     case 'unexpected': {
       const visible = visibleSubjectDescription(issue.note);
       return visible

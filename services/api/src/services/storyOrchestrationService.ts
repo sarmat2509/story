@@ -4619,11 +4619,13 @@ function compactValidationText(text: string | null | undefined): string | null {
 
 function makeRepairIssue(
   kind: ImageEditRepairIssueKind,
-  note: string | null | undefined
+  note: string | null | undefined,
+  keepNote?: string | null
 ): ImageEditRepairIssue {
   return {
     kind,
     note: note || 'Visual mismatch with the selected reference.',
+    ...(keepNote ? { keepNote } : {}),
   };
 }
 
@@ -4641,7 +4643,9 @@ function sceneSlotDescriptionForRepairTarget(
     const candidateKey = stripCharacterIdFromName(candidate.name).trim().toLowerCase();
     return candidateKey === targetKey;
   });
-  return compactValidationText(character?.description);
+  return compactValidationText(
+    [character?.position, character?.description].filter(Boolean).join(', ')
+  );
 }
 
 function shouldIncludeSilhouetteRepairIssue(c: ImageValidationResult['characters'][0]): boolean {
@@ -4659,7 +4663,10 @@ function shouldIncludeSilhouetteRepairIssue(c: ImageValidationResult['characters
   return c.silhouetteDriftSeverity !== 'mild' || !hasMoreSpecificIdentityIssue;
 }
 
-function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEditRepairIssue[] {
+function collectTargetedRepairIssues(
+  validation: ImageValidationResult,
+  scene?: SceneData
+): ImageEditRepairIssue[] {
   const issues: ImageEditRepairIssue[] = [];
   for (const c of validation.characters) {
     const needsRepair =
@@ -4671,7 +4678,19 @@ function collectTargetedRepairIssues(validation: ImageValidationResult): ImageEd
     const note =
       compactValidationText(c.issue) || compactValidationText(c.identityComparisonSummary);
     if (!c.found) issues.push(makeRepairIssue('presence', note || 'Missing expected subject.'));
-    if (c.duplicated) issues.push(makeRepairIssue('duplicate', note || 'Duplicate subject.'));
+    if (c.duplicated) {
+      const duplicateLocation =
+        compactValidationText(c.characterBoundingBox?.duplicateNotes) ||
+        note ||
+        'Duplicate subject.';
+      issues.push(
+        makeRepairIssue(
+          'duplicate',
+          duplicateLocation,
+          sceneSlotDescriptionForRepairTarget(scene, c.name)
+        )
+      );
+    }
     if (c.faceMatchesReference === false)
       issues.push(makeRepairIssue('face', note || 'Face/head identity mismatch.'));
     if (c.hairMatchesReference === false)
@@ -4784,7 +4803,7 @@ export function buildTargetedEditRepairPlan(
     }
   }
 
-  const issues = collectTargetedRepairIssues(validation);
+  const issues = collectTargetedRepairIssues(validation, scene);
   if (options?.enforceSceneAnchorCounts && scene?.sceneVisual) {
     const camera = scene.sceneVisual.cameraComposition;
     const shot = typeof camera === 'string' ? camera : camera.shot;
@@ -4818,7 +4837,7 @@ export function buildTargetedEditRepairPlan(
   const protectedCharacterKeys = new Set(
     shouldProtectExpectedCharacters
       ? validation.characters
-          .filter((character) => character.found)
+          .filter((character) => character.found && !character.duplicated)
           .map((character) => stripCharacterIdFromName(character.name).trim().toLowerCase())
           .filter((key) => key && !needsByName.has(key))
       : []

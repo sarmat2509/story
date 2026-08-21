@@ -581,7 +581,11 @@ function buildCompositionText(params: {
     const promptLabel = getPromptLabelForName(character.name, params.nameContext, imageIdx);
     const ref = findCharacterReferenceBinding(character.name, params.referenceImages);
     const label = promptReferenceLabel(promptLabel, imageIdx, ref);
-    return formatCharacterLocationLine({ label, description });
+    return formatCharacterLocationLine({
+      label,
+      position: character.position,
+      description,
+    });
   });
 
   return cleanupPromptText(`${shot}. ${characterLines.join(' ')}`);

@@ -46,11 +46,17 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
       description:
         'Localized display name. Titles and family forms may change this display name but never characterRef.',
     },
+    position: {
+      type: 'string',
+      minLength: 1,
+      description:
+        'Concrete position in the frame and spatial relation to the main scene object. IN ENGLISH. Name foreground/midground/background, left/center/right, and the nearby fixed object when relevant, for example "right foreground, immediately to the right of the radio" or "left midground, beside the table".',
+    },
     description: {
       type: 'string',
       minLength: 1,
       description:
-        'Position in frame, posture, action, expression. IN ENGLISH. Use literal, observable staging only: describe the actual pose and movement, never similes, metaphors, species comparisons, or transformation language (for example, write "swimming horizontally with arms extended" rather than "swimming like a mermaid"). Object-contact actions require explicit physical staging: body position beside or in front of the fixed object, exact contact point, and the named handle, surface, window, door, panel, control, or affected object.',
+        'Posture, action, expression, gaze, and temporary visibility/occlusion. IN ENGLISH. Do not repeat the frame position stored in position. Use literal, observable staging only: describe the actual pose and movement, never similes, metaphors, species comparisons, or transformation language (for example, write "swimming horizontally with arms extended" rather than "swimming like a mermaid"). Object-contact actions require the exact contact point and the named handle, surface, window, door, panel, control, or affected object.',
     },
     outfitId: {
       type: 'string',
@@ -59,7 +65,7 @@ export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
         'EXACT outfits[].id for this character in this scene — same kind of reference as environmentId → environments[].id. Detailed wardrobe rows are only for child/person/human characters; non-human rows use natural appearance.',
     },
   },
-  required: ['characterRef', 'name', 'description', 'outfitId'],
+  required: ['characterRef', 'name', 'position', 'description', 'outfitId'],
 };
 
 /**
@@ -400,7 +406,7 @@ export const SCENE_SCHEMA: JsonSchema = {
         setting: {
           type: 'string',
         description:
-          'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). For a restricted/interior/fully immersed camera view, explicitly state the camera medium and frame boundary when it matters (for example, both camera and characters are underwater and the surface/exterior is outside frame). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.',
+          'DELTA: Scene-specific object and environment additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific object state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). Do not mention, group, pose, or stage characters here. For a restricted/interior/fully immersed camera view, explicitly state the camera medium and frame boundary when it matters (for example, the camera is underwater and the surface/exterior is outside frame). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.',
         },
         cameraComposition: {
           type: 'object',
@@ -408,7 +414,7 @@ export const SCENE_SCHEMA: JsonSchema = {
             shot: {
               type: 'string',
               description:
-                'Camera angle IN ENGLISH: shot type (wide/medium/close-up), camera position/medium, viewing direction, eye level, and framing. For underwater/interior/restricted views, specify whether the camera is inside that volume and whether it looks level, upward, or toward an opening.',
+                'Camera only IN ENGLISH: shot type (wide/medium/close-up), camera position/medium, viewing direction, eye level, and framing. Do not mention characters, cast size, group arrangement, poses, or actions here. For underwater/interior/restricted views, specify whether the camera is inside that volume and whether it looks level, upward, or toward an opening.',
             },
             characters: {
               type: 'array',

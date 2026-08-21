@@ -14,7 +14,8 @@ function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
         characters: [
           {
             name: 'Mia',
-            description: 'foreground left, leaning over the table, curious expression, looking at the book',
+            position: 'foreground left, beside the table',
+            description: 'leaning over the table, curious expression, looking at the book',
             outfitId: 'o_mia_1',
           },
         ],
@@ -39,6 +40,11 @@ function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
   assert.ok(!prompt.includes('8-year-old girl with short brown hair'));
   assert.ok(!prompt.includes('freckles'));
   assert.ok(!prompt.includes('yellow raincoat'));
+  assert.ok(
+    prompt.includes(
+      'Character REF_IMAGE_1 is located in the foreground left, beside the table, leaning over the table'
+    )
+  );
 }
 
 function testDynamicForeshorteningShotPassesThroughToImagePrompt() {

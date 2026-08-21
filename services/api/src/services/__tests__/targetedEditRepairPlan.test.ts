@@ -159,6 +159,78 @@ assert.match(
 );
 assert.doesNotMatch(unexpectedPrompt, /^1\. Remove only the unexpected extra subject\.$/m);
 
+const duplicateValidation = validationWithCharacter({
+  duplicated: true,
+  recognizableScore: 1,
+  faceMatchesReference: true,
+  hairMatchesReference: true,
+  ageReadMatchesReference: true,
+  proportionsMatchReference: true,
+  matchesColors: true,
+  matchesOutfit: true,
+  sameOverallDesignRead: true,
+  identityComparisonSummary: 'The expected identity is visible twice.',
+  issue: 'Duplicate visible copies detected (2).',
+  actualVisibleDescription: null,
+  characterBoundingBox: {
+    found: true,
+    xMin: 620,
+    yMin: 220,
+    xMax: 930,
+    yMax: 940,
+    confidence: 98,
+    visibility: 'full_body',
+    duplicated: true,
+    duplicateCount: 2,
+    visiblePhysicalBodyCount: 2,
+    visibleReflectionCount: 0,
+    visibleDepictionCount: 0,
+    duplicateNotes:
+      'keep candidate: right foreground beside the radio, hand behind her ear; extra copy: smaller head and shoulders directly behind the radio',
+  },
+});
+const duplicateScene: SceneData = {
+  ...scene,
+  sceneVisual: {
+    ...scene.sceneVisual!,
+    cameraComposition: {
+      shot: 'medium shot at eye level, radio centered',
+      characters: [
+        {
+          name: 'Emilia',
+          position: 'right foreground, immediately to the right of the radio',
+          description: 'leaning toward the radio with one hand behind her ear',
+        },
+      ],
+    },
+  },
+};
+const duplicatePlan = buildTargetedEditRepairPlan([], duplicateValidation, duplicateScene);
+assert.deepEqual(duplicatePlan.manifest.issues, [
+  {
+    kind: 'duplicate',
+    note:
+      'keep candidate: right foreground beside the radio, hand behind her ear; extra copy: smaller head and shoulders directly behind the radio',
+    keepNote:
+      'right foreground, immediately to the right of the radio, leaning toward the radio with one hand behind her ear',
+  },
+]);
+assert.equal(duplicatePlan.manifest.protectedSubjects, undefined);
+const duplicatePrompt = buildImageEditPrompt({
+  validationResult: duplicateValidation,
+  targetedRepairManifest: duplicatePlan.manifest,
+});
+assert.match(
+  duplicatePrompt,
+  /Keep the one visible copy occupying this expected scene slot unchanged: "right foreground, immediately to the right of the radio, leaning toward the radio with one hand behind her ear"\./
+);
+assert.match(
+  duplicatePrompt,
+  /Remove the other physical copy localized by the validator as: "keep candidate: right foreground beside the radio, hand behind her ear; extra copy: smaller head and shoulders directly behind the radio"\./
+);
+assert.match(duplicatePrompt, /Fill the removed copy's area with the continuous surrounding background\./);
+assert.doesNotMatch(duplicatePrompt, /Keep the expected characters matching/);
+
 const compositionValidation = validationWithCharacter({
   recognizableScore: 1,
   faceMatchesReference: true,

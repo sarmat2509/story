@@ -126,19 +126,19 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
             properties: {
               setting: {
                 type: 'string',
-                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. For a restricted/interior/fully immersed view, explicitly state the camera medium and frame boundary when it matters: for example, both camera and characters are underwater and the water surface/exterior rim is outside frame. Do not state a separate focus sentence here. Every named character mentioned here must also have a cameraComposition.characters[] row; otherwise omit that character from all sceneVisual prose.',
+                description: 'Scene-specific object and environment additions IN ENGLISH. Describe what is NEW or CHANGED. Do not mention, group, pose, or stage characters here; character staging belongs only in cameraComposition.characters[]. Must match cameraComposition.shot location and support primaryRead. For a restricted/interior/fully immersed view, explicitly state the camera medium and frame boundary when it matters: for example, the camera is underwater and the water surface/exterior rim is outside frame. Do not state a separate focus sentence here.',
               },
               cameraComposition: {
                 type: 'object',
                 properties: {
-                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, camera position/medium, viewing direction, eye level, and framing. For an underwater/interior/restricted view, state whether the camera is inside that volume and whether it looks level, upward, or toward an opening. Choose the shot to make primaryRead readable. Every named character mentioned here must also have a cameraComposition.characters[] row.' },
+                  shot: { type: 'string', description: 'Camera only IN ENGLISH: shot type, camera position/medium, viewing direction, eye level, and framing. Do not mention characters, cast size, group arrangement, poses, or actions here. For an underwater/interior/restricted view, state whether the camera is inside that volume and whether it looks level, upward, or toward an opening. Choose the shot to make primaryRead readable.' },
                   characters: {
                     type: 'array',
                     minItems: 1,
                     maxItems: MAX_SCENE_IMAGE_CHARACTERS,
                     items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
                     description:
-                      `Who is in the shot; maximum ${MAX_SCENE_IMAGE_CHARACTERS} characters. This roster is binding: every named character mentioned in setting, shot, any character description, or lighting MUST have exactly one row here. If the limit is reached, omit extra characters from all sceneVisual prose. Each row MUST include outfitId referencing outfits[]. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance. Character descriptions must support primaryRead instead of creating a competing focal action.`,
+                      `Who is in the shot; maximum ${MAX_SCENE_IMAGE_CHARACTERS} characters. This roster is binding: every visible character has exactly one row here and nowhere else is used to introduce or stage a group. If the limit is reached, omit extra characters from all sceneVisual prose. Each row MUST include a concrete position relative to the frame and main scene object plus outfitId referencing outfits[]. Detailed wardrobe rows apply only to child/person/human characters; non-human rows use natural appearance. Character descriptions must support primaryRead instead of creating a competing focal action.`,
                   },
                 },
                 required: ['shot', 'characters'],

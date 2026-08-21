@@ -1099,6 +1099,8 @@ export function formatDirectorImagePromptRules(): string {
     '- For each illustration, build sceneVisual as a clear visual combination of: subject + key visual traits + outfit + emotion + action + setting.',
     `- ${formatSceneVisualStagingDeltaRule('sceneVisual.setting')}`,
     '- Put emotion and action where they are visible: expression, posture, gesture, gaze, and interaction with props or other characters.',
+    '- FIELD SEPARATION: sceneVisual.setting describes visible object/environment state only and must not collectively stage "the characters". cameraComposition.shot describes only camera size, position, direction, eye level, and framing. Each visible character is staged exactly once in cameraComposition.characters[].',
+    '- Every cameraComposition.characters[] row has a separate position field: give foreground/midground/background, left/center/right, and relation to the main scene object. Keep pose, action, expression, gaze, and temporary occlusion in description.',
     '',
     'FROZEN MOMENT ONLY:',
     '- Depict exactly one concrete frozen moment, as if a photographer stopped time.',
@@ -1350,7 +1352,7 @@ const SPATIAL_POSITION_RULE =
   'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
 
 export function formatSceneVisualStagingDeltaRule(fieldName = 'sceneVisual.setting'): string {
-  return `${fieldName} must be a visual staging delta, not a plot summary: write 1-2 compact English sentences with concrete visible details beyond the environment plate: visible object state, material/color/light, hand/paw contact, body posture, gaze/expression, and foreground/background placement. If a fixed artifact reference is visible, include its REF_OBJ_* label plus 2-4 visible traits from the artifact description; avoid vague wording like "the object is now resting".`;
+  return `${fieldName} must be an object/environment delta, not a plot summary or character-staging field: write 1-2 compact English sentences with concrete visible details beyond the environment plate: visible object state, material, color, and light. Put every character's frame position, posture, contact, gaze, and expression only in cameraComposition.characters[]. If a fixed artifact reference is visible, include its REF_OBJ_* label plus 2-4 visible traits from the artifact description; avoid vague wording like "the object is now resting".`;
 }
 
 /**
@@ -1374,15 +1376,15 @@ export function formatSceneVisualRules(opts?: {
     return [
       'CRITICAL - sceneVisual:',
       withStyleHint(
-        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. STANDALONE: never use "the same X", "as before"; if location unchanged, repeat key visual elements. Write IN ENGLISH.',
+        '- "setting": DELTA ONLY - Scene-specific object and environment additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific object state (door open/closed, curtains drawn/open), lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). Do not mention, group, pose, or stage characters here. DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. STANDALONE: never use "the same X", "as before"; if location unchanged, repeat key visual elements. Write IN ENGLISH.',
         styleGuidance?.setting
       ),
       withStyleHint(
         '- "cameraComposition": An OBJECT with two fields:',
         styleGuidance?.composition
       ),
-      '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
-      `  - "characters": Array of objects, one per character. Each has "name", "description" (position, posture, action, expression IN ENGLISH), and "outfitId" (EXACT outfits[].id). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
+      '  - "shot": Camera angle and shot type only IN ENGLISH (e.g. "Medium-wide shot at child eye-level"). Do not mention characters or group actions here.',
+      `  - "characters": Array of objects, one per character. Each has "name", "position" (frame zone plus relation to the main scene object), "description" (posture, action, expression, gaze IN ENGLISH), and "outfitId" (EXACT outfits[].id). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
       '  - When a character points, looks, or gestures toward something story-significant, include the target in that character\'s description and make the direction explicit (name the target when the text supports it — avoid vague "toward the sea" if a specific object, creature, or landmark is meant).',
       withStyleHint(
         '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
@@ -1397,7 +1399,7 @@ export function formatSceneVisualRules(opts?: {
     'CRITICAL - sceneVisual (structured visual description for image generation):',
     '- "sceneVisual" is an object with three fields, ALL IN ENGLISH:',
     withStyleHint(
-      '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or one concrete visible change. Write IN ENGLISH.',
+      '  - "setting": DELTA ONLY - Scene-specific object and environment additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific object state (door open/closed, curtains drawn/open), lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). Do not mention, group, pose, or stage characters here. DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or one concrete visible change. Write IN ENGLISH.',
       styleGuidance?.setting
     ),
     '    - STANDALONE: NEVER use "the same X", "as before", "continuing from previous scene". If the location is unchanged, REPEAT the key visual elements (describe the nook, foliage, objects) — do not reference other scenes.',
@@ -1405,10 +1407,11 @@ export function formatSceneVisualRules(opts?: {
       '  - "cameraComposition": An OBJECT with two fields:',
       styleGuidance?.composition
     ),
-    '    - "shot": Camera angle (wide/medium/close-up), eye level, and framing. IN ENGLISH.',
+    '    - "shot": Camera angle (wide/medium/close-up), eye level, and framing only. Do not mention characters, cast size, group arrangement, poses, or actions. IN ENGLISH.',
     '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
-    `      - "description": Position in frame (foreground/background, left/right/center), body posture, visible action, facial expression, gaze direction. Use positions relative to static objects from environment (e.g. "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    `      - "position": Concrete frame zone (foreground/midground/background, left/center/right) plus relation to the main scene object or fixed environment object (e.g. "right foreground, beside the radio", "left midground, on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    '      - "description": Body posture, visible action, facial expression, gaze direction, and temporary visibility/occlusion. Do not repeat position here. IN ENGLISH.',
     '      - For reference-grounded characters, do NOT restate stable identity traits here (no hairstyle, hair color, eye color, freckles, face shape, skin tone, or other enduring appearance details). Keep this field about the frozen moment only.',
     '      - Avoid inferred intent phrasing such as "as if ready to enter", "as if searching for clues", or "to help the others see". Describe only what is visibly happening in the frame.',
     '      - When a character points, looks, or gestures toward something story-significant, include the target in that character\'s description and make the direction explicit (e.g. not only "standing center, pointing toward the sea" but "center-right on wet sand, arm outstretched, pointing directly at the dolphin circling near the rocky reef, eyes fixed on it" when the text supports that level of specificity).',
@@ -1420,20 +1423,20 @@ export function formatSceneVisualRules(opts?: {
     '- Each field MUST be in English for image generation',
     '- cameraComposition.characters is the SINGLE SOURCE OF TRUTH for which characters are drawn in the scene illustration',
     '- The base environment structure comes from environment.description - sceneVisual.setting should only add scene-specific deltas.',
-    '- REFERENCE FIXED LAYOUT: sceneVisual.setting and cameraComposition must reference the fixed layout from environment (e.g. "children gathered around the tree" not "tree on the left"). Character positions relative to static objects from environment (e.g. "foreground center on the path, standing beside the tree", "left of the bushes").',
+    '- REFERENCE FIXED LAYOUT: sceneVisual.setting describes only object/environment state. Put character positions relative to fixed objects in each character position field (e.g. "foreground center on the path, beside the tree", "left midground, left of the bushes").',
     '- NO NEW STATIC OBJECTS: sceneVisual.setting must NOT introduce new static objects (flower, tree, rock, bench). If an object appears in the story, it must be in environment.description. Scene delta can only describe STATE changes (flower bloomed, tree lit up, leaves rustling) — not new objects or new positions. The object is always in the same place and same appearance.',
     '- Use the SAME spatial references from environment.description (e.g. "beside the tree", "on the path", "in front of the house", "between the bushes"). Never invent new positions for key objects — they are fixed in the environment. Never add new static objects in scene — only state changes (bloomed, lit up) for objects already in environment.',
-    '- Example good setting delta: "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
+    '- Example good setting delta: "Two open books and a telescope rest on the coffee table. Windows show morning stars; a glowing seed lights the tabletop."',
     '- Example bad setting: "A cozy circular living room with panoramic windows..." (this duplicates base environment - only write what\'s new)',
     '- Example bad setting: "The same hidden nook. Branch lowered." (references previous scene — image model has no context). Good: "A hidden nook with lush glowing foliage. The magical bush branch is now lowered. A woven basket on the ground, partially filled with berries."',
-    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center beside workbench, sitting, examining a blueprint with magnifying glass, focused expression", "outfitId": "o_emilia_workshop_1" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia", "outfitId": "o_rabbit_natural" }] }',
+    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "position": "foreground center, beside the workbench", "description": "sitting and examining a blueprint with a magnifying glass, focused expression", "outfitId": "o_emilia_workshop_1" }, { "name": "Rabbit", "position": "right foreground, on the workbench edge", "description": "perched with ears raised, looking toward Emilia", "outfitId": "o_rabbit_natural" }] }',
     '- Example bad cameraComposition: "Characters in a workshop" (too vague, not structured, no per-character entries)',
     '',
     'EXAMPLE - Base+Delta Pattern:',
     'Environment (moon_farm_living_room):',
     '  description: "Circular living room with panoramic windows on north wall, plush beige armchairs around low coffee table, warm beige walls, dark grey floor with light rug, ceiling lights"',
     '',
-    'Scene 1 setting (delta): "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
+    'Scene 1 setting (delta): "Two open books and a telescope rest on the coffee table. Windows show morning stars; a glowing seed lights the tabletop."',
     'Scene 9 setting (delta): "Two steaming mugs on coffee table. Evening starlight through windows. Cozy blanket draped over one armchair."',
     '',
     '→ Image prompt receives: base + delta combined',
@@ -1452,7 +1455,7 @@ export function formatCharactersPerSceneRules(): string {
     '- Other characters can be briefly MENTIONED (heard from another room, just left, remembered in dialogue) but should NOT be described as physically present and performing actions in the scene.',
     `- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum ${MAX_SCENE_IMAGE_CHARACTERS}. If more characters are present in the story beat, include the child/protagonist plus the two most important supporting characters for this illustration.`,
     '- Use EXACT character names as defined in the story',
-    '- Structured JSON requires at least one cameraComposition.characters row with name, description, and outfitId. Design scenes so the illustrated moment includes at least one present character; pure scenery-only beats are not supported by the schema.',
+    '- Structured JSON requires at least one cameraComposition.characters row with name, position, description, and outfitId. Design scenes so the illustrated moment includes at least one present character; pure scenery-only beats are not supported by the schema.',
   ].join('\n');
 }
 

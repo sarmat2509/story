@@ -10,20 +10,25 @@ import {
   MAP_TILE_BRIEF_CACHE_KEY,
   shouldEnableDirectorDynamicForeshortening,
 } from '../text';
+import { DIRECTOR_SCHEMA } from '../../domain/story/directorSchema';
 
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v31_environment_viewpoint_kind');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v32_explicit_character_position');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
   assert.ok(
-    cached.includes('sceneVisual.setting must be a visual staging delta, not a plot summary')
+    cached.includes(
+      'sceneVisual.setting must be an object/environment delta, not a plot summary or character-staging field'
+    )
   );
   assert.ok(cached.includes('avoid vague wording like "the object is now resting"'));
   assert.ok(cached.includes('Depict exactly one concrete frozen moment'));
   assert.ok(cached.includes('Never use similes, metaphors, species comparisons'));
+  assert.ok(cached.includes('Every cameraComposition.characters[] row has a separate position field'));
+  assert.ok(cached.includes('must not collectively stage "the characters"'));
   assert.ok(cached.includes('"swimming like a mermaid"'));
   assert.ok(cached.includes('physical volume the camera is actually inside'));
   assert.ok(cached.includes('inside its water-filled basin'));
@@ -139,6 +144,13 @@ function testDirectorCachedPrefixContainsImagePromptRules() {
   );
   assert.ok(!cached.includes('connectorIntent'));
   assert.ok(!cached.includes('landscapeLayout'));
+}
+
+function testDirectorSchemaRequiresSeparateCharacterPosition() {
+  const characterSchema = (DIRECTOR_SCHEMA as any).properties.illustrations.items.properties
+    .sceneVisual.properties.cameraComposition.properties.characters.items;
+  assert.ok(characterSchema.properties.position);
+  assert.ok(characterSchema.required.includes('position'));
 }
 
 function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
@@ -445,6 +457,7 @@ function testMapTileBriefPromptIsLightweightBackfillOnly() {
 }
 
 testDirectorCachedPrefixContainsImagePromptRules();
+testDirectorSchemaRequiresSeparateCharacterPosition();
 testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules();
 testSingleImageDirectorRequiresAllSelectedCharacters();
 testDirectorDynamicForeshorteningIsRareAndDeterministic();
