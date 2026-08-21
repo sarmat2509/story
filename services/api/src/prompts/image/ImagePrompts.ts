@@ -25,7 +25,7 @@ import {
   deriveExplicitSceneAnchorConstraints,
   requiresCelestialSubjectInsideWindow,
 } from '../../domain/image/imageValidationRun';
-import { optionalNoVisibleTextRule } from './ImageTextPolicy';
+import { optionalNoReferenceLabelsRule } from './ImageTextPolicy';
 
 export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v5_viewpoint_kind';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
@@ -870,7 +870,7 @@ export function buildOutfitPlatePrompt(params: {
     `Children's book illustration, ${params.imageStyle}: one smooth display mannequin stands in the center, full length, facing forward, blank smooth head, wearing ${spec}. The mannequin is a clean clothing display only: smooth continuous limbs, no visible mechanical hinge joints, no peg joints, no segmented elbows, no segmented knees, no articulated wrists or ankles.`,
     [
       'Plain soft background.',
-      optionalNoVisibleTextRule(),
+      optionalNoReferenceLabelsRule(),
       'Only this one mannequin. Keep the mannequin neutral and non-mechanical so the image reads as wardrobe reference only.',
     ]
       .filter(Boolean)
@@ -917,8 +917,8 @@ export function buildImageSystemInstruction(params: {
   sections.push(
     [
       'FORMAT: Single full-bleed illustration filling the frame edge-to-edge.',
-      optionalNoVisibleTextRule(),
-      'Pure visual storytelling only.',
+      optionalNoReferenceLabelsRule(),
+      'Keep the result as one continuous storybook illustration.',
     ]
       .filter(Boolean)
       .join(' ')

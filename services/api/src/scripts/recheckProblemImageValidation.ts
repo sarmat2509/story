@@ -865,7 +865,14 @@ function collectTargetedRepairIssues(
   }
 
   if (validation.hasUnexpectedCharacters) issues.push(makeRepairIssue('unexpected', 'Unexpected extra subject.'));
-  if (validation.hasTextOrLetters) issues.push(makeRepairIssue('text', 'Visible text or lettering.'));
+  if (validation.hasTextOrLetters) {
+    issues.push(
+      makeRepairIssue(
+        'text',
+        'Erase only the visible technical identifier containing the literal REF_ prefix. Remove a container only when it exists solely as the technical REF_* label. Preserve all ordinary story-world text.'
+      )
+    );
+  }
 
   const overall = compactValidationText(validation.overallFeedback);
   if (issues.length === 0 && overall) issues.push(makeRepairIssue('generic', overall));

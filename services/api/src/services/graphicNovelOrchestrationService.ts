@@ -6626,7 +6626,7 @@ function manualPanelRepairInstructionForKind(kind: ImageEditRepairIssueKind): st
     case 'unexpected':
       return 'Remove only the unexpected extra subject.';
     case 'text':
-      return 'Remove only visible text or lettering.';
+      return 'Erase only visible technical identifiers containing the literal REF_ prefix. Remove a container only when it exists solely as the technical REF_* label; preserve all ordinary text and lettering.';
     case 'generic':
     default:
       return 'Correct only the selected visual mismatch.';

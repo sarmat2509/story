@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildMapTilePromptParts,
   MAP_TILE_STRUCTURE_SYSTEM_PROMPT,
-  shouldCheckImageTextOrSymbols,
+  shouldCheckImageReferenceLabels,
 } from '../image';
 
 function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
@@ -47,8 +47,15 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent a cave, tunnel, or portal as a flat dark entrance mark at the route contact point'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent cliffs, slopes, ledges, and mountains as contour bands'));
   assert.strictEqual(
-    MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('MUST AVOID any kind of text'),
-    shouldCheckImageTextOrSymbols()
+    MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes(
+      'Never render technical reference identifiers or labels beginning with REF_'
+    ),
+    shouldCheckImageReferenceLabels()
+  );
+  assert.ok(
+    MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes(
+      'Visible story-world text, signs, lettering, numbers, captions, and speech bubbles are allowed'
+    )
   );
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Camera: strict orthographic top-down board-game map tile.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('The route geometry is a flat plan-view footprint in the square canvas.'));

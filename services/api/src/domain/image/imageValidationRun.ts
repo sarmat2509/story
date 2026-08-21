@@ -20,7 +20,7 @@ import {
 } from '../../prompts/image/ImageValidationPrompt';
 import {
   imageTextValidationPromptLines,
-  shouldCheckImageTextOrSymbols,
+  shouldCheckImageReferenceLabels,
 } from '../../prompts/image/ImageTextPolicy';
 import { buildImageValidationSchema } from '../story/schemas';
 import { type SceneVisual } from '../../services/types';
@@ -939,7 +939,11 @@ function buildSegmentedSceneQaSchema(
       },
       hasUnexpectedCharacters: { type: 'boolean' },
       unexpectedCharacterNotes: { type: ['string', 'null'] },
-      hasTextOrLetters: { type: 'boolean' },
+      hasTextOrLetters: {
+        type: 'boolean',
+        description:
+          'Legacy field name. True only for a visible leaked technical identifier beginning with REF_; ordinary story-world text is allowed.',
+      },
       hasRenderingArtifacts: { type: 'boolean' },
       hasSceneCompositionMismatch: { type: 'boolean' },
       overallFeedback: { type: 'string' },
@@ -1042,7 +1046,11 @@ function buildGraphicNovelPanelValidationSchema(): JsonSchema {
       expectedPanelCount: { type: 'integer' },
       detectedPanelCount: { type: 'integer' },
       hasExtraPanelStructure: { type: 'boolean' },
-      hasTextOrLetters: { type: 'boolean' },
+      hasTextOrLetters: {
+        type: 'boolean',
+        description:
+          'Legacy field name. True only for a visible leaked technical identifier beginning with REF_; ordinary story-world text is allowed.',
+      },
       hasRenderingArtifacts: { type: 'boolean' },
       layoutFeedback: { type: 'string' },
       panels: {
@@ -2062,7 +2070,7 @@ function panelIssueFromSegmentedValidation(validation: ImageValidationResult): s
     issues.push(validation.providerError || 'provider_blocked_no_visual_verdict');
   }
   if (validation.hasUnexpectedCharacters) issues.push('unexpected characters present');
-  if (validation.hasTextOrLetters) issues.push('unwanted text or letters visible');
+  if (validation.hasTextOrLetters) issues.push('technical REF_* identifier visible');
   if (validation.hasRenderingArtifacts) issues.push('rendering artifacts visible');
   if (validation.hasSceneCompositionMismatch) issues.push('scene composition mismatch');
   for (const character of validation.characters) {
@@ -2771,7 +2779,7 @@ export async function runSegmentedProductImageValidation(
     missingExpectedCharacters,
     unexpectedCharacterNotes: sceneQa?.unexpectedCharacterNotes ?? null,
     hasTextOrLetters:
-      shouldCheckImageTextOrSymbols() && (sceneQa?.hasTextOrLetters ?? false),
+      shouldCheckImageReferenceLabels() && (sceneQa?.hasTextOrLetters ?? false),
     hasRenderingArtifacts:
       (sceneQa?.hasRenderingArtifacts ?? false) ||
       characters.some(
@@ -3087,7 +3095,7 @@ export async function runGraphicNovelPanelImageValidation(
     pageNumber: pass.result.pageNumber || input.pageNumber,
     expectedPanelCount: pass.result.expectedPanelCount || input.panels.length,
   };
-  if (!shouldCheckImageTextOrSymbols()) {
+  if (!shouldCheckImageReferenceLabels()) {
     result.hasTextOrLetters = false;
   }
   normalizeGraphicNovelPanelOutfitVerdicts(result, input.panels);
@@ -3368,7 +3376,7 @@ export async function runProductImageValidation(
       result.validationAttemptKind = attemptKind;
       result.validationModelUsed = attemptSpec.model;
       result.requestManifest = requestManifest;
-      if (!shouldCheckImageTextOrSymbols()) {
+      if (!shouldCheckImageReferenceLabels()) {
         result.hasTextOrLetters = false;
       }
       attemptManifest.outcome = 'completed';

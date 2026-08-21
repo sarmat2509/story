@@ -7,7 +7,7 @@
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import {
   imageTextValidationPromptLines,
-  shouldCheckImageTextOrSymbols,
+  shouldCheckImageReferenceLabels,
 } from './ImageTextPolicy';
 
 export type ImageValidationCharacterKind = 'human' | 'animal' | 'imaginary';
@@ -44,11 +44,13 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-const IMAGE_TEXT_CACHE_VARIANT = shouldCheckImageTextOrSymbols() ? 'text_check' : 'text_ignored';
+const IMAGE_TEXT_CACHE_VARIANT = shouldCheckImageReferenceLabels()
+  ? 'ref_label_check'
+  : 'ref_label_ignored';
 export const IMAGE_VALIDATION_CACHE_KEY_FULL =
-  `image_validation_rules_full_v26_${IMAGE_TEXT_CACHE_VARIANT}`;
+  `image_validation_rules_full_v27_${IMAGE_TEXT_CACHE_VARIANT}`;
 export const IMAGE_VALIDATION_CACHE_KEY_LITE =
-  `image_validation_rules_lite_v14_${IMAGE_TEXT_CACHE_VARIANT}`;
+  `image_validation_rules_lite_v15_${IMAGE_TEXT_CACHE_VARIANT}`;
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';

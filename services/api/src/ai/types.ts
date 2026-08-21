@@ -132,6 +132,7 @@ export interface ImageValidationResult {
   missingExpectedCharacters?: string[];
   /** Cast-audit pass output: concise notes for extra character-like subjects. */
   unexpectedCharacterNotes?: string | null;
+  /** Legacy field name: true only for leaked technical REF_* identifiers, not ordinary visible text. */
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
   /** True when the artwork changes an explicit, countable scene anchor (for example a second window or Moon). */

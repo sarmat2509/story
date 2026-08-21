@@ -165,7 +165,7 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v26_text_check');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v27_ref_label_check');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
   assert.ok(
     cached.content.includes(

@@ -288,7 +288,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     hasTextOrLetters: {
       type: 'boolean',
       description:
-        'Whether the generated image contains any text, letters, words, writing, or a leaked reference-sheet title/label/filename/watermark/identifier such as a REF_* token.',
+        'Legacy field name. True only when the generated image visibly leaks a technical reference identifier beginning with REF_, including REF_CH_, REF_ENV_, or REF_OBJ_. Ordinary story-world writing, signs, captions, speech bubbles, letters, and numbers are allowed and must not set this field true.',
     },
     hasRenderingArtifacts: {
       type: 'boolean',

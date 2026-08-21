@@ -20,6 +20,7 @@ import {
 import {
   closingArtifactRules,
   comicPanelCameraVarietyRules,
+  COMIC_OVERLAY_TEXT_SEPARATION_RULE,
   dialogueRhythmRules,
   ageRules,
   graphicNovelPanelCountRange,
@@ -183,6 +184,7 @@ ${comicPanelCameraVarietyRules({ includeDynamicForeshortening: true })}
 - visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, readable expression, gaze direction, gesture, and interaction with props or other characters. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside visual text.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include position.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include outfitId. Detailed wardrobe rows are only for child/person/human characters; non-human characters use a natural-appearance binding.
+${COMIC_OVERLAY_TEXT_SEPARATION_RULE}
 - Do not output coordinates or bubble placement metadata. The server derives exact bubble placement.
 
 COMIC TEXT COMPLEXITY:

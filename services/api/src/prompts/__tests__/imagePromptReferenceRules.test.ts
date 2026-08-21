@@ -432,7 +432,8 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   });
 
   assert.ok(systemInstruction.includes('Character sheets establish locked IDENTITY'));
-  assert.ok(systemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
+  assert.ok(systemInstruction.includes('Visible story-world text, signs, lettering'));
+  assert.ok(systemInstruction.includes('Never render technical reference identifiers'));
   assert.doesNotMatch(systemInstruction, /internal binding tokens/);
   assert.doesNotMatch(systemInstruction, /Reference IDs such as REF_CH_\*/);
   assert.doesNotMatch(systemInstruction, /Never render reference IDs/);
@@ -579,8 +580,8 @@ async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   assert.equal(capturedAspectRatio, '16:9');
   assert.equal(capturedOperation, 'image_generate');
   assert.ok(!capturedSystemInstruction.includes('ENVIRONMENT REFERENCE:'));
-  assert.ok(capturedSystemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
-  assert.ok(!capturedPrompt.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
+  assert.ok(capturedSystemInstruction.includes('Visible story-world text, signs, lettering'));
+  assert.ok(!capturedPrompt.includes('Visible story-world text, signs, lettering'));
   assert.ok(!capturedPrompt.includes('REF_CH_MIA_TEST01'));
   assert.ok(capturedReferenceLabels.includes('REF_CH_MIA_TEST01: character identity reference.'));
   assert.ok(!capturedPrompt.includes(forbiddenSyntheticAlias));
@@ -612,8 +613,8 @@ async function testImageDomainSceneIllustrationUsesSystemOnlyTextBan() {
     mode: 'without_references',
   });
 
-  assert.ok(capturedSystemInstruction.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
-  assert.ok(!capturedPrompt.includes('MUST OUTPUT ONLY the continuous storybook illustration'));
+  assert.ok(capturedSystemInstruction.includes('Visible story-world text, signs, lettering'));
+  assert.ok(!capturedPrompt.includes('Visible story-world text, signs, lettering'));
   assert.doesNotMatch(capturedPrompt, /keep free of text/i);
 }
 

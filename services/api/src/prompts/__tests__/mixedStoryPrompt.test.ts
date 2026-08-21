@@ -88,7 +88,7 @@ assert.match(prompt, /Animal, imaginary, creature, object, vehicle, or environme
 assert.match(prompt, /Every visual\.sceneVisual\.cameraComposition\.characters\[\] item must include outfitId/);
 assert.match(prompt, /non-human characters use a natural-appearance binding/);
 assert.match(prompt, /main subject of visual\.primaryRead/);
-assert.match(prompt, /visual\.sceneVisual\.setting must be a visual staging delta, not a plot summary/);
+assert.match(prompt, /visual\.sceneVisual\.setting must be an object\/environment delta, not a plot summary/);
 assert.match(prompt, /COMIC CAMERA VARIETY/);
 assert.match(prompt, /wide\/establishing shot/);
 assert.match(prompt, /at least one extreme close-up/);
@@ -99,6 +99,13 @@ assert.match(prompt, /extreme dynamic foreshortening/);
 assert.match(prompt, /main acted-on subject of primaryRead\/setting counts as a visible character/);
 assert.match(prompt, /Object-contact actions require explicit physical staging/);
 assert.match(prompt, /body position beside or in front of the fixed object/);
+assert.match(prompt, /Keep server-overlay copy separate/);
+assert.match(
+  prompt,
+  /do not repeat dialogue\[\]\.text, thoughts\[\]\.text, or caption inside visual fields/
+);
+assert.doesNotMatch(prompt, /Story-world text that is physically present/);
+assert.doesNotMatch(prompt, /no readable text in visual fields/i);
 
 const schema = buildMixedStoryScriptSchema({
   readingBlockCount: 5,
@@ -123,7 +130,7 @@ const visualSchema = panelSchema.items.properties.visual;
 const cameraCompositionSchema = visualSchema.properties.sceneVisual.properties.cameraComposition;
 assert.match(
   visualSchema.properties.sceneVisual.properties.setting.description,
-  /visual staging delta, not a plot summary/
+  /object\/environment delta, not a plot summary/
 );
 assert.match(cameraCompositionSchema.properties.shot.description, /environment slice/);
 assert.match(cameraCompositionSchema.properties.shot.description, /extreme close-up/);

@@ -143,7 +143,7 @@ function sceneQaResult(valid: boolean) {
     hasRenderingArtifacts: !valid,
     overallFeedback: valid
       ? 'The repaired illustration is clean.'
-      : 'Remove the extra figure, visible letters, and rendering artifacts.',
+      : 'Remove the extra figure, leaked REF_ENV_FOREST_01 label, and rendering artifacts.',
   };
 }
 
@@ -280,8 +280,12 @@ async function testReferenceTitleForcesEditThenPersistsRevalidatedImage(
     assert.equal(editRequest.kind, 'edit');
     if (editRequest.kind === 'edit') {
       assert.deepStrictEqual(editRequest.request.originalImage, initialImage);
-      assert.match(editRequest.request.editInstructions, /visible text/i);
-      assert.match(editRequest.request.editInstructions, /reference-sheet title/i);
+      assert.match(
+        editRequest.request.editInstructions,
+        /technical reference identifiers containing the literal REF_ prefix/i
+      );
+      assert.match(editRequest.request.editInstructions, /preserve all ordinary story-world text/i);
+      assert.doesNotMatch(editRequest.request.editInstructions, /remove every visible label/i);
     }
     assert.equal(result.imageUrl, 'test/final-edited.png');
     assert.deepStrictEqual(harness.uploads, [editedImage]);

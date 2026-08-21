@@ -4423,8 +4423,8 @@ export function computeValidationScore(
 }
 
 /**
- * Unwanted generated text is a hard repair condition, independent of the numeric score.
- * This includes leaked reference-sheet titles/identifiers reported through hasTextOrLetters.
+ * A leaked technical REF_* identifier is a hard repair condition, independent of numeric score.
+ * hasTextOrLetters keeps its legacy persisted name but no longer represents ordinary visible text.
  */
 export function hasBlockingUnwantedImageText(validation: ImageValidationResult): boolean {
   return validation.hasTextOrLetters === true;
@@ -4737,7 +4737,7 @@ function collectTargetedRepairIssues(
     issues.push(
       makeRepairIssue(
         'text',
-        'Remove every label, title, caption, REF_* identifier, and descriptive/reference/UI block. Restore continuous surrounding storybook artwork in its place.'
+        'Erase only visible technical reference identifiers containing the literal REF_ prefix, including REF_CH_, REF_ENV_, and REF_OBJ_. Remove a surrounding strip or metadata container only when it exists solely as the technical REF_* label. Preserve every ordinary story-world inscription, sign, caption, speech bubble, letter, and number.'
       )
     );
   if (validation.hasSceneCompositionMismatch)
@@ -5865,7 +5865,7 @@ async function generateSceneImageWithReference(
               feedback: validation.overallFeedback,
             },
             hasBlockingText
-              ? 'Image validation rejected because unwanted text/reference title is visible'
+              ? 'Image validation rejected because a technical REF_* identifier is visible'
               : hasBlockingComposition
                 ? 'Image validation rejected because explicit scene composition is wrong'
               : `Image validation score at or below threshold (${minAccept})`

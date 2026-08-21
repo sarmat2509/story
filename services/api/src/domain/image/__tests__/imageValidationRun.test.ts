@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../../ai/types';
 import { MockTextProvider } from '../../../testing/ai/MockTextProvider';
-import { shouldCheckImageTextOrSymbols } from '../../../prompts/image/ImageTextPolicy';
+import { shouldCheckImageReferenceLabels } from '../../../prompts/image/ImageTextPolicy';
 import {
   runGraphicNovelPanelImageValidation,
   runProductImageValidation,
@@ -502,7 +502,7 @@ async function testFallbackAfterPrimaryBlocked() {
 }
 
 async function testDisabledTextCheckNormalizesProviderVerdictToFalse() {
-  if (shouldCheckImageTextOrSymbols()) return;
+  if (shouldCheckImageReferenceLabels()) return;
 
   const providerResult = validResult();
   providerResult.hasTextOrLetters = true;
@@ -867,12 +867,13 @@ async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
   assert.match(layoutCall.prompt, /ordinary scene space with its own body/);
   assert.match(layoutCall.prompt, /upside-down or vertically mirrored copy/);
   assert.match(layoutCall.prompt, /must not be counted as a physical body/);
-  if (shouldCheckImageTextOrSymbols()) {
+  if (shouldCheckImageReferenceLabels()) {
     assert.match(
       layoutCall.prompt,
-      /Decorative non-linguistic glyphs, runes, sigils, or symbols explicitly required by the PAGE BRIEF/
+      /Ordinary visible story-world text is allowed/
     );
-    assert.match(layoutCall.prompt, /REF_\* identifiers such as REF_CH_\*/);
+    assert.match(layoutCall.prompt, /only active meaning is a leaked technical reference identifier/);
+    assert.match(layoutCall.prompt, /including REF_CH_, REF_ENV_, or REF_OBJ_/);
   } else {
     assert.match(layoutCall.prompt, /Always set hasTextOrLetters=false/);
     assert.doesNotMatch(layoutCall.prompt, /Explicitly scan for REF_\*/);
@@ -1873,8 +1874,9 @@ async function testGraphicNovelMultiPanelPromptUsesTurnaroundInsteadOfDescriptio
     /Image 2: turnaround identity reference for "Lera"/
   );
   assert.match(primary.structuredRequests[0].prompt, /- Lera \(human; reference=Image 2\)/);
-  if (shouldCheckImageTextOrSymbols()) {
-    assert.match(primary.structuredRequests[0].prompt, /REF_\* identifiers such as REF_CH_\*/);
+  if (shouldCheckImageReferenceLabels()) {
+    assert.match(primary.structuredRequests[0].prompt, /Ordinary visible story-world text is allowed/);
+    assert.match(primary.structuredRequests[0].prompt, /including REF_CH_, REF_ENV_, or REF_OBJ_/);
   } else {
     assert.match(primary.structuredRequests[0].prompt, /Always set hasTextOrLetters=false/);
     assert.doesNotMatch(primary.structuredRequests[0].prompt, /Explicitly scan for REF_\*/);

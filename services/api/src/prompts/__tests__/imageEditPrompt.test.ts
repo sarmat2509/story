@@ -60,7 +60,8 @@ const systemInstruction = buildImageEditSystemInstruction();
 assert.match(systemInstruction, /Follow the numbered edit instructions exactly/);
 assert.match(systemInstruction, /Use REF_\* only to match attached reference images/);
 assert.match(systemInstruction, /never draw REF_\* tokens/);
-assert.match(systemInstruction, /MUST OUTPUT ONLY the continuous storybook illustration/);
+assert.match(systemInstruction, /Visible story-world text.*are allowed/);
+assert.match(systemInstruction, /Never render technical reference identifiers or labels beginning with REF_/);
 assert.match(systemInstruction, /Preserve composition, background, lighting, pose intent, style/);
 assert.doesNotMatch(systemInstruction, /ABSOLUTE VISUAL TEXT BAN/);
 assert.doesNotMatch(systemInstruction, /Reference labels are internal control tokens only/);
@@ -321,11 +322,11 @@ const textBlockRepairPrompt = buildImageEditPrompt({
 
 assert.match(
   textBlockRepairPrompt,
-  /Remove every visible label, title, caption, REF_\* identifier, and descriptive\/reference\/UI block/
+  /Erase only visible technical reference identifiers containing the literal REF_ prefix/
 );
 assert.match(
   textBlockRepairPrompt,
-  /replace the entire block with continuous surrounding storybook artwork/
+  /Preserve all ordinary story-world text, signs, captions, speech bubbles, letters, and numbers unchanged/
 );
 
 const noReferenceLabelPrompt = buildImageEditPrompt({

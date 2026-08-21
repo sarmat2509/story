@@ -6,7 +6,10 @@
  */
 
 import type { ImageValidationResult } from '../../ai/types';
-import { optionalNoVisibleTextRule, shouldCheckImageTextOrSymbols } from './ImageTextPolicy';
+import {
+  optionalNoReferenceLabelsRule,
+  shouldCheckImageReferenceLabels,
+} from './ImageTextPolicy';
 
 export type ImageEditRepairReferenceMode = 'identity' | 'outfit' | 'identity_and_outfit' | 'none';
 export type ImageEditRepairIssueKind =
@@ -70,7 +73,7 @@ export function buildImageEditSystemInstruction(): string {
     "You edit children's book illustrations with precise, minimal changes.",
     'Follow the numbered edit instructions exactly.',
     'Use REF_* only to match attached reference images; never draw REF_* tokens.',
-    optionalNoVisibleTextRule(),
+    optionalNoReferenceLabelsRule(),
     'Never create or duplicate architecture, openings, backgrounds, or celestial bodies merely to place a repaired subject; use the existing scene anchor when the instruction names one.',
     'Preserve composition, background, lighting, pose intent, style, and all unmentioned subjects.',
   ]
@@ -254,7 +257,7 @@ function editActionForIssue(issue: ImageEditRepairIssue): string {
         : 'Remove only the unexpected extra subject.';
     }
     case 'text':
-      return 'Remove every visible label, title, caption, REF_* identifier, and descriptive/reference/UI block; replace the entire block with continuous surrounding storybook artwork, without adding any text.';
+      return 'Erase only visible technical reference identifiers containing the literal REF_ prefix, including REF_CH_, REF_ENV_, and REF_OBJ_. Remove a surrounding strip or metadata block only when it exists solely as the technical REF_* label. Preserve all ordinary story-world text, signs, captions, speech bubbles, letters, and numbers unchanged.';
     case 'composition':
       return `Restore this exact scene structure: "${compactPromptText(issue.note) || 'use the scene brief'}". Count every separate framed, curtained, or bordered night-sky opening as a window, even if it has a different size or shape. If there are two, retain only the original environment-reference window; completely remove the added opening itself (not just its Moon) and fill that area with the continuous surrounding wall/background. Remove duplicate or extra windows, doors, portals, mirrors, framed openings, sky views, and celestial bodies; retain only the explicitly requested anchors.`;
     case 'generic':
@@ -372,9 +375,9 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
       '- There are UNEXPECTED characters in the image that should not be there. Remove any characters not in the expected list.'
     );
   }
-  if (shouldCheckImageTextOrSymbols() && validationResult.hasTextOrLetters) {
+  if (shouldCheckImageReferenceLabels() && validationResult.hasTextOrLetters) {
     issues.push(
-      '- The image contains TEXT, LETTERS, or WRITING. Remove all text and lettering from the illustration.'
+      '- The image leaks a technical identifier containing the literal REF_ prefix. Erase only that REF_* identifier; remove its container only when the container exists solely as the technical label. Preserve all ordinary text and lettering.'
     );
   }
 

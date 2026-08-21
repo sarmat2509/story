@@ -33,6 +33,8 @@ export const GRAPHIC_NOVEL_LINE_MAX_CHARS = 110;
 export const GRAPHIC_NOVEL_CAPTION_MAX_CHARS = 90;
 export const GRAPHIC_NOVEL_SPEAKER_MAX_CHARS = 40;
 export const GRAPHIC_NOVEL_MAX_PANEL_CHARACTERS = 3;
+export const COMIC_OVERLAY_TEXT_SEPARATION_RULE =
+  '- Keep server-overlay copy separate: do not repeat dialogue[].text, thoughts[].text, or caption inside visual fields. Visual fields describe the panel artwork; the server renders the structured dialogue, thought, and caption copy afterward.';
 const GRAPHIC_NOVEL_SUGGESTED_PAGE_FOCUS_SUPPORTING_CHARACTERS = 2;
 const GRAPHIC_NOVEL_PANEL_VISUAL_STAGING_RULE = formatSceneVisualStagingDeltaRule(
   'visual.sceneVisual.setting'
@@ -749,14 +751,13 @@ PANEL REQUIREMENTS:
   - outfitId: exact outfits[].id for this character in this shot. Detailed wardrobe rows are only for child/person/human characters; animals/imaginary/creatures use a natural-appearance binding.
 - For panels with 2 dialogue lines from 2 speakers, place speakers on clearly different left/right or foreground/background positions so bubble tails can point cleanly after Vision analysis.
 - For reference-grounded characters, that description must stay reference-safe and must not override the downstream reference image.
-- No text instructions, no speech bubble instructions, and no readable text in visual fields.
+${COMIC_OVERLAY_TEXT_SEPARATION_RULE}
 - Do not output coordinates or bubble placement metadata. The server derives exact bubble tails from finished artwork using Vision analysis.
 - dialogue[].text and thoughts[].text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer.
 - captions must be ${GRAPHIC_NOVEL_CAPTION_MAX_CHARS} characters or fewer.
 - A panel may contain 2 dialogue lines when the dialogue array has 2 items. Use different speakers for those exchange panels.
 - Do not write full dialogue or thought lines in ALL CAPS. Show volume through emotion and visual fields instead.
 - Do not depend on server shortening text. If a thought needs more room, split it into another bubble or panel.
-- Avoid extra text outside dialogue/thought/caption fields.
 `;
 }
 
@@ -871,7 +872,8 @@ ${comicPanelCameraVarietyRules()}
 - Every visual.sceneVisual.cameraComposition.characters[] item must include position.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include outfitId. Detailed wardrobe rows are only for child/person/human characters; non-human characters use a natural-appearance binding.
 - For reference-grounded characters, describe only temporary pose/action/emotion/staging; do not describe stable identity details.
-- Do not output coordinates, bubble placement metadata, or readable text in visual fields.
+${COMIC_OVERLAY_TEXT_SEPARATION_RULE}
+- Do not output coordinates or bubble placement metadata.
 `;
 }
 
@@ -978,7 +980,8 @@ ${comicPanelCameraVarietyRules()}
 - visual.sceneVisual.cameraComposition.characters[].description must include placement, pose, expression, gaze, gesture, and interaction for this exact panel. ${formatContactGeometryWriterRule()} Use REF_CH_* labels for listed characters and REF_OBJ_* labels for fixed story artifact objects inside descriptions.
 - Every visual.sceneVisual.cameraComposition.characters[] item must include position and outfitId.
 - For reference-grounded characters, describe only temporary pose/action/emotion/staging; do not describe stable identity details.
-- Do not output coordinates, bubble placement metadata, or readable text in visual fields.
+${COMIC_OVERLAY_TEXT_SEPARATION_RULE}
+- Do not output coordinates or bubble placement metadata.
 - dialogue[].text and thoughts[].text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer.
 - captions must be ${GRAPHIC_NOVEL_CAPTION_MAX_CHARS} characters or fewer.
 

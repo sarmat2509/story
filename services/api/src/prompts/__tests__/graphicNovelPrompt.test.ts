@@ -154,6 +154,17 @@ const repairPrompt = buildGraphicNovelPageRepairPrompt({
   ],
 });
 
+for (const visualPrompt of [prompt, fallbackPrompt, repairPrompt]) {
+  assert.match(visualPrompt, /Keep server-overlay copy separate/);
+  assert.match(
+    visualPrompt,
+    /do not repeat dialogue\[\]\.text, thoughts\[\]\.text, or caption inside visual fields/
+  );
+  assert.doesNotMatch(visualPrompt, /Story-world text that is physically present/);
+  assert.doesNotMatch(visualPrompt, /no readable text in visual fields/i);
+  assert.doesNotMatch(visualPrompt, /bubble placement metadata, or readable text/i);
+}
+
 assert.match(prompt, /Create exactly 8 pages/);
 assert.match(
   prompt,
@@ -225,10 +236,11 @@ assert.match(
 );
 assert.match(prompt, /A panel may contain 2 dialogue lines/);
 assert.match(prompt, /SPEAKER NAME RULES/);
-assert.match(prompt, /must use exact character names from CHARACTERS/);
+assert.match(prompt, /speaker is localized display text only/);
+assert.match(prompt, /characterRef remains the identity/);
 assert.match(prompt, /Do not mix alphabets inside a speaker name/);
 assert.match(prompt, /Speaker names are used for audio, quiz, indexing, and bubble tails/);
-assert.match(prompt, /Mira \(person, role: hero, visual reference: yes\)/);
+assert.match(prompt, /Mira \[characterRef: char-1\] \(person, role: hero, visual reference: yes\)/);
 assert.match(prompt, /visual reference: yes/);
 assert.match(prompt, /VISUAL CHARACTER REFERENCES/);
 assert.match(prompt, /Mira => REF_CH_MIRA_[A-Z0-9]{6}/);
@@ -283,7 +295,7 @@ assert.match(prompt, /new reaction, choice, joke, emotional shift, or visible co
 assert.match(prompt, /VISUAL ACTION LOGIC/);
 assert.match(prompt, /exact visible cause-and-effect mechanism/);
 assert.match(prompt, /visual\.primaryRead should name the affected story object or result/);
-assert.match(prompt, /visual\.sceneVisual\.setting must be a visual staging delta, not a plot summary/);
+assert.match(prompt, /visual\.sceneVisual\.setting must be an object\/environment delta, not a plot summary/);
 assert.match(prompt, /avoid vague wording like "the object is now resting"/);
 assert.match(prompt, /COMIC CAMERA VARIETY/);
 assert.match(prompt, /wide\/establishing shot/);
@@ -326,7 +338,7 @@ assert.match(
   fallbackPrompt,
   /visible cause\/effect for action, puzzle, rescue, tool-use, or magic-effect panels/
 );
-assert.match(fallbackPrompt, /visual\.sceneVisual\.setting must be a visual staging delta/);
+assert.match(fallbackPrompt, /visual\.sceneVisual\.setting must be an object\/environment delta/);
 assert.match(fallbackPrompt, /COMIC CAMERA VARIETY/);
 assert.match(fallbackPrompt, /Do not repeat the same shot scale, camera angle, or environment slice/);
 assert.doesNotMatch(fallbackPrompt, /RARE DYNAMIC FORESHORTENING OPTION/);
@@ -530,7 +542,7 @@ assert.match(
 );
 assert.match(
   visualSchema.properties.sceneVisual.properties.setting.description,
-  /visual staging delta, not a plot summary/
+  /object\/environment delta, not a plot summary/
 );
 assert.match(visualSchema.properties.sceneVisual.properties.setting.description, /REF_OBJ_\*/);
 assert.match(
