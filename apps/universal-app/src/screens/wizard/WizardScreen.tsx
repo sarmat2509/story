@@ -1664,7 +1664,16 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
         progress={storyStatus?.progress || 0}
         progressData={storyStatus?.progressData}
         errorMessage={storyStatus?.errorMessage ?? undefined}
-        onClose={storyStatus?.status === 'completed' ? handleCloseModal : undefined}
+        onClose={
+          storyStatus?.status === 'completed'
+            ? handleCloseModal
+            : storyStatus?.status === 'failed'
+              ? () => {
+                  setIsGenerating(false);
+                  setRequestId(null);
+                }
+              : undefined
+        }
         onRetry={storyStatus?.status === 'failed' ? handleRetry : undefined}
         onReport={
           storyStatus?.status === 'failed'

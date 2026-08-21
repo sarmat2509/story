@@ -21,6 +21,7 @@ import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 type Photo = UploadPhotoResult & {
   isUploading?: boolean;
+  uploadId?: string;
 };
 
 const PHOTO_HEIGHT = 150;
@@ -40,12 +41,13 @@ function getPhotoWidth(aspectRatio?: number): number {
 
 interface PhotoUploadGridProps {
   photos: Photo[];
-  onPhotosChange: (photos: Photo[]) => void;
+  onPhotosChange: React.Dispatch<React.SetStateAction<Photo[]>>;
   maxPhotos?: number;
   disabled?: boolean;
   photoType?: PhotoTypeUserUpload;
   childDataConsentAccepted?: boolean;
   imageRightsConsentMode?: 'per-upload-prompt' | 'story-submit';
+  showCounter?: boolean;
   formatUrl?: (url: string) => string | null; // Optional URL formatter for native platforms
 }
 
@@ -57,10 +59,10 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   photoType = 'character',
   childDataConsentAccepted = false,
   imageRightsConsentMode = 'per-upload-prompt',
+  showCounter = true,
   formatUrl,
 }) => {
   const { t } = useTranslation();
-  const [, setUploadingIndex] = useState<number | null>(null);
   const [photoAspectRatios, setPhotoAspectRatios] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -131,10 +133,9 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
           url: localUri,
           uploadedAt: new Date().toISOString(),
           isUploading: true,
+          uploadId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         };
-        const tempIndex = photos.length;
-        onPhotosChange([...photos, tempPhoto]);
-        setUploadingIndex(tempIndex);
+        onPhotosChange((currentPhotos) => [...currentPhotos, tempPhoto]);
 
         try {
           // Завантажуємо на сервер
@@ -154,20 +155,22 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
             }
           );
 
-          // Замінюємо тимчасове фото на завантажене
-          const updatedPhotos = [...photos];
-          updatedPhotos[tempIndex] = {
-            ...uploadedPhoto,
-            isUploading: false,
-          };
-          onPhotosChange(updatedPhotos);
-          setUploadingIndex(null);
+          // Replace only this temporary item. Other uploads may have completed
+          // while this request was in flight, so never restore a stale snapshot.
+          onPhotosChange((currentPhotos) =>
+            currentPhotos.map((photo) =>
+              photo.uploadId === tempPhoto.uploadId
+                ? { ...uploadedPhoto, isUploading: false }
+                : photo
+            )
+          );
         } catch (error) {
-          // Видаляємо тимчасове фото при помилці
+          // Remove only this temporary photo; keep other in-flight uploads.
           const message = getLocalizedApiError(t, error, 'photo_upload.upload_error_message');
           Alert.alert(t('photo_upload.upload_error_title'), message);
-          onPhotosChange(photos.filter((_, i) => i !== tempIndex));
-          setUploadingIndex(null);
+          onPhotosChange((currentPhotos) =>
+            currentPhotos.filter((photo) => photo.uploadId !== tempPhoto.uploadId)
+          );
         }
       }
     } catch (error) {
@@ -182,7 +185,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
     if (!photo.isUploading && isServerAssetUrl(photo.url)) {
       deletePhoto(photo.url);
     }
-    onPhotosChange(photos.filter((_, i) => i !== index));
+    onPhotosChange((currentPhotos) => currentPhotos.filter((_, i) => i !== index));
   };
 
   const canAddMore = photos.length < maxPhotos && !disabled;
@@ -251,9 +254,11 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
       </View>
 
       {/* Counter */}
-      <Text style={styles.counter}>
-        {t('photo_upload.counter', { count: photos.length, max: maxPhotos })}
-      </Text>
+      {showCounter ? (
+        <Text style={styles.counter}>
+          {t('photo_upload.counter', { count: photos.length, max: maxPhotos })}
+        </Text>
+      ) : null}
     </View>
   );
 };

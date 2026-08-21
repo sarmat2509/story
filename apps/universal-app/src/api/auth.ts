@@ -25,6 +25,22 @@ type ChildModeRecoveryCompleteResponse = ParentGateResponse & {
   childModeExitPasscodeResetToken: string;
 };
 
+// Completing recovery switches the navigator from the child session to the
+// parent session. Keep the short-lived reset token in memory so the recovery
+// screen can finish its passcode step after that navigator remount.
+const childModeRecoveryHandoffs = new Map<
+  string,
+  Pick<ChildModeRecoveryCompleteResponse, 'childModeExitPasscodeResetToken'>
+>();
+
+export function getChildModeRecoveryHandoff(token: string) {
+  return childModeRecoveryHandoffs.get(token) ?? null;
+}
+
+export function clearChildModeRecoveryHandoff(token: string): void {
+  childModeRecoveryHandoffs.delete(token);
+}
+
 /**
  * Mirror the user's server-side theme palette preference into the local
  * synchronous store so the next cold boot reads the chosen palette.
@@ -227,7 +243,10 @@ export const useCompleteChildModeExitRecovery = () => {
       );
       return response.data;
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, recoveryToken) => {
+      childModeRecoveryHandoffs.set(recoveryToken, {
+        childModeExitPasscodeResetToken: data.childModeExitPasscodeResetToken,
+      });
       await applyParentGateResponse(data, queryClient, setParentSession);
     },
   });

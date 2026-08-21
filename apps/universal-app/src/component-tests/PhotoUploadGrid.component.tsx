@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Image } from 'react-native';
+import { Image, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { PhotoUploadGrid } from '@/components/form/PhotoUploadGrid';
 import { confirmImageRights } from '@/utils/imageRightsConsent';
@@ -73,10 +73,17 @@ describe('PhotoUploadGrid', () => {
     fireEvent.press(view.getByTestId('photo-upload-add'));
 
     await waitFor(() => expect(onPhotosChange).toHaveBeenCalledTimes(2));
-    expect(onPhotosChange.mock.calls[0][0]).toEqual([
+    const optimisticUpdate = onPhotosChange.mock.calls[0][0] as (
+      photos: Array<{ url: string; isUploading?: boolean }>
+    ) => Array<{ url: string; isUploading?: boolean }>;
+    const optimisticPhotos = optimisticUpdate([]);
+    expect(optimisticPhotos).toEqual([
       expect.objectContaining({ url: 'file:///picked-child.jpg', isUploading: true }),
     ]);
-    expect(onPhotosChange.mock.calls[1][0]).toEqual([
+    const persistedUpdate = onPhotosChange.mock.calls[1][0] as (
+      photos: Array<{ url: string; isUploading?: boolean }>
+    ) => Array<{ url: string; isUploading?: boolean }>;
+    expect(persistedUpdate(optimisticPhotos)).toEqual([
       expect.objectContaining({
         url: '/api/v1/assets/test/user/photos/child/uploaded.jpg',
         isUploading: false,
@@ -108,7 +115,58 @@ describe('PhotoUploadGrid', () => {
     fireEvent.press(view.getByTestId('photo-upload-remove-0'));
 
     expect(deletePhoto).toHaveBeenCalledWith(photos[0].url);
-    expect(onPhotosChange).toHaveBeenCalledWith([]);
+    const removeUpdate = onPhotosChange.mock.calls[0][0] as (
+      currentPhotos: typeof photos
+    ) => typeof photos;
+    expect(removeUpdate(photos)).toEqual([]);
+  });
+
+  it('keeps every photo when uploads finish in a different order', async () => {
+    const uploadResolvers: Array<(photo: { url: string; uploadedAt: string }) => void> = [];
+    (ImagePicker.launchImageLibraryAsync as jest.Mock)
+      .mockResolvedValueOnce({
+        canceled: false,
+        assets: [{ uri: 'file:///first.jpg', fileName: 'first.jpg', mimeType: 'image/jpeg' }],
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        assets: [{ uri: 'file:///second.jpg', fileName: 'second.jpg', mimeType: 'image/jpeg' }],
+      });
+    (uploadPhoto as jest.Mock).mockImplementation(
+      () =>
+        new Promise<{ url: string; uploadedAt: string }>((resolve) => {
+          uploadResolvers.push(resolve);
+        })
+    );
+
+    const StatefulGrid = () => {
+      const [photos, setPhotos] = React.useState<
+        Array<{ url: string; uploadedAt: string; isUploading?: boolean }>
+      >([]);
+      return (
+        <>
+          <Text testID="uploaded-photo-urls">{photos.map((photo) => photo.url).join(',')}</Text>
+          <PhotoUploadGrid photos={photos} onPhotosChange={setPhotos} photoType="child" />
+        </>
+      );
+    };
+
+    const view = render(<StatefulGrid />);
+    fireEvent.press(view.getByTestId('photo-upload-add'));
+    fireEvent.press(view.getByTestId('photo-upload-add'));
+
+    await waitFor(() => expect(uploadResolvers).toHaveLength(2));
+    uploadResolvers[1]({
+      url: '/api/v1/assets/second.jpg',
+      uploadedAt: '2026-07-17T00:00:00.000Z',
+    });
+    uploadResolvers[0]({ url: '/api/v1/assets/first.jpg', uploadedAt: '2026-07-17T00:00:00.000Z' });
+
+    await waitFor(() =>
+      expect(view.getByTestId('uploaded-photo-urls').props.children).toBe(
+        '/api/v1/assets/first.jpg,/api/v1/assets/second.jpg'
+      )
+    );
   });
 
   it('does not expose the add action when the photo limit is reached', () => {

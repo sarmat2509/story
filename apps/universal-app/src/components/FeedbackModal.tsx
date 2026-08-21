@@ -205,6 +205,7 @@ export function FeedbackModal({
   const [isAutoCaptured, setIsAutoCaptured] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isLoggedIn = !!user;
   const effectiveSupportTopic =
@@ -234,6 +235,7 @@ export function FeedbackModal({
       setIsAutoCaptured(false);
       setSubmitted(false);
       setSubmittedReportId(null);
+      setSubmitError(null);
     } else {
       setIsPreparingModal(false);
       setIsUploadingScreenshot(false);
@@ -366,6 +368,7 @@ export function FeedbackModal({
   };
 
   const handleSubmit = async () => {
+    setSubmitError(null);
     const trimmedMessage = message.trim();
     if (trimmedMessage.length < 10) {
       Alert.alert(t('common.error'), t('feedback.message_min_length'));
@@ -402,7 +405,7 @@ export function FeedbackModal({
       setSubmitted(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit feedback';
-      Alert.alert(t('common.error'), msg);
+      setSubmitError(msg);
     }
   };
 
@@ -536,7 +539,10 @@ export function FeedbackModal({
             <TextInput
               style={styles.textArea}
               value={message}
-              onChangeText={setMessage}
+              onChangeText={(value) => {
+                setMessage(value);
+                setSubmitError(null);
+              }}
               placeholder={
                 isGeneratedContentReport
                   ? t('feedback.content_report_placeholder')
@@ -649,6 +655,21 @@ export function FeedbackModal({
           </ScrollView>
 
           <View style={styles.footer}>
+            {submitError ? (
+              <View style={styles.submitError} testID="feedback-submit-error">
+                <Ionicons name="alert-circle-outline" size={18} color={theme.colors.status.error} />
+                <Text style={styles.submitErrorText}>{submitError}</Text>
+                <TouchableOpacity
+                  onPress={() => setSubmitError(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                  testID="feedback-submit-error-close"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={18} color={theme.colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <AppButton
               label={t('common.cancel')}
               onPress={handleClose}
@@ -869,10 +890,29 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.medium,
   },
   footer: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     gap: theme.spacing[3],
     padding: theme.spacing[6],
     paddingTop: theme.spacing[4],
+  },
+  submitError: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.status.error + '12',
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.status.error + '40',
+  },
+  submitErrorText: {
+    flex: 1,
+    color: theme.colors.status.error,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
   },
   footerButton: {
     flex: 1,

@@ -361,15 +361,25 @@ export default function InstantWizardScreen() {
                     storagePath: p.storagePath,
                     isUploading: p.isUploading,
                   }))}
-                  onPhotosChange={(newPhotos) =>
-                    setPhotos(
-                      newPhotos.map((p) => ({
+                  onPhotosChange={(nextPhotos) =>
+                    setPhotos((currentPhotos) => {
+                      const currentGridPhotos = currentPhotos.map((p) => ({
+                        url: p.url,
+                        uploadedAt: p.uploadedAt || new Date().toISOString(),
+                        storagePath: p.storagePath,
+                        isUploading: p.isUploading,
+                      }));
+                      const resolvedPhotos =
+                        typeof nextPhotos === 'function'
+                          ? nextPhotos(currentGridPhotos)
+                          : nextPhotos;
+                      return resolvedPhotos.map((p) => ({
                         url: p.url,
                         uploadedAt: p.uploadedAt,
                         storagePath: p.storagePath,
                         isUploading: p.isUploading,
-                      }))
-                    )
+                      }));
+                    })
                   }
                   maxPhotos={5}
                   photoType="character"
@@ -492,8 +502,18 @@ export default function InstantWizardScreen() {
           progressData={storyStatus?.progressData}
           errorMessage={storyStatus?.errorMessage ?? undefined}
           onRetry={handleRetry}
-          onClose={handleCloseModal}
+          onClose={
+            storyStatus?.status === 'completed'
+              ? handleCloseModal
+              : storyStatus?.status === 'failed'
+                ? () => {
+                    setIsGenerating(false);
+                    setRequestId(null);
+                  }
+                : undefined
+          }
           onReport={storyStatus?.status === 'failed' ? () => setShowFeedbackModal(true) : undefined}
+          allowManualClose
         />
 
         <FeedbackModal

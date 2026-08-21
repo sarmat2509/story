@@ -11,7 +11,12 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import type { MainDrawerParamList } from '@/types/navigation';
-import { useCompleteChildModeExitRecovery, useUpdateChildModeExitPasscode } from '@/api/auth';
+import {
+  clearChildModeRecoveryHandoff,
+  getChildModeRecoveryHandoff,
+  useCompleteChildModeExitRecovery,
+  useUpdateChildModeExitPasscode,
+} from '@/api/auth';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
@@ -19,9 +24,8 @@ import { getWebSearch } from '@/utils/webRuntime';
 
 type ChildModeRecoveryRouteProp = RouteProp<MainDrawerParamList, 'ChildModeRecovery'>;
 
-function useRecoveryToken(): string | null {
+function useRecoveryToken(): { token: string | null; isResolving: boolean } {
   const route = useRoute<ChildModeRecoveryRouteProp>();
-  const [token, setToken] = useState<string | null>(null);
 
   const extractTokenFromUrl = (url: string) => {
     try {
@@ -32,10 +36,20 @@ function useRecoveryToken(): string | null {
     }
   };
 
+  const getInitialToken = () => {
+    if (route.params?.token) return route.params.token;
+    if (Platform.OS !== 'web') return null;
+    return new URLSearchParams(getWebSearch() ?? '').get('token');
+  };
+
+  const [token, setToken] = useState<string | null>(getInitialToken);
+  const [isResolving, setIsResolving] = useState(() => Platform.OS !== 'web' && !token);
+
   useEffect(() => {
     const tokenFromRoute = route.params?.token;
     if (tokenFromRoute) {
       setToken(tokenFromRoute);
+      setIsResolving(false);
       return;
     }
 
@@ -43,13 +57,18 @@ function useRecoveryToken(): string | null {
       const params = new URLSearchParams(getWebSearch() ?? '');
       const tokenFromSearch = params.get('token');
       if (tokenFromSearch) setToken(tokenFromSearch);
+      setIsResolving(false);
       return;
     }
 
     Linking.getInitialURL().then((url) => {
-      if (!url) return;
+      if (!url) {
+        setIsResolving(false);
+        return;
+      }
       const tokenFromUrl = extractTokenFromUrl(url);
       if (tokenFromUrl) setToken(tokenFromUrl);
+      setIsResolving(false);
     });
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -60,22 +79,33 @@ function useRecoveryToken(): string | null {
     return () => subscription.remove();
   }, [route.params?.token]);
 
-  return token;
+  return { token, isResolving };
 }
 
 export default function ChildModeRecoveryScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const token = useRecoveryToken();
+  const { token, isResolving: isResolvingToken } = useRecoveryToken();
   const recovery = useCompleteChildModeExitRecovery();
   const updateExitPasscode = useUpdateChildModeExitPasscode();
+  const recoveryHandoff = token ? getChildModeRecoveryHandoff(token) : null;
   const [error, setError] = useState<string | null>(null);
-  const [completed, setCompleted] = useState(false);
+  const [completed, setCompleted] = useState(() => Boolean(recoveryHandoff));
   const [passcodeResetCompleted, setPasscodeResetCompleted] = useState(false);
-  const [passcodeResetToken, setPasscodeResetToken] = useState<string | null>(null);
+  const [passcodeResetToken, setPasscodeResetToken] = useState<string | null>(
+    () => recoveryHandoff?.childModeExitPasscodeResetToken ?? null
+  );
   const [newPasscode, setNewPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [passcodeResetError, setPasscodeResetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    const handoff = getChildModeRecoveryHandoff(token);
+    if (!handoff) return;
+    setPasscodeResetToken(handoff.childModeExitPasscodeResetToken);
+    setCompleted(true);
+  }, [token]);
 
   const handleContinue = () => {
     if (!token || recovery.isPending) return;
@@ -115,6 +145,7 @@ export default function ChildModeRecoveryScreen() {
         recoveryToken: passcodeResetToken,
         newPasscode: trimmedNewPasscode,
       });
+      if (token) clearChildModeRecoveryHandoff(token);
       setPasscodeResetToken(null);
       setNewPasscode('');
       setConfirmPasscode('');
@@ -130,7 +161,7 @@ export default function ChildModeRecoveryScreen() {
       ? t('child_mode.recovery_complete_success_title', {
           defaultValue: 'Parent area unlocked',
         })
-      : error || !token
+      : error || (!token && !isResolvingToken)
         ? t('child_mode.recovery_complete_error_title', {
             defaultValue: 'Recovery link did not work',
           })
@@ -144,7 +175,7 @@ export default function ChildModeRecoveryScreen() {
       ? t('child_mode.recovery_complete_success_body', {
           defaultValue: 'Parent access is restored. Choose a new Child Mode exit password below.',
         })
-      : error || !token
+      : error || (!token && !isResolvingToken)
         ? error ||
           t('child_mode.recovery_complete_missing_token', {
             defaultValue: 'This recovery link is missing its token.',
@@ -226,7 +257,7 @@ export default function ChildModeRecoveryScreen() {
             style={styles.action}
           />
         ) : null}
-        {error || !token ? (
+        {error || (!token && !isResolvingToken) ? (
           <AppButton
             label={t('auth.back_to_login')}
             onPress={() => (navigation as any).navigate('Welcome')}
