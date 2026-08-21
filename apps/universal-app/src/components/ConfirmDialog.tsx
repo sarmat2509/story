@@ -13,6 +13,8 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   variant?: 'danger' | 'warning' | 'info';
+  /** Renders inside its parent instead of a native Modal; useful for component previews. */
+  presentation?: 'modal' | 'inline';
 }
 
 export function ConfirmDialog({
@@ -24,6 +26,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   variant = 'danger',
+  presentation = 'modal',
 }: ConfirmDialogProps) {
   const iconName =
     variant === 'danger'
@@ -38,38 +41,53 @@ export function ConfirmDialog({
         ? theme.colors.status.warning
         : theme.colors.interactive.primary;
 
+  const dialog = (
+    <View style={styles.dialog}>
+      {/* Icon */}
+      <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
+        <Ionicons name={iconName} size={48} color={iconColor} />
+      </View>
+
+      {/* Title */}
+      <Text style={styles.title}>{title}</Text>
+
+      {/* Message */}
+      <Text style={styles.message}>{message}</Text>
+
+      <View style={styles.dialogActions}>
+        <AppButton
+          label={cancelText}
+          onPress={onCancel}
+          variant="secondary"
+          style={styles.dialogAction}
+          testID="confirm-dialog-cancel"
+        />
+        <AppButton
+          label={confirmText}
+          onPress={onConfirm}
+          variant={variant === 'danger' ? 'danger' : 'primary'}
+          style={styles.dialogAction}
+          testID="confirm-dialog-confirm"
+        />
+      </View>
+    </View>
+  );
+
+  // React Native Modal is rendered above the whole application, including Storybook's
+  // navigator. Inline mode keeps the preview usable while preserving the production modal.
+  if (presentation === 'inline') {
+    if (!visible) return null;
+    return (
+      <View style={[styles.overlay, styles.inlineOverlay]} testID="confirm-dialog">
+        {dialog}
+      </View>
+    );
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay} testID="confirm-dialog">
-        <View style={styles.dialog}>
-          {/* Icon */}
-          <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
-            <Ionicons name={iconName} size={48} color={iconColor} />
-          </View>
-
-          {/* Title */}
-          <Text style={styles.title}>{title}</Text>
-
-          {/* Message */}
-          <Text style={styles.message}>{message}</Text>
-
-          <View style={styles.dialogActions}>
-            <AppButton
-              label={cancelText}
-              onPress={onCancel}
-              variant="secondary"
-              style={styles.dialogAction}
-              testID="confirm-dialog-cancel"
-            />
-            <AppButton
-              label={confirmText}
-              onPress={onConfirm}
-              variant={variant === 'danger' ? 'danger' : 'primary'}
-              style={styles.dialogAction}
-              testID="confirm-dialog-confirm"
-            />
-          </View>
-        </View>
+        {dialog}
       </View>
     </Modal>
   );
@@ -82,6 +100,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing[6],
+  },
+  inlineOverlay: {
+    flexGrow: 1,
+    minHeight: 420,
+    borderRadius: theme.borders.radius.xl,
   },
   dialog: {
     backgroundColor: theme.colors.background.primary,

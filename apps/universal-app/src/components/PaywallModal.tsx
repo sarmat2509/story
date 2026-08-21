@@ -24,6 +24,7 @@ export interface PaywallModalProps {
   limitInfo?: { used: number; limit: number };
   /** Locale-formatted billing period end; when missing, copy falls back without a date. */
   periodEndFormatted?: string | null;
+  presentation?: 'modal' | 'inline';
 }
 
 export function PaywallModal({
@@ -33,6 +34,7 @@ export function PaywallModal({
   message,
   limitInfo,
   periodEndFormatted,
+  presentation = 'modal',
 }: PaywallModalProps) {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -79,41 +81,47 @@ export function PaywallModal({
       : t('paywall.bundle_hint_no_date')
     : null;
 
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="lock-closed" size={48} color={theme.colors.interactive.primary} />
-          </View>
-          <Text style={styles.title}>{displayTitle}</Text>
-          <Text style={styles.message}>{displayMessage}</Text>
-          {bundleHintText ? (
-            <>
-              <Text style={styles.bundleHint}>{bundleHintText}</Text>
-              <AppButton
-                label={t('paywall.bundle_pricing_link')}
-                onPress={handleOpenPricing}
-                variant="ghost"
-                size="md"
-                style={styles.bundlePricingAction}
-              />
-            </>
-          ) : null}
+  const content = (
+    <View style={styles.content}>
+      <View style={styles.iconContainer}>
+        <Ionicons name="lock-closed" size={48} color={theme.colors.interactive.primary} />
+      </View>
+      <Text style={styles.title}>{displayTitle}</Text>
+      <Text style={styles.message}>{displayMessage}</Text>
+      {bundleHintText ? (
+        <>
+          <Text style={styles.bundleHint}>{bundleHintText}</Text>
           <AppButton
-            label={t('paywall.upgrade_button')}
-            onPress={handleUpgrade}
-            style={styles.upgradeAction}
-          />
-          <AppButton
-            label={t('common.cancel')}
-            onPress={onClose}
+            label={t('paywall.bundle_pricing_link')}
+            onPress={handleOpenPricing}
             variant="ghost"
             size="md"
-            style={styles.dismissAction}
+            style={styles.bundlePricingAction}
           />
-        </View>
-      </View>
+        </>
+      ) : null}
+      <AppButton
+        label={t('paywall.upgrade_button')}
+        onPress={handleUpgrade}
+        style={styles.upgradeAction}
+      />
+      <AppButton
+        label={t('common.cancel')}
+        onPress={onClose}
+        variant="ghost"
+        size="md"
+        style={styles.dismissAction}
+      />
+    </View>
+  );
+
+  if (presentation === 'inline') {
+    return visible ? <View style={[styles.overlay, styles.inlineOverlay]}>{content}</View> : null;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>{content}</View>
     </Modal>
   );
 }
@@ -126,6 +134,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing[6],
   },
+  inlineOverlay: { flexGrow: 1, minHeight: 400, borderRadius: theme.borders.radius.xl },
   content: {
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.xl,

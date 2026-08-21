@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRenameCharacter } from '@/api/characters';
@@ -18,9 +11,15 @@ interface Props {
   visible: boolean;
   character: { id: string; name: string } | null;
   onClose: () => void;
+  presentation?: 'modal' | 'inline';
 }
 
-export function CharacterRenameModal({ visible, character, onClose }: Props) {
+export function CharacterRenameModal({
+  visible,
+  character,
+  onClose,
+  presentation = 'modal',
+}: Props) {
   const { t } = useTranslation();
   const renameCharacter = useRenameCharacter();
   const [name, setName] = useState('');
@@ -48,48 +47,54 @@ export function CharacterRenameModal({ visible, character, onClose }: Props) {
 
   const unchanged = !character || name.trim() === character.name.trim();
 
+  const content = (
+    <View style={styles.modal} testID="character-rename-modal">
+      <View style={styles.header}>
+        <Text style={styles.title}>{t('character_form.title_rename')}</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.label}>{t('character_form.name_label')}</Text>
+      <TextInput
+        style={[styles.input, error && styles.inputError]}
+        value={name}
+        onChangeText={setName}
+        placeholder={t('character_form.name_placeholder')}
+        placeholderTextColor={theme.colors.text.disabled}
+        maxLength={100}
+        autoFocus
+        testID="character-rename-name"
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <View style={styles.footer}>
+        <AppButton
+          label={t('character_form.cancel_button')}
+          onPress={onClose}
+          variant="secondary"
+          style={styles.action}
+        />
+        <AppButton
+          label={t('character_form.save_button')}
+          onPress={submit}
+          disabled={!name.trim() || unchanged || renameCharacter.isPending}
+          loading={renameCharacter.isPending}
+          style={styles.action}
+          testID="character-rename-save"
+        />
+      </View>
+    </View>
+  );
+
+  if (presentation === 'inline') {
+    return visible ? <View style={[styles.overlay, styles.inlineOverlay]}>{content}</View> : null;
+  }
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modal} testID="character-rename-modal">
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('character_form.title_rename')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.label}>{t('character_form.name_label')}</Text>
-          <TextInput
-            style={[styles.input, error && styles.inputError]}
-            value={name}
-            onChangeText={setName}
-            placeholder={t('character_form.name_placeholder')}
-            placeholderTextColor={theme.colors.text.disabled}
-            maxLength={100}
-            autoFocus
-            testID="character-rename-name"
-          />
-          {error && <Text style={styles.error}>{error}</Text>}
-
-          <View style={styles.footer}>
-            <AppButton
-              label={t('character_form.cancel_button')}
-              onPress={onClose}
-              variant="secondary"
-              style={styles.action}
-            />
-            <AppButton
-              label={t('character_form.save_button')}
-              onPress={submit}
-              disabled={!name.trim() || unchanged || renameCharacter.isPending}
-              loading={renameCharacter.isPending}
-              style={styles.action}
-              testID="character-rename-save"
-            />
-          </View>
-        </View>
-      </View>
+      <View style={styles.overlay}>{content}</View>
     </Modal>
   );
 }
@@ -102,6 +107,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
   },
+  inlineOverlay: { flexGrow: 1, minHeight: 360, borderRadius: theme.borders.radius.xl },
   modal: {
     width: '100%',
     maxWidth: 460,

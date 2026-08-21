@@ -25,7 +25,7 @@ import type { MainDrawerParamList } from '@/types/navigation';
 const cardDelay = (i: number) => Math.min(i * 35, 260);
 const ARTIFACT_TILE_SIZE = 150;
 
-function ArtifactTile({
+export function ArtifactTile({
   item,
   onPress,
 }: {

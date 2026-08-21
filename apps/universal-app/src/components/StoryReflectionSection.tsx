@@ -1,15 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  LayoutChangeEvent,
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-} from 'react-native';
+import { LayoutChangeEvent, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import type {
+  StoryQuizApi,
   StoryQuizAnswerApi,
   StoryQuizActivityApi,
   StoryQuizOptionApi,
@@ -60,6 +55,8 @@ const MATCH_LINE_COLORS = [
 interface StoryReflectionSectionProps {
   storyId: string;
   enabled: boolean;
+  /** Lets component previews render a completed quiz without requesting it from the API. */
+  initialQuiz?: StoryQuizApi | null;
   onScenePress?: (sceneId: number) => void;
   rewardAction?: React.ReactNode;
 }
@@ -152,9 +149,7 @@ function hasAlignedMatchAnswer(
   return rightOptions.some((rightOption, index) => {
     const leftOption = leftOptions[index];
     if (!leftOption) return false;
-    return pairs.some(
-      (pair) => pair.leftId === leftOption.id && pair.rightId === rightOption.id
-    );
+    return pairs.some((pair) => pair.leftId === leftOption.id && pair.rightId === rightOption.id);
   });
 }
 
@@ -177,7 +172,9 @@ function shuffledMatchRightOptions(
 }
 
 function localizedStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function correctFeedbackForActivity(
@@ -245,12 +242,7 @@ function getArrowHeadPath(end: { x: number; y: number }, size = 8): string {
   ].join(' ');
 }
 
-function getMatchLaneX(
-  startX: number,
-  endX: number,
-  laneIndex: number,
-  laneCount: number
-): number {
+function getMatchLaneX(startX: number, endX: number, laneIndex: number, laneCount: number): number {
   const span = Math.max(endX - startX, 1);
   const laneWindow = span * MATCH_LINE_LANE_WINDOW_RATIO;
   const laneStep = laneCount > 1 ? laneWindow / (laneCount - 1) : 0;
@@ -372,7 +364,7 @@ function ActivityCard({
     const onPress =
       activity.interactionType === 'multi_select'
         ? () => toggleMulti(option.id)
-          : activity.interactionType === 'sequence_order'
+        : activity.interactionType === 'sequence_order'
           ? () => toggleSequence(option.id)
           : activity.interactionType === 'match_pairs'
             ? () => handlePairLeftTap(option.id)
@@ -384,18 +376,13 @@ function ActivityCard({
         testID={`story-quiz-option-${activity.id}-${option.id}`}
         accessibilityRole="button"
         accessibilityState={{ selected: isSelected }}
-        style={[
-          styles.optionButton,
-          isSelected && styles.optionButtonSelected,
-        ]}
+        style={[styles.optionButton, isSelected && styles.optionButtonSelected]}
         activeOpacity={0.82}
         onPress={onPress}
       >
         <View style={styles.optionContent}>
           {option.colorHex ? (
-            <View
-              style={[styles.optionColorSwatch, { backgroundColor: option.colorHex }]}
-            />
+            <View style={[styles.optionColorSwatch, { backgroundColor: option.colorHex }]} />
           ) : null}
           <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
             {option.label}
@@ -473,10 +460,7 @@ function ActivityCard({
         }
       >
         <Text
-          style={[
-            styles.matchOptionText,
-            (isPending || isConnected) && styles.optionTextSelected,
-          ]}
+          style={[styles.matchOptionText, (isPending || isConnected) && styles.optionTextSelected]}
         >
           {option.label}
         </Text>
@@ -622,7 +606,7 @@ function ActivityCard({
       ? selectedIds.length !== displayOptions.length
       : activity.interactionType === 'match_pairs'
         ? (state?.matchedPairs?.length ?? 0) !== pairs.length
-      : selectedIds.length === 0 && (state?.matchedPairs?.length ?? 0) === 0;
+        : selectedIds.length === 0 && (state?.matchedPairs?.length ?? 0) === 0;
 
   return (
     <View style={styles.activityCard} testID={`story-quiz-activity-${activity.id}`}>
@@ -727,16 +711,20 @@ function ActivityCard({
 export function StoryReflectionSection({
   storyId,
   enabled,
+  initialQuiz,
   onScenePress,
   rewardAction,
 }: StoryReflectionSectionProps) {
   const { t } = useTranslation();
   const { isMobile } = useResponsive();
   const [quizRequestedStoryId, setQuizRequestedStoryId] = useState<string | null>(null);
-  const quizQuery = useStoryQuiz(storyId, enabled && quizRequestedStoryId === storyId);
+  const quizQuery = useStoryQuiz(
+    storyId,
+    enabled && !initialQuiz && quizRequestedStoryId === storyId
+  );
   const generateQuiz = useGenerateStoryQuiz();
   const saveQuizAnswer = useSaveStoryQuizAnswer();
-  const quiz = quizQuery.data ?? null;
+  const quiz = initialQuiz ?? quizQuery.data ?? null;
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
   const [dismissed, setDismissed] = useState(false);
   const [activeRubric, setActiveRubric] = useState<StoryQuizRubric>('check_reward');
@@ -763,7 +751,7 @@ export function StoryReflectionSection({
   }, [payload, quiz?.id, quiz?.progress?.id, quiz?.progress?.updatedAt]);
 
   const persistAnswer = (activity: StoryQuizActivityApi, next: AnswerState) => {
-    if (!quiz?.id) return;
+    if (!quiz?.id || initialQuiz) return;
     saveQuizAnswer.mutate({
       storyId,
       activityId: activity.id,

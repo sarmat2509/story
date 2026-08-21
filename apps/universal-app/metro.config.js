@@ -1,5 +1,6 @@
 const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
+const withStorybook = require('@storybook/react-native/metro/withStorybook');
 
 // Expo SDK 52+ automatically configures Metro for monorepos.
 // With pnpm + node-linker=hoisted, @tanstack/react-query lives in workspace root
@@ -50,4 +51,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     : context.resolveRequest(context, moduleName, platform);
 };
 
-module.exports = config;
+module.exports = withStorybook(config, {
+  enabled: process.env.EXPO_PUBLIC_STORYBOOK_ENABLED === 'true',
+  configPath: path.resolve(__dirname, '.rnstorybook'),
+  // Keep Storybook and its story catalog out of normal app bundles.
+  onDisabledRemoveStorybook: true,
+});
