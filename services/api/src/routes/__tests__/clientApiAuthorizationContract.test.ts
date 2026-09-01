@@ -124,6 +124,7 @@ const protectedClientEndpoints: ProtectedEndpointCase[] = [
   { method: 'PATCH', path: `/api/v1/admin/stories/${id}` },
   { method: 'GET', path: '/api/v1/admin/users' },
   { method: 'PATCH', path: `/api/v1/admin/users/${id}` },
+  { method: 'DELETE', path: `/api/v1/admin/users/${id}` },
   { method: 'GET', path: '/api/v1/admin/outfits' },
   { method: 'POST', path: '/api/v1/admin/outfits/search' },
   { method: 'GET', path: '/api/v1/admin/environments' },

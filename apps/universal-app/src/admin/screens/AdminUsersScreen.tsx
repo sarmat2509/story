@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { useAdminUsers, useUpdateAdminUser, type AdminUserListItem } from '@/admin/api/admin';
+import {
+  useAdminUsers,
+  useDeleteAdminUser,
+  useUpdateAdminUser,
+  type AdminUserListItem,
+} from '@/admin/api/admin';
 import { AdminSearchBar, AdminPagination } from '@/admin/components/AdminControls';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import { AdminTable } from '@/admin/components/AdminTable';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { usePlans } from '@/api/plans';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
@@ -24,9 +30,12 @@ export default function AdminUsersScreen() {
   const [draftStoriesUsedCurrentPeriod, setDraftStoriesUsedCurrentPeriod] = useState('0');
   const [draftGraphicNovelsUsedCurrentPeriod, setDraftGraphicNovelsUsedCurrentPeriod] = useState('0');
   const [draftAudioStoriesUsedCurrentPeriod, setDraftAudioStoriesUsedCurrentPeriod] = useState('0');
+  const [userToDelete, setUserToDelete] = useState<AdminUserListItem | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const { data, isLoading, error } = useAdminUsers({ limit: PAGE_SIZE, offset, search });
   const { data: plans } = usePlans();
   const updateUser = useUpdateAdminUser();
+  const deleteUser = useDeleteAdminUser();
 
   const rows = (data?.items ?? []).map((item) => [
     item.id,
@@ -38,22 +47,33 @@ export default function AdminUsersScreen() {
     item.graphicNovelsUsedCurrentPeriod,
     item.audioStoriesUsedCurrentPeriod,
     new Date(item.createdAt).toLocaleString(),
-    <TouchableOpacity
-      key={`${item.id}-edit`}
-      style={styles.editButton}
-      onPress={() => {
-        setSelectedUser(item);
-        setDraftRole(item.role);
-        setDraftStatus(item.status);
-        setDraftSuspendedReason(item.suspendedReason ?? '');
-        setDraftPlanSlug(item.planSlug);
-        setDraftStoriesUsedCurrentPeriod(String(item.storiesUsedCurrentPeriod));
-        setDraftGraphicNovelsUsedCurrentPeriod(String(item.graphicNovelsUsedCurrentPeriod));
-        setDraftAudioStoriesUsedCurrentPeriod(String(item.audioStoriesUsedCurrentPeriod));
-      }}
-    >
-      <Text style={styles.editButtonText}>Edit</Text>
-    </TouchableOpacity>,
+    <View key={`${item.id}-actions`} style={styles.rowActions}>
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => {
+          setSelectedUser(item);
+          setDraftRole(item.role);
+          setDraftStatus(item.status);
+          setDraftSuspendedReason(item.suspendedReason ?? '');
+          setDraftPlanSlug(item.planSlug);
+          setDraftStoriesUsedCurrentPeriod(String(item.storiesUsedCurrentPeriod));
+          setDraftGraphicNovelsUsedCurrentPeriod(String(item.graphicNovelsUsedCurrentPeriod));
+          setDraftAudioStoriesUsedCurrentPeriod(String(item.audioStoriesUsedCurrentPeriod));
+        }}
+      >
+        <Text style={styles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.deleteButton, deleteUser.isPending && styles.buttonDisabled]}
+        disabled={deleteUser.isPending}
+        onPress={() => {
+          setDeleteError(null);
+          setUserToDelete(item);
+        }}
+      >
+        <Text style={styles.deleteButtonText}>Delete</Text>
+      </TouchableOpacity>
+    </View>,
   ]);
 
   return (
@@ -71,7 +91,10 @@ export default function AdminUsersScreen() {
       {error ? <AdminErrorState message={(error as Error).message} /> : null}
       {!isLoading && !error ? (
         <>
+          {deleteError ? <AdminErrorState message={deleteError} /> : null}
           <AdminTable
+            minColumnWidth={140}
+            columnWidths={{ 2: 100, 3: 100, 5: 78, 6: 78, 7: 78 }}
             headers={[
               'ID',
               'Email',
@@ -82,7 +105,7 @@ export default function AdminUsersScreen() {
               'Comics',
               'Audio',
               'Created',
-              'Edit',
+              'Actions',
             ]}
             rows={rows}
             emptyText="No users found."
@@ -275,6 +298,29 @@ export default function AdminUsersScreen() {
             total={data?.meta.total ?? 0}
             onChange={setOffset}
           />
+          <ConfirmDialog
+            visible={Boolean(userToDelete)}
+            title="Delete user"
+            message={`Delete ${userToDelete?.email ?? ''}? This permanently deletes the account and all associated data.`}
+            confirmText={deleteUser.isPending ? 'Deleting...' : 'Delete'}
+            cancelText="Cancel"
+            onConfirm={async () => {
+              if (!userToDelete || deleteUser.isPending) return;
+              try {
+                await deleteUser.mutateAsync(userToDelete.id);
+                if (selectedUser?.id === userToDelete.id) setSelectedUser(null);
+                setUserToDelete(null);
+              } catch (mutationError) {
+                setDeleteError(
+                  mutationError instanceof Error ? mutationError.message : 'Failed to delete user.'
+                );
+              }
+            }}
+            onCancel={() => {
+              if (!deleteUser.isPending) setUserToDelete(null);
+            }}
+            variant="danger"
+          />
         </>
       ) : null}
     </AdminLayout>
@@ -282,6 +328,10 @@ export default function AdminUsersScreen() {
 }
 
 const styles = StyleSheet.create({
+  rowActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   editButton: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -292,6 +342,20 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: theme.colors.text.primary,
     fontWeight: '600',
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: theme.colors.status.error,
+  },
+  deleteButtonText: {
+    color: theme.colors.text.inverse,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   editorPanel: {
     borderWidth: 1,

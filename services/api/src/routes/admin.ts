@@ -6,7 +6,12 @@ import sharp from 'sharp';
 import { FEEDBACK_CATEGORIES, FEEDBACK_TOPICS } from '@wondertales/shared';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
-import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } from '../repositories';
+import {
+  getAssetRepository,
+  getGraphicNovelRepository,
+  getStoryRepository,
+  getUserRepository,
+} from '../repositories';
 import {
   createAdminConfigItem,
   deleteAdminConfigItem,
@@ -27,6 +32,7 @@ import {
   updateAdminVoiceActive,
 } from '../services/adminService';
 import { updateAdminUserSettings } from '../services/adminUserService';
+import { deleteUserData } from '../services/userDeletionService';
 import {
   DATA_PRIVACY_REQUEST_STATUSES,
   DATA_PRIVACY_REQUEST_TYPES,
@@ -1487,6 +1493,52 @@ router.patch('/users/:userId', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to update user',
+    });
+  }
+});
+
+router.delete('/users/:userId', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = UserIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const { userId } = parsedParams.data;
+    if (userId === req.user?.id) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'You cannot delete your own admin account',
+      });
+    }
+
+    const user = await getUserRepository().findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      });
+    }
+
+    const data = await deleteUserData(userId);
+    logger.info({ adminUserId: req.user?.id, deletedUserId: userId }, 'Admin deleted user');
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error(
+      { err: error, userId: req.user?.id, deletedUserId: req.params.userId },
+      'Admin user deletion failed'
+    );
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to delete user',
     });
   }
 });

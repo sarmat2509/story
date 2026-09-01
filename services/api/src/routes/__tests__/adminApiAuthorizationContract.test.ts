@@ -39,6 +39,7 @@ const adminOnlyEndpoints: AdminEndpointCase[] = [
   { method: 'GET', path: `/api/v1/admin/privacy-requests/${id}/export` },
   { method: 'PATCH', path: `/api/v1/admin/privacy-requests/${id}`, body: {} },
   { method: 'PATCH', path: `/api/v1/admin/users/${id}`, body: {} },
+  { method: 'DELETE', path: `/api/v1/admin/users/${id}` },
   { method: 'GET', path: '/api/v1/admin/image-validations' },
   {
     method: 'GET',

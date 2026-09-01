@@ -309,6 +309,7 @@ async function main(): Promise<void> {
       { method: 'GET', path: '/api/v1/admin/privacy-requests/not-a-uuid/export' },
       { method: 'PATCH', path: '/api/v1/admin/privacy-requests/not-a-uuid', body: {} },
       { method: 'PATCH', path: '/api/v1/admin/users/not-a-uuid', body: {} },
+      { method: 'DELETE', path: '/api/v1/admin/users/not-a-uuid' },
       { method: 'GET', path: '/api/v1/admin/image-validations?limit=0' },
       { method: 'GET', path: '/api/v1/admin/image-validations/not-a-uuid/image' },
       { method: 'GET', path: '/api/v1/admin/image-validations/not-a-uuid' },

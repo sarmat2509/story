@@ -1170,6 +1170,22 @@ export function useUpdateAdminUser() {
   });
 }
 
+export function useDeleteAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiClient.delete<{
+        status: string;
+        data: { userId: string };
+      }>(`/api/v1/admin/users/${userId}`);
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
 export function useAdminImageValidations(params: { limit: number; offset: number }) {
   const { limit, offset } = params;
   return useQuery({
