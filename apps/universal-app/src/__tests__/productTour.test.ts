@@ -11,6 +11,10 @@ const drawerSource = readFileSync(
   resolve(process.cwd(), 'src/navigation/CollapsibleDrawerContent.tsx'),
   'utf8'
 );
+const childProfileSwitcherSource = readFileSync(
+  resolve(process.cwd(), 'src/navigation/ChildProfileSwitcher.tsx'),
+  'utf8'
+);
 const modeSelectionSource = readFileSync(
   resolve(process.cwd(), 'src/screens/onboarding/ModeSelectionScreen.tsx'),
   'utf8'
@@ -171,9 +175,29 @@ assert.match(
   'new accounts must see the tour before the existing onboarding flow'
 );
 assert.match(
+  rootNavigatorSource,
+  /isAuthenticated\s*\?\s*'parent-main'/,
+  'completing onboarding must not remount the parent navigator before opening the wizard'
+);
+assert.doesNotMatch(
+  rootNavigatorSource,
+  /needsModeSelection\s*\?\s*'mode-selection'/,
+  'onboarding state must not control the navigator key'
+);
+assert.match(
   modeSelectionSource,
   /keepChildProfileVisible && \(isChildrenLoading \|\| !hasExistingChildProfile\)/,
   'the child-profile screen should stay open after the final tooltip only when no child profile exists'
+);
+assert.match(
+  modeSelectionSource,
+  /<PhotoUploadGrid[\s\S]*photoType="child"[\s\S]*childDataConsentAccepted=\{consentAccepted\}/,
+  'onboarding should use the standard child photo upload field with parental consent'
+);
+assert.match(
+  modeSelectionSource,
+  /referencePhotos:\s*referencePhotos\.length > 0 \? referencePhotos : undefined/,
+  'onboarding should attach uploaded reference photos when creating the child profile'
 );
 assert.match(
   tourSource,
@@ -184,6 +208,26 @@ assert.match(
   drawerSource,
   /testID="nav-drawer-product-tour"/,
   'the tour must be restartable from the sidebar'
+);
+assert.match(
+  childProfileSwitcherSource,
+  /const displayedChild = freshActiveChild \?\? allChildrenData\?\.children\[0\] \?\? children\[0\] \?\? null/,
+  'the navigation avatar should resolve a child profile in parent mode'
+);
+assert.match(
+  childProfileSwitcherSource,
+  /useChildren\(!isChildSession && shouldLoadSwitcherChildren\)/,
+  'the navigation avatar should include newly created children before Child Mode is enabled'
+);
+assert.match(
+  childProfileSwitcherSource,
+  /const triggerAvatarUrl = avatarUrl \?\? \(displayedChild \? null : fallbackAvatarUrl\)/,
+  'a missing child avatar should not fall back to the parent avatar'
+);
+assert.match(
+  drawerSource,
+  /<Text style=\{styles\.childAvatarInitial\}>\{fallbackInitial\}<\/Text>/,
+  'the drawer should show the child name initial when the child has no avatar'
 );
 assert.match(
   drawerSource,

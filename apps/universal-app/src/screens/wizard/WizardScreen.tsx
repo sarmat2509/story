@@ -68,6 +68,14 @@ function isChildProfileCharacter(character: { type?: string; subtype?: string | 
   return character.type === 'child' || character.subtype === 'child';
 }
 
+function hasCharacterTurnaround(character: {
+  turnaroundSheet?: { url?: string } | null;
+  turnaroundsheet?: { url?: string } | null;
+}): boolean {
+  const turnaround = character.turnaroundSheet ?? character.turnaroundsheet;
+  return typeof turnaround?.url === 'string' && turnaround.url.trim().length > 0;
+}
+
 export default function WizardScreen({ schedulerMode = false }: { schedulerMode?: boolean }) {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -381,6 +389,20 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
 
   const selectedScenario = scenarioOptions.find((scenario) => scenario.id === scenarioCardId);
   const selectedChildProfile = children.find((child) => child.id === childProfileId);
+  const selectedChildCharacterWithoutTurnaround = availableCharacters.find(
+    (character) =>
+      selectedCharacters.includes(character.id) &&
+      Boolean((character as { childProfileId?: string | null }).childProfileId) &&
+      !hasCharacterTurnaround(character)
+  );
+  const missingTurnaroundChildProfileId = (
+    selectedChildCharacterWithoutTurnaround as { childProfileId?: string | null } | undefined
+  )?.childProfileId;
+  const firstMissingTurnaroundChild = children.find(
+    (child) => child.id === missingTurnaroundChildProfileId
+  );
+  const missingTurnaroundChildName =
+    firstMissingTurnaroundChild?.name ?? selectedChildCharacterWithoutTurnaround?.name ?? '';
   const selectedGoalNames = availableGoals
     .filter((goal) => selectedGoals.includes(goal.slug))
     .map((goal) => goal.name);
@@ -610,6 +632,7 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
       ? schedulerSelectionIncomplete || saveSchedule.isPending
       : !storyLanguage ||
         (!isChildSession && !childProfileId) ||
+        Boolean(selectedChildCharacterWithoutTurnaround) ||
         isGenerating ||
         !canGenerateStories
     : isGenerating;
@@ -730,6 +753,18 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
 
     if (!isChildSession && !childProfileId) {
       Alert.alert(t('common.error') || 'Error', t('wizard.child_profile_required'));
+      return;
+    }
+
+    if (selectedChildCharacterWithoutTurnaround) {
+      Alert.alert(
+        t('wizard.child_turnaround_required_title', { defaultValue: 'Complete child profile' }),
+        t('wizard.child_turnaround_required_body', {
+          defaultValue:
+            'Add a photo or appearance description for {{name}} before creating a story.',
+          name: missingTurnaroundChildName,
+        })
+      );
       return;
     }
 
@@ -982,6 +1017,42 @@ export default function WizardScreen({ schedulerMode = false }: { schedulerMode?
               </View>
             </View>
           </AnimatedSection>
+
+          {selectedChildCharacterWithoutTurnaround ? (
+            <View style={styles.turnaroundRequiredCard} testID="wizard-turnaround-required">
+              <View style={styles.turnaroundRequiredIcon}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={28}
+                  color={theme.colors.status.warning}
+                />
+              </View>
+              <View style={styles.turnaroundRequiredCopy}>
+                <Text style={styles.turnaroundRequiredTitle}>
+                  {t('wizard.child_turnaround_required_title', {
+                    defaultValue: 'Complete child profile',
+                  })}
+                </Text>
+                <Text style={styles.turnaroundRequiredBody}>
+                  {t('wizard.child_turnaround_required_body', {
+                    defaultValue:
+                      'Add a photo or appearance description for {{name}} before creating a story.',
+                    name: missingTurnaroundChildName,
+                  })}
+                </Text>
+              </View>
+              {!isChildSession && firstMissingTurnaroundChild ? (
+                <AppButton
+                  label={t('wizard.edit_child_profile', { defaultValue: 'Edit child profile' })}
+                  onPress={() =>
+                    navigation.navigate('ChildDetail', { childId: firstMissingTurnaroundChild.id })
+                  }
+                  size="sm"
+                  testID="wizard-edit-child-profile"
+                />
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={[styles.workspace, isWide && styles.workspaceWide]}>
             <View style={[styles.mainColumn, isWide && styles.mainColumnWide]}>
@@ -1785,6 +1856,37 @@ const styles = StyleSheet.create({
   },
   workspace: {
     gap: theme.spacing[8],
+  },
+  turnaroundRequiredCard: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.status.warning,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  turnaroundRequiredIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  turnaroundRequiredCopy: {
+    flex: 1,
+    minWidth: 220,
+  },
+  turnaroundRequiredTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  turnaroundRequiredBody: {
+    marginTop: theme.spacing[1],
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
   },
   workspaceWide: {
     flexDirection: 'row',

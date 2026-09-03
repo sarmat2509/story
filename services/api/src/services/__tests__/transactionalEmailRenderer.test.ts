@@ -30,6 +30,7 @@ void (async function main() {
     ],
     footer: 'This is a transactional email.',
     supportEmail: 'support@wondertales.art',
+    brandLogoUrl: 'https://wondertales.art/icon-192.png',
   });
 
   assert.strictEqual(email.subject, 'Welcome <Parent>');
@@ -40,6 +41,11 @@ void (async function main() {
   assert.doesNotMatch(email.html, /Hello <script>/);
   assert.match(email.html, /mailto:support@wondertales\.art/);
   assert.match(email.html, /https:\/\/wondertales\.art\/welcome\?next=%2Fdashboard/);
+  assert.match(
+    email.html,
+    /<img src="https:\/\/wondertales\.art\/icon-192\.png"[^>]*alt="WonderTales"/
+  );
+  assert.doesNotMatch(email.html, />\s*WT\s*</);
 
   assert.match(email.text, /Open WonderTales: https:\/\/wondertales\.art\/welcome/);
   assert.match(email.text, /Support: support@wondertales\.art/);

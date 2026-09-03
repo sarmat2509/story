@@ -188,7 +188,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
     onPhotosChange((currentPhotos) => currentPhotos.filter((_, i) => i !== index));
   };
 
-  const canAddMore = photos.length < maxPhotos && !disabled;
+  const hasAvailableSlot = photos.length < maxPhotos;
 
   return (
     <View style={styles.container} testID="photo-upload-grid">
@@ -241,14 +241,22 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
         })}
 
         {/* Add photo button */}
-        {canAddMore && (
-          <TouchableOpacity onPress={pickImage} style={styles.addButton} testID="photo-upload-add">
+        {hasAvailableSlot && (
+          <TouchableOpacity
+            onPress={pickImage}
+            disabled={disabled}
+            accessibilityState={{ disabled }}
+            style={[styles.addButton, disabled && styles.addButtonDisabled]}
+            testID="photo-upload-add"
+          >
             <Ionicons
               name="add-circle-outline"
               size={48}
-              color={theme.colors.interactive.primary}
+              color={disabled ? theme.colors.text.disabled : theme.colors.interactive.primary}
             />
-            <Text style={styles.addText}>{t('photo_upload.add_photo')}</Text>
+            <Text style={[styles.addText, disabled && styles.addTextDisabled]}>
+              {t('photo_upload.add_photo')}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -316,6 +324,13 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[2],
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
+  },
+  addButtonDisabled: {
+    borderColor: theme.colors.border.light,
+    opacity: 0.72,
+  },
+  addTextDisabled: {
+    color: theme.colors.text.disabled,
   },
   counter: {
     marginTop: theme.spacing[3],

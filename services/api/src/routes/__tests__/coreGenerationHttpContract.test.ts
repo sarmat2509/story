@@ -7,6 +7,8 @@ const storyRequestId = '33333333-3333-4333-8333-333333333331';
 const graphicNovelRequestId = '33333333-3333-4333-8333-333333333332';
 const mixedStoryRequestId = '33333333-3333-4333-8333-333333333333';
 const missingStoryId = '44444444-4444-4444-8444-444444444444';
+const childProfileId = '77777777-7777-4777-8777-777777777777';
+const childCharacterId = '88888888-8888-4888-8888-888888888888';
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -148,6 +150,18 @@ async function main(): Promise<void> {
         return { id: `usage-${recordedUsageEvents.length}`, ...(input as object) };
       },
     } as any,
+    childProfile: {
+      findById: async (id: string, ownerId: string) =>
+        id === childProfileId && ownerId === userId
+          ? { id: childProfileId, userId, isActive: true, turnaroundSheet: null }
+          : null,
+    } as any,
+    character: {
+      findByIds: async (_ownerId: string, ids: string[]) =>
+        ids.includes(childCharacterId)
+          ? [{ id: childCharacterId, childProfileId, turnaroundSheet: null }]
+          : [],
+    } as any,
   });
 
   const expectedQueueInputs = [storyRequestId, graphicNovelRequestId, mixedStoryRequestId];
@@ -172,15 +186,33 @@ async function main(): Promise<void> {
     user_notes: 'A calm lantern adventure.',
     selected_characters: [],
     selected_children: [],
+    child_profile_id: childProfileId,
   };
 
   try {
     const createStory = await postJson(origin, token, '/api/v1/stories', validStoryInput);
-    assert.equal(createStory.status, 201, 'ordinary story request returns 201');
+    assert.equal(
+      createStory.status,
+      201,
+      'story is queued when the audience child has no turnaround but is not selected as a character'
+    );
     const storyBody = (await createStory.json()) as any;
     assert.equal(storyBody.status, 'success');
     assert.equal(storyBody.request.id, storyRequestId);
     assert.equal(storyBody.request.status, 'pending');
+
+    const selectedChildWithoutTurnaround = await postJson(origin, token, '/api/v1/stories', {
+      ...validStoryInput,
+      selected_characters: [childCharacterId],
+    });
+    assert.equal(
+      selectedChildWithoutTurnaround.status,
+      400,
+      'selected child character without a turnaround is rejected before queueing'
+    );
+    const selectedChildError = (await selectedChildWithoutTurnaround.json()) as any;
+    assert.equal(selectedChildError.code, 'CHILD_TURNAROUND_REQUIRED');
+    assert.equal(selectedChildError.childProfileId, childProfileId);
 
     const invalidStory = await postJson(origin, token, '/api/v1/stories', {});
     assert.equal(invalidStory.status, 400, 'invalid ordinary story input returns 400');

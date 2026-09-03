@@ -90,6 +90,7 @@ import {
 import { setLegacyPublicStoriesDeprecationHeaders } from '../utils/deprecatedPublicStoryRoutes';
 import {
   assertParentStoryChildProfile,
+  assertSelectedChildCharactersHaveTurnarounds,
   isStoryChildProfileRequirementError,
 } from '../services/storyChildProfileRequirementService';
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
@@ -419,6 +420,7 @@ function sendStoryChildProfileRequirementError(res: Response, error: unknown): b
     status: 'error',
     code: error.code,
     message: error.message,
+    childProfileId: error.childProfileId,
   });
   return true;
 }
@@ -441,6 +443,10 @@ router.post(
       const validatedData = CreateStoryRequestSchema.parse(req.body);
 
       await assertParentStoryChildProfile(req.user!.id, validatedData.childProfileId);
+      await assertSelectedChildCharactersHaveTurnarounds(
+        req.user!.id,
+        validatedData.selectedCharacters
+      );
 
       assertStoryPromptSafety({
         userId: req.user!.id,
@@ -532,6 +538,10 @@ router.post(
       const validatedData = CreateStoryRequestSchema.parse(req.body);
       const childProfileId = req.childProfileId!;
       const parentUserId = req.parentUserId || req.user!.id;
+      await assertSelectedChildCharactersHaveTurnarounds(
+        parentUserId,
+        validatedData.selectedCharacters
+      );
       const policyInput = {
         ...validatedData,
         childProfileId: validatedData.childProfileId ?? childProfileId,
@@ -605,6 +615,7 @@ router.post(
         await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
       }
       if (sendChildModePolicyError(res, error)) return;
+      if (sendStoryChildProfileRequirementError(res, error)) return;
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
       if (sendStoryCharacterSelectionLimitError(res, error)) return;

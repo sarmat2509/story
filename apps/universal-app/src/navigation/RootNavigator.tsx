@@ -51,9 +51,9 @@ export default function RootNavigator() {
     ? 'oauth-callback'
     : isChildSession
       ? 'child-main'
-      : needsModeSelection
-        ? 'mode-selection'
-        : 'main';
+      : isAuthenticated
+        ? 'parent-main'
+        : 'public-main';
 
   const initialRoute = isOAuthCallback
     ? 'OAuthCallback'

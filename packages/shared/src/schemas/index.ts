@@ -308,10 +308,7 @@ function isChildAge(date: Date): boolean {
 
 const BaseChildProfileSchema = z.object({
   name: z.string().min(1).max(100),
-  birthDate: z
-    .coerce
-    .date()
-    .refine(isChildAge, 'Birth date must be within the last 18 years'),
+  birthDate: z.coerce.date().refine(isChildAge, 'Birth date must be within the last 18 years'),
 
   // Languages array (min 1, max 3)
   languages: z.array(LocaleSchema).min(1).max(3),
@@ -392,7 +389,15 @@ const BaseChildProfileSchema = z.object({
   authorAboutMe: z.string().max(1000).nullable().optional(),
 });
 
-export const CreateChildProfileSchema = BaseChildProfileSchema;
+export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
+  (data) =>
+    (data.referencePhotos?.length ?? 0) > 0 ||
+    (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
+  {
+    message: 'Either referencePhotos or aiGeneratedDescription is required',
+    path: ['aiGeneratedDescription'],
+  }
+);
 
 // Update schema: omit referencePhotos (read-only on edit)
 export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({

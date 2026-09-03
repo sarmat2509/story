@@ -40,10 +40,7 @@ import {
 import { getChildPhotoValidationService } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
 import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
-import {
-  assertProfileTextSafety,
-  isPromptSafetyError,
-} from '../services/promptSafetyService';
+import { assertProfileTextSafety, isPromptSafetyError } from '../services/promptSafetyService';
 
 const router = Router();
 
@@ -751,6 +748,10 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
+    const existingProfile = await childProfileService.getChildProfileById(id, userId);
+    if (!existingProfile) {
+      return res.status(404).json({ status: 'error', error: 'Child profile not found' });
+    }
 
     // Sanitize invalid enum values (log for dev, leave field empty for user)
     sanitizeChildProfileBody(req.body as Record<string, unknown>);
@@ -766,6 +767,18 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     }
 
     const data = validation.data;
+    const existingPhotos = getReferencePhotoUrls(existingProfile.referencePhotos);
+    const effectiveDescription =
+      data.aiGeneratedDescription === undefined
+        ? existingProfile.aiGeneratedDescription
+        : data.aiGeneratedDescription;
+    if (existingPhotos.length === 0 && !effectiveDescription?.trim()) {
+      return res.status(400).json({
+        status: 'error',
+        code: 'CHILD_APPEARANCE_REQUIRED',
+        error: 'Upload at least one photo or describe the child',
+      });
+    }
     assertProfileTextSafety({ userId, source: 'child_profile', value: data });
     const dataForUpdate = {
       ...data,
@@ -778,7 +791,35 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     };
 
     // Update profile (ownership check happens in service)
-    const profile = await childProfileService.updateChildProfile(id, userId, dataForUpdate);
+    let profile = await childProfileService.updateChildProfile(id, userId, dataForUpdate);
+
+    const turnaround = profile.turnaroundSheet as { url?: string } | null | undefined;
+    if (!turnaround?.url) {
+      const currentAgeMonths = childProfileService.getAgeData(
+        new Date(profile.birthDate)
+      ).ageMonths;
+      if (existingPhotos.length > 0) {
+        await generateTurnaroundSheetFromReference({
+          targetType: 'child',
+          targetId: profile.id,
+          referencePhotoUrls: existingPhotos,
+          characterName: profile.name,
+          userId,
+          aiDescription: effectiveDescription || undefined,
+          currentAgeMonths,
+        });
+      } else {
+        await generateTurnaroundSheetFromDescription({
+          targetType: 'child',
+          targetId: profile.id,
+          characterName: profile.name,
+          characterDescription: effectiveDescription!,
+          currentAgeMonths,
+          userId,
+        });
+      }
+      profile = (await childProfileService.getChildProfileById(id, userId)) ?? profile;
+    }
 
     const profileWithAge = addAgeToChildProfile(toSafeChildProfile(profile));
 

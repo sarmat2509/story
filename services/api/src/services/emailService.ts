@@ -248,6 +248,10 @@ function appUrl(pathname: string): string {
   return `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
 }
 
+function brandLogoUrl(): string {
+  return appUrl('/icon-192.png');
+}
+
 function formatEmailDate(date: Date, locale: SupportedEmailLocale): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(date);
 }
@@ -321,6 +325,7 @@ function buildWelcomeEmail(
     ],
     footer: copy.footer,
     supportEmail: config.web.supportEmail,
+    brandLogoUrl: brandLogoUrl(),
   });
 }
 
@@ -353,6 +358,7 @@ export async function sendPasswordResetEmail(
     ],
     footer: copy.footer,
     supportEmail: config.web.supportEmail,
+    brandLogoUrl: brandLogoUrl(),
   });
 
   await sendTransactionalEmail({
@@ -393,6 +399,7 @@ export async function sendChildModeRecoveryEmail(
     ],
     footer: copy.footer,
     supportEmail: config.web.supportEmail,
+    brandLogoUrl: brandLogoUrl(),
   });
 
   await sendTransactionalEmail({
@@ -492,6 +499,7 @@ export function buildDiscountCodeAssignedEmail(
     sections,
     footer: copy.footer,
     supportEmail: config.web.supportEmail,
+    brandLogoUrl: brandLogoUrl(),
   });
 }
 
@@ -569,6 +577,7 @@ export function buildBillingRenewalReminderEmail(
     notices,
     footer: copy.footer,
     supportEmail: config.web.supportEmail,
+    brandLogoUrl: brandLogoUrl(),
   });
 }
 

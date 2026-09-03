@@ -513,6 +513,14 @@ export function ChildFormContent({
       const uploadedPhotos = photos
         .filter((photo) => !photo.isUploading && isServerAssetUrl(photo.url))
         .map(({ url, uploadedAt }) => ({ url: toAbsoluteAssetUrl(url), uploadedAt }));
+      if (uploadedPhotos.length === 0 && description.trim().length === 0) {
+        const message = t('child_form.photo_or_description_required', {
+          defaultValue: 'Upload at least one photo or describe the child.',
+        });
+        setErrors({ aiGeneratedDescription: message, submit: message });
+        Alert.alert(t('child_form.validation_error'), message);
+        return;
+      }
       const submittedComplexityAdjustments = Object.fromEntries(
         profileLanguages.map((language) => [
           language,

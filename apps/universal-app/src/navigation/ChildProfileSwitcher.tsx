@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useChildModeSwitcherChildren, useEnterChildMode } from '@/api/children';
+import { useChildModeSwitcherChildren, useChildren, useEnterChildMode } from '@/api/children';
 import { useParentGate, useRequestChildModeExitRecovery } from '@/api/auth';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { useAuthStore } from '@/store/authStore';
@@ -34,6 +34,7 @@ type AvatarSource = {
 
 type TriggerRenderArgs = {
   avatarUrl: string | null;
+  fallbackInitial: string | null;
   open: () => void;
 };
 
@@ -105,6 +106,7 @@ export function ChildProfileSwitcher({
   const isChildSession = sessionMode === 'child';
   const shouldLoadSwitcherChildren = autoLoad || visible || Boolean(activeChild);
   const { data, isLoading } = useChildModeSwitcherChildren(shouldLoadSwitcherChildren);
+  const { data: allChildrenData } = useChildren(!isChildSession && shouldLoadSwitcherChildren);
   const parentGate = useParentGate();
   const childModeRecovery = useRequestChildModeExitRecovery();
   const enterChildMode = useEnterChildMode();
@@ -112,8 +114,12 @@ export function ChildProfileSwitcher({
   const freshActiveChild = activeChild
     ? (children.find((child) => child.id === activeChild.id) ?? activeChild)
     : null;
-  const avatarUrl = getChildAvatarUrl(freshActiveChild);
-  const triggerAvatarUrl = avatarUrl ?? fallbackAvatarUrl;
+  const displayedChild = freshActiveChild ?? allChildrenData?.children[0] ?? children[0] ?? null;
+  const avatarUrl = getChildAvatarUrl(displayedChild);
+  const fallbackInitial = displayedChild?.name.trim()
+    ? [...displayedChild.name.trim()][0]?.toLocaleUpperCase() ?? null
+    : null;
+  const triggerAvatarUrl = avatarUrl ?? (displayedChild ? null : fallbackAvatarUrl);
   const isSubmitting = parentGate.isPending || enterChildMode.isPending;
   const hasSwitcherProfiles = children.length > 0;
 
@@ -194,14 +200,14 @@ export function ChildProfileSwitcher({
 
   const open = () => setVisible(true);
 
-  if (!hasSwitcherProfiles && !activeChild) {
+  if (!hasSwitcherProfiles && !activeChild && !displayedChild) {
     return null;
   }
 
   return (
     <>
       {renderTrigger ? (
-        renderTrigger({ avatarUrl: triggerAvatarUrl, open })
+        renderTrigger({ avatarUrl: triggerAvatarUrl, fallbackInitial, open })
       ) : (
         <TouchableOpacity
           style={styles.avatarButton}
@@ -215,6 +221,10 @@ export function ChildProfileSwitcher({
         >
           {triggerAvatarUrl ? (
             <ChildAvatarImage uri={triggerAvatarUrl} style={styles.avatarImage} />
+          ) : fallbackInitial ? (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarInitial}>{fallbackInitial}</Text>
+            </View>
           ) : (
             <View style={styles.avatarFallback}>
               <Ionicons name="person" size={18} color={theme.colors.interactive.primary} />
@@ -446,6 +456,11 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
     backgroundColor: theme.colors.background.secondary,
+  },
+  avatarInitial: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.bold,
   },
   overlay: {
     flex: 1,

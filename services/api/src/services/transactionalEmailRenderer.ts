@@ -32,6 +32,7 @@ export interface TransactionalEmailRenderInput {
   footer: string;
   supportEmail: string;
   brandName?: string;
+  brandLogoUrl: string;
 }
 
 const BRAND_NAME = 'WonderTales';
@@ -175,6 +176,7 @@ export function renderTransactionalEmail(input: TransactionalEmailRenderInput): 
   const notices = (input.notices ?? []).map(renderNotice).join('');
   const action = input.action ? renderButton(input.action) : '';
   const supportEmail = escapeEmailHtml(input.supportEmail);
+  const brandLogoUrl = escapeEmailHtml(input.brandLogoUrl);
 
   const html = `<!doctype html>
 <html>
@@ -199,9 +201,7 @@ export function renderTransactionalEmail(input: TransactionalEmailRenderInput): 
                       </div>
                     </td>
                     <td align="right" style="vertical-align:middle;">
-                      <div style="display:inline-block;width:36px;height:36px;line-height:36px;text-align:center;border-radius:18px;background:${ink};font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#ffffff;">
-                        WT
-                      </div>
+                      <img src="${brandLogoUrl}" width="44" height="44" alt="${escapeEmailHtml(brandName)}" style="display:block;width:44px;height:44px;border:0;border-radius:12px;object-fit:cover;">
                     </td>
                   </tr>
                 </table>

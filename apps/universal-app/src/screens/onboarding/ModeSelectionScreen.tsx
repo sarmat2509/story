@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { useTranslation } from 'react-i18next';
-import { APP_CONFIG } from '@/config/constants';
+import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 import i18n from '@/config/i18n';
 import apiClient from '@/api/client';
 import {
@@ -28,11 +28,15 @@ import {
 import { useUpdateChildModeExitPasscode } from '@/api/auth';
 import { AppButton } from '@/components/AppButton';
 import { GlassCard } from '@/components/GlassCard';
+import { PhotoUploadGrid } from '@/components/form/PhotoUploadGrid';
 import { useAuthStore } from '@/store/authStore';
 import { useProductTour } from '@/features/productTour/ProductTourProvider';
 import { getAnalytics } from '@/services/analytics';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import type { UploadPhotoResult } from '@/utils/uploadPhoto';
+import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
+import { getWebOrigin } from '@/utils/webRuntime';
 import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES } from '@wondertales/shared';
 
 export type OnboardingStep = 'profile' | 'setup' | 'done';
@@ -72,6 +76,26 @@ function toDateInputValue(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function toAbsoluteAssetUrl(url: string): string {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url.split('?')[0];
+    }
+  }
+
+  const withoutQuery = url.split('?')[0];
+  const base = getWebOrigin(API_BASE_URL.replace(/\/$/, '')) ?? API_BASE_URL.replace(/\/$/, '');
+  const assetPath = withoutQuery.startsWith('/api/v1/assets/')
+    ? withoutQuery
+    : withoutQuery.startsWith('/')
+      ? `/api/v1/assets/${withoutQuery.slice(1)}`
+      : `/api/v1/assets/${withoutQuery}`;
+  return `${base}${assetPath}`;
 }
 
 function getDateFormatHint(locale: string): string {
@@ -171,6 +195,9 @@ export default function ModeSelectionScreen({
   const [storyLanguage, setStoryLanguage] = useState(toBaseLocale(i18n.language));
   const [storyCreationMode, setStoryCreationMode] = useState<StoryCreationMode>('instant');
   const [consentAccepted, setConsentAccepted] = useState(false);
+  const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
+  const [description, setDescription] = useState('');
+  const [appearanceError, setAppearanceError] = useState<string | null>(null);
   const [createdChild, setCreatedChild] = useState<CreatedChild | null>(initialCreatedChild);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -250,13 +277,28 @@ export default function ModeSelectionScreen({
 
   const submitChildSetup = async () => {
     if (!name.trim() || !consentAccepted || createChild.isPending) return;
+    if (photos.some((photo) => photo.isUploading)) return;
     setError(null);
 
     try {
+      const referencePhotos = photos
+        .filter((photo) => !photo.isUploading && isServerAssetUrl(photo.url))
+        .map(({ url, uploadedAt }) => ({ url: toAbsoluteAssetUrl(url), uploadedAt }));
+      if (referencePhotos.length === 0 && description.trim().length === 0) {
+        setError(
+          t('child_form.photo_or_description_required', {
+            defaultValue: 'Upload at least one photo or describe the child.',
+          })
+        );
+        return;
+      }
       const child = await createChild.mutateAsync({
         name: name.trim(),
         birthDate,
         languages: [storyLanguage],
+        referencePhotos: referencePhotos.length > 0 ? referencePhotos : undefined,
+        aiGeneratedDescription: description.trim() || undefined,
+        descriptionLanguage: description.trim() ? toBaseLocale(i18n.language) : undefined,
         storyCreationMode,
         childDataConsentAccepted: true,
       });
@@ -295,7 +337,30 @@ export default function ModeSelectionScreen({
   };
 
   const continueFromProfile = () => {
+    if (!name.trim()) {
+      setError(t('child_form.name_required', { defaultValue: 'Name is required' }));
+      return;
+    }
+    if (!consentAccepted) {
+      Alert.alert(
+        t('child_form.child_data_consent_required_title'),
+        t('child_form.child_data_consent_required_message')
+      );
+      return;
+    }
     if (!validateBirthDate(birthDate)) return;
+    const hasUploadedPhoto = photos.some(
+      (photo) => !photo.isUploading && isServerAssetUrl(photo.url)
+    );
+    if (!hasUploadedPhoto && description.trim().length === 0) {
+      setAppearanceError(
+        t('child_form.photo_or_description_required', {
+          defaultValue: 'Upload at least one photo or describe the child.',
+        })
+      );
+      return;
+    }
+    setAppearanceError(null);
     setStep('setup');
   };
 
@@ -305,6 +370,9 @@ export default function ModeSelectionScreen({
     setBirthDateError(null);
     setStoryCreationMode('instant');
     setConsentAccepted(false);
+    setPhotos([]);
+    setDescription('');
+    setAppearanceError(null);
     setError(null);
     setCreatedChild(null);
     setStep('profile');
@@ -516,29 +584,82 @@ export default function ModeSelectionScreen({
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.consentRow}
-        activeOpacity={0.75}
-        onPress={() => setConsentAccepted((value) => !value)}
-        testID="mode-selection-consent"
-      >
-        <View style={[styles.checkbox, consentAccepted && styles.checkboxChecked]}>
-          {consentAccepted ? (
-            <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />
-          ) : null}
-        </View>
-        <Text style={styles.consentText}>
-          {t('child_form.child_data_consent', {
-            defaultValue:
-              "I am the parent or legal guardian and consent to storing and processing this child's profile for WonderTales features.",
-          })}
+      <View style={styles.field}>
+        <Text style={styles.label}>{t('child_form.photos_title', { defaultValue: 'Photos' })}</Text>
+        <Text
+          style={[styles.appearanceRequirement, appearanceError && styles.fieldError]}
+          accessibilityLiveRegion="polite"
+        >
+          {appearanceError ||
+            t('child_form.photo_or_description_required', {
+              defaultValue: 'Upload at least one photo or describe the child.',
+            })}
         </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.consentRow}
+          activeOpacity={0.75}
+          onPress={() => setConsentAccepted((value) => !value)}
+          testID="mode-selection-consent"
+        >
+          <View style={[styles.checkbox, consentAccepted && styles.checkboxChecked]}>
+            {consentAccepted ? (
+              <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />
+            ) : null}
+          </View>
+          <Text style={styles.consentText}>
+            {t('child_form.child_data_consent', {
+              defaultValue:
+                "I am the parent or legal guardian and consent to storing and processing this child's profile for WonderTales features.",
+            })}
+          </Text>
+        </TouchableOpacity>
+        <View style={[styles.photoSource, appearanceError && styles.appearanceSourceError]}>
+          <PhotoUploadGrid
+            photos={photos}
+            onPhotosChange={(nextPhotos) => {
+              setPhotos(nextPhotos);
+              setAppearanceError(null);
+            }}
+            maxPhotos={5}
+            photoType="child"
+            imageRightsConsentMode="story-submit"
+            disabled={!consentAccepted || createChild.isPending}
+            childDataConsentAccepted={consentAccepted}
+            formatUrl={formatAssetUrl}
+          />
+        </View>
+        <Text style={styles.orLabel}>
+          {t('child_form.photo_or_description_separator', { defaultValue: 'or' })}
+        </Text>
+        <Text style={styles.label}>
+          {t('child_form.description_label', { defaultValue: 'Child description' })}
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            styles.descriptionInput,
+            appearanceError && styles.appearanceDescriptionError,
+          ]}
+          value={description}
+          onChangeText={(value) => {
+            setDescription(value);
+            setError(null);
+            setAppearanceError(null);
+          }}
+          multiline
+          textAlignVertical="top"
+          placeholder={t('child_form.description_placeholder', {
+            defaultValue: 'Describe appearance: hair, eyes, skin tone, and distinctive features.',
+          })}
+          placeholderTextColor={theme.colors.text.disabled}
+          testID="mode-selection-child-description"
+        />
+      </View>
 
       <AppButton
         label={t('common.continue', { defaultValue: 'Continue' })}
         onPress={continueFromProfile}
-        disabled={!name.trim() || !consentAccepted}
+        disabled={photos.some((photo) => photo.isUploading) || createChild.isPending}
         style={styles.onboardingPrimaryAction}
         testID="mode-selection-continue"
       />
@@ -857,6 +978,33 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     fontSize: theme.typography.fontSize.base,
     paddingHorizontal: theme.spacing[4],
+  },
+  descriptionInput: {
+    minHeight: 112,
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[3],
+  },
+  appearanceRequirement: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    marginBottom: theme.spacing[3],
+  },
+  photoSource: {
+    borderRadius: theme.borders.radius.md,
+  },
+  appearanceSourceError: {
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.status.error,
+    padding: theme.spacing[2],
+  },
+  appearanceDescriptionError: {
+    borderColor: theme.colors.status.error,
+  },
+  orLabel: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    textAlign: 'center',
+    marginVertical: theme.spacing[3],
   },
   dateInput: {
     flexDirection: 'row',

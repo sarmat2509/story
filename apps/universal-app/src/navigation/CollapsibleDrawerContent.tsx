@@ -183,7 +183,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
             <ChildProfileSwitcher
               autoLoad
               menuStyle={styles.childSwitcherMenu}
-              renderTrigger={({ avatarUrl, open }) => (
+              renderTrigger={({ avatarUrl, fallbackInitial, open }) => (
                 <PlatformPressable
                   onPress={open}
                   role="button"
@@ -193,11 +193,17 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                   <View
                     style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}
                   >
-                    {avatarUrl || parentAvatarUrl ? (
+                    {avatarUrl ? (
                       <ChildAvatarImage
-                        uri={avatarUrl ?? parentAvatarUrl!}
+                        uri={avatarUrl}
                         style={styles.childAvatar}
                       />
+                    ) : fallbackInitial ? (
+                      <View style={styles.childAvatarFallback}>
+                        <Text style={styles.childAvatarInitial}>{fallbackInitial}</Text>
+                      </View>
+                    ) : parentAvatarUrl ? (
+                      <ChildAvatarImage uri={parentAvatarUrl} style={styles.childAvatar} />
                     ) : (
                       <View style={styles.childAvatarFallback}>
                         <Ionicons
@@ -428,6 +434,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.background.primary,
+  },
+  childAvatarInitial: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.bold,
   },
   childSessionCopy: {
     flex: 1,

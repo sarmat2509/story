@@ -224,6 +224,7 @@ async function main(): Promise<void> {
         const created = makeProfile({
           ...(insertValues as object),
           id: childId,
+          turnaroundSheet: { url: '/api/v1/assets/test-child-turnaround.png' },
         });
         profilesById.set(childId, created);
         return result;
@@ -266,6 +267,7 @@ async function main(): Promise<void> {
       name: 'Mira',
       birthDate: '2018-05-15',
       languages: ['en'],
+      aiGeneratedDescription: 'Long brown hair, green eyes, and freckles.',
       storyComplexityAdjustments: { en: -2 },
       childDataConsentAccepted: true,
     });

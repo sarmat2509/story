@@ -14,6 +14,10 @@ const meta: Meta<typeof PhotoUploadGrid> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Empty: Story = { render: (args) => <ControlledPhotoGrid {...args} /> };
+export const Disabled: Story = {
+  args: { disabled: true },
+  render: (args) => <ControlledPhotoGrid {...args} />,
+};
 export const WithUploads: Story = {
   args: {
     photos: [

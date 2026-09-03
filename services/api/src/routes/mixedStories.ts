@@ -16,6 +16,7 @@ import { logger } from '../utils/logger';
 import { isStoryCharacterSelectionLimitError } from '../services/storyCharacterSelectionLimitService';
 import {
   assertParentStoryChildProfile,
+  assertSelectedChildCharactersHaveTurnarounds,
   isStoryChildProfileRequirementError,
 } from '../services/storyChildProfileRequirementService';
 
@@ -98,6 +99,7 @@ function sendStoryChildProfileRequirementError(res: Response, error: unknown): b
     status: 'error',
     code: error.code,
     message: error.message,
+    childProfileId: error.childProfileId,
   });
   return true;
 }
@@ -116,6 +118,10 @@ router.post(
       const validatedData = CreateStoryRequestSchema.parse(req.body);
 
       await assertParentStoryChildProfile(req.user!.id, validatedData.childProfileId);
+      await assertSelectedChildCharactersHaveTurnarounds(
+        req.user!.id,
+        validatedData.selectedCharacters
+      );
 
       try {
         await enforceUserJobLimit(req.user!.id);
