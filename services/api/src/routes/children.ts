@@ -33,10 +33,6 @@ import {
   getReferencePhotoUrls,
   isPhotoInputSafetyError,
 } from '../services/photoInputSafetyService';
-import {
-  assertStoryFromDrawingAccessForPhotos,
-  isStoryFromDrawingAccessError,
-} from '../services/storyFromDrawingAccessService';
 import { getChildPhotoValidationService } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
 import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
@@ -57,23 +53,6 @@ function sendPhotoInputSafetyError(
     code: error.code,
     error: error.message,
     index: error.index,
-  });
-  return true;
-}
-
-function sendStoryFromDrawingAccessError(
-  res: Parameters<typeof requireAuth>[1],
-  error: unknown
-): boolean {
-  if (!isStoryFromDrawingAccessError(error)) {
-    return false;
-  }
-
-  res.status(error.statusCode).json({
-    status: 'error',
-    code: error.code,
-    error: error.message,
-    featureSlug: error.featureSlug,
   });
   return true;
 }
@@ -265,10 +244,6 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       userId: req.user!.id,
       allowedPhotoTypes: ['child'],
     });
-    await assertStoryFromDrawingAccessForPhotos({
-      userId: req.user!.id,
-      photoCount: photos.length,
-    });
     const usageContext = { userId: req.user!.id };
     await getChildPhotoValidationService().assertUploadedPhotosContainHumans(
       {
@@ -316,7 +291,6 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
-    if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendChildPhotoValidationError(res, error)) return;
 
     logger.error(
@@ -498,10 +472,6 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       userId,
       allowedPhotoTypes: ['child'],
     });
-    await assertStoryFromDrawingAccessForPhotos({
-      userId,
-      photoCount: referencePhotoUrls.length,
-    });
     await getChildPhotoValidationService().assertUploadedPhotosContainHumans(
       {
         storagePaths: referencePhotoPaths,
@@ -584,7 +554,6 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
   } catch (error: unknown) {
     if (sendPromptSafetyError(res, error)) return;
     if (sendPhotoInputSafetyError(res, error)) return;
-    if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendChildPhotoValidationError(res, error)) return;
     if (sendChildProfileLimitError(res, error)) return;
 
