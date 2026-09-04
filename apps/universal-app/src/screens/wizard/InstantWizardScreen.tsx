@@ -56,6 +56,8 @@ interface PhotoObject {
   uploadedAt: string;
   storagePath?: string;
   isUploading?: boolean;
+  /** Stable local key used by PhotoUploadGrid to replace this upload only. */
+  uploadId?: string;
   fileKey?: string;
   [key: string]: unknown;
 }
@@ -360,6 +362,7 @@ export default function InstantWizardScreen() {
                     uploadedAt: p.uploadedAt || new Date().toISOString(),
                     storagePath: p.storagePath,
                     isUploading: p.isUploading,
+                    uploadId: p.uploadId,
                   }))}
                   onPhotosChange={(nextPhotos) =>
                     setPhotos((currentPhotos) => {
@@ -368,6 +371,7 @@ export default function InstantWizardScreen() {
                         uploadedAt: p.uploadedAt || new Date().toISOString(),
                         storagePath: p.storagePath,
                         isUploading: p.isUploading,
+                        uploadId: p.uploadId,
                       }));
                       const resolvedPhotos =
                         typeof nextPhotos === 'function'
@@ -378,6 +382,7 @@ export default function InstantWizardScreen() {
                         uploadedAt: p.uploadedAt,
                         storagePath: p.storagePath,
                         isUploading: p.isUploading,
+                        uploadId: p.uploadId,
                       }));
                     })
                   }
