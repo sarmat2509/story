@@ -19,6 +19,11 @@ assert.match(
 );
 assert.match(
   viewerSource,
+  /Keep media outside the prose scroll target[\s\S]*sceneRefs\.current\[sceneIndex\] = ref/,
+  'the scene scroll target must contain prose only, not its illustration'
+);
+assert.match(
+  viewerSource,
   /visibleTop = Math\.max\(scrollRect\.top, 0\)[\s\S]*visibleBottom = Math\.min\(scrollRect\.bottom, window\.innerHeight\)/,
   'web centering must use the visible reading container after sticky UI is excluded'
 );

@@ -52,6 +52,8 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PublishShareDialog, type CoverAssetOption } from '@/components/PublishShareDialog';
 import { AppButton } from '@/components/AppButton';
+import { AudioGenerationLimitReached } from '@/components/AudioGenerationLimitReached';
+import { AudioGenerationStarter } from '@/components/AudioGenerationStarter';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
@@ -68,7 +70,6 @@ import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
-import VoiceSelector from '@/components/VoiceSelector';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
@@ -2053,42 +2054,10 @@ export default function StoryViewerScreen() {
       : !playerAudioData &&
         (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
           <View style={styles.audioGenerationSection}>
-            {audioLimitExceeded && limitInfo ? (
-              // Limit exceeded message with upgrade button
-              <View style={styles.limitExceededContainer}>
-                <Text style={styles.limitExceededIcon}>🔒</Text>
-                <Text style={styles.limitExceededTitle}>
-                  {t('story_viewer.audio_limit_reached')}
-                </Text>
-                <Text style={styles.limitExceededMessage}>
-                  {t('story_viewer.audio_limit_message', {
-                    used: limitInfo.used,
-                    limit: limitInfo.limit,
-                  })}
-                </Text>
-
-                {!isChildSession ? (
-                  <>
-                    <AppButton
-                      label={t('story_viewer.upgrade_plan')}
-                      onPress={() => navigation.navigate('Plans')}
-                      style={styles.audioLimitAction}
-                    />
-
-                    <Text style={styles.limitExceededDetails}>
-                      {t('story_viewer.next_plan_benefit')}
-                    </Text>
-                    <Text style={styles.limitExceededDetails}>{bundleHintText}</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
-                      <Text style={styles.bundlePricingLink}>
-                        {t('story_viewer.bundle_pricing_link')}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                ) : null}
-              </View>
-            ) : showGeneratingBlock ? (
-              // Show loading state during generation with queue info
+            {showGeneratingBlock ? (
+              // A queued/processing job already owns this story's audio quota.
+              // Keep this state ahead of the account-level limit so the parent
+              // cannot mistake an in-flight first audio story for a failed one.
               <View style={styles.generatingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
                 <Text style={styles.generatingText}>
@@ -2114,6 +2083,15 @@ export default function StoryViewerScreen() {
                     : t('toast.audio_generating_message')}
                 </Text>
               </View>
+            ) : audioLimitExceeded && limitInfo ? (
+              <AudioGenerationLimitReached
+                used={limitInfo.used}
+                limit={limitInfo.limit}
+                bundleHintText={bundleHintText}
+                showUpgrade={!isChildSession}
+                onUpgrade={() => navigation.navigate('Plans')}
+                onViewPricing={() => navigation.navigate('Plans' as any)}
+              />
             ) : (
               // Normal audio generation UI
               <>
@@ -2173,7 +2151,7 @@ export default function StoryViewerScreen() {
                     ❌ {t('story_viewer.no_voices')}
                   </Text>
                 ) : (
-                  <VoiceSelector
+                  <AudioGenerationStarter
                     voices={voices}
                     selectedVoiceId={selectedVoiceId}
                     onVoiceChange={(voiceId) => {
@@ -2185,69 +2163,13 @@ export default function StoryViewerScreen() {
                     language={storyLanguage ?? 'uk'}
                     userPlan={userPlan}
                     hasPremiumAccess={hasPremiumAccess}
-                    onUpgrade={
-                      isChildSession
-                        ? undefined
-                        : () => {
-                            navigation.navigate('Plans' as any);
-                          }
-                    }
                     audioUsage={audioUsage}
+                    audioFailed={audioFailed}
+                    isGenerating={isGenerating || generateAudio.isPending}
+                    jobStatus={jobStatus}
+                    onGenerate={handleGenerateAudio}
+                    onUpgrade={() => navigation.navigate('Plans' as any)}
                   />
-                )}
-
-                {/* Conditional button based on selected voice */}
-                {(() => {
-                  console.log('[StoryViewer] Button rendering state:', {
-                    selectedVoiceId,
-                    selectedVoiceIsLocked: selectedVoice?.isLocked,
-                    isGenerating,
-                    generateAudioIsPending: generateAudio.isPending,
-                    audioFailed,
-                  });
-                  return null;
-                })()}
-
-                {selectedVoice?.isLocked ? (
-                  // Premium voice selected but locked - show upgrade button
-                  <TouchableOpacity
-                    style={[styles.audioButton, styles.audioButtonUpgrade]}
-                    onPress={() => navigation.navigate('Plans' as any)}
-                  >
-                    <Text style={styles.audioButtonText}>
-                      ⭐ {t('voice_selector.upgrade_to_unlock')}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  // Free voice or unlocked premium - show generate audio button
-                  <TouchableOpacity
-                    style={[
-                      styles.audioButton,
-                      (isGenerating || generateAudio.isPending) && styles.audioButtonDisabled,
-                    ]}
-                    onPress={handleGenerateAudio}
-                    disabled={isGenerating || generateAudio.isPending}
-                  >
-                    {isGenerating || generateAudio.isPending ? (
-                      <>
-                        <ActivityIndicator
-                          size="small"
-                          color="#fff"
-                          style={styles.audioButtonSpinner}
-                        />
-                        <Text style={styles.audioButtonText}>
-                          {jobStatus && jobStatus === 'queued'
-                            ? t('story_viewer.audio_queued')
-                            : t('story_viewer.audio_generating')}
-                        </Text>
-                      </>
-                    ) : (
-                      <Text style={styles.audioButtonText}>
-                        🎧{' '}
-                        {audioFailed ? t('story_viewer.try_again') : t('story_viewer.create_audio')}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
                 )}
               </>
             )}
@@ -2861,13 +2783,13 @@ export default function StoryViewerScreen() {
     const showImage = options.showImage !== false;
     const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
     return (
-      <View
-        key={scene.sceneId || sceneIndex}
-        ref={(ref: View | null) => {
-          sceneRefs.current[sceneIndex] = ref;
-        }}
-        style={styles.scene}
-      >
+      <React.Fragment key={scene.sceneId || sceneIndex}>
+        {/*
+         * Keep media outside the prose scroll target. A scene image can occupy
+         * most of the viewport; including it in the target makes Read along
+         * treat every scene as oversized and prevents the active sentence from
+         * being brought into view reliably.
+         */}
         {showImage && scene.image?.url && scene.image?.status !== 'failed' ? (
           <Image
             source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
@@ -2894,13 +2816,20 @@ export default function StoryViewerScreen() {
           </View>
         ) : null}
 
-        <View style={styles.sceneTextWrapper}>
-          {isQuizHighlighted ? (
-            <View pointerEvents="none" style={styles.sceneTextWrapperQuizHighlightLayer} />
-          ) : null}
-          {renderSceneTextWithHighlight(scene, sceneIndex)}
+        <View
+          ref={(ref: View | null) => {
+            sceneRefs.current[sceneIndex] = ref;
+          }}
+          style={styles.scene}
+        >
+          <View style={styles.sceneTextWrapper}>
+            {isQuizHighlighted ? (
+              <View pointerEvents="none" style={styles.sceneTextWrapperQuizHighlightLayer} />
+            ) : null}
+            {renderSceneTextWithHighlight(scene, sceneIndex)}
+          </View>
         </View>
-      </View>
+      </React.Fragment>
     );
   };
 
@@ -3727,30 +3656,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
   },
-  audioButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.spacing[3],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: theme.spacing[4],
-  },
-  audioButtonUpgrade: {
-    backgroundColor: theme.colors.warning[600],
-  },
-  audioButtonDisabled: {
-    opacity: 0.6,
-  },
-  audioButtonSpinner: {
-    marginRight: theme.spacing[2],
-  },
-  audioButtonText: {
-    color: '#fff',
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
   audioPlayerContainer: {
     marginHorizontal: theme.spacing[6],
     marginBottom: theme.spacing[4],
@@ -3981,45 +3886,6 @@ const styles = StyleSheet.create({
   artifactCollectedLink: {
     color: theme.colors.interactive.primary,
     textDecorationLine: 'underline',
-  },
-  limitExceededContainer: {
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
-    alignItems: 'center',
-  },
-  limitExceededIcon: {
-    fontSize: 48,
-    marginBottom: theme.spacing[4],
-  },
-  limitExceededTitle: {
-    fontSize: theme.typography.fontSize.xl,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing[2],
-    textAlign: 'center',
-  },
-  limitExceededMessage: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: theme.spacing[6],
-  },
-  audioLimitAction: {
-    marginBottom: theme.spacing[4],
-  },
-  limitExceededDetails: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-    textAlign: 'center',
-    marginTop: theme.spacing[2],
-  },
-  bundlePricingLink: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.interactive.primary,
-    textAlign: 'center',
-    textDecorationLine: 'underline',
-    marginTop: theme.spacing[2],
-    marginBottom: theme.spacing[2],
   },
   inlineWarning: {
     flexDirection: 'row',

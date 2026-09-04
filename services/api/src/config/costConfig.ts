@@ -111,7 +111,7 @@ export const AI_COST_CONFIG = {
       outputPer1M: 20.0,
       audioTokensPerSecond: 25,
     } as AudioTokenCostConfig,
-    // Gemini API paid-tier standard pricing, July 2026: $1 / 1M text input, $20 / 1M audio output.
+    // Google Cloud Gemini-TTS pricing: $1 / 1M text input, $20 / 1M audio output.
     'gemini-3.1-flash-tts-preview': {
       inputPer1M: 1.0,
       outputPer1M: 20.0,

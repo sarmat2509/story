@@ -6,7 +6,7 @@ const MULTILINGUAL_STORY_LANGUAGES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'];
  * Google Cloud TTS Voice Catalog (Gemini 2.5 Flash TTS)
  * Voices from: https://cloud.google.com/text-to-speech/docs/gemini-tts
  * 
- * Model: gemini-2.5-flash-tts
+ * Model: gemini-3.1-flash-tts-preview
  * Supports: Natural language prompts for emotion control
  * Ukrainian voices: Preset voices with uk-UA language code
  * 

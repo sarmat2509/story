@@ -401,7 +401,7 @@ export const config = {
     google: {
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
       credentials: resolveGoogleServiceAccountKeyPath(),
-      model: process.env.GOOGLE_TTS_MODEL || 'gemini-2.5-flash-tts',
+      model: process.env.GOOGLE_TTS_MODEL || 'gemini-3.1-flash-tts-preview',
       location: process.env.GOOGLE_TTS_LOCATION || 'global', // or 'us', 'eu'
     },
     // NEW: OpenAI TTS configuration

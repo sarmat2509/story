@@ -97,7 +97,7 @@ function isImageGenerationPricedOperation(operation: string): boolean {
 function getConfigKey(provider: string, model?: string): string {
   if (model) return model;
   if (provider === 'elevenlabs') return 'elevenlabs-eleven_v3';
-  if (provider === 'google-tts') return 'gemini-2.5-flash-tts';
+  if (provider === 'google-tts') return 'gemini-3.1-flash-tts-preview';
   if (provider === 'grok') return 'xai-tts';
   if (provider === 'openai') return 'gpt-4o-mini-tts';
   return 'gemini-3-flash-preview';

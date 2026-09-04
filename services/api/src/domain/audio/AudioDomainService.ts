@@ -1084,7 +1084,7 @@ export class AudioDomainService {
       onUsage({
         provider: 'google-tts',
         operation: 'audio_synthesize',
-        model: config.audio.google.model || 'gemini-2.5-flash-tts',
+        model: config.audio.google.model || 'gemini-3.1-flash-tts-preview',
         inputUnits: Math.ceil(charCount / 4),
         outputUnits: Math.round(durationSeconds * 25),
         durationSeconds,

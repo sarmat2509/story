@@ -14,6 +14,7 @@
  *   pnpm --filter wondertales-api defer-tts:tagged-to-audio
  *   pnpm --filter wondertales-api exec tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --from-file=defer-tts-tagged-output.txt --out=./defer-tts-audio-out
  *   pnpm --filter wondertales-api exec tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --providers=google
+ *   command-that-prints-tagged-text | pnpm --filter wondertales-api exec tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --from-stdin --providers=google
  *   pnpm --filter wondertales-api exec tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --omit-google-style-prompt
  *     (skip VENDOR_STYLE_PROMPT_EN for Google — sometimes avoids Vertex “usage guidelines” rejects on spooky kids’ text.)
  *
@@ -42,6 +43,19 @@ function parseFromFileArg(): string {
   const fromCwd = path.resolve(process.cwd(), rel);
   if (fs.existsSync(fromCwd)) return fromCwd;
   return path.resolve(apiPackageRoot, rel);
+}
+
+function readInput(): { raw: string; source: string } {
+  if (process.argv.includes('--from-stdin')) {
+    return { raw: fs.readFileSync(0, 'utf8'), source: 'stdin' };
+  }
+
+  const fromPath = parseFromFileArg();
+  if (!fs.existsSync(fromPath)) {
+    console.error(`Input file not found: ${fromPath}`);
+    process.exit(1);
+  }
+  return { raw: fs.readFileSync(fromPath, 'utf8'), source: fromPath };
 }
 
 function parseOutDir(): string {
@@ -259,22 +273,15 @@ async function runOneProvider(
 }
 
 async function main(): Promise<void> {
-  const fromPath = parseFromFileArg();
   const outDir = parseOutDir();
   const filter = parseProvidersFilter();
   const language = (process.env.DEFER_TTS_LANGUAGE || 'en').trim() || 'en';
-
-  if (!fs.existsSync(fromPath)) {
-    console.error(`Input file not found: ${fromPath}`);
-    process.exit(1);
-  }
-
-  const raw = fs.readFileSync(fromPath, 'utf8');
+  const { raw, source } = readInput();
   const sections = parseTaggedSections(raw);
   const styleSections = parseVendorStylePromptSections(raw);
 
   fs.mkdirSync(outDir, { recursive: true });
-  console.log(`Input: ${fromPath}`);
+  console.log(`Input: ${source}`);
   console.log(`Output dir: ${outDir}`);
   console.log(`Language: ${language}`);
   console.log('Sections found:', Object.keys(sections).join(', ') || '(none)');

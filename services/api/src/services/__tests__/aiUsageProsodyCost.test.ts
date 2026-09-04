@@ -37,6 +37,21 @@ function testProsodyTagsUnknownModelFallsBackLikeText() {
   assert.strictEqual(cost, 0);
 }
 
+function testGemini31FlashTtsPricing() {
+  const cost = estimateUsageCostUsd({
+    provider: 'google-tts',
+    operation: 'audio_synthesize',
+    model: 'gemini-3.1-flash-tts-preview',
+    inputUnits: 1_000,
+    durationSeconds: 100,
+  });
+
+  // $1 / 1M input tokens + $20 / 1M output tokens; audio uses 25 tokens/sec.
+  // 1,000 input tokens cost $0.001 and 2,500 audio tokens cost $0.05.
+  assert.ok(cost != null, 'expected Gemini 3.1 Flash TTS cost');
+  assert.ok(Math.abs(cost - 0.051) < 0.000_001, String(cost));
+}
+
 function testHistoricalUnpricedOperationsArePriced() {
   const cases = [
     {
@@ -281,6 +296,7 @@ function testSeedreamFlatPerOutputImagePricing() {
 void (async () => {
   testProsodyTagsPricedLikeTextGemini();
   testProsodyTagsUnknownModelFallsBackLikeText();
+  testGemini31FlashTtsPricing();
   testHistoricalUnpricedOperationsArePriced();
   testStoredUsageUsesEffectiveUnitsAndImageMetadata();
   testEnvironmentImageUsesFlashLiteImagePricing();

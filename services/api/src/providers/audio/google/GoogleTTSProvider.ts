@@ -13,7 +13,7 @@ export class GoogleTTSProvider extends BaseAudioProvider {
   private projectId: string;
   private tagProcessor: GoogleTagProcessor;
   
-  constructor(projectId: string, credentials: string, model: string = 'gemini-2.5-flash-tts') {
+  constructor(projectId: string, credentials: string, model: string = 'gemini-3.1-flash-tts-preview') {
     super();
     this.projectId = projectId;
     this.model = model;
