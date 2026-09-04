@@ -85,6 +85,11 @@ for (const locale of locales.filter((locale) => locale !== 'en')) {
 }
 
 assert.match(onboardingSource, /<PhotoUploadGrid[\s\S]*photoType="child"/);
+assert.match(
+  onboardingSource,
+  /<View style=\{styles\.languageField\}>[\s\S]*onboarding\.default_language/
+);
+assert.match(onboardingSource, /languageField:\s*\{\s*marginBottom:/);
 assert.match(onboardingSource, /childDataConsentAccepted=\{consentAccepted\}/);
 assert.match(onboardingSource, /testID="mode-selection-child-description"/);
 assert.match(onboardingSource, /setAppearanceError\(/);

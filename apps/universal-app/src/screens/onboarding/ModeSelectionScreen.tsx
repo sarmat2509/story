@@ -559,7 +559,7 @@ export default function ModeSelectionScreen({
         </View>
       </View>
 
-      <View style={styles.field}>
+      <View style={styles.languageField}>
         <Text style={styles.label}>
           {t('onboarding.default_language', { defaultValue: 'Default story language' })}
         </Text>
@@ -961,6 +961,9 @@ const styles = StyleSheet.create({
   field: {
     flex: 1,
     minWidth: 240,
+    marginBottom: theme.spacing[5],
+  },
+  languageField: {
     marginBottom: theme.spacing[5],
   },
   label: {
