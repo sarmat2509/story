@@ -15,8 +15,10 @@ import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { StructuredRawResponse } from '../../providers/base/JsonSchema';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import { canonicalizeMapTileFeatures } from './mapTileMasks';
+import { writeWriterResponseDiagnostic } from '../../services/writerResponseDiagnosticsService';
 
 export interface StoryDomainOptions {
+  requestId?: string;
   onUsage?: (usage: UsageMetadata) => void;
   onRawResponse?: (response: StructuredRawResponse) => void | Promise<void>;
   reservedCharacters?: StorySpec['characters'];
@@ -59,6 +61,7 @@ export interface StoryDomainOptions {
 import {
   buildDirectTextPromptPlain,
   buildDirectTextPromptPlainCachedPrefix,
+  buildDirectTextFormatRepairPrompt,
   buildDirectorPrompt,
   buildDirectorPromptCachedPrefix,
   buildDirectorSelectedCharacterCoverageRetryPrompt,
@@ -81,7 +84,7 @@ import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
 import { VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
 import { DIRECTOR_SCHEMA, MAP_TILE_BRIEF_SCHEMA } from './directorSchema';
-import { parsePlainTextToScenes } from './parsePlainText';
+import { getPlainTextFormatDiagnostics, parsePlainTextToScenes } from './parsePlainText';
 import { countNarrationWords } from '../../utils/audioTags';
 import { evaluateDirectorSelectedCharacterCoverage } from './directorCharacterCoverage';
 import { reconcileGeneratedCharacterIdentity } from '../../utils/characterIdentity';
@@ -102,6 +105,20 @@ function assertPlainStoryHasReadableScenes(parsed: {
   );
   if (scenes.length < MIN_GENERATED_SCENES || !parsed.fullText.trim() || !hasReadableScene) {
     throw new Error('Writer returned no readable story scenes');
+  }
+}
+
+function hasReadablePlainStory(rawText: string): boolean {
+  const parsed = parsePlainTextToScenes(rawText);
+  const format = getPlainTextFormatDiagnostics(rawText);
+  if (!format.hasTitleHeader || !format.hasDescriptionHeader || format.looseDelimiterCount === 0) {
+    return false;
+  }
+  try {
+    assertPlainStoryHasReadableScenes(parsed);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -219,9 +236,7 @@ export class StoryDomainService {
     );
 
     const sceneCount = this.getSceneCount(spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(
-      spec.storyComplexityAgeGroup ?? spec.ageGroup
-    );
+    const vocabLevel = this.getVocabularyLevel(spec.storyComplexityAgeGroup ?? spec.ageGroup);
 
     const promptParams: Parameters<typeof buildDirectTextPromptPlain>[0] = {
       spec,
@@ -257,6 +272,7 @@ export class StoryDomainService {
     const prompt = buildDirectTextPromptPlain(promptParams);
 
     try {
+      let rawResponse: StructuredRawResponse | undefined;
       const rawText = await this.textProvider.generateText({
         prompt,
         cachedPrefix: {
@@ -267,10 +283,94 @@ export class StoryDomainService {
         maxTokens: PLAIN_WRITER_MAX_OUTPUT_TOKENS,
         temperature: 0.9,
         onUsage: options?.onUsage,
+        onRawResponse: (response) => {
+          rawResponse = response;
+          return options?.onRawResponse?.(response);
+        },
         operation: isContinuation ? 'text_continuation' : 'text_plain',
       });
 
-      const parsed = parsePlainTextToScenes(rawText);
+      let parsed = parsePlainTextToScenes(rawText);
+      if (rawText.trim().length > 0 && !hasReadablePlainStory(rawText)) {
+        const initialDiagnostics = getPlainTextFormatDiagnostics(rawText);
+        logger.warn(
+          {
+            writerFormatDiagnostics: initialDiagnostics,
+            provider: rawResponse?.provider,
+            model: rawResponse?.model,
+            finishReason: rawResponse?.finishReason ?? null,
+          },
+          'Writer response missed plain-story format; attempting format-only repair'
+        );
+
+        let repairRawResponse: StructuredRawResponse | undefined;
+        let repairedText: string;
+        try {
+          repairedText = await this.textProvider.generateText({
+            prompt: buildDirectTextFormatRepairPrompt(rawText),
+            maxTokens: PLAIN_WRITER_MAX_OUTPUT_TOKENS,
+            temperature: 0,
+            onUsage: options?.onUsage,
+            onRawResponse: (response) => {
+              repairRawResponse = response;
+              return options?.onRawResponse?.(response);
+            },
+            operation: 'text_plain_format_repair',
+          });
+        } catch (repairError) {
+          const diagnosticFile = await writeWriterResponseDiagnostic({
+            requestId: options?.requestId,
+            initialResponse: rawText,
+            initialDiagnostics,
+            provider: rawResponse?.provider,
+            model: rawResponse?.model,
+            finishReason: rawResponse?.finishReason ?? null,
+            repairError: repairError instanceof Error ? repairError.message : String(repairError),
+          });
+          logger.error(
+            { diagnosticFile, requestId: options?.requestId },
+            'Writer format repair request failed'
+          );
+          throw repairError;
+        }
+        parsed = parsePlainTextToScenes(repairedText);
+        const repairDiagnostics = getPlainTextFormatDiagnostics(repairedText);
+        const diagnosticFile = await writeWriterResponseDiagnostic({
+          requestId: options?.requestId,
+          initialResponse: rawText,
+          repairedResponse: repairedText,
+          initialDiagnostics,
+          repairDiagnostics,
+          provider: repairRawResponse?.provider ?? rawResponse?.provider,
+          model: repairRawResponse?.model ?? rawResponse?.model,
+          finishReason: repairRawResponse?.finishReason ?? null,
+        });
+        logger.warn(
+          {
+            diagnosticFile,
+            requestId: options?.requestId,
+            writerFormatDiagnostics: { initial: initialDiagnostics, repair: repairDiagnostics },
+          },
+          'Stored Writer format diagnostic artifact'
+        );
+
+        if (!hasReadablePlainStory(repairedText)) {
+          logger.error(
+            {
+              writerFormatDiagnostics: {
+                initial: initialDiagnostics,
+                repair: getPlainTextFormatDiagnostics(repairedText),
+              },
+              provider: repairRawResponse?.provider ?? rawResponse?.provider,
+              model: repairRawResponse?.model ?? rawResponse?.model,
+              finishReason: repairRawResponse?.finishReason ?? null,
+              diagnosticFile,
+              requestId: options?.requestId,
+            },
+            'Writer and format repair both returned unreadable story scenes'
+          );
+        }
+      }
       assertPlainStoryHasReadableScenes(parsed);
       const wordCount = countNarrationWords(parsed.fullText);
 
@@ -738,31 +838,33 @@ export class StoryDomainService {
     );
 
     try {
-      const result = await this.validationTextProvider.generateStructured<BatchValidationProviderResult>({
-        prompt,
-        cachedPrefix,
-        schema: BATCH_VALIDATION_SCHEMA,
-        temperature: 0.3,
-        model,
-        onUsage: options?.onUsage,
-        onRawResponse: options?.onRawResponse,
-        operation,
-      });
+      const result =
+        await this.validationTextProvider.generateStructured<BatchValidationProviderResult>({
+          prompt,
+          cachedPrefix,
+          schema: BATCH_VALIDATION_SCHEMA,
+          temperature: 0.3,
+          model,
+          onUsage: options?.onUsage,
+          onRawResponse: options?.onRawResponse,
+          operation,
+        });
 
       if (!Array.isArray(result.failedScenes)) {
         throw new Error('Batch validation returned an invalid failedScenes payload');
       }
 
-      const narrativeObligations: NonNullable<BatchValidationResult['narrativeObligations']> =
-        (result.open ?? []).map((item) => ({
-          setupSceneId: item.s,
-          kind: item.k,
-          setupAnchor: item.a,
-          status: 'open',
-          closureSceneId: null,
-          closureAnchor: null,
-          repairSceneId: item.r,
-        }));
+      const narrativeObligations: NonNullable<BatchValidationResult['narrativeObligations']> = (
+        result.open ?? []
+      ).map((item) => ({
+        setupSceneId: item.s,
+        kind: item.k,
+        setupAnchor: item.a,
+        status: 'open',
+        closureSceneId: null,
+        closureAnchor: null,
+        repairSceneId: item.r,
+      }));
 
       const failedScenes = result.failedScenes.map((scene) => ({
         ...scene,
@@ -770,14 +872,14 @@ export class StoryDomainService {
       }));
       for (const obligation of narrativeObligations) {
         if (obligation.status !== 'open' || typeof obligation.repairSceneId !== 'number') continue;
-        let failedScene = failedScenes.find(
-          (scene) => scene.sceneId === obligation.repairSceneId
-        );
+        let failedScene = failedScenes.find((scene) => scene.sceneId === obligation.repairSceneId);
         if (!failedScene) {
           failedScene = { sceneId: obligation.repairSceneId, violations: [] };
           failedScenes.push(failedScene);
         }
-        if (!failedScene.violations.some((violation) => violation.category === 'setup_payoff_gap')) {
+        if (
+          !failedScene.violations.some((violation) => violation.category === 'setup_payoff_gap')
+        ) {
           failedScene.violations.push({
             category: 'setup_payoff_gap',
             severity: 'medium',
@@ -803,8 +905,9 @@ export class StoryDomainService {
           failedCount,
           responseSummary: {
             narrativeObligationCount: narrativeObligations.length,
-            openNarrativeObligationCount:
-              narrativeObligations.filter((item) => item.status === 'open').length,
+            openNarrativeObligationCount: narrativeObligations.filter(
+              (item) => item.status === 'open'
+            ).length,
             failedScenes,
           },
           rawResponse: JSON.stringify(result),
@@ -847,9 +950,7 @@ export class StoryDomainService {
     failedScenes: Array<{ sceneId: number; originalText: string; feedback: string }>,
     options?: StoryDomainOptions
   ): Promise<Array<{ sceneId: number; text: string }>> {
-    const vocabLevel = this.getVocabularyLevel(
-      spec.storyComplexityAgeGroup ?? spec.ageGroup
-    );
+    const vocabLevel = this.getVocabularyLevel(spec.storyComplexityAgeGroup ?? spec.ageGroup);
     const prompt = buildBatchRegenerationRuntimePrompt({
       spec,
       sceneCount,

@@ -85,11 +85,13 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     let plainText: any;
     if (generationType === 'standard') {
       plainText = await storyDomain.generateTextPlain(spec, {
+        requestId,
         onUsage: (u) => recordUsage(u, usageContext),
       });
     } else {
       // Continuation
       plainText = await storyDomain.generateTextPlain(spec, {
+        requestId,
         isContinuation: true,
         continuationContext: {
           previousOutlines: continuationContext!.previousOutlines,

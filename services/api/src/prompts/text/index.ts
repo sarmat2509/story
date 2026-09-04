@@ -6,6 +6,7 @@
 export {
   buildDirectTextPromptPlain,
   buildDirectTextPromptPlainCachedPrefix,
+  buildDirectTextFormatRepairPrompt,
   WRITER_PLAIN_CACHE_KEY,
 } from './DirectTextPrompt';
 export {

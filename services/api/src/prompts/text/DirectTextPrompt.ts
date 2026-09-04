@@ -60,6 +60,29 @@ Plain output contract:
 }
 
 /**
+ * Recover a Writer response that contains usable prose but missed the plain-output envelope.
+ * It is deliberately a formatting-only request: no new story content may be invented.
+ */
+export function buildDirectTextFormatRepairPrompt(rawText: string): string {
+  return `Reformat the following children's story response without changing, adding, removing, translating, or summarizing any story prose. Return plain text only — no Markdown code fence and no commentary.
+
+Required envelope:
+title: <existing title>
+
+description: <existing short description>
+
+---
+<existing first scene prose>
+---
+<existing next scene prose>
+
+Use a line containing exactly --- between every scene. If title or description is absent, derive it only from the supplied response. Keep the original language exactly.
+
+SOURCE RESPONSE:
+${rawText}`;
+}
+
+/**
  * Build plain text generation prompt (Director flow)
  * Output: title, description, scenes separated by --- (no JSON)
  */

@@ -6,6 +6,7 @@ import type { StorySpec } from '../../../ai/types';
 import type { GenerateTextRequest } from '../../../providers/base/JsonSchema';
 import { MockTextProvider } from '../../../testing/ai';
 import { StoryDomainService } from '../StoryDomainService';
+import { parsePlainTextToScenes } from '../parsePlainText';
 
 const STATIC_POLICY = {
   ageGroup: '6-8' as const,
@@ -75,15 +76,11 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
     'prompt is built (child profile, rules, plain output contract)'
   );
   assert.ok(
-    request!.prompt.includes(
-      'Role boundary: you are the Story Writer, not the Visual Director.'
-    ),
+    request!.prompt.includes('Role boundary: you are the Story Writer, not the Visual Director.'),
     'Writer prompt keeps visual metadata in the Director step'
   );
   assert.ok(
-    request!.prompt.includes(
-      'WORLD RULE DRAMATURGY (author-only constraint):'
-    ),
+    request!.prompt.includes('WORLD RULE DRAMATURGY (author-only constraint):'),
     'world rules are treated as hidden dramaturgy, not exposition'
   );
   assert.ok(
@@ -111,7 +108,9 @@ async function testGenerateTextPlainUsesAdjustedReadingComplexity() {
   const request = lastTextRequest(stub);
   assert.ok(request?.prompt?.includes('TEXT COMPLEXITY (Lexile: 100L-200L):'));
   assert.ok(!request?.prompt?.includes('TEXT COMPLEXITY (Lexile: 500L-700L):'));
-  assert.ok(request?.prompt?.includes('Content maturity, themes, conflict, and emotional intensity'));
+  assert.ok(
+    request?.prompt?.includes('Content maturity, themes, conflict, and emotional intensity')
+  );
   assert.ok(!request?.prompt?.includes('Focus on family, friendship, daily routines'));
   stub.assertExhausted();
 }
@@ -122,17 +121,13 @@ async function testBatchRegenerationUsesExpandedOutputBudget() {
   });
   const domain = new StoryDomainService(stub);
 
-  const regenerated = await domain.regenerateScenesBatch(
-    STATIC_STORY_SPEC,
-    11,
-    [
-      {
-        sceneId: 2,
-        originalText: 'The friends hurried away without a solution.',
-        feedback: 'Resolve the conflict with a kind action.',
-      },
-    ]
-  );
+  const regenerated = await domain.regenerateScenesBatch(STATIC_STORY_SPEC, 11, [
+    {
+      sceneId: 2,
+      originalText: 'The friends hurried away without a solution.',
+      feedback: 'Resolve the conflict with a kind action.',
+    },
+  ]);
 
   assert.deepStrictEqual(regenerated, [
     { sceneId: 2, text: 'The friends found a gentle, thoughtful solution.' },
@@ -142,10 +137,7 @@ async function testBatchRegenerationUsesExpandedOutputBudget() {
 }
 
 async function testGenerateTextPlainRejectsEmptyWriterOutput() {
-  const stub = new MockTextProvider().queueText(
-    'text_plain',
-    ''
-  );
+  const stub = new MockTextProvider().queueText('text_plain', '');
   const domain = new StoryDomainService(stub);
 
   await assert.rejects(
@@ -153,6 +145,45 @@ async function testGenerateTextPlainRejectsEmptyWriterOutput() {
     /Writer returned no readable story scenes/,
     'empty writer output must fail before validation/persistence'
   );
+}
+
+async function testGenerateTextPlainRepairsFormatOnlyWriterDrift() {
+  const malformed = `# The Tiny Light
+
+A bedtime tale about a glowworm who shares her glow.
+
+### Scene 1
+The forest was quiet. A small glowworm woke under a leaf.
+
+### Scene 2
+She wondered if anyone else felt lonely in the dark.`;
+  const stub = new MockTextProvider()
+    .queueText('text_plain', malformed)
+    .queueText('text_plain_format_repair', PLAIN_LLM_FIXTURE);
+  const domain = new StoryDomainService(stub);
+
+  const result = await domain.generateTextPlain(STATIC_STORY_SPEC);
+
+  assert.strictEqual(result.scenes.length, 2, 'format repair restores readable scene boundaries');
+  assert.strictEqual(
+    stub.textRequests.length,
+    2,
+    'one bounded format-only repair follows malformed prose'
+  );
+  assert.strictEqual(stub.textRequests[1]?.operation, 'text_plain_format_repair');
+  assert.ok(stub.textRequests[1]?.prompt.includes(malformed), 'repair receives the original prose');
+  assert.strictEqual(stub.textRequests[1]?.temperature, 0, 'repair is deterministic');
+  stub.assertExhausted();
+}
+
+function testParsePlainTextAcceptsCommonMarkdownDelimiters() {
+  const parsed = parsePlainTextToScenes(
+    `title: A Tiny Light\r\n\r\ndescription: A gentle tale.\r\n\r\n --- \r\nFirst scene.\r\n***\r\nSecond scene.`
+  );
+
+  assert.strictEqual(parsed.scenes.length, 2, 'CRLF and Markdown delimiters are accepted');
+  assert.strictEqual(parsed.scenes[0]?.text, 'First scene.');
+  assert.strictEqual(parsed.scenes[1]?.text, 'Second scene.');
 }
 
 async function testWriterPromptDoesNotExposeCharacterIds() {
@@ -173,14 +204,9 @@ async function testWriterPromptDoesNotExposeCharacterIds() {
 
   const request = lastTextRequest(stub);
   assert.ok(request, 'provider received a request');
+  assert.ok(request!.prompt.includes('1. Емілія'), 'Writer prompt lists the localized story name');
   assert.ok(
-    request!.prompt.includes('1. Емілія'),
-    'Writer prompt lists the localized story name'
-  );
-  assert.ok(
-    request!.prompt.includes(
-      'Do not translate, rename, or append bracket metadata'
-    ),
+    request!.prompt.includes('Do not translate, rename, or append bracket metadata'),
     'Writer prompt instructs prose names to stay clean'
   );
   assert.ok(
@@ -235,26 +261,17 @@ async function testContinuationWriterPromptDoesNotExposeIds() {
 
   const request = lastTextRequest(stub);
   assert.ok(request, 'provider received a continuation request');
-  assert.ok(
-    request!.prompt.includes('Snow Spirit (imaginary)'),
-    'character name is clean'
-  );
+  assert.ok(request!.prompt.includes('Snow Spirit (imaginary)'), 'character name is clean');
   assert.ok(
     !request!.prompt.includes('Friends help each other.'),
     'previous moral must not be carried into continuation prompt'
   );
-  assert.ok(
-    !request!.prompt.includes('[ID:'),
-    'continuation prompt must not expose IDs'
-  );
+  assert.ok(!request!.prompt.includes('[ID:'), 'continuation prompt must not expose IDs');
   assert.ok(
     !request!.prompt.includes('env_forest_001'),
     'environment IDs stay out of Writer prompt'
   );
-  assert.ok(
-    !request!.prompt.includes('outfit_snow_001'),
-    'outfit IDs stay out of Writer prompt'
-  );
+  assert.ok(!request!.prompt.includes('outfit_snow_001'), 'outfit IDs stay out of Writer prompt');
 }
 
 async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
@@ -367,6 +384,8 @@ void (async () => {
   await testGenerateTextPlainUsesAdjustedReadingComplexity();
   await testBatchRegenerationUsesExpandedOutputBudget();
   await testGenerateTextPlainRejectsEmptyWriterOutput();
+  await testGenerateTextPlainRepairsFormatOnlyWriterDrift();
+  testParsePlainTextAcceptsCommonMarkdownDelimiters();
   await testWriterPromptDoesNotExposeCharacterIds();
   await testContinuationWriterPromptDoesNotExposeIds();
   await testValidateSceneFailsClosedWhenProviderBlocksValidation();

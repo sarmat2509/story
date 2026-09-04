@@ -37,6 +37,7 @@ import { getChildPhotoValidationService } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
 import { isChildPhotoValidationError } from '../services/childPhotoValidationService';
 import { assertProfileTextSafety, isPromptSafetyError } from '../services/promptSafetyService';
+import { enrichChildAppearanceOnCreate } from '../services/childAppearanceEnrichmentService';
 
 const router = Router();
 
@@ -481,8 +482,34 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       { onUsage: (u) => recordUsage(u, { userId }) }
     );
 
+    let appearanceEnrichment: Awaited<ReturnType<typeof enrichChildAppearanceOnCreate>> = {};
+    try {
+      appearanceEnrichment = await enrichChildAppearanceOnCreate(
+        {
+          referencePhotoUrls,
+          description: data.aiGeneratedDescription,
+          descriptionLanguage: data.descriptionLanguage,
+          appearanceTraits: data.appearanceTraits,
+        },
+        getAnalysisService(),
+        { onUsage: (u) => recordUsage(u, { userId }) }
+      );
+    } catch (appearanceEnrichmentError) {
+      // A profile with a valid parent-provided photo/description remains usable
+      // even if optional structured extraction is temporarily unavailable.
+      logger.warn(
+        {
+          err: appearanceEnrichmentError,
+          userId,
+          source: referencePhotoUrls.length ? 'photos' : 'description',
+        },
+        'Child appearance enrichment failed; creating profile without derived traits'
+      );
+    }
+
     const dataForCreate = {
       ...data,
+      ...appearanceEnrichment,
       birthDate:
         data.birthDate instanceof Date
           ? data.birthDate.toISOString().split('T')[0]

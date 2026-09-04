@@ -1,7 +1,7 @@
 /**
  * OpenAI Text Provider
  * Implementation of ITextProvider for OpenAI API (GPT-5.2 and compatible models)
- * 
+ *
  * Rules:
  * - MUST implement ITextProvider interface
  * - MUST contain ONLY OpenAI API-specific code
@@ -34,11 +34,14 @@ export class OpenAITextProvider implements ITextProvider {
     this.client = new OpenAI({ apiKey });
     this.model = model;
     this.schemaAdapter = new OpenAISchemaAdapter();
-    
+
     logger.info({ model: this.model }, 'OpenAI Text Provider initialized');
   }
 
-  private buildPromptCacheKey(request: GenerateStructuredRequest<unknown>, modelName: string): string | undefined {
+  private buildPromptCacheKey(
+    request: GenerateStructuredRequest<unknown>,
+    modelName: string
+  ): string | undefined {
     const key = request.cachedPrefix?.key?.trim();
     if (!key) return undefined;
     return `${modelName}:${key}`;
@@ -85,15 +88,18 @@ export class OpenAITextProvider implements ITextProvider {
       : request.prompt;
     const promptCacheKey = this.buildPromptCacheKey(request, modelName);
 
-    logger.debug({
-      model: modelName,
-      temperature: request.temperature,
-      hasImages: !!request.imageData,
-      imageCount: request.imageData?.length || 0,
-      inputPartsCount: request.inputParts?.length || 0,
-      promptLength: effectivePrompt.length,
-      promptCacheKey,
-    }, 'Generating structured content with OpenAI');
+    logger.debug(
+      {
+        model: modelName,
+        temperature: request.temperature,
+        hasImages: !!request.imageData,
+        imageCount: request.imageData?.length || 0,
+        inputPartsCount: request.inputParts?.length || 0,
+        promptLength: effectivePrompt.length,
+        promptCacheKey,
+      },
+      'Generating structured content with OpenAI'
+    );
 
     // Adapt provider-agnostic schema to OpenAI format
     const openaiSchema = this.schemaAdapter.convert(request.schema);
@@ -140,22 +146,28 @@ export class OpenAITextProvider implements ITextProvider {
 
       // Check for truncation
       if (finishReason === 'length') {
-        logger.warn({
-          finishReason,
-          responseLength: responseText?.length,
-          maxTokens: request.maxTokens,
-          duration,
-        }, 'OpenAI response was truncated due to max_tokens');
+        logger.warn(
+          {
+            finishReason,
+            responseLength: responseText?.length,
+            maxTokens: request.maxTokens,
+            duration,
+          },
+          'OpenAI response was truncated due to max_tokens'
+        );
         throw new Error('Response truncated: increase max_tokens parameter');
       }
 
       // Check for content filter
       if (finishReason === 'content_filter') {
-        logger.warn({
-          finishReason,
-          model: modelName,
-          duration,
-        }, 'OpenAI response blocked by content filter');
+        logger.warn(
+          {
+            finishReason,
+            model: modelName,
+            duration,
+          },
+          'OpenAI response blocked by content filter'
+        );
         throw new Error('Content blocked by OpenAI content filter');
       }
 
@@ -163,31 +175,38 @@ export class OpenAITextProvider implements ITextProvider {
         throw new Error('OpenAI returned empty response');
       }
 
-      await Promise.resolve(request.onRawResponse?.({
-        provider: 'openai',
-        operation: request.operation ?? 'text_structured',
-        model: modelName,
-        responseText,
-        responseLength: responseText.length,
-        finishReason: finishReason ?? null,
-        durationMs: duration,
-      }));
+      await Promise.resolve(
+        request.onRawResponse?.({
+          provider: 'openai',
+          operation: request.operation ?? 'text_structured',
+          model: modelName,
+          responseText,
+          responseLength: responseText.length,
+          finishReason: finishReason ?? null,
+          durationMs: duration,
+        })
+      );
 
-      logger.debug({
-        responseLength: responseText.length,
-        finishReason,
-        duration,
-        promptTokens: usage?.prompt_tokens,
-        cachedPromptTokens: (usage as { prompt_tokens_details?: { cached_tokens?: number } } | undefined)
-          ?.prompt_tokens_details?.cached_tokens,
-        completionTokens: usage?.completion_tokens,
-        totalTokens: usage?.total_tokens,
-        model: modelName,
-      }, 'OpenAI structured response received');
+      logger.debug(
+        {
+          responseLength: responseText.length,
+          finishReason,
+          duration,
+          promptTokens: usage?.prompt_tokens,
+          cachedPromptTokens: (
+            usage as { prompt_tokens_details?: { cached_tokens?: number } } | undefined
+          )?.prompt_tokens_details?.cached_tokens,
+          completionTokens: usage?.completion_tokens,
+          totalTokens: usage?.total_tokens,
+          model: modelName,
+        },
+        'OpenAI structured response received'
+      );
 
       if (request.onUsage && usage) {
         const cachedInputUnits =
-          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0;
+          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details
+            ?.cached_tokens ?? 0;
         const inputUnits = usage.prompt_tokens ?? 0;
         request.onUsage({
           provider: 'openai',
@@ -206,12 +225,15 @@ export class OpenAITextProvider implements ITextProvider {
         const parsed = JSON.parse(responseText) as T;
         return parsed;
       } catch (parseError) {
-        logger.error({
-          parseError: parseError instanceof Error ? parseError.message : String(parseError),
-          responseText: responseText.substring(0, 500),
-          responseLength: responseText.length,
-          model: modelName,
-        }, 'Failed to parse OpenAI response as JSON');
+        logger.error(
+          {
+            parseError: parseError instanceof Error ? parseError.message : String(parseError),
+            responseText: responseText.substring(0, 500),
+            responseLength: responseText.length,
+            model: modelName,
+          },
+          'Failed to parse OpenAI response as JSON'
+        );
 
         // Try to extract JSON from markdown code blocks (fallback)
         const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
@@ -224,18 +246,26 @@ export class OpenAITextProvider implements ITextProvider {
       }
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({
-        error: error instanceof Error ? {
-          message: error.message,
-          name: error.name,
-          stack: error.stack,
-        } : String(error),
-        model: modelName,
-        duration,
-        hasImages: !!request.imageData,
-        imageCount: request.imageData?.length || 0,
-      }, 'OpenAI structured generation failed');
-      throw new Error(`OpenAI structured generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error(
+        {
+          error:
+            error instanceof Error
+              ? {
+                  message: error.message,
+                  name: error.name,
+                  stack: error.stack,
+                }
+              : String(error),
+          model: modelName,
+          duration,
+          hasImages: !!request.imageData,
+          imageCount: request.imageData?.length || 0,
+        },
+        'OpenAI structured generation failed'
+      );
+      throw new Error(
+        `OpenAI structured generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -269,7 +299,8 @@ export class OpenAITextProvider implements ITextProvider {
       const usage = response.usage;
       if (request.onUsage && usage) {
         const cachedInputUnits =
-          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0;
+          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details
+            ?.cached_tokens ?? 0;
         const inputUnits = usage.prompt_tokens ?? 0;
         request.onUsage({
           provider: 'openai',
@@ -283,10 +314,23 @@ export class OpenAITextProvider implements ITextProvider {
         });
       }
 
-      return response.choices[0]?.message?.content || '';
+      const responseText = response.choices[0]?.message?.content || '';
+      await Promise.resolve(
+        request.onRawResponse?.({
+          provider: 'openai',
+          operation: request.operation ?? 'text_free',
+          model: this.model,
+          responseText,
+          responseLength: responseText.length,
+          finishReason: response.choices[0]?.finish_reason ?? null,
+        })
+      );
+      return responseText;
     } catch (error) {
       logger.error({ error }, 'OpenAI text generation failed');
-      throw new Error(`OpenAI text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `OpenAI text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -322,7 +366,9 @@ export class OpenAITextProvider implements ITextProvider {
       if (request.onError) {
         request.onError(error instanceof Error ? error : new Error(String(error)));
       }
-      throw new Error(`OpenAI streaming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `OpenAI streaming failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -410,10 +456,7 @@ export class OpenAITextProvider implements ITextProvider {
   /**
    * Call OpenAI API with retry logic for transient failures
    */
-  private async callWithRetry<T>(
-    fn: () => Promise<T>,
-    maxRetries: number = 2
-  ): Promise<T> {
+  private async callWithRetry<T>(fn: () => Promise<T>, maxRetries: number = 2): Promise<T> {
     let lastError: Error | null = null;
 
     for (let i = 0; i <= maxRetries; i++) {
@@ -438,8 +481,11 @@ export class OpenAITextProvider implements ITextProvider {
 
         // Exponential backoff
         const delay = Math.pow(2, i) * 1000;
-        logger.warn({ retry: i + 1, delay, error: errorMsg }, 'OpenAI API call failed, retrying...');
-        await new Promise(resolve => setTimeout(resolve, delay));
+        logger.warn(
+          { retry: i + 1, delay, error: errorMsg },
+          'OpenAI API call failed, retrying...'
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 

@@ -1,7 +1,7 @@
 /**
  * Character Analysis Service
  * Analyzes character photos using Gemini Vision API to extract detailed descriptions
- * 
+ *
  * Rules:
  * - Uses Gemini Vision to analyze reference photos
  * - Extracts structured appearance data, clothing, and distinctive features
@@ -14,15 +14,15 @@ import type { ITextProvider } from '../providers/base/ITextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import type { CharacterType } from '@wondertales/shared';
-import { 
-  FUR_COLORS, 
-  FUR_PATTERNS, 
-  FUR_LENGTHS, 
-  PET_SIZES, 
+import {
+  FUR_COLORS,
+  FUR_PATTERNS,
+  FUR_LENGTHS,
+  PET_SIZES,
   PET_EYE_COLORS,
   PET_DISTINCTIVE_FEATURES,
-  HUMAN_HAIR_COLORS, 
-  HUMAN_HAIR_LENGTHS, 
+  HUMAN_HAIR_COLORS,
+  HUMAN_HAIR_LENGTHS,
   HUMAN_HAIR_STYLES,
   EYE_COLORS, // из childTraits.ts
   SKIN_TONES, // из childTraits.ts
@@ -35,7 +35,7 @@ import {
   CLOTHING_COLORS,
   AGE_RANGES,
   HUMAN_DISTINCTIVE_FEATURES,
-  DISTINCTIVE_FEATURES as CHILD_DISTINCTIVE_FEATURES // ✅ Добавлен импорт для детей
+  DISTINCTIVE_FEATURES as CHILD_DISTINCTIVE_FEATURES, // ✅ Добавлен импорт для детей
 } from '@wondertales/shared';
 
 /**
@@ -91,16 +91,26 @@ export interface CharacterAnalysisOptions {
   onUsage?: (usage: UsageMetadata) => void;
 }
 
+export interface ExtractChildAppearanceFromDescriptionRequest {
+  description: string;
+  language?: string;
+}
+
+export interface ChildAppearanceExtractionResult {
+  appearanceTraits: CharacterAnalysisResult['appearanceTraits'];
+  distinctiveFeatures: string[] | null;
+}
+
 /**
  * Structured result from character analysis
  */
 export interface CharacterAnalysisResult {
   // Suggested character name (for instant mode)
   suggestedName: string;
-  
+
   // Flowing narrative description (always required)
   detailedDescription: string;
-  
+
   // Structured characteristics (all nullable if not determinable from photos)
   appearanceTraits: {
     // For people
@@ -113,7 +123,7 @@ export interface CharacterAnalysisResult {
     bodyType?: BuildType | null;
     height?: HeightType | null;
     age?: AgeGroupType | null;
-    
+
     // For animals
     species?: string | null;
     breed?: string | null;
@@ -122,7 +132,7 @@ export interface CharacterAnalysisResult {
     furLength?: FurLengthType | null;
     size?: PetSizeType | null;
     eyeColorAnimal?: PetEyeColorType | null;
-    
+
     // For fantasy creatures
     fantasyType?: string | null;
     magicalFeatures?: string[] | null;
@@ -143,7 +153,7 @@ export interface CharacterAnalysisResult {
     wingType?: string | null;
     tailShape?: string | null;
   } | null;
-  
+
   // Clothing and accessories (nullable if not visible)
   clothing: {
     style?: ClothingStyleType | 'fantasy' | null;
@@ -151,7 +161,7 @@ export interface CharacterAnalysisResult {
     distinctiveItems?: ClothingItemType[] | null;
     accessories?: AccessoryType[] | null;
   } | null;
-  
+
   // Distinctive features (nullable if none detected)
   distinctiveFeatures: string[] | null;
 }
@@ -160,31 +170,33 @@ export interface CharacterAnalysisResult {
  * Service for analyzing character photos using Gemini Vision API
  */
 export class CharacterAnalysisService {
-  constructor(
-    private textProvider: ITextProvider
-  ) {}
-  
+  constructor(private textProvider: ITextProvider) {}
+
   /**
    * Analyze character from reference photos
    * Returns structured description and appearance data
    */
-  async analyzeCharacter(request: AnalyzeCharacterRequest, options?: CharacterAnalysisOptions): Promise<CharacterAnalysisResult> {
-    logger.info({ 
-      photoCount: request.photos.length, 
-      characterType: request.characterType 
-    }, 'Starting character analysis with Gemini Vision');
-    
-    // 1. Download photos from URLs (already preprocessed at upload time by assetStorageService)
-    const photoBuffers = await Promise.all(
-      request.photos.map(url => this.downloadImage(url))
+  async analyzeCharacter(
+    request: AnalyzeCharacterRequest,
+    options?: CharacterAnalysisOptions
+  ): Promise<CharacterAnalysisResult> {
+    logger.info(
+      {
+        photoCount: request.photos.length,
+        characterType: request.characterType,
+      },
+      'Starting character analysis with Gemini Vision'
     );
-    
+
+    // 1. Download photos from URLs (already preprocessed at upload time by assetStorageService)
+    const photoBuffers = await Promise.all(request.photos.map((url) => this.downloadImage(url)));
+
     // 2. Convert to base64 for Gemini Vision
-    const imageData = photoBuffers.map(buffer => ({
+    const imageData = photoBuffers.map((buffer) => ({
       mimeType: 'image/jpeg' as const,
-      data: buffer.toString('base64')
+      data: buffer.toString('base64'),
     }));
-    
+
     // 3. Build analysis prompt
     const prompt = this.buildAnalysisPrompt(
       request.characterType,
@@ -192,90 +204,164 @@ export class CharacterAnalysisService {
       request.existingTraits,
       request.isChildProfile
     );
-    
+
     // 4. Call Gemini Vision API with structured output
     try {
       // Use gemini-1.5-flash or gemini-1.5-pro for vision + structured output
       // Note: gemini-2.0-flash-exp might not be available yet
-    const result = await this.textProvider.generateStructured<CharacterAnalysisResult>({
-      model: config.ai?.geminiVisionModel || 'gemini-2.5-flash', // Use configured vision model
-      prompt,
-      imageData, // Multiple images
-      schema: this.getCharacterAnalysisSchema(request.characterType), // Pass characterType for proper enum
-      temperature: 0.3, // Lower temperature for consistent analysis
-      relaxedSafety: true, // ✅ Use ultra-relaxed safety for photo analysis
-      onUsage: options?.onUsage,
-      operation: 'character_analysis',
-    });
-      
+      const result = await this.textProvider.generateStructured<CharacterAnalysisResult>({
+        model: config.ai?.geminiVisionModel || 'gemini-2.5-flash', // Use configured vision model
+        prompt,
+        imageData, // Multiple images
+        schema: this.getCharacterAnalysisSchema(request.characterType), // Pass characterType for proper enum
+        temperature: 0.3, // Lower temperature for consistent analysis
+        relaxedSafety: true, // ✅ Use ultra-relaxed safety for photo analysis
+        onUsage: options?.onUsage,
+        operation: 'character_analysis',
+      });
+
       // Enforce array limits (in case AI returns more than allowed)
       if (result.distinctiveFeatures && result.distinctiveFeatures.length > 5) {
-        logger.warn({ 
-          field: 'distinctiveFeatures',
-          original: result.distinctiveFeatures.length,
-          trimmed: 5 
-        }, 'Trimming array to max limit');
+        logger.warn(
+          {
+            field: 'distinctiveFeatures',
+            original: result.distinctiveFeatures.length,
+            trimmed: 5,
+          },
+          'Trimming array to max limit'
+        );
         result.distinctiveFeatures = result.distinctiveFeatures.slice(0, 5);
       }
-      
+
       if (result.clothing) {
         if (result.clothing.colors && result.clothing.colors.length > 3) {
-          logger.warn({ 
-            field: 'clothing.colors',
-            original: result.clothing.colors.length,
-            trimmed: 3 
-          }, 'Trimming array to max limit');
+          logger.warn(
+            {
+              field: 'clothing.colors',
+              original: result.clothing.colors.length,
+              trimmed: 3,
+            },
+            'Trimming array to max limit'
+          );
           result.clothing.colors = result.clothing.colors.slice(0, 3);
         }
         if (result.clothing.distinctiveItems && result.clothing.distinctiveItems.length > 5) {
-          logger.warn({ 
-            field: 'clothing.distinctiveItems',
-            original: result.clothing.distinctiveItems.length,
-            trimmed: 5 
-          }, 'Trimming array to max limit');
+          logger.warn(
+            {
+              field: 'clothing.distinctiveItems',
+              original: result.clothing.distinctiveItems.length,
+              trimmed: 5,
+            },
+            'Trimming array to max limit'
+          );
           result.clothing.distinctiveItems = result.clothing.distinctiveItems.slice(0, 5);
         }
         if (result.clothing.accessories && result.clothing.accessories.length > 5) {
-          logger.warn({ 
-            field: 'clothing.accessories',
-            original: result.clothing.accessories.length,
-            trimmed: 5 
-          }, 'Trimming array to max limit');
+          logger.warn(
+            {
+              field: 'clothing.accessories',
+              original: result.clothing.accessories.length,
+              trimmed: 5,
+            },
+            'Trimming array to max limit'
+          );
           result.clothing.accessories = result.clothing.accessories.slice(0, 5);
         }
       }
-      
-      if (result.appearanceTraits?.magicalFeatures && result.appearanceTraits.magicalFeatures.length > 10) {
-        logger.warn({ 
-          field: 'appearanceTraits.magicalFeatures',
-          original: result.appearanceTraits.magicalFeatures.length,
-          trimmed: 10 
-        }, 'Trimming array to max limit');
-        result.appearanceTraits.magicalFeatures = result.appearanceTraits.magicalFeatures.slice(0, 10);
+
+      if (
+        result.appearanceTraits?.magicalFeatures &&
+        result.appearanceTraits.magicalFeatures.length > 10
+      ) {
+        logger.warn(
+          {
+            field: 'appearanceTraits.magicalFeatures',
+            original: result.appearanceTraits.magicalFeatures.length,
+            trimmed: 10,
+          },
+          'Trimming array to max limit'
+        );
+        result.appearanceTraits.magicalFeatures = result.appearanceTraits.magicalFeatures.slice(
+          0,
+          10
+        );
       }
-      
-      logger.info({ 
-        hasDescription: !!result.detailedDescription,
-        hasAppearanceTraits: !!result.appearanceTraits,
-        hasClothing: !!result.clothing,
-        featuresCount: result.distinctiveFeatures?.length || 0
-      }, 'Character analysis completed');
-      
+
+      logger.info(
+        {
+          hasDescription: !!result.detailedDescription,
+          hasAppearanceTraits: !!result.appearanceTraits,
+          hasClothing: !!result.clothing,
+          featuresCount: result.distinctiveFeatures?.length || 0,
+        },
+        'Character analysis completed'
+      );
+
       return result;
     } catch (error) {
-      logger.error({ 
-        error: error instanceof Error ? {
-          message: error.message,
-          name: error.name,
-          stack: error.stack
-        } : String(error),
-        characterType: request.characterType,
-        photoCount: request.photos.length
-      }, 'Character analysis failed');
-      throw new Error(`Failed to analyze character: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error(
+        {
+          error:
+            error instanceof Error
+              ? {
+                  message: error.message,
+                  name: error.name,
+                  stack: error.stack,
+                }
+              : String(error),
+          characterType: request.characterType,
+          photoCount: request.photos.length,
+        },
+        'Character analysis failed'
+      );
+      throw new Error(
+        `Failed to analyze character: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
-  
+
+  /**
+   * Extract only physical traits which the parent explicitly supplied in a
+   * child description. This intentionally does not turn a prose description
+   * into a fuller portrait: absent or ambiguous traits stay null.
+   */
+  async extractChildAppearanceFromDescription(
+    request: ExtractChildAppearanceFromDescriptionRequest,
+    options?: CharacterAnalysisOptions
+  ): Promise<ChildAppearanceExtractionResult> {
+    const description = request.description.trim();
+    if (!description) {
+      return { appearanceTraits: null, distinctiveFeatures: null };
+    }
+
+    const result = await this.textProvider.generateStructured<ChildAppearanceExtractionResult>({
+      model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+      temperature: 0,
+      maxTokens: 512,
+      operation: 'child_appearance_description_extraction',
+      onUsage: options?.onUsage,
+      schema: this.getChildAppearanceExtractionSchema(),
+      prompt: `Extract structured physical appearance traits from this parent-provided child description. The description may be written in ${request.language || 'an unspecified language'}.
+
+CRITICAL RULES:
+- Return a value only when it is explicitly stated in the description.
+- Do not infer a trait from a name, age, gender, nationality, ethnicity, clothing, or context.
+- Do not guess traits that are merely likely or typical.
+- If wording is ambiguous or does not map exactly to an allowed value, use null.
+- This is data extraction, not a creative rewrite. Do not add a description or any new facts.
+
+Parent-provided description:
+${description}`,
+    });
+
+    return {
+      appearanceTraits: result.appearanceTraits || null,
+      distinctiveFeatures: Array.isArray(result.distinctiveFeatures)
+        ? result.distinctiveFeatures.slice(0, 5)
+        : null,
+    };
+  }
+
   /**
    * Build prompt for character analysis based on type
    */
@@ -285,32 +371,38 @@ export class CharacterAnalysisService {
     existingTraits?: Record<string, any>,
     isChildProfile?: boolean
   ): string {
-    const characterTypeLabel = characterType === 'person' ? 'person/human' : 
-                               characterType === 'animal' ? 'animal/pet' : 
-                               'imaginary creature';
-    
+    const characterTypeLabel =
+      characterType === 'person'
+        ? 'person/human'
+        : characterType === 'animal'
+          ? 'animal/pet'
+          : 'imaginary creature';
+
     const languageMap: Record<string, string> = {
-      'uk': 'Ukrainian',
-      'ru': 'Russian',
-      'en': 'English',
-      'es': 'Spanish',
-      'de': 'German',
-      'fr': 'French'
+      uk: 'Ukrainian',
+      ru: 'Russian',
+      en: 'English',
+      es: 'Spanish',
+      de: 'German',
+      fr: 'French',
     };
     const baseLocale = (language || '').split('-')[0]?.toLowerCase() || 'en';
     const languageName = languageMap[baseLocale] || 'English';
-    
+
     // Type-specific description guidance (used in the prompt for DETAILED_DESCRIPTION section)
-    const descriptionGuidance = characterType === 'person'
-      ? isChildProfile
-        ? `A factual, concise description of the child's physical appearance (2-3 sentences) in ${languageName}. Use plain language, no artistic or flowery phrases. Describe from top to bottom: hair (color, length, style), face (eyes, nose, mouth, skin tone), distinctive features (freckles, dimples, birthmarks if visible), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible. Do NOT invent or use any names. Do NOT describe objects the child is holding (toys, stuffed animals, pets, etc.) — focus only on the child's appearance.`
-        : `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
-      : characterType === 'animal'
-      ? `A flowing, narrative description of the animal's appearance (2-3 sentences) in ${languageName}. Start with species/breed, then describe fur/feathers (color, pattern, length, texture), body shape and size, distinctive markings (spots, patches, stripes with locations), and any accessories (collar, bandana).`
-      : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. ANTHROPOMORPHIC LIMB RULE: AI illustration renders creatures in an anthropomorphic style — the front/upper pair of appendages becomes arms, the rest stay as legs. Describe limbs accordingly: 4 appendages = "two arms and two legs" (NOT "four legs"); 6 appendages = "two arms and four legs" (NOT "six legs"); 8 appendages = "two arms and six legs" (NOT "eight legs"). Exception: if ALL appendages are clearly legs (all in shoes/boots, creature walks on all fours like an animal, no grasping limbs), describe them all as legs and note "quadrupedal" or "multi-legged" explicitly. Mention any drawn accessories or magical elements.`;
+    const descriptionGuidance =
+      characterType === 'person'
+        ? isChildProfile
+          ? `A factual, concise description of the child's physical appearance (2-3 sentences) in ${languageName}. Use plain language, no artistic or flowery phrases. Describe from top to bottom: hair (color, length, style), face (eyes, nose, mouth, skin tone), distinctive features (freckles, dimples, birthmarks if visible), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible. Do NOT invent or use any names. Do NOT describe objects the child is holding (toys, stuffed animals, pets, etc.) — focus only on the child's appearance.`
+          : `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
+        : characterType === 'animal'
+          ? `A flowing, narrative description of the animal's appearance (2-3 sentences) in ${languageName}. Start with species/breed, then describe fur/feathers (color, pattern, length, texture), body shape and size, distinctive markings (spots, patches, stripes with locations), and any accessories (collar, bandana).`
+          : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. ANTHROPOMORPHIC LIMB RULE: AI illustration renders creatures in an anthropomorphic style — the front/upper pair of appendages becomes arms, the rest stay as legs. Describe limbs accordingly: 4 appendages = "two arms and two legs" (NOT "four legs"); 6 appendages = "two arms and four legs" (NOT "six legs"); 8 appendages = "two arms and six legs" (NOT "eight legs"). Exception: if ALL appendages are clearly legs (all in shoes/boots, creature walks on all fours like an animal, no grasping limbs), describe them all as legs and note "quadrupedal" or "multi-legged" explicitly. Mention any drawn accessories or magical elements.`;
 
     // Fully type-specific visual analysis guidance — each type gets ONLY its relevant sections
-    const traitGuidance = characterType === 'person' ? `
+    const traitGuidance =
+      characterType === 'person'
+        ? `
   HEAD & FACE:
    - Hair: color (${HUMAN_HAIR_COLORS.join('/')}), style (${HUMAN_HAIR_STYLES.join('/')}), length (${HUMAN_HAIR_LENGTHS.join('/')}) - return null if not visible
    - Hair texture: straight/wavy/curly/coily/frizzy - note if visible
@@ -350,9 +442,9 @@ export class CharacterAnalysisService {
    - Choose from: (${HUMAN_DISTINCTIVE_FEATURES.join('/')})
    - For children also consider: (${CHILD_DISTINCTIVE_FEATURES.join('/')})
    - Return null or empty array if none visible
-   - Select only the MOST distinctive and recognizable features` :
-
-    characterType === 'animal' ? `
+   - Select only the MOST distinctive and recognizable features`
+        : characterType === 'animal'
+          ? `
   HEAD:
    - Eyes: color (${PET_EYE_COLORS.join('/')}), shape (round/almond/narrow), size (small/normal/large), expression - return null if not visible
    - Ears: shape (floppy/pointy/short/folded/large/round/tufted), position (upright/sideways/back), size relative to head - return null if not visible
@@ -395,7 +487,8 @@ export class CharacterAnalysisService {
   DISTINCTIVE FEATURES (max 5):
    - Choose from: (${PET_DISTINCTIVE_FEATURES.join('/')})
    - Return null or empty array if none visible
-   - Select only the MOST distinctive and recognizable features` : `
+   - Select only the MOST distinctive and recognizable features`
+          : `
 
   CRITICAL - EXACT BODY PART COUNTS (imaginary creatures may have unusual anatomy):
    - Number of eyes: (0? 1? 2? 3? many? where positioned on body/head/stalks?)
@@ -480,9 +573,10 @@ IMPORTANT: Return null for ANY field that you cannot confidently determine from 
 
 Please provide a comprehensive JSON response with the following structure:
 
-1. SUGGESTED_NAME: ${isChildProfile && characterType === 'person' 
-    ? `Return empty string "". Do NOT invent or guess any name — this is a child profile, not a fictional character.`
-    : `A creative, fictional name for this character (1-3 words).
+1. SUGGESTED_NAME: ${
+      isChildProfile && characterType === 'person'
+        ? `Return empty string "". Do NOT invent or guess any name — this is a child profile, not a fictional character.`
+        : `A creative, fictional name for this character (1-3 words).
    - IMPORTANT: The name MUST be in ${languageName} language
    - For people: Invent a name that fits their age and personality
      Examples for Ukrainian: "Софійка", "Максимко", "Олівія", "Лео"
@@ -494,7 +588,8 @@ Please provide a comprehensive JSON response with the following structure:
      Examples for Ukrainian: "Блакитко", "Зірочка", "Фіолетик"
      Examples for English: "Bluey", "Starlight", "Violet"
    - Make it sound natural, like a real storybook character name
-   - Avoid generic descriptive labels like "Girl with Hair" or "Blue Dragon"`}
+   - Avoid generic descriptive labels like "Girl with Hair" or "Blue Dragon"`
+    }
 
 2. DETAILED_DESCRIPTION: ${descriptionGuidance}
    This should be based ONLY on what is visible in the photos. If photos are very unclear, describe what you CAN see.
@@ -519,7 +614,7 @@ ${existingTraits ? `\nExisting traits (for reference, but trust your analysis mo
 
 Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
   }
-  
+
   /**
    * Get JSON schema for character analysis
    * Defines all nullable fields to allow AI to return null for unclear features
@@ -527,233 +622,271 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
    */
   private getCharacterAnalysisSchema(characterType: 'person' | 'animal' | 'imaginary'): any {
     // Select appropriate distinctive features enum based on character type
-    const distinctiveFeaturesEnum = characterType === 'animal' 
-      ? [...PET_DISTINCTIVE_FEATURES]
-      : characterType === 'person'
-      ? [...CHILD_DISTINCTIVE_FEATURES, ...HUMAN_DISTINCTIVE_FEATURES] // Combine child and human for people
-      : [...CHILD_DISTINCTIVE_FEATURES, ...HUMAN_DISTINCTIVE_FEATURES, ...PET_DISTINCTIVE_FEATURES]; // All for imaginary
-    
+    const distinctiveFeaturesEnum =
+      characterType === 'animal'
+        ? [...PET_DISTINCTIVE_FEATURES]
+        : characterType === 'person'
+          ? [...CHILD_DISTINCTIVE_FEATURES, ...HUMAN_DISTINCTIVE_FEATURES] // Combine child and human for people
+          : [
+              ...CHILD_DISTINCTIVE_FEATURES,
+              ...HUMAN_DISTINCTIVE_FEATURES,
+              ...PET_DISTINCTIVE_FEATURES,
+            ]; // All for imaginary
+
     return {
       type: 'object' as const,
       properties: {
         suggestedName: {
           type: 'string',
-          description: 'A short descriptive name for the character (1-3 words)'
+          description: 'A short descriptive name for the character (1-3 words)',
         },
-        detailedDescription: { 
+        detailedDescription: {
           type: 'string',
-          description: 'A flowing narrative description of the character\'s appearance (2-3 sentences)'
+          description:
+            "A flowing narrative description of the character's appearance (2-3 sentences)",
         },
         appearanceTraits: {
           type: ['object', 'null'],
           description: 'Structured appearance characteristics (null if photo too unclear)',
           properties: {
             // Human fields
-            hairColor: { 
-              type: ['string', 'null'], 
+            hairColor: {
+              type: ['string', 'null'],
               enum: toEnumWithNull(HUMAN_HAIR_COLORS),
-              description: 'Hair color (null if not visible)'
+              description: 'Hair color (null if not visible)',
             },
-            hairStyle: { 
-              type: ['string', 'null'], 
+            hairStyle: {
+              type: ['string', 'null'],
               enum: toEnumWithNull(HUMAN_HAIR_STYLES),
-              description: 'Hair style (null if not visible)'
+              description: 'Hair style (null if not visible)',
             },
-            hairLength: { 
+            hairLength: {
               type: ['string', 'null'],
               enum: toEnumWithNull(HUMAN_HAIR_LENGTHS),
-              description: 'Hair length (null if not determinable)'
+              description: 'Hair length (null if not determinable)',
             },
-            eyeColor: { 
-              type: ['string', 'null'], 
+            eyeColor: {
+              type: ['string', 'null'],
               enum: toEnumWithNull(EYE_COLORS),
-              description: 'Eye color (null if not visible)'
+              description: 'Eye color (null if not visible)',
             },
-            skinTone: { 
+            skinTone: {
               type: ['string', 'null'],
               enum: toEnumWithNull(SKIN_TONES),
-              description: 'Skin tone (null if unclear)'
+              description: 'Skin tone (null if unclear)',
             },
-            faceShape: { 
+            faceShape: {
               type: ['string', 'null'],
               enum: toEnumWithNull(FACE_SHAPES),
-              description: 'Face shape (null if unclear)'
+              description: 'Face shape (null if unclear)',
             },
-            bodyType: { 
+            bodyType: {
               type: ['string', 'null'],
               enum: toEnumWithNull(BUILDS),
-              description: 'Body type (null if not determinable)'
+              description: 'Body type (null if not determinable)',
             },
-            height: { 
+            height: {
               type: ['string', 'null'],
               enum: toEnumWithNull(HEIGHTS),
-              description: 'Relative height (null if not determinable)'
+              description: 'Relative height (null if not determinable)',
             },
-            age: { 
+            age: {
               type: ['string', 'null'],
               enum: toEnumWithNull(CHARACTER_AGE_GROUPS),
-              description: 'Age group (null if unclear)'
+              description: 'Age group (null if unclear)',
             },
             // Animal fields
-            species: { 
+            species: {
               type: ['string', 'null'],
-              description: 'Animal species (null if not recognizable)'
+              description: 'Animal species (null if not recognizable)',
             },
-            breed: { 
+            breed: {
               type: ['string', 'null'],
-              description: 'Animal breed (null if not recognizable)'
+              description: 'Animal breed (null if not recognizable)',
             },
-            furColor: { 
+            furColor: {
               type: ['string', 'null'],
               enum: toEnumWithNull(FUR_COLORS),
-              description: 'Fur or feather primary color (null if not visible)'
+              description: 'Fur or feather primary color (null if not visible)',
             },
-            furPattern: { 
+            furPattern: {
               type: ['string', 'null'],
               enum: toEnumWithNull(FUR_PATTERNS),
-              description: 'Fur pattern (null if not visible)'
+              description: 'Fur pattern (null if not visible)',
             },
-            furLength: { 
+            furLength: {
               type: ['string', 'null'],
               enum: toEnumWithNull(FUR_LENGTHS),
-              description: 'Fur length (null if not visible)'
+              description: 'Fur length (null if not visible)',
             },
-            size: { 
+            size: {
               type: ['string', 'null'],
               enum: toEnumWithNull(PET_SIZES),
-              description: 'Relative size (null if unclear)'
+              description: 'Relative size (null if unclear)',
             },
-            eyeColorAnimal: { 
+            eyeColorAnimal: {
               type: ['string', 'null'],
               enum: toEnumWithNull(PET_EYE_COLORS),
-              description: 'Eye color for animals (null if not visible)'
+              description: 'Eye color for animals (null if not visible)',
             },
             // Fantasy fields
-            fantasyType: { 
+            fantasyType: {
               type: ['string', 'null'],
-              description: 'Fantasy creature type (null if not applicable)'
+              description: 'Fantasy creature type (null if not applicable)',
             },
-            magicalFeatures: { 
-              type: ['array', 'null'], 
+            magicalFeatures: {
+              type: ['array', 'null'],
               items: { type: 'string' },
               maxItems: 10,
-              description: 'Magical features - max 10 items (null if none visible)'
+              description: 'Magical features - max 10 items (null if none visible)',
             },
             // Imaginary creature structured fields
             bodyShape: {
               type: ['string', 'null'],
-              description: 'Overall body shape: round/oval/square/triangular/blob/elongated/star-shaped/amorphous/serpentine/humanoid (null if unclear)'
+              description:
+                'Overall body shape: round/oval/square/triangular/blob/elongated/star-shaped/amorphous/serpentine/humanoid (null if unclear)',
             },
             bodyTexture: {
               type: ['string', 'null'],
-              description: 'Surface texture: furry/scaly/smooth/spiky/slimy/rocky/crystalline/feathered/woolly/metallic/gelatinous (null if unclear)'
+              description:
+                'Surface texture: furry/scaly/smooth/spiky/slimy/rocky/crystalline/feathered/woolly/metallic/gelatinous (null if unclear)',
             },
             primaryColor: {
               type: ['string', 'null'],
-              description: 'Main body color (null if unclear)'
+              description: 'Main body color (null if unclear)',
             },
             secondaryColor: {
               type: ['string', 'null'],
-              description: 'Secondary/accent color (null if not present or unclear)'
+              description: 'Secondary/accent color (null if not present or unclear)',
             },
             colorPattern: {
               type: ['string', 'null'],
-              description: 'Color pattern: solid/spotted/striped/swirled/checkered/starry/geometric/gradient/rainbow (null if not applicable)'
+              description:
+                'Color pattern: solid/spotted/striped/swirled/checkered/starry/geometric/gradient/rainbow (null if not applicable)',
             },
             eyeCount: {
               type: ['number', 'null'],
-              description: 'Exact number of eyes (null if unclear)'
+              description: 'Exact number of eyes (null if unclear)',
             },
             earCount: {
               type: ['number', 'null'],
-              description: 'Exact number of ears (null if unclear or absent)'
+              description: 'Exact number of ears (null if unclear or absent)',
             },
             armCount: {
               type: ['number', 'null'],
-              description: 'Exact number of arms/tentacles (null if unclear or absent)'
+              description: 'Exact number of arms/tentacles (null if unclear or absent)',
             },
             legCount: {
               type: ['number', 'null'],
-              description: 'Exact number of legs (null if unclear or absent)'
+              description: 'Exact number of legs (null if unclear or absent)',
             },
             wingCount: {
               type: ['number', 'null'],
-              description: 'Exact number of wings (null if absent)'
+              description: 'Exact number of wings (null if absent)',
             },
             tailCount: {
               type: ['number', 'null'],
-              description: 'Exact number of tails (null if absent)'
+              description: 'Exact number of tails (null if absent)',
             },
             hornCount: {
               type: ['number', 'null'],
-              description: 'Exact number of horns (null if absent)'
+              description: 'Exact number of horns (null if absent)',
             },
             headCount: {
               type: ['number', 'null'],
-              description: 'Exact number of heads (null if unclear, usually 1)'
+              description: 'Exact number of heads (null if unclear, usually 1)',
             },
             wingType: {
               type: ['string', 'null'],
-              description: 'Wing type: bat-like/bird-like/butterfly/dragonfly/fairy/insect/membrane (null if no wings)'
+              description:
+                'Wing type: bat-like/bird-like/butterfly/dragonfly/fairy/insect/membrane (null if no wings)',
             },
             tailShape: {
               type: ['string', 'null'],
-              description: 'Tail shape: bushy/thin/arrow-tip/heart-tip/star-tip/flame-tip/curled/spiked (null if no tail)'
-            }
-          }
+              description:
+                'Tail shape: bushy/thin/arrow-tip/heart-tip/star-tip/flame-tip/curled/spiked (null if no tail)',
+            },
+          },
         },
         clothing: {
           type: ['object', 'null'],
           description: 'Clothing and accessories (null if not visible)',
           properties: {
-            style: { 
+            style: {
               type: ['string', 'null'],
               enum: [...CLOTHING_STYLES, 'fantasy', null],
-              description: 'Clothing style (null if unclear)'
+              description: 'Clothing style (null if unclear)',
             },
-            colors: { 
-              type: ['array', 'null'], 
-              items: { 
+            colors: {
+              type: ['array', 'null'],
+              items: {
                 type: 'string',
-                enum: [...CLOTHING_COLORS]
+                enum: [...CLOTHING_COLORS],
               },
               maxItems: 3,
-              description: 'Clothing colors - max 3 (null if not visible)'
+              description: 'Clothing colors - max 3 (null if not visible)',
             },
-            distinctiveItems: { 
-              type: ['array', 'null'], 
-              items: { 
+            distinctiveItems: {
+              type: ['array', 'null'],
+              items: {
                 type: 'string',
-                enum: [...CLOTHING_ITEMS]
+                enum: [...CLOTHING_ITEMS],
               },
               maxItems: 5,
-              description: 'Distinctive clothing items - max 5 (null if none visible)'
+              description: 'Distinctive clothing items - max 5 (null if none visible)',
             },
-            accessories: { 
-              type: ['array', 'null'], 
-              items: { 
+            accessories: {
+              type: ['array', 'null'],
+              items: {
                 type: 'string',
-                enum: [...ACCESSORIES]
+                enum: [...ACCESSORIES],
               },
               maxItems: 5,
-              description: 'Accessories - max 5 (null if none visible)'
-            }
-          }
+              description: 'Accessories - max 5 (null if none visible)',
+            },
+          },
         },
         distinctiveFeatures: {
           type: ['array', 'null'],
-          items: { 
+          items: {
             type: 'string',
-            enum: distinctiveFeaturesEnum // Use character-type-specific enum
+            enum: distinctiveFeaturesEnum, // Use character-type-specific enum
           },
           maxItems: 5,
-          description: 'Notable marks, expressions, or characteristics - max 5 items (null if none)'
-        }
+          description:
+            'Notable marks, expressions, or characteristics - max 5 items (null if none)',
+        },
       },
-      required: ['suggestedName', 'detailedDescription'] // Name and description are required
+      required: ['suggestedName', 'detailedDescription'], // Name and description are required
     };
   }
-  
+
+  private getChildAppearanceExtractionSchema(): any {
+    return {
+      type: 'object' as const,
+      additionalProperties: false,
+      required: ['appearanceTraits', 'distinctiveFeatures'],
+      properties: {
+        appearanceTraits: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          properties: {
+            hairColor: { type: ['string', 'null'], enum: toEnumWithNull(HUMAN_HAIR_COLORS) },
+            hairLength: { type: ['string', 'null'], enum: toEnumWithNull(HUMAN_HAIR_LENGTHS) },
+            hairStyle: { type: ['string', 'null'], enum: toEnumWithNull(HUMAN_HAIR_STYLES) },
+            eyeColor: { type: ['string', 'null'], enum: toEnumWithNull(EYE_COLORS) },
+            skinTone: { type: ['string', 'null'], enum: toEnumWithNull(SKIN_TONES) },
+          },
+        },
+        distinctiveFeatures: {
+          type: ['array', 'null'],
+          items: { type: 'string', enum: [...CHILD_DISTINCTIVE_FEATURES] },
+          maxItems: 5,
+        },
+      },
+    };
+  }
+
   /**
    * Download image from URL and return as buffer
    * Uses native fetch (Node 18+)
@@ -781,7 +914,9 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
       return Buffer.from(arrayBuffer);
     } catch (error) {
       logger.error({ error, url }, 'Failed to download image');
-      throw new Error(`Failed to download image from ${url}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to download image from ${url}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }

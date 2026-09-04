@@ -88,6 +88,15 @@ export class MockTextProvider implements ITextProvider {
     if (step.kind !== 'text') {
       throw new Error(`Mock text step mismatch: expected text, received ${step.kind}`);
     }
+    await Promise.resolve(
+      request.onRawResponse?.({
+        provider: 'mock',
+        operation: request.operation ?? 'text_free',
+        model: 'mock-text',
+        responseText: step.response,
+        responseLength: step.response.length,
+      })
+    );
     return step.response;
   }
 

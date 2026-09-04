@@ -103,8 +103,19 @@ async function main(): Promise<void> {
     };
   }
 
+  const textProvider = new MockTextProvider().queueStructured(
+    'child_appearance_description_extraction',
+    {
+      appearanceTraits: {
+        hairColor: 'dark_brown',
+        eyeColor: 'green',
+        skinTone: null,
+      },
+      distinctiveFeatures: ['freckles'],
+    }
+  );
   installAiServiceTestOverrides({
-    textProvider: new MockTextProvider(),
+    textProvider,
     validationTextProvider: new MockTextProvider(),
   });
 
@@ -278,6 +289,11 @@ async function main(): Promise<void> {
     assert.equal(createOkBody.child.name, 'Mira');
     assert.deepEqual(createOkBody.child.storyComplexityAdjustments, { en: -2 });
     assert.ok(profilesById.has(childId));
+    assert.deepEqual(profilesById.get(childId)?.appearanceTraits, {
+      hairColor: 'dark_brown',
+      eyeColor: 'green',
+      distinctiveFeatures: ['freckles'],
+    });
 
     const listOne = await request('GET', '/api/v1/children');
     assert.equal(listOne.status, 200, 'list with child returns 200');

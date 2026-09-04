@@ -108,7 +108,11 @@ export class GeminiTextProvider implements ITextProvider {
         );
       }
 
-      const contentParts = this.buildContentParts(promptText, request.imageData, request.inputParts);
+      const contentParts = this.buildContentParts(
+        promptText,
+        request.imageData,
+        request.inputParts
+      );
 
       // Call Gemini API with retry logic
       const result = await this.callGeminiWithRetry(() =>
@@ -202,27 +206,31 @@ export class GeminiTextProvider implements ITextProvider {
           usage.candidatesTokenCount ??
           Math.max((usage.totalTokenCount ?? inputUnits) - inputUnits, 0);
         const cachedInputUnits = usage.cachedContentTokenCount ?? 0;
-        await Promise.resolve(request.onUsage({
+        await Promise.resolve(
+          request.onUsage({
+            provider: 'gemini',
+            operation: request.operation ?? 'text_structured',
+            model: modelName,
+            inputUnits,
+            effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
+            outputUnits,
+            cachedInputUnits,
+            cacheHit: cachedInputUnits > 0,
+            thoughtTokens: usage.thoughtsTokenCount ?? 0,
+          })
+        );
+      }
+
+      await Promise.resolve(
+        request.onRawResponse?.({
           provider: 'gemini',
           operation: request.operation ?? 'text_structured',
           model: modelName,
-          inputUnits,
-          effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
-          outputUnits,
-          cachedInputUnits,
-          cacheHit: cachedInputUnits > 0,
-          thoughtTokens: usage.thoughtsTokenCount ?? 0,
-        }));
-      }
-
-      await Promise.resolve(request.onRawResponse?.({
-        provider: 'gemini',
-        operation: request.operation ?? 'text_structured',
-        model: modelName,
-        responseText,
-        responseLength: responseText.length,
-        finishReason: candidate?.finishReason ?? null,
-      }));
+          responseText,
+          responseLength: responseText.length,
+          finishReason: candidate?.finishReason ?? null,
+        })
+      );
 
       if (candidate?.finishReason === 'MAX_TOKENS') {
         const effectiveMaxOut = Math.min(98304, Math.max(request.maxTokens ?? 8192, 8192));
@@ -436,7 +444,19 @@ export class GeminiTextProvider implements ITextProvider {
         });
       }
 
-      return result.text || '';
+      const responseText = result.text || '';
+      const candidate = result.candidates?.[0];
+      await Promise.resolve(
+        request.onRawResponse?.({
+          provider: 'gemini',
+          operation: request.operation ?? 'text_free',
+          model: this.model,
+          responseText,
+          responseLength: responseText.length,
+          finishReason: candidate?.finishReason ?? null,
+        })
+      );
+      return responseText;
     } catch (error) {
       logger.error({ error }, 'Gemini text generation failed');
       throw new Error(

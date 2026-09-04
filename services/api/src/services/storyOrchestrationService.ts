@@ -843,6 +843,7 @@ export async function processStoryRequest(requestId: string): Promise<{
       });
 
       const textGenOptions = {
+        requestId,
         onUsage: (u: any) => recordUsage(u, usageContext),
         ...(isContinuation &&
           continuationContext && {
@@ -1111,7 +1112,11 @@ export async function processStoryRequest(requestId: string): Promise<{
         spec.language
       );
 
-      bindPersistedCharacterRefs({ text, mergedCharacters, persistenceResults: llmCharacterResults });
+      bindPersistedCharacterRefs({
+        text,
+        mergedCharacters,
+        persistenceResults: llmCharacterResults,
+      });
 
       logger.info(
         {
@@ -1268,7 +1273,12 @@ export async function processStoryRequest(requestId: string): Promise<{
       'Text+validation phase completed, handing off to image queue'
     );
 
-    return { storyId, isScheduledContinuation: isScheduledContinuation || undefined, isScheduledStory: isScheduledStory || undefined, scheduleId };
+    return {
+      storyId,
+      isScheduledContinuation: isScheduledContinuation || undefined,
+      isScheduledStory: isScheduledStory || undefined,
+      scheduleId,
+    };
   } catch (error) {
     logger.error(
       {
@@ -1837,10 +1847,12 @@ function resolveSceneCharacterKeys(params: {
   });
 }
 
-function applySceneDisplayNamesToCharacterReferences<T extends {
-  characterId?: string;
-  characterName?: string;
-}>(references: T[], sceneVisual: SceneVisual | undefined): T[] {
+function applySceneDisplayNamesToCharacterReferences<
+  T extends {
+    characterId?: string;
+    characterName?: string;
+  },
+>(references: T[], sceneVisual: SceneVisual | undefined): T[] {
   const composition = sceneVisual?.cameraComposition;
   if (!composition || typeof composition === 'string') return references;
   const displayNameByRef = new Map(
@@ -2010,10 +2022,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
       uniqueTargetCharacters,
       config.image.parallelStreams,
       async (char) => {
-        const turnaround = (char as any).turnaroundSheet as
-          | { url?: string }
-          | null
-          | undefined;
+        const turnaround = (char as any).turnaroundSheet as { url?: string } | null | undefined;
         const storagePath = turnaround?.url ? extractStoragePath(turnaround.url) : null;
 
         if (!storagePath) return;
@@ -4436,9 +4445,7 @@ export function hasBlockingSceneCompositionMismatch(validation: ImageValidationR
 }
 
 /** Clearly broken character anatomy must trigger retry/repair even when identity still matches. */
-export function hasBlockingCharacterAnatomyArtifact(
-  validation: ImageValidationResult
-): boolean {
+export function hasBlockingCharacterAnatomyArtifact(validation: ImageValidationResult): boolean {
   return validation.characters.some(
     (character) =>
       character.anatomyArtifactSeverity === 'moderate' ||
@@ -4699,10 +4706,7 @@ function collectTargetedRepairIssues(
       issues.push(makeRepairIssue('age', note || 'Age read mismatch.'));
     if (c.proportionsMatchReference === false)
       issues.push(makeRepairIssue('body', note || 'Body proportion mismatch.'));
-    if (
-      c.anatomyArtifactSeverity === 'moderate' ||
-      c.anatomyArtifactSeverity === 'severe'
-    ) {
+    if (c.anatomyArtifactSeverity === 'moderate' || c.anatomyArtifactSeverity === 'severe') {
       issues.push(
         makeRepairIssue(
           'body',
@@ -4744,7 +4748,8 @@ function collectTargetedRepairIssues(
     issues.push(
       makeRepairIssue(
         'composition',
-        compactValidationText(validation.overallFeedback) || 'Scene composition has duplicate or missing anchors.'
+        compactValidationText(validation.overallFeedback) ||
+          'Scene composition has duplicate or missing anchors.'
       )
     );
 
@@ -5412,9 +5417,7 @@ async function generateSceneImageWithReference(
         storagePath: (ref as any).storagePath ?? ref.url,
         url:
           (ref as any).url ??
-          ((ref as any).storagePath
-            ? `/api/v1/assets/${(ref as any).storagePath}`
-            : undefined),
+          ((ref as any).storagePath ? `/api/v1/assets/${(ref as any).storagePath}` : undefined),
         referenceKind: refSource === 'environment' ? ('object' as const) : ('character' as const),
       };
     });
@@ -5527,7 +5530,11 @@ async function generateSceneImageWithReference(
           sceneVisual: migrateVisualPrompt(scene),
           referenceImages:
             validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
-          logContext: { storyId, sceneId: scene.sceneId, attempt: initialEditRepair.previousAttempt },
+          logContext: {
+            storyId,
+            sceneId: scene.sceneId,
+            attempt: initialEditRepair.previousAttempt,
+          },
           onUsage: (u) =>
             recordUsage(u, {
               userId: context.userId,
@@ -5868,7 +5875,7 @@ async function generateSceneImageWithReference(
               ? 'Image validation rejected because a technical REF_* identifier is visible'
               : hasBlockingComposition
                 ? 'Image validation rejected because explicit scene composition is wrong'
-              : `Image validation score at or below threshold (${minAccept})`
+                : `Image validation score at or below threshold (${minAccept})`
           );
 
           const rejectedImageData = Buffer.isBuffer(image.imageData)
@@ -6386,8 +6393,8 @@ export function buildExpectedCharactersForValidation(
 
   for (const name of sceneCharacterNames) {
     const baseLower = stripCharacterIdFromName(name).trim().toLowerCase();
-    const cameraCharacter = cameraCharacters.find(
-      (candidate) => sameCharacterIdentity(candidate.name, name)
+    const cameraCharacter = cameraCharacters.find((candidate) =>
+      sameCharacterIdentity(candidate.name, name)
     );
     const cameraCharacterRef = cameraCharacter?.characterRef?.trim();
     const charData = findCharacterForValidationName(name, characters, cameraCharacterRef);
@@ -6469,10 +6476,7 @@ function findCharacterForValidationName(
     ].filter((name): name is string => typeof name === 'string' && !!name.trim());
     return aliases.some((alias) => {
       const normalizedAlias = stripCharacterIdFromName(alias).trim().toLowerCase();
-      return (
-        normalizedAlias === normalizedSceneName ||
-        sameCharacterIdentity(alias, sceneName)
-      );
+      return normalizedAlias === normalizedSceneName || sameCharacterIdentity(alias, sceneName);
     });
   });
 }

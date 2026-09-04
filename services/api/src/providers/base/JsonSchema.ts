@@ -117,6 +117,8 @@ export interface GenerateTextRequest {
   topK?: number;
   stopSequences?: string[];
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  /** Raw provider result for controlled diagnostics; callers must avoid logging it on successful child-story generation. */
+  onRawResponse?: (response: StructuredRawResponse) => void | Promise<void>;
   operation?: string; // Operation name for usage callback (e.g. 'text_free', 'text_continuation')
 }
 
