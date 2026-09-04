@@ -18,4 +18,11 @@ assert.match(adapterSource, /photos\.map\([\s\S]*?uploadId:\s*p\.uploadId/);
 assert.match(adapterSource, /currentGridPhotos[\s\S]*?uploadId:\s*p\.uploadId/);
 assert.match(adapterSource, /return resolvedPhotos\.map\([\s\S]*?uploadId:\s*p\.uploadId/);
 
+// Parent-mode Instant Wizard should choose a useful initial age from the
+// selected child, or the first existing child when opened without childId.
+assert.match(source, /useChildren\(!isChildSession\)/);
+assert.match(source, /selectedChild \?\? childrenData\?\.children\[0\]/);
+assert.match(source, /useState<AgeGroup>\('4-5'\)/);
+assert.match(source, /ageProfileIdRef\.current === ageProfileId/);
+
 console.log('instant wizard photo upload regression tests passed');

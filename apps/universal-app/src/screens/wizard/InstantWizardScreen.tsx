@@ -104,6 +104,7 @@ export default function InstantWizardScreen() {
     [route.params]
   );
   const presetScenarioAppliedRef = React.useRef(false);
+  const ageProfileIdRef = React.useRef<string | null | undefined>(undefined);
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -128,7 +129,7 @@ export default function InstantWizardScreen() {
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
-  const { data: childrenData } = useChildren(!isChildSession && Boolean(route.params?.childId));
+  const { data: childrenData } = useChildren(!isChildSession);
   const { data: usage } = useSubscriptionUsage();
   const periodEndFormatted = useMemo(
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
@@ -166,14 +167,22 @@ export default function InstantWizardScreen() {
   }, [childModeSettings?.allowedLanguageCodes, i18n.language, isChildSession, storyLanguage]);
 
   useEffect(() => {
+    const selectedChild = childrenData?.children.find((item) => item.id === route.params?.childId);
+    const ageProfileId = isChildSession
+      ? activeChild?.id ?? null
+      : (selectedChild ?? childrenData?.children[0])?.id ?? null;
+    // Apply a profile-derived age only when the source profile changes. A
+    // background child-list refetch must not undo a parent's manual selection.
+    if (ageProfileIdRef.current === ageProfileId) return;
+    ageProfileIdRef.current = ageProfileId;
     const ageSource = isChildSession
       ? activeChild?.age
-      : childrenData?.children.find((item) => item.id === route.params?.childId)?.age;
+      : (selectedChild ?? childrenData?.children[0])?.age;
     const normalizedAgeGroup = normalizeInstantAgeGroup(ageSource);
     if (normalizedAgeGroup) {
       setAgeGroup(normalizedAgeGroup);
     }
-  }, [activeChild?.age, childrenData?.children, isChildSession, route.params?.childId]);
+  }, [activeChild?.age, activeChild?.id, childrenData?.children, isChildSession, route.params?.childId]);
 
   useEffect(() => {
     if (presetScenarioAppliedRef.current || !presetScenarioCardId) return;
