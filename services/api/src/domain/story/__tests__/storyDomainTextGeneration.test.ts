@@ -137,14 +137,18 @@ async function testBatchRegenerationUsesExpandedOutputBudget() {
 }
 
 async function testGenerateTextPlainRejectsEmptyWriterOutput() {
-  const stub = new MockTextProvider().queueText('text_plain', '');
+  const stub = new MockTextProvider()
+    .queueText('text_plain', '')
+    .queueText('text_plain_empty_retry', '');
   const domain = new StoryDomainService(stub);
 
   await assert.rejects(
     () => domain.generateTextPlain(STATIC_STORY_SPEC),
-    /Writer returned no readable story scenes/,
+    /Writer returned an empty response after retry/,
     'empty writer output must fail before validation/persistence'
   );
+  assert.strictEqual(stub.textRequests.length, 2, 'empty response retries the original writer request once');
+  stub.assertExhausted();
 }
 
 async function testGenerateTextPlainRepairsFormatOnlyWriterDrift() {

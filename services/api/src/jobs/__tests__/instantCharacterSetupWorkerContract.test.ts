@@ -30,25 +30,17 @@ async function main(): Promise<void> {
 
   const { clearRepositoryTestOverrides, installRepositoryTestOverrides } =
     await import('../../repositories');
-  const {
-    clearAiServiceTestOverrides,
-    installAiServiceTestOverrides,
-  } = await import('../../services/aiService');
-  const {
-    clearAssetStorageServiceTestOverride,
-    installAssetStorageServiceTestOverride,
-  } = await import('../../services/assetStorageService');
+  const { clearAiServiceTestOverrides, installAiServiceTestOverrides } =
+    await import('../../services/aiService');
+  const { clearAssetStorageServiceTestOverride, installAssetStorageServiceTestOverride } =
+    await import('../../services/assetStorageService');
   const { setEmbeddingGeneratorForTesting } = await import('../../services/embeddingService');
-  const {
-    processInstantCharacterSetupForTesting,
-    textQueue,
-  } = await import('../storyJobProcessor');
+  const { processInstantCharacterSetupForTesting, textQueue } =
+    await import('../storyJobProcessor');
 
   const originalAddJob = textQueue.addJob.bind(textQueue);
 
-  async function withTextQueueStub<T>(
-    run: (enqueued: unknown[]) => Promise<T>
-  ): Promise<T> {
+  async function withTextQueueStub<T>(run: (enqueued: unknown[]) => Promise<T>): Promise<T> {
     const enqueued: unknown[] = [];
     (textQueue as { addJob: typeof textQueue.addJob }).addJob = async (job) => {
       enqueued.push(job);
@@ -185,7 +177,10 @@ async function main(): Promise<void> {
 
     const textProvider = new MockTextProvider()
       .queueStructured('face_dedup', MOCK_FACE_DEDUPLICATION)
-      .queueStructured('character_analysis', MOCK_CHARACTER_ANALYSIS);
+      .queueStructured('character_analysis', {
+        ...MOCK_CHARACTER_ANALYSIS,
+        appearanceTraits: { age: 'child' },
+      });
     const imageProvider = new MockImageProvider().queueGenerate(
       'image_generate',
       mockGeneratedImage()
@@ -240,9 +235,7 @@ async function main(): Promise<void> {
         findRecentWithMetadata: async () => [],
         findRecentWithAudioMetadata: async () => [],
         findById: async (id: string) =>
-          id === storyId
-            ? { id: storyId, title: 'Generating...', userId }
-            : null,
+          id === storyId ? { id: storyId, title: 'Generating...', userId } : null,
         createStory: async () => {
           throw new Error('createStory should not run when storyId already exists');
         },
@@ -294,6 +287,7 @@ async function main(): Promise<void> {
         assert.equal(createdCharacters.length, 1);
         assert.equal((createdCharacters[0] as { id: string }).id, characterId);
         assert.equal((createdCharacters[0] as { name: string }).name, 'Mira');
+        assert.equal((createdCharacters[0] as { subtype: string }).subtype, 'other_child');
 
         assert.equal(characterSheets.length, 1);
         assert.ok(turnaroundUploads.some((row) => row.photoType === 'character_turnaround'));
@@ -311,16 +305,109 @@ async function main(): Promise<void> {
         });
 
         assert.ok(usageEvents.length >= 1);
-        assert.ok(stageEvents.some((event) => {
-          const row = event as { operation?: string };
-          return row.operation === 'character_identity_match';
-        }));
+        assert.ok(
+          stageEvents.some((event) => {
+            const row = event as { operation?: string };
+            return row.operation === 'character_identity_match';
+          })
+        );
 
         textProvider.assertExhausted();
         imageProvider.assertExhausted();
       });
     } finally {
       setEmbeddingGeneratorForTesting(null);
+      clearAiServiceTestOverrides();
+      clearAssetStorageServiceTestOverride();
+      clearRepositoryTestOverrides();
+    }
+  }
+
+  // --- A failed photo group must fail the request instead of silently omitting a character ---
+  {
+    const request: Record<string, any> = {
+      id: requestId,
+      userId,
+      childProfileId: null,
+      storyLanguage: 'en',
+      selectedCharacters: [],
+      intermediateData: { photos: [photoUrl], storyId, instantMode: true },
+      progressData: null,
+      progress: 0,
+      status: 'processing',
+    };
+    const textProvider = new MockTextProvider()
+      .queueStructured('face_dedup', MOCK_FACE_DEDUPLICATION)
+      .queueError(
+        'structured',
+        'character_analysis',
+        'Gemini structured generation failed: Empty response from Gemini'
+      )
+      .queueError(
+        'structured',
+        'character_analysis',
+        'Gemini structured generation failed: Empty response from Gemini'
+      );
+    const updates: Array<Record<string, unknown>> = [];
+
+    installAiServiceTestOverrides({ textProvider });
+    installAssetStorageServiceTestOverride({
+      getAssetByPath: async () => Buffer.from('mock-character-photo'),
+    } as any);
+    installRepositoryTestOverrides({
+      plan: {
+        findSubscriptionByUserId: async () => ({
+          userId,
+          planId: 'plan-premium',
+          status: 'active',
+        }),
+        findFeatureValue: async (_planId: string, slug: string) =>
+          slug === 'story_from_drawing' ? { enabled: true } : null,
+        findAllFeaturesForPlan: async () => [
+          { slug: 'images_per_story', value: 1 },
+          { slug: 'story_from_drawing', value: { enabled: true } },
+        ],
+      } as any,
+      story: {
+        findRequestById: async () => request,
+        findRequestForUpdate: async () => request,
+        transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({}),
+        updateRequest: async (_id: string, patch: Record<string, unknown>) => {
+          updates.push(patch);
+          if (patch.intermediateData) {
+            request.intermediateData = {
+              ...request.intermediateData,
+              ...(patch.intermediateData as object),
+            };
+          }
+          Object.assign(request, patch);
+          return request;
+        },
+        findById: async () => ({ id: storyId, title: 'Generating...', userId }),
+        deleteStory: async () => undefined,
+      } as any,
+      asset: { findRecentImageGenerationTimes: async () => [] } as any,
+    });
+
+    try {
+      await withTextQueueStub(async (enqueued) => {
+        await assert.rejects(
+          () => processInstantCharacterSetupForTesting(baseJob()),
+          /could not analyze one or more photos/i
+        );
+        assert.equal(enqueued.length, 0);
+      });
+      assert.equal(request.status, 'failed');
+      assert.match(request.errorMessage, /could not analyze one or more photos/i);
+      const failureCheckpoint = updates.find(
+        (patch) => (patch.intermediateData as any)?.failedPhotoGroups
+      ) as { intermediateData?: any };
+      assert.equal(
+        failureCheckpoint?.intermediateData?.failedPhotoGroups?.[0]?.errorCode,
+        'CHARACTER_ANALYSIS_FAILED'
+      );
+      textProvider.assertExhausted();
+    } finally {
       clearAiServiceTestOverrides();
       clearAssetStorageServiceTestOverride();
       clearRepositoryTestOverrides();

@@ -89,4 +89,14 @@ assert.match(
   'instant setup should preserve the story stub id in later checkpoint updates'
 );
 
+const identityMatchingSource = readFileSync(
+  path.join(__dirname, '../characterIdentityMatchingService.ts'),
+  'utf8'
+);
+assert.match(
+  identityMatchingSource,
+  /Character identity visual validation returned an empty provider response; retrying/,
+  'identity validation should retry a transient empty provider response before treating a candidate as unmatched'
+);
+
 console.log('characterIdentityMatchingService tests passed');

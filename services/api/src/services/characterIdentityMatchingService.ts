@@ -522,16 +522,43 @@ export class CharacterIdentityMatchingService {
       candidateImageCount: candidateImages.length,
     });
 
-    const result = await this.textProvider.generateStructured<CharacterIdentityValidation>({
-      model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
-      prompt,
-      imageData: [...newImages, ...candidateImages],
-      schema: this.getValidationSchema(),
-      temperature: 0.1,
-      relaxedSafety: true,
-      onUsage: params.onUsage,
-      operation: 'character_identity_match',
-    });
+    let result: CharacterIdentityValidation | undefined;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        result = await this.textProvider.generateStructured<CharacterIdentityValidation>({
+          model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+          prompt,
+          imageData: [...newImages, ...candidateImages],
+          schema: this.getValidationSchema(),
+          temperature: 0.1,
+          relaxedSafety: true,
+          onUsage: params.onUsage,
+          operation: 'character_identity_match',
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isEmptyProviderResponse =
+          message.includes('Empty response from Gemini') ||
+          message.includes('OpenAI returned empty response');
+        if (!isEmptyProviderResponse || attempt === 2) {
+          throw error;
+        }
+
+        logger.warn(
+          {
+            attempt,
+            maxAttempts: 2,
+            candidateCharacterId: params.candidate.id,
+          },
+          'Character identity visual validation returned an empty provider response; retrying'
+        );
+      }
+    }
+
+    if (!result) {
+      throw new Error('Character identity visual validation returned no result');
+    }
 
     return {
       sameCharacter: Boolean(result.sameCharacter),

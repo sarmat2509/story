@@ -37,6 +37,8 @@ export interface FaceDeduplicationOptions {
 export class FaceDeduplicationService {
   constructor(private textProvider: ITextProvider) {}
 
+  private static readonly EMPTY_RESPONSE_RETRY_ATTEMPTS = 2;
+
   /**
    * Group photos by individual identity
    * Uses Gemini Vision to compare faces/features across photos
@@ -48,51 +50,69 @@ export class FaceDeduplicationService {
 
     logger.info({ photoCount: photoUrls.length }, 'Starting photo deduplication');
 
-    try {
-      // Download photos and convert to base64
-      const imageData = await this.prepareImages(photoUrls);
+    // Download photos and convert to base64
+    const imageData = await this.prepareImages(photoUrls);
 
-      // Build deduplication prompt
-      const prompt = this.buildDeduplicationPrompt(photoUrls.length);
+    // Build deduplication prompt
+    const prompt = this.buildDeduplicationPrompt(photoUrls.length);
+    let result: GeminiDeduplicationResponse | undefined;
 
-      // Call Gemini Vision with structured output
-      const result = await this.textProvider.generateStructured<GeminiDeduplicationResponse>({
-        model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
-        prompt,
-        imageData,
-        schema: this.getDeduplicationSchema(),
-        temperature: 0.3,
-        relaxedSafety: true,
-        onUsage: options?.onUsage,
-        operation: 'face_dedup',
-      });
+    for (
+      let attempt = 1;
+      attempt <= FaceDeduplicationService.EMPTY_RESPONSE_RETRY_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        result = await this.textProvider.generateStructured<GeminiDeduplicationResponse>({
+          model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+          prompt,
+          imageData,
+          schema: this.getDeduplicationSchema(),
+          temperature: 0.3,
+          relaxedSafety: true,
+          onUsage: options?.onUsage,
+          operation: 'face_dedup',
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isEmptyProviderResponse =
+          message.includes('Empty response from Gemini') ||
+          message.includes('OpenAI returned empty response');
+        if (!isEmptyProviderResponse || attempt === FaceDeduplicationService.EMPTY_RESPONSE_RETRY_ATTEMPTS) {
+          logger.error({ error, photoCount: photoUrls.length, attempt }, 'Photo deduplication failed');
+          throw new Error(`Photo deduplication failed: ${message}`);
+        }
 
-      // Map Gemini response to PhotoGroups
-      const photoGroups = result.groups.map(group => ({
-        groupId: group.groupId,
-        name: group.suggestedName,
-        characterType: group.characterType,
-        photoUrls: group.photoIndices.map(idx => photoUrls[idx]),
-      }));
-
-      logger.info({
-        totalPhotos: photoUrls.length,
-        groupsFound: photoGroups.length,
-      }, 'Photo deduplication completed');
-
-      return photoGroups;
-    } catch (error) {
-      logger.error({ error, photoCount: photoUrls.length }, 'Photo deduplication failed');
-      
-      // Fallback: treat each photo as separate character
-      logger.warn('Falling back to one character per photo');
-      return photoUrls.map((url, idx) => ({
-        groupId: String(idx + 1),
-        name: `Character ${idx + 1}`,
-        characterType: 'person' as const,
-        photoUrls: [url],
-      }));
+        logger.warn(
+          {
+            attempt,
+            maxAttempts: FaceDeduplicationService.EMPTY_RESPONSE_RETRY_ATTEMPTS,
+            photoCount: photoUrls.length,
+          },
+          'Photo deduplication received an empty provider response; retrying'
+        );
+      }
     }
+
+    if (!result) {
+      throw new Error('Photo deduplication returned no result');
+    }
+
+    // Map Gemini response to PhotoGroups
+    const photoGroups = result.groups.map(group => ({
+      groupId: group.groupId,
+      name: group.suggestedName,
+      characterType: group.characterType,
+      photoUrls: group.photoIndices.map(idx => photoUrls[idx]),
+    }));
+
+    logger.info({
+      totalPhotos: photoUrls.length,
+      groupsFound: photoGroups.length,
+    }, 'Photo deduplication completed');
+
+    return photoGroups;
   }
 
   /**

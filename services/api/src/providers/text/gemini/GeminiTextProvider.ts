@@ -27,6 +27,41 @@ import {
 } from './GeminiContextCacheService';
 import config from '../../../config';
 
+/**
+ * Keep diagnostics for an empty Gemini candidate deliberately metadata-only.
+ * Photo-analysis requests can contain children's photos, so neither the prompt
+ * nor image content belongs in the log event.
+ */
+export function getGeminiEmptyResponseDiagnostics(result: unknown): Record<string, unknown> {
+  const response = result as {
+    promptFeedback?: {
+      blockReason?: unknown;
+      safetyRatings?: Array<{ category?: unknown; probability?: unknown }>;
+    };
+    candidates?: Array<{
+      finishReason?: unknown;
+      safetyRatings?: Array<{ category?: unknown; probability?: unknown }>;
+    }>;
+  };
+  const candidates = Array.isArray(response?.candidates) ? response.candidates : [];
+
+  return {
+    promptBlockReason: response?.promptFeedback?.blockReason ?? null,
+    promptSafetyRatings: (response?.promptFeedback?.safetyRatings ?? []).map((rating) => ({
+      category: rating.category ?? null,
+      probability: rating.probability ?? null,
+    })),
+    candidateCount: candidates.length,
+    candidateFinishReasons: candidates.map((candidate) => candidate.finishReason ?? null),
+    candidateSafetyRatings: candidates.map((candidate) =>
+      (candidate.safetyRatings ?? []).map((rating) => ({
+        category: rating.category ?? null,
+        probability: rating.probability ?? null,
+      }))
+    ),
+  };
+}
+
 export class GeminiTextProvider implements ITextProvider {
   private client: GoogleGenAI;
   private model: string;
@@ -183,6 +218,16 @@ export class GeminiTextProvider implements ITextProvider {
       const responseText = result.text;
 
       if (!responseText) {
+        logger.warn(
+          {
+            ...getGeminiEmptyResponseDiagnostics(result),
+            model: modelName,
+            operation: request.operation ?? 'text_structured',
+            hasImages: !!request.imageData,
+            imageCount: request.imageData?.length || 0,
+          },
+          'Gemini returned an empty structured response'
+        );
         throw new Error('Empty response from Gemini');
       }
 
@@ -446,6 +491,16 @@ export class GeminiTextProvider implements ITextProvider {
 
       const responseText = result.text || '';
       const candidate = result.candidates?.[0];
+      if (!responseText) {
+        logger.warn(
+          {
+            ...getGeminiEmptyResponseDiagnostics(result),
+            model: this.model,
+            operation: request.operation ?? 'text_free',
+          },
+          'Gemini returned an empty free-text response'
+        );
+      }
       await Promise.resolve(
         request.onRawResponse?.({
           provider: 'gemini',

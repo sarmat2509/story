@@ -91,6 +91,14 @@ export interface CharacterAnalysisOptions {
   onUsage?: (usage: UsageMetadata) => void;
 }
 
+function isEmptyStructuredProviderResponse(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Empty response from Gemini') ||
+    message.includes('OpenAI returned empty response')
+  );
+}
+
 export interface ExtractChildAppearanceFromDescriptionRequest {
   description: string;
   language?: string;
@@ -172,6 +180,8 @@ export interface CharacterAnalysisResult {
 export class CharacterAnalysisService {
   constructor(private textProvider: ITextProvider) {}
 
+  private static readonly EMPTY_RESPONSE_RETRY_ATTEMPTS = 2;
+
   /**
    * Analyze character from reference photos
    * Returns structured description and appearance data
@@ -207,18 +217,53 @@ export class CharacterAnalysisService {
 
     // 4. Call Gemini Vision API with structured output
     try {
-      // Use gemini-1.5-flash or gemini-1.5-pro for vision + structured output
-      // Note: gemini-2.0-flash-exp might not be available yet
-      const result = await this.textProvider.generateStructured<CharacterAnalysisResult>({
-        model: config.ai?.geminiVisionModel || 'gemini-2.5-flash', // Use configured vision model
-        prompt,
-        imageData, // Multiple images
-        schema: this.getCharacterAnalysisSchema(request.characterType), // Pass characterType for proper enum
-        temperature: 0.3, // Lower temperature for consistent analysis
-        relaxedSafety: true, // ✅ Use ultra-relaxed safety for photo analysis
-        onUsage: options?.onUsage,
-        operation: 'character_analysis',
-      });
+      let result: CharacterAnalysisResult | undefined;
+      let lastEmptyResponseError: unknown;
+
+      for (
+        let attempt = 1;
+        attempt <= CharacterAnalysisService.EMPTY_RESPONSE_RETRY_ATTEMPTS;
+        attempt += 1
+      ) {
+        try {
+          // Use gemini-1.5-flash or gemini-1.5-pro for vision + structured output
+          // Note: gemini-2.0-flash-exp might not be available yet
+          result = await this.textProvider.generateStructured<CharacterAnalysisResult>({
+            model: config.ai?.geminiVisionModel || 'gemini-2.5-flash', // Use configured vision model
+            prompt,
+            imageData, // Multiple images
+            schema: this.getCharacterAnalysisSchema(request.characterType), // Pass characterType for proper enum
+            temperature: 0.3, // Lower temperature for consistent analysis
+            relaxedSafety: true, // ✅ Use ultra-relaxed safety for photo analysis
+            onUsage: options?.onUsage,
+            operation: 'character_analysis',
+          });
+          break;
+        } catch (error) {
+          const isEmptyProviderResponse = isEmptyStructuredProviderResponse(error);
+          if (
+            !isEmptyProviderResponse ||
+            attempt === CharacterAnalysisService.EMPTY_RESPONSE_RETRY_ATTEMPTS
+          ) {
+            throw error;
+          }
+
+          lastEmptyResponseError = error;
+          logger.warn(
+            {
+              attempt,
+              maxAttempts: CharacterAnalysisService.EMPTY_RESPONSE_RETRY_ATTEMPTS,
+              characterType: request.characterType,
+              photoCount: request.photos.length,
+            },
+            'Character analysis received an empty provider response; retrying'
+          );
+        }
+      }
+
+      if (!result) {
+        throw lastEmptyResponseError || new Error('Character analysis returned no result');
+      }
 
       // Enforce array limits (in case AI returns more than allowed)
       if (result.distinctiveFeatures && result.distinctiveFeatures.length > 5) {
@@ -334,14 +379,17 @@ export class CharacterAnalysisService {
       return { appearanceTraits: null, distinctiveFeatures: null };
     }
 
-    const result = await this.textProvider.generateStructured<ChildAppearanceExtractionResult>({
-      model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
-      temperature: 0,
-      maxTokens: 512,
-      operation: 'child_appearance_description_extraction',
-      onUsage: options?.onUsage,
-      schema: this.getChildAppearanceExtractionSchema(),
-      prompt: `Extract structured physical appearance traits from this parent-provided child description. The description may be written in ${request.language || 'an unspecified language'}.
+    let result: ChildAppearanceExtractionResult | undefined;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        result = await this.textProvider.generateStructured<ChildAppearanceExtractionResult>({
+          model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+          temperature: 0,
+          maxTokens: 512,
+          operation: 'child_appearance_description_extraction',
+          onUsage: options?.onUsage,
+          schema: this.getChildAppearanceExtractionSchema(),
+          prompt: `Extract structured physical appearance traits from this parent-provided child description. The description may be written in ${request.language || 'an unspecified language'}.
 
 CRITICAL RULES:
 - Return a value only when it is explicitly stated in the description.
@@ -352,7 +400,23 @@ CRITICAL RULES:
 
 Parent-provided description:
 ${description}`,
-    });
+        });
+        break;
+      } catch (error) {
+        if (!isEmptyStructuredProviderResponse(error) || attempt === 2) {
+          throw error;
+        }
+
+        logger.warn(
+          { attempt, maxAttempts: 2 },
+          'Child appearance description extraction returned an empty provider response; retrying'
+        );
+      }
+    }
+
+    if (!result) {
+      throw new Error('Child appearance description extraction returned no result');
+    }
 
     return {
       appearanceTraits: result.appearanceTraits || null,

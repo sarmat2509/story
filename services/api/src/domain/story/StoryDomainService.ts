@@ -273,7 +273,7 @@ export class StoryDomainService {
 
     try {
       let rawResponse: StructuredRawResponse | undefined;
-      const rawText = await this.textProvider.generateText({
+      let rawText = await this.textProvider.generateText({
         prompt,
         cachedPrefix: {
           key: WRITER_PLAIN_CACHE_KEY,
@@ -289,6 +289,61 @@ export class StoryDomainService {
         },
         operation: isContinuation ? 'text_continuation' : 'text_plain',
       });
+
+      // A provider can resolve successfully with no candidate text. Retry the
+      // original writer request once; a format repair cannot recover an empty
+      // source response.
+      if (!rawText.trim()) {
+        logger.warn(
+          {
+            requestId: options?.requestId,
+            provider: rawResponse?.provider,
+            model: rawResponse?.model,
+            finishReason: rawResponse?.finishReason ?? null,
+          },
+          'Writer returned an empty response; retrying original request'
+        );
+        rawText = await this.textProvider.generateText({
+          prompt,
+          cachedPrefix: {
+            key: WRITER_PLAIN_CACHE_KEY,
+            content: buildDirectTextPromptPlainCachedPrefix(),
+            displayName: WRITER_PLAIN_CACHE_KEY,
+          },
+          maxTokens: PLAIN_WRITER_MAX_OUTPUT_TOKENS,
+          temperature: 0.9,
+          onUsage: options?.onUsage,
+          onRawResponse: (response) => {
+            rawResponse = response;
+            return options?.onRawResponse?.(response);
+          },
+          operation: isContinuation ? 'text_continuation_empty_retry' : 'text_plain_empty_retry',
+        });
+      }
+
+      if (!rawText.trim()) {
+        const diagnostics = getPlainTextFormatDiagnostics(rawText);
+        const diagnosticFile = await writeWriterResponseDiagnostic({
+          requestId: options?.requestId,
+          initialResponse: rawText,
+          initialDiagnostics: diagnostics,
+          provider: rawResponse?.provider,
+          model: rawResponse?.model,
+          finishReason: rawResponse?.finishReason ?? null,
+          repairError: 'Writer returned an empty response after one retry',
+        });
+        logger.error(
+          {
+            requestId: options?.requestId,
+            diagnosticFile,
+            provider: rawResponse?.provider,
+            model: rawResponse?.model,
+            finishReason: rawResponse?.finishReason ?? null,
+          },
+          'Writer returned an empty response after retry'
+        );
+        throw new Error('Writer returned an empty response after retry');
+      }
 
       let parsed = parsePlainTextToScenes(rawText);
       if (rawText.trim().length > 0 && !hasReadablePlainStory(rawText)) {

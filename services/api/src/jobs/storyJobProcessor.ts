@@ -1,11 +1,11 @@
 /**
  * Story Job Processor
- * 
+ *
  * Three independent concurrent queues:
  * - textQueue: story text generation (outline-free direct + validation)
  * - imageQueue: per-image generation with per-story group ordering
  * - audioQueue: audio generation (TTS + alignment)
- * 
+ *
  * Also includes the legacy StoryJobQueue for scene image regeneration
  * (will be migrated to imageQueue in a future step).
  */
@@ -58,7 +58,10 @@ function estimateTrackedImageCount(totalScenes: number, imagesPerStory: number):
     return 0;
   }
 
-  const illustratedSceneCount = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory).length;
+  const illustratedSceneCount = getIllustrationBlockStartSceneIds(
+    totalScenes,
+    imagesPerStory
+  ).length;
 
   return Math.min(2, illustratedSceneCount);
 }
@@ -392,7 +395,10 @@ async function markTextRequestAfterPermanentFailure(
   );
 }
 
-async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, error: unknown): Promise<void> {
+async function markImageRequestAfterPermanentFailure(
+  job: ImageGenerationJob,
+  error: unknown
+): Promise<void> {
   if (job.type !== 'image_batch' && job.type !== 'graphic_novel_pages') {
     return;
   }
@@ -459,7 +465,11 @@ export const imageQueue = new DurableJobQueue<ImageGenerationJob>({
 /**
  * Enqueue image batch job directly (e.g. for retry-images after IMAGE_OTHER failure).
  */
-export function enqueueImageBatch(requestId: string, storyId: string, isContinuation = false): Promise<string> {
+export function enqueueImageBatch(
+  requestId: string,
+  storyId: string,
+  isContinuation = false
+): Promise<string> {
   return imageQueue.addJob({
     type: 'image_batch',
     requestId,
@@ -534,17 +544,23 @@ export const instantQueue = new DurableJobQueue<InstantCharacterSetupJob>({
  * On completion, enqueues an image batch job in imageQueue to release the text slot
  */
 async function processTextGeneration(job: TextGenerationJob): Promise<void> {
-  logger.info({ requestId: job.requestId, isContinuation: job.isContinuation }, 'Processing text generation');
+  logger.info(
+    { requestId: job.requestId, isContinuation: job.isContinuation },
+    'Processing text generation'
+  );
 
   let storyId: string;
 
   const request = await getStoryRepository().findRequestById(job.requestId);
   const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
     ?.generationKind;
-  const isScheduledStory = Boolean((request?.intermediateData as Record<string, unknown> | null | undefined)?.isScheduledStory);
+  const isScheduledStory = Boolean(
+    (request?.intermediateData as Record<string, unknown> | null | undefined)?.isScheduledStory
+  );
 
   if (imageJobTypeForGenerationKind(generationKind as any) === 'graphic_novel_pages') {
-    const { processGraphicNovelRequest, processMixedStoryRequest } = await import('../services/graphicNovelOrchestrationService');
+    const { processGraphicNovelRequest, processMixedStoryRequest } =
+      await import('../services/graphicNovelOrchestrationService');
     const result =
       generationKind === 'mixed_story'
         ? await processMixedStoryRequest(job.requestId)
@@ -552,7 +568,11 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
     storyId = result.storyId;
 
     if (isScheduledStory) {
-      await getStoryRepository().insertBatchImagePending({ storyId, requestId: job.requestId, purpose: 'scheduled_environment' });
+      await getStoryRepository().insertBatchImagePending({
+        storyId,
+        requestId: job.requestId,
+        purpose: 'scheduled_environment',
+      });
     } else {
       await imageQueue.addJob({ type: 'graphic_novel_pages', requestId: job.requestId, storyId });
     }
@@ -573,7 +593,10 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
 
   if (result.isScheduledContinuation || result.isScheduledStory) {
     // Scheduled continuation: add to batch_image_pending for batch worker, skip imageQueue
-    logger.info({ requestId: job.requestId, storyId }, 'Text generation completed, adding to batch_image_pending');
+    logger.info(
+      { requestId: job.requestId, storyId },
+      'Text generation completed, adding to batch_image_pending'
+    );
     await getStoryRepository().insertBatchImagePending({
       storyId,
       requestId: job.requestId,
@@ -583,11 +606,14 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
     return;
   }
 
-  logger.info({ requestId: job.requestId, storyId }, 'Text generation completed, enqueuing image batch');
+  logger.info(
+    { requestId: job.requestId, storyId },
+    'Text generation completed, enqueuing image batch'
+  );
 
   // Enqueue image batch job to run in imageQueue (releases text slot)
   try {
-      await imageQueue.addJob({
+    await imageQueue.addJob({
       type: 'image_batch',
       requestId: job.requestId,
       storyId,
@@ -596,11 +622,14 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   } catch (enqueueError) {
     // Text generation succeeded and story is saved -- mark request as completed
     // even though images won't be generated. User can retry image generation later.
-    logger.error({
-      requestId: job.requestId,
-      storyId,
-      err: enqueueError,
-    }, 'Failed to enqueue image batch after text generation. Story saved without images.');
+    logger.error(
+      {
+        requestId: job.requestId,
+        storyId,
+        err: enqueueError,
+      },
+      'Failed to enqueue image batch after text generation. Story saved without images.'
+    );
 
     try {
       await getStoryRepository().updateRequest(job.requestId, {
@@ -610,7 +639,10 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
         updatedAt: new Date(),
       });
     } catch (dbError) {
-      logger.error({ requestId: job.requestId, err: dbError }, 'Failed to mark request as completed after image enqueue failure');
+      logger.error(
+        { requestId: job.requestId, err: dbError },
+        'Failed to mark request as completed after image enqueue failure'
+      );
     }
   }
 }
@@ -622,11 +654,14 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
 async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
   if (job.type === 'image_batch') {
     // Batch image generation: all images for a story
-    logger.info({
-      storyId: job.storyId,
-      requestId: job.requestId,
-      isContinuation: job.isContinuation,
-    }, 'Processing image batch');
+    logger.info(
+      {
+        storyId: job.storyId,
+        requestId: job.requestId,
+        isContinuation: job.isContinuation,
+      },
+      'Processing image batch'
+    );
 
     const { processStoryImages } = await import('../services/storyOrchestrationService');
     await processStoryImages(job.requestId, {
@@ -635,21 +670,31 @@ async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
 
     logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Image batch completed');
   } else if (job.type === 'graphic_novel_pages') {
-    logger.info({
-      storyId: job.storyId,
-      requestId: job.requestId,
-    }, 'Processing graphic novel pages');
+    logger.info(
+      {
+        storyId: job.storyId,
+        requestId: job.requestId,
+      },
+      'Processing graphic novel pages'
+    );
 
-    const { processGraphicNovelPages } = await import('../services/graphicNovelOrchestrationService');
+    const { processGraphicNovelPages } =
+      await import('../services/graphicNovelOrchestrationService');
     await processGraphicNovelPages(job.requestId);
 
-    logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Graphic novel page rendering completed');
+    logger.info(
+      { storyId: job.storyId, requestId: job.requestId },
+      'Graphic novel page rendering completed'
+    );
   } else {
     // Individual scene image regeneration
-    logger.info({
-      storyId: job.storyId,
-      sceneId: job.sceneId,
-    }, 'Processing single image regeneration');
+    logger.info(
+      {
+        storyId: job.storyId,
+        sceneId: job.sceneId,
+      },
+      'Processing single image regeneration'
+    );
 
     const { regenerateSceneImage } = await import('../services/storyOrchestrationService');
     await regenerateSceneImage(job.storyId, job.sceneId!);
@@ -662,10 +707,13 @@ async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
  * Process audio generation job (TTS + alignment)
  */
 async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
-  logger.info({
-    storyId: job.storyId,
-    userId: job.userId,
-  }, 'Processing audio generation');
+  logger.info(
+    {
+      storyId: job.storyId,
+      userId: job.userId,
+    },
+    'Processing audio generation'
+  );
 
   const { getAudioDomainService } = await import('../domain/audio');
   const { groupScenesIntoChunks } = await import('../domain/audio/sceneGrouper');
@@ -698,12 +746,15 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     throw new Error('Story has no narratable text');
   }
 
-  logger.info({
-    storyId: job.storyId,
-    narrationSource: storyScenes.length > 0 ? 'normalized_scenes' : 'embedded_story_manifest',
-    totalScenes: scenesForAudio.length,
-    totalChars: scenesForAudio.reduce((sum, s) => sum + s.text.length, 0),
-  }, 'Loaded scenes for audio generation');
+  logger.info(
+    {
+      storyId: job.storyId,
+      narrationSource: storyScenes.length > 0 ? 'normalized_scenes' : 'embedded_story_manifest',
+      totalScenes: scenesForAudio.length,
+      totalChars: scenesForAudio.reduce((sum, s) => sum + s.text.length, 0),
+    },
+    'Loaded scenes for audio generation'
+  );
 
   // Get user's plan
   const { getUserSubscription, getPlanById } = await import('../services/planService');
@@ -762,7 +813,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       voiceCatalogProviderVoiceId: voiceRow?.providerVoiceId,
       voiceCatalogName: voiceRow?.name,
     },
-    'Scene groups created for audio generation',
+    'Scene groups created for audio generation'
   );
 
   const audioDomain = getAudioDomainService();
@@ -776,7 +827,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       job.voiceParams || {},
       planType,
       concurrencyLimit,
-      { onUsage: (u) => recordUsage(u, usageContext) },
+      { onUsage: (u) => recordUsage(u, usageContext) }
     );
 
     const audioGenerationTimeMs = Date.now() - audioGenStart;
@@ -836,12 +887,13 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     if (subscription) {
       const periodStart = subscription.currentPeriodStart;
       const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
-      alreadyBilledThisPeriod = await getUsageEventsRepository().sumAudioSynthesizedForStoryInPeriod(
-        job.userId,
-        job.storyId,
-        periodStart,
-        periodEnd
-      );
+      alreadyBilledThisPeriod =
+        await getUsageEventsRepository().sumAudioSynthesizedForStoryInPeriod(
+          job.userId,
+          job.storyId,
+          periodStart,
+          periodEnd
+        );
     }
     if (alreadyBilledThisPeriod === 0) {
       await recordUsageEvent(job.userId, 'audio_synthesized', 1, {
@@ -854,11 +906,14 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       );
     }
 
-    logger.info({
-      storyId: job.storyId,
-      duration: result.duration,
-      durationMinutes,
-    }, 'Audio generation completed - user charged');
+    logger.info(
+      {
+        storyId: job.storyId,
+        duration: result.duration,
+        durationMinutes,
+      },
+      'Audio generation completed - user charged'
+    );
 
     // Generate forced alignment
     try {
@@ -869,7 +924,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       const alignmentResult = await audioDomain.generateAlignmentForStory(
         job.storyId,
         finalAssetId,
-        alignmentProvider,
+        alignmentProvider
       );
 
       const alignmentData = {
@@ -903,12 +958,18 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         updatedAt: new Date(),
       });
 
-      logger.info({
-        storyId: job.storyId,
-        wordCount: alignmentResult.words.length,
-      }, 'Forced alignment generated');
+      logger.info(
+        {
+          storyId: job.storyId,
+          wordCount: alignmentResult.words.length,
+        },
+        'Forced alignment generated'
+      );
     } catch (alignmentError) {
-      logger.error({ err: alignmentError, storyId: job.storyId }, 'Alignment failed (audio still OK)');
+      logger.error(
+        { err: alignmentError, storyId: job.storyId },
+        'Alignment failed (audio still OK)'
+      );
     }
 
     // Bump public_render_version for published stories (SSR cache invalidation)
@@ -916,11 +977,14 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       await getStoryRepository().incrementPublicRenderVersion(job.storyId);
     }
   } catch (error) {
-    logger.error({
-      storyId: job.storyId,
-      userId: job.userId,
-      error: (error as Error).message,
-    }, 'Audio generation failed - user NOT charged');
+    logger.error(
+      {
+        storyId: job.storyId,
+        userId: job.userId,
+        error: (error as Error).message,
+      },
+      'Audio generation failed - user NOT charged'
+    );
 
     const currentMetadata = (story.audioMetadata as StoryAudioMetadata | null) || {};
     await getStoryRepository().updateStory(job.storyId, {
@@ -964,19 +1028,19 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
  */
 async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Promise<void> {
   const { requestId } = job;
-  
+
   try {
     logger.info({ requestId, jobId: job.id }, 'Starting instant character setup');
-    
+
     // Load request with intermediate data
     const request = await getStoryRepository().findRequestById(requestId);
     if (!request) {
       throw new Error(`Story request ${requestId} not found`);
     }
-    
+
     const intermediateData = (request.intermediateData as any) || {};
     const photos: string[] = intermediateData.photos || [];
-    
+
     if (photos.length === 0) {
       throw new Error('No photos found in intermediate data');
     }
@@ -990,7 +1054,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       userId: request.userId,
       photoCount: photos.length,
     });
-    
+
     // Check if already processed (idempotency)
     if (intermediateData.characterSetupComplete === true) {
       logger.info({ requestId }, 'Character setup already complete, skipping to story generation');
@@ -1001,7 +1065,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       });
       return;
     }
-    
+
     const language = request.storyLanguage || DEFAULT_LOCALE;
 
     // Create story stub at start for AI usage tracking (face dedup, character analysis, turnaround)
@@ -1010,10 +1074,15 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     let storyId: string | undefined = intermediateData.storyId;
     let ageGroup = '4-5';
     if (request.childProfileId) {
-      const profile = await getChildProfileRepository().findById(request.childProfileId, request.userId);
+      const profile = await getChildProfileRepository().findById(
+        request.childProfileId,
+        request.userId
+      );
       if (profile?.birthDate) {
         const { calculateAgeGroup } = await import('../services/childProfileService');
-        const ageMonths = Math.floor((Date.now() - new Date(profile.birthDate).getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+        const ageMonths = Math.floor(
+          (Date.now() - new Date(profile.birthDate).getTime()) / (30.44 * 24 * 60 * 60 * 1000)
+        );
         ageGroup = calculateAgeGroup(ageMonths);
       }
     }
@@ -1023,16 +1092,21 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         storyRequestId: request.id,
         childProfileId: request.childProfileId,
         ...getStoryCreationAttributionInputFromRequest(request),
-        spec: { language: request.storyLanguage || DEFAULT_LOCALE, ageGroup, characters: [] } as any,
+        spec: {
+          language: request.storyLanguage || DEFAULT_LOCALE,
+          ageGroup,
+          characters: [],
+        } as any,
       });
       await getStoryRepository().updateRequest(requestId, {
         intermediateData: { ...intermediateData, storyId },
       });
       Object.assign(intermediateData, { storyId });
     }
-    
+
     // Step 1: Face deduplication (with progress tracking)
-    const { startTask, completeTask, setPlannedTasks, STORY_TASKS } = await import('../services/storyProgress');
+    const { startTask, completeTask, setPlannedTasks, STORY_TASKS } =
+      await import('../services/storyProgress');
     const { getGenerationCoefficients } = await import('../services/generationTimeService');
     const { getPlanFeatures } = await import('../services/planService');
     const coefficients = await getGenerationCoefficients();
@@ -1040,17 +1114,24 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     const estimatedSceneCount = estimateSceneCountForAgeGroup(ageGroup);
     const trackedImageCount = estimateTrackedImageCount(
       estimatedSceneCount,
-      userPlan.imagesPerStory || 0,
+      userPlan.imagesPerStory || 0
     );
-    const illustrationCount = userPlan.imagesPerStory > 0
-      ? getIllustrationBlockStartSceneIds(estimatedSceneCount, userPlan.imagesPerStory || 0).length
-      : 0;
+    const illustrationCount =
+      userPlan.imagesPerStory > 0
+        ? getIllustrationBlockStartSceneIds(estimatedSceneCount, userPlan.imagesPerStory || 0)
+            .length
+        : 0;
 
     await setPlannedTasks(requestId, [
       { task: STORY_TASKS.ANALYZING_PHOTOS, estimatedMs: 30000 },
       { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: coefficients.avgTextMs },
       ...(userPlan.imagesPerStory > 0
-        ? [{ task: STORY_TASKS.PRODUCING_VISUALS, estimatedMs: estimateProducerMs(illustrationCount) }]
+        ? [
+            {
+              task: STORY_TASKS.PRODUCING_VISUALS,
+              estimatedMs: estimateProducerMs(illustrationCount),
+            },
+          ]
         : []),
       {
         task: STORY_TASKS.VALIDATING,
@@ -1065,103 +1146,132 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     await startTask(requestId, STORY_TASKS.ANALYZING_PHOTOS, {
       estimatedMs: 30000,
     });
-    
+
     const { getFaceDeduplicationService } = await import('../services/faceDeduplicationService');
     const faceDeduplicationService = getFaceDeduplicationService();
     const faceDedupUsageContext = { userId: request.userId, storyId };
     const photoGroups = await faceDeduplicationService.groupPhotosByIdentity(photos, {
       onUsage: (u) => recordUsage(u, faceDedupUsageContext),
     });
-    
-    logger.info({
-      requestId,
-      totalPhotos: photos.length,
-      groupsFound: photoGroups.length
-    }, 'Photos deduplicated into groups');
-    
+
+    logger.info(
+      {
+        requestId,
+        totalPhotos: photos.length,
+        groupsFound: photoGroups.length,
+      },
+      'Photos deduplicated into groups'
+    );
+
     // Save photo groups for potential retry
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
         ...intermediateData,
         photoGroups,
-      }
+      },
     });
-    
+
     // Step 2: Match or create characters from photo groups
     const selectedCharacterIds: string[] = [];
     const createdCharacterIds: string[] = [];
     const matchedCharacterIds: string[] = [];
     const characterIdentityDiagnostics: Array<Record<string, unknown>> = [];
+    const failedPhotoGroups: Array<{
+      groupId: string;
+      characterType: string;
+      photoCount: number;
+      errorCode: 'CHARACTER_ANALYSIS_FAILED';
+    }> = [];
     const selectedCharacterIdSet = new Set<string>();
     const addSelectedCharacterId = (characterId: string): void => {
       if (selectedCharacterIdSet.has(characterId)) return;
       selectedCharacterIdSet.add(characterId);
       selectedCharacterIds.push(characterId);
     };
-    
+
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
     const { getTextProvider } = await import('../services/aiService');
-    const { generateTurnaroundSheetFromReference } = await import('../services/turnaroundSheetService');
+    const { generateTurnaroundSheetFromReference } =
+      await import('../services/turnaroundSheetService');
     const { localizeCharacterNames } = await import('../services/translationService');
     const { getCharacterRepository } = await import('../repositories');
-    const { getCharacterIdentityMatchingService } = await import('../services/characterIdentityMatchingService');
+    const { getCharacterIdentityMatchingService } =
+      await import('../services/characterIdentityMatchingService');
     const { recordInstantCharacterQuotaUsage } = await import('../services/characterQuotaService');
-    
+
     const analysisService = new CharacterAnalysisService(getTextProvider());
     const characterIdentityMatchingService = getCharacterIdentityMatchingService();
-    
+
     for (const group of photoGroups) {
       try {
         // 2.1: Analyze photos
-        const analysisType = group.characterType === 'animal' ? 'animal' :
-                            group.characterType === 'imaginary' ? 'imaginary' :
-                            'person';
-        
-        logger.info({
-          requestId,
-          groupName: group.name,
-          photoCount: group.photoUrls.length,
-          characterType: analysisType
-        }, 'Analyzing character from photos (instant mode)');
-        
+        const analysisType =
+          group.characterType === 'animal'
+            ? 'animal'
+            : group.characterType === 'imaginary'
+              ? 'imaginary'
+              : 'person';
+
+        logger.info(
+          {
+            requestId,
+            groupName: group.name,
+            photoCount: group.photoUrls.length,
+            characterType: analysisType,
+          },
+          'Analyzing character from photos (instant mode)'
+        );
+
         const charAnalysisUsageContext = { userId: request.userId, storyId };
         const analysis = await analysisService.analyzeCharacter(
           {
             photos: group.photoUrls,
             characterType: analysisType,
-            language
+            language,
           },
           { onUsage: (u) => recordUsage(u, charAnalysisUsageContext) }
         );
-        
+
         const characterName = analysis.suggestedName || group.name;
-        
+
         // 2.2: Map face deduplication type to DB schema with default subtypes
-        const typeMapping: Record<'person' | 'animal' | 'imaginary', { type: string; subtype: string }> = {
-          person: { type: 'person', subtype: 'other_adult' },
+        const typeMapping: Record<
+          'person' | 'animal' | 'imaginary',
+          { type: string; subtype: string }
+        > = {
+          person: {
+            type: 'person',
+            subtype: ['infant', 'toddler', 'child', 'teenager'].includes(
+              analysis.appearanceTraits?.age ?? ''
+            )
+              ? 'other_child'
+              : 'other_adult',
+          },
           animal: { type: 'animal', subtype: 'other_animal' },
-          imaginary: { type: 'imaginary', subtype: 'imaginary_friend' }
+          imaginary: { type: 'imaginary', subtype: 'imaginary_friend' },
         };
-        
+
         const { type, subtype } = typeMapping[group.characterType];
 
         const identityMatchStartedAt = new Date();
         let identityMatchError: string | null = null;
-        const identityMatch = await characterIdentityMatchingService.findMatch({
-          userId: request.userId,
-          photoUrls: group.photoUrls,
-          characterType: type,
-          analysis,
-          language,
-          onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
-        }).catch(err => {
-          identityMatchError = err instanceof Error ? err.message : String(err);
-          logger.warn(
-            { err, requestId, groupName: group.name, characterType: type },
-            'Character identity matching failed; creating a new instant character'
-          );
-          return null;
-        });
+        const identityMatch = await characterIdentityMatchingService
+          .findMatch({
+            userId: request.userId,
+            photoUrls: group.photoUrls,
+            characterType: type,
+            analysis,
+            language,
+            onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
+          })
+          .catch((err) => {
+            identityMatchError = err instanceof Error ? err.message : String(err);
+            logger.warn(
+              { err, requestId, groupName: group.name, characterType: type },
+              'Character identity matching failed; creating a new instant character'
+            );
+            return null;
+          });
 
         const identityDiagnostic = {
           groupName: group.name,
@@ -1206,11 +1316,14 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
             | null
             | undefined;
           if (!existingTurnaround?.url) {
-            logger.info({
-              requestId,
-              characterId: matchedCharacter.id,
-              characterName: matchedCharacter.name,
-            }, 'Generating missing mandatory turnaround for reused instant character');
+            logger.info(
+              {
+                requestId,
+                characterId: matchedCharacter.id,
+                characterName: matchedCharacter.name,
+              },
+              'Generating missing mandatory turnaround for reused instant character'
+            );
             await generateTurnaroundSheetFromReference({
               targetType: 'character',
               targetId: matchedCharacter.id,
@@ -1227,20 +1340,23 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           addSelectedCharacterId(matchedCharacter.id);
           matchedCharacterIds.push(matchedCharacter.id);
 
-          logger.info({
-            requestId,
-            matchedCharacterId: matchedCharacter.id,
-            matchedCharacterName: matchedCharacter.name,
-            detectedFrom: group.characterType,
-            confidence: identityMatch.confidence,
-            score: identityMatch.score,
-            candidateCount: identityMatch.candidateCount,
-            validation: identityMatch.validation,
-          }, 'Existing character reused from instant photos');
+          logger.info(
+            {
+              requestId,
+              matchedCharacterId: matchedCharacter.id,
+              matchedCharacterName: matchedCharacter.name,
+              detectedFrom: group.characterType,
+              confidence: identityMatch.confidence,
+              score: identityMatch.score,
+              candidateCount: identityMatch.candidateCount,
+              validation: identityMatch.validation,
+            },
+            'Existing character reused from instant photos'
+          );
 
           continue;
         }
-        
+
         // 2.3: Create character record
         const character = await getCharacterRepository().create({
           userId: request.userId,
@@ -1251,30 +1367,36 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           aiGeneratedDescription: analysis.detailedDescription,
           descriptionLanguage: language,
           descriptionEmbedding: identityMatch?.descriptionEmbedding ?? null,
-          referencePhotos: group.photoUrls.map(url => ({ url })),
+          referencePhotos: group.photoUrls.map((url) => ({ url })),
           appearanceTraits: analysis.appearanceTraits,
           clothing: analysis.clothing,
           distinctiveFeatures: analysis.distinctiveFeatures,
           isHidden: false,
         } as any);
-        
-        logger.info({
-          requestId,
-          characterId: character.id,
-          characterName: character.name,
-          characterType: character.type,
-          characterSubtype: character.subtype,
-          detectedFrom: group.characterType
-        }, 'Character created from photos (instant mode)');
+
+        logger.info(
+          {
+            requestId,
+            characterId: character.id,
+            characterName: character.name,
+            characterType: character.type,
+            characterSubtype: character.subtype,
+            detectedFrom: group.characterType,
+          },
+          'Character created from photos (instant mode)'
+        );
 
         // 2.3: Generate the mandatory turnaround for ALL character types.
         try {
-          logger.info({
-            characterId: character.id,
-            characterName: character.name,
-            characterType: group.characterType,
-            requestId
-          }, 'Generating mandatory turnaround sheet (instant mode)');
+          logger.info(
+            {
+              characterId: character.id,
+              characterName: character.name,
+              characterType: group.characterType,
+              requestId,
+            },
+            'Generating mandatory turnaround sheet (instant mode)'
+          );
 
           const turnaroundResult = await generateTurnaroundSheetFromReference({
             targetType: 'character',
@@ -1286,19 +1408,25 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
             aiDescription: analysis.detailedDescription,
           });
 
-          logger.info({
-            characterId: character.id,
-            turnaroundUrl: turnaroundResult.url,
-            characterType: group.characterType,
-            requestId
-          }, 'Mandatory turnaround sheet generated (instant mode)');
+          logger.info(
+            {
+              characterId: character.id,
+              turnaroundUrl: turnaroundResult.url,
+              characterType: group.characterType,
+              requestId,
+            },
+            'Mandatory turnaround sheet generated (instant mode)'
+          );
         } catch (turnaroundError) {
-          logger.error({
-            error: turnaroundError,
-            characterId: character.id,
-            characterType: group.characterType,
-            requestId
-          }, 'Mandatory turnaround generation failed; removing instant character');
+          logger.error(
+            {
+              error: turnaroundError,
+              characterId: character.id,
+              characterType: group.characterType,
+              requestId,
+            },
+            'Mandatory turnaround generation failed; removing instant character'
+          );
           await getCharacterRepository().hardDelete(character.id, request.userId);
           throw turnaroundError;
         }
@@ -1315,38 +1443,65 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         localizeCharacterNames(character, {
           onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
           sourceLocale: language,
-        }).catch(err => {
+        }).catch((err) => {
           logger.error(
             { err, requestId, characterId: character.id, characterName: character.name },
-            'Character name localization failed (instant mode)',
+            'Character name localization failed (instant mode)'
           );
         });
-        
+
         createdCharacterIds.push(character.id);
         addSelectedCharacterId(character.id);
-        
       } catch (error) {
-        logger.error({
-          error,
-          groupName: group.name,
-          requestId
-        }, 'Failed to create character from photo group');
+        logger.error(
+          {
+            error,
+            groupName: group.name,
+            requestId,
+          },
+          'Failed to create character from photo group'
+        );
+        failedPhotoGroups.push({
+          groupId: group.groupId,
+          characterType: group.characterType,
+          photoCount: group.photoUrls.length,
+          errorCode: 'CHARACTER_ANALYSIS_FAILED',
+        });
       }
     }
-    
+
+    // A missing group means a person the parent explicitly supplied would be
+    // absent from the story. Do not silently continue with the surviving
+    // groups: stop before text/image generation and surface a retryable error.
+    if (failedPhotoGroups.length > 0) {
+      await getStoryRepository().updateRequest(requestId, {
+        intermediateData: {
+          ...intermediateData,
+          photoGroups,
+          failedPhotoGroups,
+        },
+      });
+      throw new Error(
+        'We could not analyze one or more photos. Please try again with a clear photo of each character.'
+      );
+    }
+
     await completeTask(requestId, STORY_TASKS.ANALYZING_PHOTOS);
-    
+
     if (selectedCharacterIds.length === 0) {
       throw new Error('Failed to match or create any characters from photos');
     }
-    
-    logger.info({
-      requestId,
-      charactersCreated: createdCharacterIds.length,
-      charactersMatched: matchedCharacterIds.length,
-      selectedCharacterCount: selectedCharacterIds.length,
-    }, 'Instant characters matched or created successfully');
-    
+
+    logger.info(
+      {
+        requestId,
+        charactersCreated: createdCharacterIds.length,
+        charactersMatched: matchedCharacterIds.length,
+        selectedCharacterCount: selectedCharacterIds.length,
+      },
+      'Instant characters matched or created successfully'
+    );
+
     // Step 3: Update story request with character IDs and mark setup complete
     await getStoryRepository().updateRequest(requestId, {
       selectedCharacters: selectedCharacterIds,
@@ -1358,38 +1513,48 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         selectedCharacterIds,
         characterIdentityDiagnostics,
         characterSetupComplete: true,
-      }
+      },
     });
-    
-    logger.info({
-      requestId,
-      selectedCharacters: selectedCharacterIds,
-      characterCount: selectedCharacterIds.length,
-    }, 'Story request updated with auto-selected characters');
-    
+
+    logger.info(
+      {
+        requestId,
+        selectedCharacters: selectedCharacterIds,
+        characterCount: selectedCharacterIds.length,
+      },
+      'Story request updated with auto-selected characters'
+    );
+
     // Step 4: Enqueue text generation job
     await textQueue.addJob({
       type: 'text_generation',
       requestId,
       isContinuation: false,
     });
-    
+
     logger.info({ requestId }, 'Text generation job enqueued after character setup');
-    
   } catch (error) {
-    logger.error({
-      error,
-      requestId,
-      jobId: job.id
-    }, 'Instant character setup failed');
+    logger.error(
+      {
+        error,
+        requestId,
+        jobId: job.id,
+      },
+      'Instant character setup failed'
+    );
 
     const req = await getStoryRepository().findRequestById(requestId);
-    const stubStoryId = (req?.intermediateData as Record<string, unknown> | null)?.storyId as string | undefined;
+    const stubStoryId = (req?.intermediateData as Record<string, unknown> | null)?.storyId as
+      | string
+      | undefined;
     if (stubStoryId && req) {
       const existingStory = await getStoryRepository().findById(stubStoryId);
       if (existingStory?.title === 'Generating...') {
         await getStoryRepository().deleteStory(stubStoryId, req.userId);
-        logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after instant setup failure');
+        logger.info(
+          { requestId, storyId: stubStoryId },
+          'Deleted story stub after instant setup failure'
+        );
       }
     }
 
@@ -1435,9 +1600,7 @@ class StoryJobQueue {
     legacyRegenerationQueue.stop();
   }
 
-  async addJob(
-    requestIdOrJobData: StoryJobQueueInput
-  ): Promise<string> {
+  async addJob(requestIdOrJobData: StoryJobQueueInput): Promise<string> {
     if (storyJobQueueAddJobTestOverride) {
       return storyJobQueueAddJobTestOverride(requestIdOrJobData);
     }
@@ -1447,7 +1610,7 @@ class StoryJobQueue {
       // Check if this is instant mode or continuation by reading intermediateData from DB
       const request = await getStoryRepository().findRequestById(requestIdOrJobData);
       const intermediateData = request?.intermediateData as Record<string, unknown> | null;
-      
+
       // Check if instant mode
       if (intermediateData?.instantMode === true) {
         const actualJobId = await instantQueue.addJob({
@@ -1456,7 +1619,7 @@ class StoryJobQueue {
         });
         return actualJobId;
       }
-      
+
       // Check if continuation
       const isContinuation = !!intermediateData?.isContinuation;
 
@@ -1470,7 +1633,8 @@ class StoryJobQueue {
       // Audio generation -- redirect to audioQueue with estimated time
       let estimatedTotalMs: number | undefined;
       try {
-        const { getGenerationCoefficients, estimateAudioGenerationMs } = await import('../services/generationTimeService');
+        const { getGenerationCoefficients, estimateAudioGenerationMs } =
+          await import('../services/generationTimeService');
         const { getAudioProviderByName } = await import('../services/aiService');
         const { getUserSubscription, getPlanById } = await import('../services/planService');
         const story = await getStoryRepository().findById(requestIdOrJobData.storyId);
@@ -1499,10 +1663,18 @@ class StoryJobQueue {
           const concurrencyLimit = provider.getMaxConcurrency(plan?.slug);
           const maxCharsPerChunk = provider.getMaxCharsPerChunk();
           const coefficients = await getGenerationCoefficients();
-          estimatedTotalMs = estimateAudioGenerationMs(coefficients, fullTextLength, concurrencyLimit, maxCharsPerChunk);
+          estimatedTotalMs = estimateAudioGenerationMs(
+            coefficients,
+            fullTextLength,
+            concurrencyLimit,
+            maxCharsPerChunk
+          );
         }
       } catch (err) {
-        logger.warn({ err, storyId: requestIdOrJobData.storyId }, 'Failed to estimate audio time, using default');
+        logger.warn(
+          { err, storyId: requestIdOrJobData.storyId },
+          'Failed to estimate audio time, using default'
+        );
       }
 
       const actualJobId = await audioQueue.addJob({
@@ -1515,7 +1687,10 @@ class StoryJobQueue {
       return actualJobId;
     } else {
       const actualJobId = await legacyRegenerationQueue.addJob(requestIdOrJobData as any);
-      logger.info({ jobId: actualJobId, type: requestIdOrJobData.type }, 'Legacy regeneration job queued durably');
+      logger.info(
+        { jobId: actualJobId, type: requestIdOrJobData.type },
+        'Legacy regeneration job queued durably'
+      );
       return actualJobId;
     }
   }
@@ -1536,7 +1711,7 @@ class StoryJobQueue {
    * Get audio job status -- delegates to audioQueue
    */
   async getAudioJobStatus(storyId: string): Promise<'queued' | 'processing' | null> {
-    const info = await audioQueue.getQueueInfo(j => j.storyId === storyId);
+    const info = await audioQueue.getQueueInfo((j) => j.storyId === storyId);
     return info.jobStatus;
   }
 
@@ -1565,7 +1740,8 @@ async function processRegenerateGraphicNovelPageImageLegacy(
     },
     'Regenerating graphic novel page image (legacy)'
   );
-  const { regenerateGraphicNovelPageImage } = await import('../services/graphicNovelOrchestrationService');
+  const { regenerateGraphicNovelPageImage } =
+    await import('../services/graphicNovelOrchestrationService');
   await regenerateGraphicNovelPageImage({
     storyId: job.storyId,
     pageNumber: job.pageNumber,
@@ -1584,9 +1760,8 @@ async function processRepairGraphicNovelPanelsLegacy(
     },
     'Repairing selected graphic novel panels (legacy)'
   );
-  const { repairGraphicNovelPagePanels } = await import(
-    '../services/graphicNovelOrchestrationService'
-  );
+  const { repairGraphicNovelPagePanels } =
+    await import('../services/graphicNovelOrchestrationService');
   const result = await repairGraphicNovelPagePanels({
     storyId: job.storyId,
     pageNumber: job.pageNumber,

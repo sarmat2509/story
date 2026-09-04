@@ -172,6 +172,16 @@ export class OpenAITextProvider implements ITextProvider {
       }
 
       if (!responseText) {
+        logger.warn(
+          {
+            model: modelName,
+            operation: request.operation ?? 'text_structured',
+            finishReason: finishReason ?? null,
+            choiceCount: response.choices.length,
+            refusal: response.choices[0]?.message?.refusal ?? null,
+          },
+          'OpenAI returned an empty structured response'
+        );
         throw new Error('OpenAI returned empty response');
       }
 
@@ -315,6 +325,18 @@ export class OpenAITextProvider implements ITextProvider {
       }
 
       const responseText = response.choices[0]?.message?.content || '';
+      if (!responseText) {
+        logger.warn(
+          {
+            model: this.model,
+            operation: request.operation ?? 'text_free',
+            finishReason: response.choices[0]?.finish_reason ?? null,
+            choiceCount: response.choices.length,
+            refusal: response.choices[0]?.message?.refusal ?? null,
+          },
+          'OpenAI returned an empty free-text response'
+        );
+      }
       await Promise.resolve(
         request.onRawResponse?.({
           provider: 'openai',
