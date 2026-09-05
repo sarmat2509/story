@@ -88,6 +88,7 @@ class GlobalAudioService {
             story_id: params.storyId,
           });
           await sound.playAsync();
+          useAudioPlayerStore.getState().markPlaybackStarted();
         }
       } else {
         console.error('[GlobalAudioService] Audio created but not loaded');
@@ -129,6 +130,7 @@ class GlobalAudioService {
     if (!this.sound) return;
     try {
       await this.sound.playAsync();
+      useAudioPlayerStore.getState().markPlaybackStarted();
     } catch (err) {
       console.error('[GlobalAudioService] Resume error:', err);
     }
@@ -235,6 +237,7 @@ class GlobalAudioService {
 
     store.updatePosition(positionSeconds);
     store.setIsPlaying(status.isPlaying);
+    if (status.isPlaying) store.markPlaybackStarted();
 
     // Periodically save position to AsyncStorage
     const now = Date.now();

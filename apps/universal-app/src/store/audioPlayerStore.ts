@@ -21,6 +21,8 @@ interface AudioPlayerState {
 
   // Playback state
   isPlaying: boolean;
+  /** True after this active audio has actually started at least once; survives pause. */
+  hasStartedPlayback: boolean;
   position: number; // seconds (with ms precision, e.g. 45.234)
   isLoading: boolean;
   isLoaded: boolean;
@@ -51,6 +53,7 @@ interface AudioPlayerState {
   seek: (positionSeconds: number) => void;
   updatePosition: (positionSeconds: number) => void;
   setIsPlaying: (playing: boolean) => void;
+  markPlaybackStarted: () => void;
   setIsLoading: (loading: boolean) => void;
   setIsLoaded: (loaded: boolean) => void;
   toggleHighlight: (enabled: boolean) => void;
@@ -67,6 +70,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   duration: 0,
 
   isPlaying: false,
+  hasStartedPlayback: false,
   position: 0,
   isLoading: false,
   isLoaded: false,
@@ -91,6 +95,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
       playbackRate: params.initialPlaybackRate ?? get().playbackRate,
       position: params.initialPosition ?? 0,
       isPlaying: false,
+      hasStartedPlayback: false,
       isLoading: true,
       isLoaded: false,
     });
@@ -107,6 +112,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
       audioUrl: null,
       duration: 0,
       isPlaying: false,
+      hasStartedPlayback: false,
       position: 0,
       isLoading: false,
       isLoaded: false,
@@ -120,6 +126,8 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   updatePosition: (positionSeconds) => set({ position: positionSeconds }),
 
   setIsPlaying: (playing) => set({ isPlaying: playing }),
+
+  markPlaybackStarted: () => set({ hasStartedPlayback: true }),
 
   setIsLoading: (loading) => set({ isLoading: loading }),
 

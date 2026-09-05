@@ -33,8 +33,13 @@ assert.match(
 );
 assert.match(
   miniPlayer,
-  /isViewingActiveStory && \(isFullPlayerOpenForActiveStory \|\| !isPlaying\)/,
-  'current-story mini player must show only while narration plays and its full player is closed'
+  /isViewingActiveStory && \(isFullPlayerOpenForActiveStory \|\| !hasStartedPlayback\)/,
+  'current-story mini player must survive pause after narration has started and its full player is closed'
+);
+assert.match(
+  store,
+  /hasStartedPlayback: boolean[\s\S]*markPlaybackStarted/,
+  'audio state must distinguish already-started playback from current playing state'
 );
 
 console.log('story audio panel layout contract passed');
