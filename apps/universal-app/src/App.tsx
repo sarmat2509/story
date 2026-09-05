@@ -462,6 +462,10 @@ export default function App() {
 
   // Setup push notifications
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     // Setup notification tap handler
     const unsubscribe = pushNotificationService.setupNotificationListeners();
 

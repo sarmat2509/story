@@ -609,6 +609,8 @@
     "schedule_cadence_weekly": "Hebdomadaire",
     "schedule_button": "Planifier",
     "artifact_collect": "Garder",
+    "artifact_claim": "Obtenir l’artefact",
+    "artifact_show": "Voir l’artefact",
     "artifact_collected_title": "Artefact enregistré",
     "artifact_collected_message": "{{title}} est maintenant dans la collection.",
     "artifact_already_collected_title": "Déjà enregistré",

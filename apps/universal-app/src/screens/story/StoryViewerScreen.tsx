@@ -198,6 +198,20 @@ function getArtifactDisplayRanges(
   return ranges;
 }
 
+function sceneHasArtifactMarker(scene: unknown): boolean {
+  const value = scene as { text?: unknown; textSegments?: unknown } | null;
+  if (!value) return false;
+
+  if (typeof value.text === 'string' && /\{[^{}]+\}/.test(value.text)) {
+    return true;
+  }
+
+  return (
+    Array.isArray(value.textSegments) &&
+    value.textSegments.some((segment) => (segment as { type?: unknown })?.type === 'artifact')
+  );
+}
+
 const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 20;
 const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 23;
 const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 14;
@@ -726,6 +740,15 @@ export default function StoryViewerScreen() {
   const updateMe = useUpdateMe();
   const closingArtifact = ((story as any)?.closingArtifact ??
     null) as ManifestClosingArtifact | null;
+  const hasArtifactInStoryText = useMemo(
+    () =>
+      Boolean(
+        closingArtifact &&
+          Array.isArray(story?.scenes) &&
+          story.scenes.some(sceneHasArtifactMarker)
+      ),
+    [closingArtifact, story?.scenes]
+  );
   const artifactModalImageUrl =
     formatAssetUrl(
       closingArtifact?.thumbnailUrl ?? closingArtifact?.imageUrl ?? closingArtifact?.imagePath
@@ -3111,6 +3134,30 @@ export default function StoryViewerScreen() {
                 {/* Characters Section */}
                 {charactersSection}
 
+                {hasArtifactInStoryText ? (
+                  <AppButton
+                    testID="story-artifact-claim"
+                    label={
+                      isArtifactAlreadyCollected
+                        ? t('story_viewer.artifact_show')
+                        : t('story_viewer.artifact_claim')
+                    }
+                    onPress={
+                      isArtifactAlreadyCollected
+                        ? handleOpenArtifactsChest
+                        : () => handleOpenArtifact(closingArtifact?.title ?? '')
+                    }
+                    leading={
+                      <Ionicons
+                        name="sparkles-outline"
+                        size={20}
+                        color={theme.colors.text.inverse}
+                      />
+                    }
+                    style={styles.artifactClaimAction}
+                  />
+                ) : null}
+
                 {!isChildSession ? parentReviewPanel : null}
 
                 {canOpenAdminStory ? (
@@ -3131,23 +3178,23 @@ export default function StoryViewerScreen() {
 
                 {/* Publication block */}
                 {!isChildSession ? (
-                  <View style={styles.publicationSection}>
-                    {!story?.isPublished ? (
-                      <AppButton
-                        label={t('story_viewer.publish')}
-                        onPress={handleOpenPublishDialog}
-                        disabled={publishStory.isPending || parentReviewBlocksSharing}
-                        leading={
-                          <Ionicons
-                            name="cloud-upload-outline"
-                            size={20}
-                            color={theme.colors.text.inverse}
-                          />
-                        }
-                        style={styles.publicationAction}
-                      />
-                    ) : (
-                      <>
+                  !story?.isPublished ? (
+                    <AppButton
+                      testID="story-publish-action"
+                      label={t('story_viewer.publish')}
+                      onPress={handleOpenPublishDialog}
+                      disabled={publishStory.isPending || parentReviewBlocksSharing}
+                      leading={
+                        <Ionicons
+                          name="cloud-upload-outline"
+                          size={20}
+                          color={theme.colors.text.inverse}
+                        />
+                      }
+                      style={styles.unpublishedPublicationAction}
+                    />
+                  ) : (
+                    <View style={styles.publicationSection}>
                         <Text style={styles.publicationSectionTitle}>
                           {t('story_viewer.publication_title')}
                         </Text>
@@ -3202,9 +3249,8 @@ export default function StoryViewerScreen() {
                             style={styles.unpublishAction}
                           />
                         </View>
-                      </>
-                    )}
-                  </View>
+                    </View>
+                  )
                 ) : null}
 
                 {/* Delete Story Button */}
@@ -3477,6 +3523,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  unpublishedPublicationAction: {
+    alignSelf: 'stretch',
+    marginBottom: theme.spacing[4],
+  },
+  artifactClaimAction: {
+    alignSelf: 'stretch',
     marginBottom: theme.spacing[4],
   },
   parentReviewPanel: {

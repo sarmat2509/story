@@ -20,7 +20,6 @@ import { theme } from '@/theme';
 import { modernColors } from '@/theme/modernTheme';
 import { ChildAvatarImage, ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import type { RootStackParamList } from '@/types/navigation';
-import { formatAssetUrl } from '@/utils/assetUrl';
 import { useProductTour } from '@/features/productTour/ProductTourProvider';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -167,9 +166,6 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
     (route) => !isItemHidden(descriptors[route.key].options.drawerItemStyle)
   );
   const isChildSession = sessionMode === 'child' && activeChild;
-  const parentAvatarUrl = user?.avatarUrl
-    ? (formatAssetUrl(user.avatarUrl) ?? user.avatarUrl)
-    : null;
 
   return (
     <DrawerContentScrollView
@@ -202,8 +198,6 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                       <View style={styles.childAvatarFallback}>
                         <Text style={styles.childAvatarInitial}>{fallbackInitial}</Text>
                       </View>
-                    ) : parentAvatarUrl ? (
-                      <ChildAvatarImage uri={parentAvatarUrl} style={styles.childAvatar} />
                     ) : (
                       <View style={styles.childAvatarFallback}>
                         <Ionicons

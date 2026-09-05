@@ -115,28 +115,27 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
             </View>
           )}
 
-          {/* Publication block */}
-          {(onPublish || onShare) && (
+          {/* Unpublished stories need only the direct Publish action. */}
+          {!story?.isPublished ? (
+            onPublish ? (
+              <AppButton
+                testID="story-publish-action"
+                label={t('story_viewer.publish')}
+                onPress={onPublish}
+                disabled={isPublishPending}
+                leading={
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={20}
+                    color={theme.colors.text.inverse}
+                  />
+                }
+                style={[styles.publicationAction, styles.unpublishedPublicationAction]}
+              />
+            ) : null
+          ) : (onPublish || onShare) ? (
             <View style={styles.publicationSection}>
               <Text style={styles.sectionTitle}>{t('story_viewer.publication_title')}</Text>
-              {!story?.isPublished ? (
-                onPublish && (
-                  <AppButton
-                    label={t('story_viewer.publish')}
-                    onPress={onPublish}
-                    disabled={isPublishPending}
-                    leading={
-                      <Ionicons
-                        name="cloud-upload-outline"
-                        size={20}
-                        color={theme.colors.text.inverse}
-                      />
-                    }
-                    style={styles.publicationAction}
-                  />
-                )
-              ) : (
-                <>
                   <View style={styles.publicationBadge}>
                     <Ionicons
                       name={story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'}
@@ -191,10 +190,8 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                       />
                     )}
                   </View>
-                </>
-              )}
             </View>
-          )}
+          ) : null}
 
           {/* Delete Story Button */}
           {onDeleteStory ? (
@@ -262,6 +259,9 @@ const styles = StyleSheet.create({
   },
   publicationAction: {
     alignSelf: 'stretch',
+  },
+  unpublishedPublicationAction: {
+    marginBottom: theme.spacing[6],
   },
   publicationSection: {
     backgroundColor: theme.colors.background.secondary,

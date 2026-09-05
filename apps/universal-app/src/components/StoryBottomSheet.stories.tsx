@@ -44,3 +44,10 @@ export const Published: Story = {
     onUnpublish: () => undefined,
   },
 };
+export const PublishedUnlisted: Story = {
+  args: {
+    story: { isPublished: true, visibility: 'unlisted' },
+    onShare: () => undefined,
+    onUnpublish: () => undefined,
+  },
+};

@@ -23,13 +23,18 @@ assert.match(
 );
 assert.match(
   switcherSource,
-  /const fallbackInitial = displayedChild\?\.name\.trim\(\)[\s\S]*toLocaleUpperCase\(\)/,
+  /const childFallbackInitial = displayedChild\?\.name\.trim\(\)[\s\S]*toLocaleUpperCase\(\)/,
   'the avatar fallback must come from the child name'
 );
 assert.match(
   switcherSource,
-  /const triggerAvatarUrl = avatarUrl \?\? \(displayedChild \? null : fallbackAvatarUrl\)/,
-  'the parent avatar must not replace a missing child avatar'
+  /const triggerAvatarUrl = isChildSession \? childAvatarUrl : parentAvatarUrl/,
+  'the trigger must show the child avatar only during a child session'
+);
+assert.match(
+  switcherSource,
+  /const parentFallbackInitial = user\?\.displayName\?\.trim\(\)[\s\S]*user\?\.email\?\.trim\(\)[\s\S]*const fallbackInitial = isChildSession \? childFallbackInitial : parentFallbackInitial/,
+  'the parent trigger must fall back to the parent name or email initial'
 );
 assert.match(
   switcherSource,
@@ -39,11 +44,7 @@ assert.match(
 assert.match(
   drawerSource,
   /<Text style=\{styles\.childAvatarInitial\}>\{fallbackInitial\}<\/Text>/,
-  'the desktop drawer must render the child initial'
-);
-assert.ok(
-  drawerSource.indexOf('fallbackInitial ?') < drawerSource.indexOf('parentAvatarUrl ?'),
-  'the drawer must prefer the child initial over the parent avatar'
+  'the desktop drawer must render the active profile initial'
 );
 
 console.log('child navigation avatar tests passed');

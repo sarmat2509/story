@@ -1215,6 +1215,8 @@
     "publish": "Опубликовать",
     "cancel": "Отмена",
     "artifact_collect": "Забрать",
+    "artifact_claim": "Получить артефакт",
+    "artifact_show": "Показать артефакт",
     "artifact_collected_title": "Артефакт сохранён",
     "artifact_collected_message": "{{title}} теперь в коллекции.",
     "artifact_already_collected_title": "Артефакт уже в коллекции",

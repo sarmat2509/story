@@ -612,6 +612,8 @@
     "schedule_cadence_weekly": "Wöchentlich",
     "schedule_button": "Planen",
     "artifact_collect": "Sammeln",
+    "artifact_claim": "Artefakt erhalten",
+    "artifact_show": "Artefakt anzeigen",
     "artifact_collected_title": "Artefakt gespeichert",
     "artifact_collected_message": "{{title}} ist jetzt in der Sammlung.",
     "artifact_already_collected_title": "Schon gespeichert",

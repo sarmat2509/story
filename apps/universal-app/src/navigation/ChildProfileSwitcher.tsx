@@ -96,6 +96,7 @@ export function ChildProfileSwitcher({
   renderTrigger,
 }: ChildProfileSwitcherProps) {
   const { t } = useTranslation();
+  const user = useAuthStore((state) => state.user);
   const activeChild = useAuthStore((state) => state.activeChild);
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const [visible, setVisible] = useState(false);
@@ -115,11 +116,20 @@ export function ChildProfileSwitcher({
     ? (children.find((child) => child.id === activeChild.id) ?? activeChild)
     : null;
   const displayedChild = freshActiveChild ?? allChildrenData?.children[0] ?? children[0] ?? null;
-  const avatarUrl = getChildAvatarUrl(displayedChild);
-  const fallbackInitial = displayedChild?.name.trim()
+  const childAvatarUrl = getChildAvatarUrl(displayedChild);
+  const childFallbackInitial = displayedChild?.name.trim()
     ? [...displayedChild.name.trim()][0]?.toLocaleUpperCase() ?? null
     : null;
-  const triggerAvatarUrl = avatarUrl ?? (displayedChild ? null : fallbackAvatarUrl);
+  const parentAvatarUrl = user?.avatarUrl
+    ? (formatAssetUrl(user.avatarUrl) ?? user.avatarUrl)
+    : fallbackAvatarUrl;
+  const parentFallbackInitial = user?.displayName?.trim()
+    ? [...user.displayName.trim()][0]?.toLocaleUpperCase() ?? null
+    : user?.email?.trim()
+      ? [...user.email.trim()][0]?.toLocaleUpperCase() ?? null
+      : null;
+  const triggerAvatarUrl = isChildSession ? childAvatarUrl : parentAvatarUrl;
+  const fallbackInitial = isChildSession ? childFallbackInitial : parentFallbackInitial;
   const isSubmitting = parentGate.isPending || enterChildMode.isPending;
   const hasSwitcherProfiles = children.length > 0;
 
@@ -168,8 +178,6 @@ export function ChildProfileSwitcher({
 
       if (target.type === 'child') {
         await enterChildMode.mutateAsync(target.childId);
-      } else {
-        resetToMainRoute({ name: 'Profile' });
       }
 
       closeMenu();

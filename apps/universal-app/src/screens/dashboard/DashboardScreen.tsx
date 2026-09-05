@@ -132,7 +132,10 @@ function StoryScheduleCard({
         onPress={onPress}
         trailing={<Ionicons name="arrow-forward" size={18} color={theme.colors.text.inverse} />}
         size="md"
-        style={styles.scheduleAction}
+        style={[
+          styles.scheduleAction,
+          compact ? styles.scheduleActionCompact : styles.scheduleActionDefault,
+        ]}
       />
     </View>
   );
@@ -399,7 +402,11 @@ export default function DashboardScreen() {
 
               <View
                 testID="dashboard-latest-story-card"
-                style={[styles.featuredColumn, isTabletHero && styles.featuredColumnTablet]}
+                style={[
+                  styles.featuredColumn,
+                  isStackedHero && styles.featuredColumnCompact,
+                  isTabletHero && styles.featuredColumnTablet,
+                ]}
               >
                 {featuredStory ? (
                   <Pressable
@@ -580,7 +587,7 @@ export default function DashboardScreen() {
             </AnimatedSection>
           )}
 
-          {!featuredStory ? (
+          {!featuredStory && storiesCount > 0 ? (
             <AnimatedSection delay={220} trigger={enterKey}>
               <AppButton
                 label={t('dashboard.actions.view_library')}
@@ -687,7 +694,9 @@ const styles = StyleSheet.create({
   scheduleStarOne: { top: 4, right: 15 },
   scheduleStarTwo: { top: 41, left: 8, width: 5, height: 5, borderRadius: 3 },
   scheduleStarThree: { bottom: 11, right: 5, width: 6, height: 6, borderRadius: 3, backgroundColor: '#8A70C5' },
-  scheduleAction: { position: 'absolute', right: theme.spacing[6], bottom: theme.spacing[6], zIndex: 2, width: 272, maxWidth: 'calc(100% - 48px)' as any, backgroundColor: '#714E9B' },
+  scheduleAction: { position: 'absolute', bottom: theme.spacing[6], zIndex: 2, width: 272, maxWidth: 'calc(100% - 48px)' as any, backgroundColor: '#714E9B' },
+  scheduleActionDefault: { right: theme.spacing[6] },
+  scheduleActionCompact: { left: theme.spacing[6] },
   quizBanner: {
     minHeight: 76,
     marginTop: -theme.spacing[4],
@@ -865,6 +874,9 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     alignSelf: 'stretch',
     flexShrink: 0,
+  },
+  featuredColumnCompact: {
+    width: '100%',
   },
   featuredColumnTablet: {
     flex: 1,

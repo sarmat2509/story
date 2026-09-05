@@ -1215,6 +1215,8 @@
     "schedule_button": "Запланувати",
     "character_type_imaginary_friend": "Уявний друг",
     "artifact_collect": "Забрати",
+    "artifact_claim": "Отримати артефакт",
+    "artifact_show": "Показати артефакт",
     "artifact_collected_title": "Артефакт збережено",
     "artifact_collected_message": "{{title}} тепер у колекції.",
     "artifact_already_collected_title": "Артефакт уже в колекції",

@@ -1372,6 +1372,8 @@
     "schedule_cadence_weekly": "Semanal",
     "schedule_button": "Programar",
     "artifact_collect": "Guardar",
+    "artifact_claim": "Obtener artefacto",
+    "artifact_show": "Mostrar artefacto",
     "artifact_collected_title": "Artefacto guardado",
     "artifact_collected_message": "{{title}} ahora está en la colección.",
     "artifact_already_collected_title": "Ya guardado",

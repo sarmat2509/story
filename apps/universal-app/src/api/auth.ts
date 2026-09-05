@@ -63,7 +63,6 @@ async function applyParentGateResponse(
 ): Promise<void> {
   await storage.setAuthToken(data.token);
   await storage.setUser(data.user);
-  await applyUserPreferredLocale(data.user);
   syncPaletteFromUser(data.user);
   queryClient.clear();
   returnToParentSession(data.user, data.token);

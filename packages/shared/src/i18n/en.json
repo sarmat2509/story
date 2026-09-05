@@ -1215,6 +1215,8 @@
     "schedule_button": "Schedule",
     "character_type_imaginary_friend": "Imaginary friend",
     "artifact_collect": "Collect",
+    "artifact_claim": "Get artifact",
+    "artifact_show": "Show artifact",
     "artifact_collected_title": "Artifact saved",
     "artifact_collected_message": "{{title}} is now in the collection.",
     "artifact_already_collected_title": "Already collected",

@@ -1176,6 +1176,8 @@
     "bundle_pricing_link": "Cennik i pakiety",
     "character_type_imaginary_friend": "Wymyslony przyjaciel",
     "artifact_collect": "Zabierz",
+    "artifact_claim": "Odbierz artefakt",
+    "artifact_show": "Pokaż artefakt",
     "artifact_collected_title": "Artefakt zapisany",
     "artifact_collected_message": "{{title}} jest teraz w kolekcji.",
     "artifact_already_collected_title": "Już zapisany",
