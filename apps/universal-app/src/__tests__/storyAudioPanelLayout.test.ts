@@ -33,8 +33,8 @@ assert.match(
 );
 assert.match(
   miniPlayer,
-  /fullPlayerStoryId === activeStoryId/,
-  'mini player must hide only while the matching full player is visible'
+  /isViewingActiveStory && \(isFullPlayerOpenForActiveStory \|\| !isPlaying\)/,
+  'current-story mini player must show only while narration plays and its full player is closed'
 );
 
 console.log('story audio panel layout contract passed');

@@ -18,9 +18,18 @@ import { theme } from '@/theme';
 export function MiniAudioPlayer() {
   const activeStoryId = useAudioPlayerStore((s) => s.activeStoryId);
   const fullPlayerStoryId = useAudioPlayerStore((s) => s.fullPlayerStoryId);
+  const viewingStoryId = useAudioPlayerStore((s) => s.viewingStoryId);
+  const isPlaying = useAudioPlayerStore((s) => s.isPlaying);
 
-  // Hide if no active story or if the full player is already visible on screen
-  if (!activeStoryId || fullPlayerStoryId === activeStoryId) return null;
+  if (!activeStoryId) return null;
+
+  const isViewingActiveStory = viewingStoryId === activeStoryId;
+  const isFullPlayerOpenForActiveStory = fullPlayerStoryId === activeStoryId;
+
+  // For the story being read now, show the compact player only while its full
+  // player is closed and narration is playing. Audio from another story stays
+  // available here regardless of the current story panel's state.
+  if (isViewingActiveStory && (isFullPlayerOpenForActiveStory || !isPlaying)) return null;
 
   return <MiniAudioPlayerInner activeStoryId={activeStoryId} />;
 }
