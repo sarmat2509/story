@@ -54,8 +54,8 @@ assert.match(
 );
 assert.match(
   miniPlayer,
-  /paddingTop: 14,[\s\S]*overflow: 'visible'/,
-  'mini player must reserve an above-edge seek target'
+  /backgroundColor: 'transparent',[\s\S]*overflow: 'visible'[\s\S]*top: -14/,
+  'mini player seek target must extend transparently above the panel without consuming layout space'
 );
 assert.match(
   miniPlayer,

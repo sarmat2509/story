@@ -277,9 +277,9 @@ function formatTime(seconds: number): string {
 
 const styles = StyleSheet.create({
   container: {
-    // Reserve invisible space above the panel so the seek hit target and
-    // hover-only thumb can extend over the visual top edge without overlap.
-    paddingTop: 14,
+    // The seek target extends over the page above the player. It must not
+    // consume tab-bar layout space, otherwise that transparent area turns gray.
+    backgroundColor: 'transparent',
     overflow: 'visible',
   },
   surface: {
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   },
   progressBarTouchable: {
     position: 'absolute',
-    top: 0,
+    top: -14,
     left: 0,
     right: 0,
     height: 28,
