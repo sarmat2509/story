@@ -16,6 +16,10 @@ import { globalAudioService } from '@/services/globalAudioService';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
 
+const isTouchDevice =
+  Platform.OS !== 'web' ||
+  (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+
 /**
  * Thin bottom bar (Spotify-style) showing the currently playing story audio.
  * Hidden when:
@@ -68,6 +72,7 @@ function MiniAudioPlayerInner({
   const position = useAudioPlayerStore((s) => s.position);
   const duration = useAudioPlayerStore((s) => s.duration);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProgressHovered, setIsProgressHovered] = useState(false);
   const [dragPosition, setDragPosition] = useState<number | null>(null);
   const [hasDragged, setHasDragged] = useState(false);
   const progressBarRef = useRef<View>(null);
@@ -75,6 +80,7 @@ function MiniAudioPlayerInner({
   const validDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const displayPosition = dragPosition ?? position;
   const progressPercent = validDuration > 0 ? (displayPosition / validDuration) * 100 : 0;
+  const shouldShowProgressThumb = isTouchDevice || isProgressHovered || isDragging;
 
   useEffect(() => {
     entrance.setValue(0);
@@ -196,6 +202,43 @@ function MiniAudioPlayerInner({
         },
       ]}
     >
+      <View style={styles.surface}>
+        <View style={styles.content}>
+          {/* Play / Pause button */}
+          <TouchableOpacity style={styles.playButton} onPress={handlePlayPause} disabled={isLoading}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+            ) : (
+              <Ionicons
+                name={isPlaying ? 'pause' : 'play'}
+                size={20}
+                color={theme.colors.text.inverse}
+              />
+            )}
+          </TouchableOpacity>
+
+          {/* Story title */}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+              {storyTitle || 'Story'}
+            </Text>
+            <Text style={styles.time}>
+              {formatTime(position)} / {formatTime(duration)}
+            </Text>
+          </View>
+
+          {showOpenStoryAction && (
+            <TouchableOpacity
+              style={styles.openStoryButton}
+              onPress={() => navigateToStory(activeStoryId)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.openStoryButtonText}>{t('artifacts.open_story')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <Pressable
         ref={progressBarRef}
         style={({ pressed }) => [styles.progressBarTouchable, pressed && styles.progressBarPressed]}
@@ -203,6 +246,8 @@ function MiniAudioPlayerInner({
         onPressIn={() => setIsDragging(true)}
         onPressOut={handleDragEnd}
         onResponderMove={handleDragMove}
+        onHoverIn={() => setIsProgressHovered(true)}
+        onHoverOut={() => setIsProgressHovered(false)}
         disabled={!isLoaded || validDuration <= 0}
         accessibilityRole="adjustable"
         accessibilityValue={{ min: 0, max: validDuration, now: displayPosition }}
@@ -210,7 +255,7 @@ function MiniAudioPlayerInner({
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
-        {isLoaded && validDuration > 0 && (
+        {isLoaded && validDuration > 0 && shouldShowProgressThumb && (
           <View
             style={[
               styles.progressThumb,
@@ -220,41 +265,6 @@ function MiniAudioPlayerInner({
           />
         )}
       </Pressable>
-
-      <View style={styles.content}>
-        {/* Play / Pause button */}
-        <TouchableOpacity style={styles.playButton} onPress={handlePlayPause} disabled={isLoading}>
-          {isLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-          ) : (
-            <Ionicons
-              name={isPlaying ? 'pause' : 'play'}
-              size={20}
-              color={theme.colors.text.inverse}
-            />
-          )}
-        </TouchableOpacity>
-
-        {/* Story title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {storyTitle || 'Story'}
-          </Text>
-          <Text style={styles.time}>
-            {formatTime(position)} / {formatTime(duration)}
-          </Text>
-        </View>
-
-        {showOpenStoryAction && (
-          <TouchableOpacity
-            style={styles.openStoryButton}
-            onPress={() => navigateToStory(activeStoryId)}
-            accessibilityRole="button"
-          >
-            <Text style={styles.openStoryButtonText}>{t('artifacts.open_story')}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
     </Animated.View>
   );
 }
@@ -267,17 +277,26 @@ function formatTime(seconds: number): string {
 
 const styles = StyleSheet.create({
   container: {
+    // Reserve invisible space above the panel so the seek hit target and
+    // hover-only thumb can extend over the visual top edge without overlap.
+    paddingTop: 14,
+    overflow: 'visible',
+  },
+  surface: {
     backgroundColor: theme.colors.interactive.primary,
-    overflow: 'hidden',
   },
   progressTrack: {
     height: 3,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   progressBarTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     height: 28,
     justifyContent: 'center',
-    position: 'relative',
+    zIndex: 1,
   },
   progressBarPressed: {
     opacity: 0.8,

@@ -52,6 +52,21 @@ assert.match(
   /Animated\.timing\(entrance,[\s\S]*useNativeDriver: true[\s\S]*translateY:[\s\S]*outputRange: \[72, 0\]/,
   'mini player must slide in from below the bottom edge'
 );
+assert.match(
+  miniPlayer,
+  /paddingTop: 14,[\s\S]*overflow: 'visible'/,
+  'mini player must reserve an above-edge seek target'
+);
+assert.match(
+  miniPlayer,
+  /onHoverIn=\{\(\) => setIsProgressHovered\(true\)\}/,
+  'mini player must support hover over its seek target'
+);
+assert.match(
+  miniPlayer,
+  /isTouchDevice \|\| isProgressHovered \|\| isDragging[\s\S]*shouldShowProgressThumb/,
+  'mini player must keep the thumb visible on touch and reveal it on hover or drag'
+);
 assert.doesNotMatch(
   miniPlayer,
   /chevron-up-outline/,
