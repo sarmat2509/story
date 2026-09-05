@@ -9,6 +9,7 @@ const storyViewer = readFileSync(
   resolve(process.cwd(), 'src/screens/story/StoryViewerScreen.tsx'),
   'utf8'
 );
+const bottomSheet = readFileSync(resolve(process.cwd(), 'src/components/StoryBottomSheet.tsx'), 'utf8');
 
 assert.match(
   audioPlayer,
@@ -25,6 +26,11 @@ assert.match(
   storyViewer,
   /onSheetChange=\{handleTabletPanelChange\}/,
   'tablet sheet visibility must drive full-player visibility'
+);
+assert.match(
+  bottomSheet,
+  /enablePanDownToClose\s+topInset=\{20\}/,
+  'story actions sheet must stop 20px below the header when fully expanded'
 );
 assert.match(
   store,

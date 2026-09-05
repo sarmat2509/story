@@ -81,6 +81,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
         snapPoints={snapPoints}
         backdropComponent={renderBackdrop}
         enablePanDownToClose
+        topInset={20}
         onChange={onSheetChange}
         handleIndicatorStyle={styles.handleIndicator}
         backgroundStyle={styles.bottomSheetBackground}
