@@ -58,6 +58,16 @@ assert.doesNotMatch(
   'mini player must not render a non-functional story navigation control'
 );
 assert.match(
+  miniPlayer,
+  /onPress=\{handleSeek\}[\s\S]*onResponderMove=\{handleDragMove\}/,
+  'mini player progress must support both tap-to-seek and dragging'
+);
+assert.match(
+  miniPlayer,
+  /globalAudioService\.seekTo\(newPositionSeconds \* 1000\)/,
+  'mini player seeking must use the shared audio service'
+);
+assert.match(
   store,
   /hasStartedPlayback: boolean[\s\S]*markPlaybackStarted/,
   'audio state must distinguish already-started playback from current playing state'

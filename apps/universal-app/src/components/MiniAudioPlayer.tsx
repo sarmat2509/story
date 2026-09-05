@@ -1,5 +1,14 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -41,10 +50,17 @@ function MiniAudioPlayerInner() {
   const storyTitle = useAudioPlayerStore((s) => s.storyTitle);
   const isPlaying = useAudioPlayerStore((s) => s.isPlaying);
   const isLoading = useAudioPlayerStore((s) => s.isLoading);
+  const isLoaded = useAudioPlayerStore((s) => s.isLoaded);
   const position = useAudioPlayerStore((s) => s.position);
   const duration = useAudioPlayerStore((s) => s.duration);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPosition, setDragPosition] = useState<number | null>(null);
+  const [hasDragged, setHasDragged] = useState(false);
+  const progressBarRef = useRef<View>(null);
 
-  const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
+  const validDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const displayPosition = dragPosition ?? position;
+  const progressPercent = validDuration > 0 ? (displayPosition / validDuration) * 100 : 0;
 
   useEffect(() => {
     entrance.setValue(0);
@@ -61,6 +77,97 @@ function MiniAudioPlayerInner() {
     globalAudioService.togglePlayPause();
   };
 
+  // Keep mini-player seeking consistent with AudioPlayer: taps seek immediately
+  // and a drag continuously updates both the thumb and the shared audio service.
+  const performSeek = useCallback(
+    (tapX: number, width: number, isDrag = false) => {
+      if (!isLoaded || !width || width <= 0 || !Number.isFinite(width)) return;
+
+      const percentage = Math.max(0, Math.min(1, tapX / width));
+      const newPositionSeconds = percentage * validDuration;
+      if (!Number.isFinite(newPositionSeconds) || newPositionSeconds < 0) return;
+
+      if (isDrag) {
+        setDragPosition(newPositionSeconds);
+        setHasDragged(true);
+      }
+
+      globalAudioService.seekTo(newPositionSeconds * 1000).catch((error) => {
+        console.error('[MiniAudioPlayer] Seek error:', error);
+      });
+    },
+    [isLoaded, validDuration]
+  );
+
+  const handleSeek = useCallback(
+    (event: any) => {
+      if (hasDragged) {
+        setHasDragged(false);
+        return;
+      }
+      if (!isLoaded) return;
+
+      const nativeEvent = event.nativeEvent;
+      const tapX =
+        typeof nativeEvent.locationX === 'number'
+          ? nativeEvent.locationX
+          : typeof nativeEvent.offsetX === 'number'
+            ? nativeEvent.offsetX
+            : undefined;
+
+      if (typeof tapX === 'number' && Number.isFinite(tapX)) {
+        progressBarRef.current?.measure((_x, _y, width) => performSeek(tapX, width));
+        return;
+      }
+
+      if (typeof nativeEvent.pageX === 'number') {
+        progressBarRef.current?.measure((_x, _y, width, _height, pageX) => {
+          performSeek(nativeEvent.pageX - pageX, width);
+        });
+      }
+    },
+    [hasDragged, isLoaded, performSeek]
+  );
+
+  const handleDragMove = useCallback(
+    (event: any) => {
+      if (!isDragging || !isLoaded) return;
+      const nativeEvent = event.nativeEvent;
+      const tapX =
+        typeof nativeEvent.locationX === 'number'
+          ? nativeEvent.locationX
+          : typeof nativeEvent.offsetX === 'number'
+            ? nativeEvent.offsetX
+            : undefined;
+      if (typeof tapX !== 'number' || !Number.isFinite(tapX)) return;
+      progressBarRef.current?.measure((_x, _y, width) => performSeek(tapX, width, true));
+    },
+    [isDragging, isLoaded, performSeek]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    setTimeout(() => setDragPosition(null), 50);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isDragging || !progressBarRef.current) return;
+
+    const handleMouseMove = (event: globalThis.MouseEvent) => {
+      const element = progressBarRef.current as unknown as HTMLElement;
+      const rect = element.getBoundingClientRect?.();
+      if (rect) performSeek(event.clientX - rect.left, rect.width, true);
+    };
+    const handleMouseUp = () => handleDragEnd();
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleDragEnd, isDragging, performSeek]);
+
   return (
     <Animated.View
       style={[
@@ -75,10 +182,30 @@ function MiniAudioPlayerInner() {
         },
       ]}
     >
-      {/* Thin progress bar at the top */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-      </View>
+      <Pressable
+        ref={progressBarRef}
+        style={({ pressed }) => [styles.progressBarTouchable, pressed && styles.progressBarPressed]}
+        onPress={handleSeek}
+        onPressIn={() => setIsDragging(true)}
+        onPressOut={handleDragEnd}
+        onResponderMove={handleDragMove}
+        disabled={!isLoaded || validDuration <= 0}
+        accessibilityRole="adjustable"
+        accessibilityValue={{ min: 0, max: validDuration, now: displayPosition }}
+      >
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+        </View>
+        {isLoaded && validDuration > 0 && (
+          <View
+            style={[
+              styles.progressThumb,
+              { left: `${progressPercent}%` },
+              isDragging && styles.progressThumbDragging,
+            ]}
+          />
+        )}
+      </Pressable>
 
       <View style={styles.content}>
         {/* Play / Pause button */}
@@ -123,9 +250,37 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
+  progressBarTouchable: {
+    height: 28,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  progressBarPressed: {
+    opacity: 0.8,
+  },
   progressFill: {
     height: '100%',
     backgroundColor: theme.colors.text.inverse,
+  },
+  progressThumb: {
+    position: 'absolute',
+    top: '50%',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.colors.text.inverse,
+    borderWidth: 2,
+    borderColor: theme.colors.interactive.primary,
+    marginLeft: -7,
+    marginTop: -7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  progressThumbDragging: {
+    transform: [{ scale: 1.2 }],
   },
   content: {
     flexDirection: 'row',
