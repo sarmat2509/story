@@ -11,15 +11,16 @@ import { theme } from '@/theme';
  * Thin bottom bar (Spotify-style) showing the currently playing story audio.
  * Hidden when:
  *  - No story is active in the global audio player
- *  - The user is currently viewing the active story's StoryViewerScreen
- *    (detected via viewingStoryId in the store, set by StoryViewerScreen on mount/unmount)
+ *  - The active story's full-size player is actually visible.
+ *    Tablet uses a collapsible sheet, so merely viewing the story is not enough
+ *    to hide this player.
  */
 export function MiniAudioPlayer() {
   const activeStoryId = useAudioPlayerStore((s) => s.activeStoryId);
-  const viewingStoryId = useAudioPlayerStore((s) => s.viewingStoryId);
+  const fullPlayerStoryId = useAudioPlayerStore((s) => s.fullPlayerStoryId);
 
   // Hide if no active story or if the full player is already visible on screen
-  if (!activeStoryId || viewingStoryId === activeStoryId) return null;
+  if (!activeStoryId || fullPlayerStoryId === activeStoryId) return null;
 
   return <MiniAudioPlayerInner activeStoryId={activeStoryId} />;
 }

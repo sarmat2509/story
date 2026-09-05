@@ -459,7 +459,7 @@ export default function AudioPlayer({
 const styles = StyleSheet.create({
   container: {
     paddingVertical: theme.spacing[4],
-    paddingHorizontal: 0,
+    paddingHorizontal: theme.spacing[6],
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.spacing[3],
   },

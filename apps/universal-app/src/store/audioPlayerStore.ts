@@ -36,8 +36,12 @@ interface AudioPlayerState {
   playbackRate: number;
 
   // The storyId currently being viewed in StoryViewerScreen (set/cleared on mount/unmount).
-  // Used by MiniAudioPlayer to hide when the full player is already visible.
+  // Used for story-screen behaviors such as in-app audio-ready notifications.
   viewingStoryId: string | null;
+
+  // The storyId whose full-size player is actually visible. This differs from
+  // viewingStoryId on tablet, where the player lives in a collapsible sheet.
+  fullPlayerStoryId: string | null;
 
   // Actions
   play: (params: PlayParams) => void;
@@ -52,6 +56,7 @@ interface AudioPlayerState {
   toggleHighlight: (enabled: boolean) => void;
   setDidJustFinish: (value: boolean) => void;
   setViewingStoryId: (storyId: string | null) => void;
+  setFullPlayerStoryId: (storyId: string | null) => void;
   setPlaybackRate: (rate: number) => void;
 }
 
@@ -71,6 +76,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   didJustFinish: false,
   playbackRate: 1,
   viewingStoryId: null,
+  fullPlayerStoryId: null,
 
   play: (params) => {
     // Stop previous playback (single-story rule)
@@ -124,6 +130,8 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   setDidJustFinish: (value) => set({ didJustFinish: value }),
 
   setViewingStoryId: (storyId) => set({ viewingStoryId: storyId }),
+
+  setFullPlayerStoryId: (storyId) => set({ fullPlayerStoryId: storyId }),
 
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
 }));

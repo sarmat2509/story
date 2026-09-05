@@ -411,9 +411,14 @@ export default function StoryViewerScreen() {
 
   // Bottom sheet for tablet portrait
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const [isTabletPanelOpen, setIsTabletPanelOpen] = useState(false);
 
   const openBottomSheet = useCallback(() => {
     bottomSheetRef.current?.expand();
+  }, []);
+
+  const handleTabletPanelChange = useCallback((index: number) => {
+    setIsTabletPanelOpen(index >= 0);
   }, []);
 
   // M6: Text highlighting state
@@ -492,12 +497,21 @@ export default function StoryViewerScreen() {
   // mounted when navigating away — cleanup must fire on blur, not just unmount.
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
   const viewingStoryId = useAudioPlayerStore((s) => s.viewingStoryId);
+  const setFullPlayerStoryId = useAudioPlayerStore((s) => s.setFullPlayerStoryId);
   useFocusEffect(
     useCallback(() => {
       if (storyId) setViewingStoryId(storyId);
       return () => setViewingStoryId(null);
     }, [storyId, setViewingStoryId])
   );
+
+  const isFullAudioPlayerVisible =
+    !!story?.audioMetadata && (!isTabletPortrait || isTabletPanelOpen);
+  useEffect(() => {
+    if (!storyId) return;
+    setFullPlayerStoryId(isFullAudioPlayerVisible ? storyId : null);
+    return () => setFullPlayerStoryId(null);
+  }, [isFullAudioPlayerVisible, setFullPlayerStoryId, storyId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -3035,7 +3049,7 @@ export default function StoryViewerScreen() {
 
           {/* FAB for Tablet Portrait only */}
           {isTabletPortrait && (story.audioMetadata || storyCharactersForSection.length > 0) && (
-            <FloatingActionButton onPress={openBottomSheet} icon="musical-notes" />
+            <FloatingActionButton onPress={openBottomSheet} icon="layers-outline" />
           )}
 
           {/* Bottom Sheet for Tablet Portrait */}
@@ -3061,6 +3075,7 @@ export default function StoryViewerScreen() {
               onSaveCharacter={!isChildSession && isArtisanMode ? handleSaveCharacter : undefined}
               savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
+              onSheetChange={handleTabletPanelChange}
             />
           )}
         </>
@@ -3116,7 +3131,7 @@ export default function StoryViewerScreen() {
 
                 {/* Audio Widget */}
                 {story.audioMetadata && playerAudioData && (
-                  <View style={styles.sidebarWidget}>
+                  <View style={styles.audioPlayerSidebarWidget}>
                     <AudioPlayer
                       storyId={storyId}
                       audioUrl={playerAudioData.audioUrl}
@@ -3508,6 +3523,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.secondary,
     padding: theme.spacing[6],
     borderRadius: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  audioPlayerSidebarWidget: {
     marginBottom: theme.spacing[4],
   },
   readingTimeRow: {

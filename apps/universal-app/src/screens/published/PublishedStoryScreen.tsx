@@ -96,6 +96,7 @@ export default function PublishedStoryScreen() {
   const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const activeStoryId = useAudioPlayerStore((s) => s.activeStoryId);
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
+  const setFullPlayerStoryId = useAudioPlayerStore((s) => s.setFullPlayerStoryId);
   const isHighlightEnabledRef = useRef(false);
   const lastPositionUpdateTime = useRef(0);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -124,6 +125,12 @@ export default function PublishedStoryScreen() {
     setViewingStoryId(story.id);
     return () => setViewingStoryId(null);
   }, [story?.id, setViewingStoryId]);
+
+  useEffect(() => {
+    if (!story?.id || !audioUrl) return;
+    setFullPlayerStoryId(story.id);
+    return () => setFullPlayerStoryId(null);
+  }, [audioUrl, setFullPlayerStoryId, story?.id]);
 
   const sceneTexts = useMemo(
     () => (story?.scenes ?? []).map((s: any) => removeAudioTags(s.text || '')),
@@ -750,7 +757,7 @@ export default function PublishedStoryScreen() {
       )}
       {/* Audio widget at top (same styles as StoryViewerScreen sidebar) */}
       {audioUrl && (
-        <View style={styles.sidebarWidget}>
+        <View style={styles.audioWidget}>
           <AudioPlayer
             storyId={story.id}
             audioUrl={audioUrl}
@@ -973,9 +980,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   audioWidget: {
-    backgroundColor: theme.colors.background.secondary,
-    padding: theme.spacing[6],
-    borderRadius: theme.spacing[4],
     marginBottom: theme.spacing[6],
   },
   scenesSection: {

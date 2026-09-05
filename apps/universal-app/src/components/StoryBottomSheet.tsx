@@ -33,6 +33,7 @@ interface StoryBottomSheetProps {
   onSaveCharacter?: (characterId: string, description?: string | null) => Promise<void>;
   savedCharacterIds?: readonly string[];
   userMode?: 'instant' | 'artisan';
+  onSheetChange?: (index: number) => void;
 }
 
 export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
@@ -58,6 +59,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
       onSaveCharacter,
       savedCharacterIds = [],
       userMode,
+      onSheetChange,
     },
     _ref
   ) => {
@@ -79,6 +81,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
         snapPoints={snapPoints}
         backdropComponent={renderBackdrop}
         enablePanDownToClose
+        onChange={onSheetChange}
         handleIndicatorStyle={styles.handleIndicator}
         backgroundStyle={styles.bottomSheetBackground}
       >
