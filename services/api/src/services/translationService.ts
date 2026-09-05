@@ -129,6 +129,32 @@ Artifact:
 - Visual identity: ${artifact.description}`;
 }
 
+async function getCompleteCharacterNameLocalizations(
+  character: Character
+): Promise<CharacterNameLocalizations | null> {
+  const fallback = stripCharacterIdFromName(character.name || '').trim() || character.name?.trim();
+  if (!fallback) return null;
+
+  const rows = await getDictionaryRepository().findTranslationsForEntities(
+    'character',
+    [character.id],
+    'name'
+  );
+  const values = new Map<string, string>();
+  for (const row of rows) {
+    const locale = normalizeSourceLocale(row.locale);
+    const value = normalizeLocalizedName(row.value, '');
+    if (locale && value) values.set(locale, value);
+  }
+
+  if (!LOCALE_IDS.every((locale) => values.has(locale))) return null;
+
+  return LOCALE_IDS.reduce((acc, locale) => {
+    acc[locale] = values.get(locale) || fallback;
+    return acc;
+  }, {} as CharacterNameLocalizations);
+}
+
 /**
  * Generate and persist localized display names for every supported story language.
  * Stored in translations as entityType='character', fieldName='name'.
@@ -219,6 +245,28 @@ export async function localizeCharacterNames(
 
     return defaults;
   }
+}
+
+/**
+ * Return saved names when all story locales are covered; otherwise generate and
+ * persist the complete set. This makes hidden LLM characters safe to reuse in
+ * stories and character collections without re-translating them unnecessarily.
+ */
+export async function ensureLocalizedCharacterNames(
+  character: Character,
+  options?: TranslationOptions
+): Promise<CharacterNameLocalizations> {
+  try {
+    const existing = await getCompleteCharacterNameLocalizations(character);
+    if (existing) return existing;
+  } catch (error) {
+    logger.warn(
+      { error, characterId: character.id },
+      'Could not read existing character name localizations; regenerating them'
+    );
+  }
+
+  return localizeCharacterNames(character, options);
 }
 
 /**

@@ -7,8 +7,12 @@ import type { Character, NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
-import { localizeCharacterNames, translateCharacterDescription } from './translationService';
-import { stripCharacterIdFromName, type CharacterType } from '@wondertales/shared';
+import {
+  ensureLocalizedCharacterNames,
+  localizeCharacterNames,
+  translateCharacterDescription,
+} from './translationService';
+import { LOCALE_IDS, stripCharacterIdFromName, type CharacterType } from '@wondertales/shared';
 import { syncChildProfileCharactersForUser } from './childProfileService';
 import { buildCharacterDefaultOutfitPatch } from './defaultOutfitService';
 
@@ -93,6 +97,32 @@ async function attachNameTranslations(
   });
 }
 
+function hasCompleteNameTranslations(character: CharacterWithNameTranslations): boolean {
+  return LOCALE_IDS.every((locale) => {
+    const value = character.nameTranslations?.[locale];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+}
+
+async function ensureNameTranslationsForCollection(
+  characters: CharacterWithNameTranslations[],
+  userId: string
+): Promise<CharacterWithNameTranslations[]> {
+  const incomplete = characters.filter((character) => !hasCompleteNameTranslations(character));
+  if (incomplete.length === 0) return characters;
+
+  await Promise.all(
+    incomplete.map((character) =>
+      ensureLocalizedCharacterNames(character, {
+        onUsage: (usage) => recordUsage(usage, { userId, characterId: character.id }),
+        sourceLocale: character.descriptionLanguage,
+      })
+    )
+  );
+
+  return attachNameTranslations(characters);
+}
+
 // Character CRUD
 export async function createCharacter(
   userId: string,
@@ -147,7 +177,10 @@ export async function getCharacters(
     },
     'Fetched characters'
   );
-  const localized = await attachNameTranslations(visible);
+  const localized = await ensureNameTranslationsForCollection(
+    await attachNameTranslations(visible),
+    userId
+  );
   return localized.map((character) => {
     const isOwned = character.userId === userId;
     if (isOwned) {

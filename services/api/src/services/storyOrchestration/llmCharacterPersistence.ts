@@ -8,7 +8,7 @@ import { getCharacterRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { crossScriptIdentityKey } from '../../utils/characterNormalization';
 import { generateEmbedding, cosineSimilarity } from '../embeddingService';
-import { localizeCharacterNames } from '../translationService';
+import { ensureLocalizedCharacterNames } from '../translationService';
 import { isValidLocale, type Locale } from '@wondertales/shared';
 
 export const LLM_CHARACTER_EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
@@ -72,6 +72,7 @@ export async function findOrCreateLlmCharacter(
     c => crossScriptIdentityKey(c.name) === identityKey && c.type === mappedType,
   );
   if (nameMatch) {
+    await ensureLocalizedCharacterNames(nameMatch, { sourceLocale });
     logger.info({ matched: nameMatch.name, by: 'name' }, 'LLM char matched by name');
     return {
       characterId: nameMatch.id,
@@ -120,12 +121,7 @@ export async function findOrCreateLlmCharacter(
 
   existingHiddenChars.push(created);
 
-  localizeCharacterNames(created, { sourceLocale }).catch(err => {
-    logger.error(
-      { err, characterId: created.id, characterName: created.name },
-      'LLM character name localization failed',
-    );
-  });
+  await ensureLocalizedCharacterNames(created, { sourceLocale });
 
   let hasTurnaround = false;
   if (bestMatch) {

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { getCharacterDisplayName, normalizeInterfaceLocale } from '../characterDisplayName';
+import {
+  getCharacterDisplayName,
+  getStoryCharacterDisplayName,
+  normalizeInterfaceLocale,
+} from '../characterDisplayName';
 
 const character = {
   name: 'Бронированный Утя-Герой',
@@ -18,6 +22,11 @@ assert.equal(
   getCharacterDisplayName({ ...character, nameTranslations: undefined }, 'uk'),
   'Бронированный Утя-Герой',
   'canonical name should be used when the interface translation is unavailable'
+);
+assert.equal(
+  getStoryCharacterDisplayName(character),
+  'Бронированный Утя-Герой',
+  'a story must keep the name used by its text even when the interface has another locale'
 );
 
 console.log('character display-name locale tests passed');

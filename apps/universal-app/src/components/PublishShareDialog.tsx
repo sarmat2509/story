@@ -129,7 +129,7 @@ export function PublishShareDialog({
         const nav = (globalThis as any).navigator;
         if (nav?.clipboard?.writeText) {
           await nav.clipboard.writeText(displayUrl);
-          toastService.success(t('story_viewer.url_copied', 'URL скопировано'));
+          toastService.success(t('story_viewer.url_copied', 'URL copied'));
           onCancel();
         }
       }
@@ -172,7 +172,7 @@ export function PublishShareDialog({
           {isPostPublish ? (
             <>
               <Text style={styles.title}>
-                {t('story_viewer.publish_share_dialog_published', 'Опубліковано')}
+                {t('story_viewer.publish_share_dialog_published', 'Published')}
               </Text>
 
               <View style={styles.urlContainer}>
@@ -201,7 +201,7 @@ export function PublishShareDialog({
 
               {onUnpublish && (
                 <AppButton
-                  label={t('story_viewer.unpublish', 'Зняти з публікації')}
+                  label={t('story_viewer.unpublish', 'Unpublish')}
                   onPress={onUnpublish}
                   disabled={isLoading}
                   variant="dangerSecondary"
@@ -214,26 +214,28 @@ export function PublishShareDialog({
           ) : (
             <>
               <Text style={styles.title}>
-                {t('story_viewer.publish_share_dialog_title', 'Опублікувати історію')}
+                {t('story_viewer.publish_share_dialog_title', 'Publish story')}
               </Text>
 
               {openedFromShare && (
                 <Text style={styles.message}>
                   {t(
                     'story_viewer.publish_share_dialog_message',
-                    'Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.'
+                    'To share the story, it needs to be published. It will become available to all users.'
                   )}
                 </Text>
               )}
 
               {userPseudonym && !allowAuthorProfileEdit ? (
                 <Text style={styles.pseudonymText}>
-                  {t('story_viewer.publishing_under_pseudonym', 'Публікуємо під псевдонімом')}{' '}
+                  {t('story_viewer.publishing_under_pseudonym', 'Publishing under pseudonym')}{' '}
                   {userPseudonym}
                 </Text>
               ) : (
                 <View style={styles.pseudonymRow}>
-                  <Text style={styles.pseudonymLabel}>{t('profile.pseudonym', 'Псевдоним')}</Text>
+                  <Text style={styles.pseudonymLabel}>
+                    {t('profile.pseudonym', 'Pseudonym (for publications)')}
+                  </Text>
                   <TextInput
                     style={styles.pseudonymInput}
                     value={pseudonymInput}
@@ -263,7 +265,7 @@ export function PublishShareDialog({
               {coverAssetsWithImages.length > 0 && (
                 <>
                   <Text style={styles.carouselLabel}>
-                    {t('story_viewer.share_card_cover', 'Обкладинка для поширення')}
+                    {t('story_viewer.share_card_cover', 'Cover for sharing')}
                   </Text>
                   <ScrollView
                     horizontal
@@ -327,10 +329,10 @@ export function PublishShareDialog({
                       selectedVisibility === 'public' && styles.visibilityLabelSelected,
                     ]}
                   >
-                    {t('story_viewer.visibility_public', 'Для всіх')}
+                    {t('story_viewer.visibility_public', 'For everyone')}
                   </Text>
                   <Text style={styles.visibilityHint}>
-                    {t('story_viewer.visibility_public_hint', 'У каталозі')}
+                    {t('story_viewer.visibility_public_hint', 'In the catalog')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -357,10 +359,10 @@ export function PublishShareDialog({
                       selectedVisibility === 'unlisted' && styles.visibilityLabelSelected,
                     ]}
                   >
-                    {t('story_viewer.visibility_unlisted', 'По посиланню')}
+                    {t('story_viewer.visibility_unlisted', 'Link only')}
                   </Text>
                   <Text style={styles.visibilityHint}>
-                    {t('story_viewer.visibility_unlisted_hint', 'Тільки хто має лінк')}
+                    {t('story_viewer.visibility_unlisted_hint', 'Only people with the link')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -406,8 +408,8 @@ export function PublishShareDialog({
               <AppButton
                 label={
                   openedFromShare
-                    ? t('story_viewer.publish_and_share', 'Опублікувати і поділитися')
-                    : t('story_viewer.publish', 'Опублікувати')
+                    ? t('story_viewer.publish_and_share', 'Publish and share')
+                    : t('story_viewer.publish', 'Publish')
                 }
                 onPress={() =>
                   onPublishAndShare(

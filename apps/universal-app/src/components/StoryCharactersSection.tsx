@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
-import { getCharacterDisplayName } from '@/utils/characterDisplayName';
+import { getStoryCharacterDisplayName } from '@/utils/characterDisplayName';
 
 export interface StoryCharacter {
   id: string;
@@ -231,7 +231,7 @@ function StoryCharactersSectionInner({
   collapsible = false,
   canSaveCharacters = false,
 }: StoryCharactersSectionProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
   const visibleCharacters = useMemo(
     () => (canSaveCharacters ? characters : characters.filter(hasCharacterImage)),
@@ -295,7 +295,7 @@ function StoryCharactersSectionInner({
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter =
           !savedSet.has(char.id) && (canSaveCharacters || (isEffectivelyHidden && isArtisanMode));
-        const displayName = getCharacterDisplayName(char, i18n.resolvedLanguage ?? i18n.language);
+        const displayName = getStoryCharacterDisplayName(char);
         const isPreviewVisible = previewedCharacterId === char.id;
         return (
           <View
