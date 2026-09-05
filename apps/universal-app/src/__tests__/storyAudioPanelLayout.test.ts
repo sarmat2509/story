@@ -54,8 +54,8 @@ assert.match(
 );
 assert.doesNotMatch(
   miniPlayer,
-  /chevron-up-outline|navigateToStory/,
-  'mini player must not render a non-functional story navigation control'
+  /chevron-up-outline/,
+  'mini player must not render the removed non-functional chevron control'
 );
 assert.match(
   miniPlayer,
@@ -66,6 +66,11 @@ assert.match(
   miniPlayer,
   /globalAudioService\.seekTo\(newPositionSeconds \* 1000\)/,
   'mini player seeking must use the shared audio service'
+);
+assert.match(
+  miniPlayer,
+  /viewingStoryId && viewingStoryId !== activeStoryId[\s\S]*navigateToStory\(activeStoryId\)/,
+  'mini player must offer opening the playing story only when a different story is being viewed'
 );
 assert.match(
   store,

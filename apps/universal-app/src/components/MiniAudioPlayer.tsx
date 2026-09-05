@@ -10,8 +10,10 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
 
 /**
@@ -38,13 +40,25 @@ export function MiniAudioPlayer() {
   // available here regardless of the current story panel's state.
   if (isViewingActiveStory && (isFullPlayerOpenForActiveStory || !hasStartedPlayback)) return null;
 
-  return <MiniAudioPlayerInner />;
+  return (
+    <MiniAudioPlayerInner
+      activeStoryId={activeStoryId}
+      showOpenStoryAction={Boolean(viewingStoryId && viewingStoryId !== activeStoryId)}
+    />
+  );
 }
 
 /**
  * Inner component rendered only when the mini player should be visible.
  */
-function MiniAudioPlayerInner() {
+function MiniAudioPlayerInner({
+  activeStoryId,
+  showOpenStoryAction,
+}: {
+  activeStoryId: string;
+  showOpenStoryAction: boolean;
+}) {
+  const { t } = useTranslation();
   const entrance = useRef(new Animated.Value(0)).current;
 
   const storyTitle = useAudioPlayerStore((s) => s.storyTitle);
@@ -230,6 +244,16 @@ function MiniAudioPlayerInner() {
             {formatTime(position)} / {formatTime(duration)}
           </Text>
         </View>
+
+        {showOpenStoryAction && (
+          <TouchableOpacity
+            style={styles.openStoryButton}
+            onPress={() => navigateToStory(activeStoryId)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.openStoryButtonText}>{t('artifacts.open_story')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Animated.View>
   );
@@ -310,5 +334,19 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 1,
+  },
+  openStoryButton: {
+    minHeight: 36,
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  openStoryButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
 });
