@@ -24,6 +24,11 @@ assert.match(
 assert.match(storyViewer, /icon="layers-outline"/, 'tablet story panel needs a content-neutral icon');
 assert.match(
   storyViewer,
+  /openBottomSheet[\s\S]*setFullPlayerStoryId\(storyId\)[\s\S]*bottomSheetRef\.current\?\.expand\(\)/,
+  'opening the panel must hide the current story mini player before sheet expansion begins'
+);
+assert.match(
+  storyViewer,
   /onSheetChange=\{handleTabletPanelChange\}/,
   'tablet sheet visibility must drive full-player visibility'
 );
@@ -41,6 +46,11 @@ assert.match(
   miniPlayer,
   /isViewingActiveStory && \(isFullPlayerOpenForActiveStory \|\| !hasStartedPlayback\)/,
   'current-story mini player must survive pause after narration has started and its full player is closed'
+);
+assert.match(
+  miniPlayer,
+  /Animated\.timing\(entrance,[\s\S]*useNativeDriver: true[\s\S]*translateY:[\s\S]*outputRange: \[72, 0\]/,
+  'mini player must slide in from below the bottom edge'
 );
 assert.match(
   store,

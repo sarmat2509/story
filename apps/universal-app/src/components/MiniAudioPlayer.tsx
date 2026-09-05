@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useContext, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContext } from '@react-navigation/native';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
@@ -41,6 +41,7 @@ export function MiniAudioPlayer() {
  */
 function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
   const navContext = useContext(NavigationContext);
+  const entrance = useRef(new Animated.Value(0)).current;
 
   const storyTitle = useAudioPlayerStore((s) => s.storyTitle);
   const isPlaying = useAudioPlayerStore((s) => s.isPlaying);
@@ -50,12 +51,35 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
 
   const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
 
+  useEffect(() => {
+    entrance.setValue(0);
+    const animation = Animated.timing(entrance, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [entrance]);
+
   const handlePlayPause = () => {
     globalAudioService.togglePlayPause();
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: entrance,
+          transform: [
+            {
+              translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [72, 0] }),
+            },
+          ],
+        },
+      ]}
+    >
       {/* Thin progress bar at the top */}
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
@@ -88,7 +112,7 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
         {/* Go to story button (only when navigation context is available) */}
         {navContext && <GoToStoryButton activeStoryId={activeStoryId} />}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

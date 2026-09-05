@@ -412,10 +412,16 @@ export default function StoryViewerScreen() {
   // Bottom sheet for tablet portrait
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [isTabletPanelOpen, setIsTabletPanelOpen] = useState(false);
+  const setFullPlayerStoryId = useAudioPlayerStore((s) => s.setFullPlayerStoryId);
 
   const openBottomSheet = useCallback(() => {
+    // The sheet opens with an animation. Hide the compact player at the start
+    // of that transition rather than waiting for BottomSheet's onChange event.
+    if (storyId && story?.audioMetadata) {
+      setFullPlayerStoryId(storyId);
+    }
     bottomSheetRef.current?.expand();
-  }, []);
+  }, [setFullPlayerStoryId, story?.audioMetadata, storyId]);
 
   const handleTabletPanelChange = useCallback((index: number) => {
     setIsTabletPanelOpen(index >= 0);
@@ -497,7 +503,6 @@ export default function StoryViewerScreen() {
   // mounted when navigating away — cleanup must fire on blur, not just unmount.
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
   const viewingStoryId = useAudioPlayerStore((s) => s.viewingStoryId);
-  const setFullPlayerStoryId = useAudioPlayerStore((s) => s.setFullPlayerStoryId);
   useFocusEffect(
     useCallback(() => {
       if (storyId) setViewingStoryId(storyId);
