@@ -1,10 +1,8 @@
-import React, { useContext, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationContext } from '@react-navigation/native';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
-import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
 
 /**
@@ -31,16 +29,13 @@ export function MiniAudioPlayer() {
   // available here regardless of the current story panel's state.
   if (isViewingActiveStory && (isFullPlayerOpenForActiveStory || !hasStartedPlayback)) return null;
 
-  return <MiniAudioPlayerInner activeStoryId={activeStoryId} />;
+  return <MiniAudioPlayerInner />;
 }
 
 /**
  * Inner component rendered only when the mini player should be visible.
- * Separated so that useNavigation is only called when needed and
- * store selectors above can short-circuit rendering early.
  */
-function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
-  const navContext = useContext(NavigationContext);
+function MiniAudioPlayerInner() {
   const entrance = useRef(new Animated.Value(0)).current;
 
   const storyTitle = useAudioPlayerStore((s) => s.storyTitle);
@@ -108,23 +103,8 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
             {formatTime(position)} / {formatTime(duration)}
           </Text>
         </View>
-
-        {/* Go to story button (only when navigation context is available) */}
-        {navContext && <GoToStoryButton activeStoryId={activeStoryId} />}
       </View>
     </Animated.View>
-  );
-}
-
-/**
- * Separate component for the navigate-to-story button so that
- * useNavigation is only called inside a valid NavigationContext.
- */
-function GoToStoryButton({ activeStoryId }: { activeStoryId: string }) {
-  return (
-    <TouchableOpacity style={styles.goButton} onPress={() => navigateToStory(activeStoryId)}>
-      <Ionicons name="chevron-up-outline" size={22} color={theme.colors.text.inverse} />
-    </TouchableOpacity>
   );
 }
 
@@ -175,11 +155,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 1,
-  },
-  goButton: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

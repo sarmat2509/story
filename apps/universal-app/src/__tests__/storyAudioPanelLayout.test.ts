@@ -52,6 +52,11 @@ assert.match(
   /Animated\.timing\(entrance,[\s\S]*useNativeDriver: true[\s\S]*translateY:[\s\S]*outputRange: \[72, 0\]/,
   'mini player must slide in from below the bottom edge'
 );
+assert.doesNotMatch(
+  miniPlayer,
+  /chevron-up-outline|navigateToStory/,
+  'mini player must not render a non-functional story navigation control'
+);
 assert.match(
   store,
   /hasStartedPlayback: boolean[\s\S]*markPlaybackStarted/,
